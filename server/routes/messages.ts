@@ -36,6 +36,8 @@ export function registerMessageRoutes(
   app.get("/api/messages/unread-count", requireAuth, async (req: any, res) => {
     try {
       const count = await storage.getUnreadUserMessageCount(req.user.id);
+      // Short-lived client cache — this endpoint is polled frequently
+      res.set("Cache-Control", "private, max-age=60");
       return res.json({ count });
     } catch (error: unknown) {
       console.error("[Messages] Failed to get unread count:", safeErrorMessage(error));

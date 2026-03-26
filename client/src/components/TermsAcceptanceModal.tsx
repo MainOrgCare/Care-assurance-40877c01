@@ -15,6 +15,7 @@ import { FileText, Shield, AlertTriangle, LogOut, User, Calendar } from "lucide-
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 import { useToast } from "@/hooks/use-toast";
 
 interface TermsAcceptanceModalProps {
@@ -44,7 +45,7 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
       toast({
         title: "Terms Accepted",
         description: "Thank you for accepting the Terms and Conditions.",

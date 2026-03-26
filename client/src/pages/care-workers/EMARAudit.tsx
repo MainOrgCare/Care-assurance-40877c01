@@ -2649,8 +2649,71 @@ ${generatedProtocol.additionalComments}`;
     }
   };
 
+  // Section refs for sticky navigation and auto-scroll
+  const resultsSectionRef = useRef<HTMLDivElement>(null);
+  const warningsSectionRef = useRef<HTMLDivElement>(null);
+  const discrepanciesSectionRef = useRef<HTMLDivElement>(null);
+  const refusalsSectionRef = useRef<HTMLDivElement>(null);
+  const prnSectionRef = useRef<HTMLDivElement>(null);
+  const summaryCardRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to results after analysis completes
+  useEffect(() => {
+    if (analyzed && result && resultsSectionRef.current) {
+      const timeout = setTimeout(() => {
+        resultsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [analyzed, result]);
+
+  // Analysis step definitions for progress stepper
+  const getAnalysisStep = (status: string): number => {
+    const lower = status.toLowerCase();
+    if (lower.includes('preparing') || lower.includes('uploading')) return 0;
+    if (lower.includes('parsing') || lower.includes('extracting text') || lower.includes('grid')) return 1;
+    if (lower.includes('scrub') || lower.includes('pii') || lower.includes('privacy')) return 2;
+    if (lower.includes('analyz') || lower.includes('extract') || lower.includes('medication') || lower.includes('agent')) return 3;
+    if (lower.includes('compliance') || lower.includes('discrepanc') || lower.includes('verif') || lower.includes('finaliz')) return 4;
+    return Math.min(Math.floor(progress / 20), 4);
+  };
+
+  const analysisSteps = [
+    { label: 'Upload', icon: Upload },
+    { label: 'Parse PDF', icon: Activity },
+    { label: 'Privacy Scrub', icon: AlertCircle },
+    { label: 'AI Analysis', icon: Brain },
+    { label: 'Compliance', icon: CheckCircle2 },
+  ];
+
+  const currentAnalysisStep = loading ? getAnalysisStep(progressStatus) : -1;
+
+  // Quick stats for the at-a-glance bar
+  const auditStats = useMemo(() => {
+    if (!result) return null;
+    const allDisc = getAllDiscrepancies();
+    const warningCount = result.warnings?.length || 0;
+    const refusalCount = totalRefusalCount;
+    const prnCount = result.prnMedications?.hasPRN ? result.prnMedications.medications.length : 0;
+    const interactionCount = result.drugInteractions?.length || 0;
+    const verificationCount = result.userVerificationItems?.length || 0;
+    return {
+      discrepancies: allDisc.length,
+      warnings: warningCount,
+      refusals: refusalCount,
+      prnMeds: prnCount,
+      interactions: interactionCount,
+      verifications: verificationCount,
+    };
+  }, [result, totalRefusalCount, addedDiscrepancies, actionOverrides, mappingsConfirmed, carerMappings, medicationLevelOverride]);
+
+  // Section navigation helper
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <div className="page-shell page-shell-compact max-w-6xl mx-auto">
+    <div className="page-shell page-shell-compact max-w-6xl mx-auto emar-audit-page">
       <div className="space-y-2 animate-slide-up stagger-1">
         <h1 className="page-title">EMAR Audit</h1>
         <p className="page-subtitle max-w-2xl">
@@ -2671,24 +2734,25 @@ ${generatedProtocol.additionalComments}`;
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
             <div className="bg-muted/30 border border-border/40 rounded-2xl p-6 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
+              <div className="absolute top-0 right-0 p-4 opacity-[0.06]">
                 <Brain className="h-24 w-24" />
               </div>
               <p className="text-sm font-semibold text-foreground mb-4 uppercase tracking-widest flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 What This Audit Covers
               </p>
-              <ul className="grid sm:grid-cols-2 gap-4">
+              <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {[
-                  "Personal data protection & initials only",
-                  "Medication support level detection",
-                  "Time gap & missed dose analysis",
-                  "Drug interaction screening",
-                  "Discrepancy detection & verification"
+                  { label: "Personal data protection & initials only", icon: "🔒" },
+                  { label: "Medication support level detection", icon: "💊" },
+                  { label: "Time gap & missed dose analysis", icon: "⏱️" },
+                  { label: "Drug interaction screening", icon: "⚠️" },
+                  { label: "Discrepancy detection & verification", icon: "✅" },
+                  { label: "PRN protocol compliance review", icon: "📋" },
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2.5 text-xs font-semibold text-muted-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-success/70" />
-                    {item}
+                  <li key={i} className="flex items-center gap-2.5 text-xs font-semibold text-muted-foreground bg-background/50 rounded-lg px-3 py-2 border border-border/30">
+                    <span className="text-sm" role="img" aria-hidden="true">{item.icon}</span>
+                    {item.label}
                   </li>
                 ))}
               </ul>
@@ -2697,8 +2761,10 @@ ${generatedProtocol.additionalComments}`;
             <div className="space-y-6">
               <div
                 className={cn(
-                  "border-2 border-dashed rounded-2xl p-10 transition-all duration-300 group relative",
-                  isDragActive ? "border-primary bg-primary/5 scale-[1.01]" : "border-border/60 bg-muted/20 hover:border-primary/40 hover:bg-muted/40"
+                  "border-2 border-dashed rounded-2xl p-8 sm:p-10 transition-all duration-300 group relative overflow-hidden",
+                  isDragActive
+                    ? "border-primary bg-primary/5 scale-[1.01] shadow-md"
+                    : "border-border/60 bg-muted/20 hover:border-primary/40 hover:bg-muted/40"
                 )}
                 onDragOver={(event) => {
                   event.preventDefault();
@@ -2707,6 +2773,13 @@ ${generatedProtocol.additionalComments}`;
                 onDragLeave={() => setIsDragActive(false)}
                 onDrop={handleFileDrop}
               >
+                {/* Animated background pattern for drag state */}
+                {isDragActive && (
+                  <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+                    backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 8px, var(--color-primary) 8px, var(--color-primary) 9px)',
+                    animation: 'emar-drop-stripe 0.6s linear infinite',
+                  }} />
+                )}
                 <Input
                   id="emar-upload"
                   type="file"
@@ -2714,10 +2787,16 @@ ${generatedProtocol.additionalComments}`;
                   accept=".pdf"
                   multiple
                   className="sr-only"
+                  aria-label="Upload EMAR PDF files"
                   data-testid="input-file-upload"
                 />
-                <Label htmlFor="emar-upload" className="flex flex-col items-center gap-4 text-center cursor-pointer">
-                  <div className="h-14 w-14 rounded-xl bg-background border border-border/60 flex items-center justify-center group-hover:text-primary transition-all">
+                <Label htmlFor="emar-upload" className="flex flex-col items-center gap-4 text-center cursor-pointer relative z-10">
+                  <div className={cn(
+                    "h-14 w-14 rounded-xl border flex items-center justify-center transition-all duration-300",
+                    isDragActive
+                      ? "bg-primary/10 border-primary/30 text-primary scale-110"
+                      : "bg-background border-border/60 group-hover:text-primary group-hover:border-primary/30"
+                  )}>
                     <Upload className="h-8 w-8" />
                   </div>
                   <div className="space-y-1">
@@ -2725,12 +2804,19 @@ ${generatedProtocol.additionalComments}`;
                       {isDragActive ? "Drop files here" : "Upload EMAR PDF"}
                     </span>
                     <span className="text-sm text-muted-foreground font-medium">
-                      Drag & drop PDF files or click to browse
+                      Drag & drop PDF files or <span className="text-primary underline underline-offset-2">click to browse</span>
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">PDF Only</Badge>
+                  <div className="flex items-center gap-3 mt-2">
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px] gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-500">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      PDF Only
+                    </Badge>
                     <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">Max {MAX_EMAR_UPLOAD_MB} MB</Badge>
+                    <Badge variant="outline" className="bg-background/50 border-border/40 font-semibold uppercase tracking-tighter text-[10px]">Multi-file</Badge>
                   </div>
                 </Label>
               </div>
@@ -2950,17 +3036,60 @@ ${generatedProtocol.additionalComments}`;
             </div>
             
             {loading && (
-              <div className="space-y-3 p-4 glass-panel border border-border rounded-xl" data-testid="progress-container">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-primary" />
-                    <span className="text-sm text-muted-foreground" data-testid="progress-status">{progressStatus}</span>
-                  </div>
-                  <span className="text-sm font-medium text-foreground" data-testid="progress-percentage">
-                    {Math.round(progress)}%
-                  </span>
+              <div className="emar-progress-stepper space-y-5 p-5 glass-panel border border-border rounded-xl" data-testid="progress-container">
+                {/* Step indicators */}
+                <div className="flex items-center justify-between gap-1" role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}>
+                  {analysisSteps.map((step, idx) => {
+                    const StepIcon = step.icon;
+                    const isActive = idx === currentAnalysisStep;
+                    const isComplete = idx < currentAnalysisStep;
+                    return (
+                      <div key={step.label} className="flex items-center flex-1 last:flex-none">
+                        <div className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 min-w-0",
+                          isActive && "bg-primary/10 border border-primary/20 shadow-sm",
+                          isComplete && "text-success",
+                          !isActive && !isComplete && "text-muted-foreground/40"
+                        )}>
+                          <div className={cn(
+                            "h-7 w-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-300",
+                            isActive && "bg-primary text-primary-foreground animate-pulse",
+                            isComplete && "bg-success/20 text-success",
+                            !isActive && !isComplete && "bg-muted/40 text-muted-foreground/50"
+                          )}>
+                            {isComplete ? <Check size={14} /> : <StepIcon size={14} />}
+                          </div>
+                          <span className={cn(
+                            "text-xs font-semibold truncate hidden sm:block",
+                            isActive && "text-primary",
+                            isComplete && "text-success",
+                          )}>
+                            {step.label}
+                          </span>
+                        </div>
+                        {idx < analysisSteps.length - 1 && (
+                          <div className={cn(
+                            "flex-1 h-0.5 mx-1 rounded-full transition-all duration-500",
+                            isComplete ? "bg-success/40" : "bg-border/40"
+                          )} />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <Progress value={progress} className="h-2" data-testid="progress-bar" />
+                {/* Progress bar and status */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground" data-testid="progress-status">{progressStatus}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground tabular-nums" data-testid="progress-percentage">
+                      {Math.round(progress)}%
+                    </span>
+                  </div>
+                  <Progress value={progress} className="h-1.5" data-testid="progress-bar" />
+                </div>
               </div>
             )}
 
@@ -2970,7 +3099,112 @@ ${generatedProtocol.additionalComments}`;
           </CardContent>
         </Card>
       ) : result && (
-        <div className="space-y-10 animate-fade-in">
+        <div className="space-y-10 animate-fade-in" ref={resultsSectionRef}>
+          {/* At-a-glance audit statistics bar */}
+          {auditStats && (
+            <div className="emar-stats-bar grid grid-cols-3 sm:grid-cols-6 gap-3 animate-slide-up stagger-2" data-testid="emar-stats-bar">
+              <button
+                type="button"
+                onClick={() => scrollToSection(discrepanciesSectionRef)}
+                className={cn(
+                  "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
+                  auditStats.discrepancies > 0
+                    ? "bg-destructive/8 border-destructive/20 hover:bg-destructive/12"
+                    : "bg-success/8 border-success/20 hover:bg-success/12"
+                )}
+              >
+                <span className={cn(
+                  "text-2xl font-black tabular-nums leading-none",
+                  auditStats.discrepancies > 0 ? "text-destructive" : "text-success"
+                )}>
+                  {auditStats.discrepancies}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Discrepancies</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection(warningsSectionRef)}
+                className={cn(
+                  "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
+                  auditStats.warnings > 0
+                    ? "bg-amber-500/8 border-amber-500/20 hover:bg-amber-500/12"
+                    : "bg-muted/30 border-border/40 hover:bg-muted/50"
+                )}
+              >
+                <span className={cn(
+                  "text-2xl font-black tabular-nums leading-none",
+                  auditStats.warnings > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                )}>
+                  {auditStats.warnings}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Warnings</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection(refusalsSectionRef)}
+                className={cn(
+                  "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
+                  auditStats.refusals > 0
+                    ? "bg-amber-500/8 border-amber-500/20 hover:bg-amber-500/12"
+                    : "bg-muted/30 border-border/40 hover:bg-muted/50"
+                )}
+              >
+                <span className={cn(
+                  "text-2xl font-black tabular-nums leading-none",
+                  auditStats.refusals > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                )}>
+                  {auditStats.refusals}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Refusals</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection(prnSectionRef)}
+                className={cn(
+                  "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
+                  auditStats.prnMeds > 0
+                    ? "bg-primary/8 border-primary/20 hover:bg-primary/12"
+                    : "bg-muted/30 border-border/40 hover:bg-muted/50"
+                )}
+              >
+                <span className={cn(
+                  "text-2xl font-black tabular-nums leading-none",
+                  auditStats.prnMeds > 0 ? "text-primary" : "text-muted-foreground"
+                )}>
+                  {auditStats.prnMeds}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">PRN Meds</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection(warningsSectionRef)}
+                className={cn(
+                  "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
+                  auditStats.interactions > 0
+                    ? "bg-destructive/8 border-destructive/20 hover:bg-destructive/12"
+                    : "bg-muted/30 border-border/40 hover:bg-muted/50"
+                )}
+              >
+                <span className={cn(
+                  "text-2xl font-black tabular-nums leading-none",
+                  auditStats.interactions > 0 ? "text-destructive" : "text-muted-foreground"
+                )}>
+                  {auditStats.interactions}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Interactions</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection(summaryCardRef)}
+                className="emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border bg-muted/30 border-border/40 hover:bg-muted/50 transition-all cursor-pointer hover:shadow-sm"
+              >
+                <span className="text-2xl font-black tabular-nums leading-none text-muted-foreground">
+                  {auditStats.verifications}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">To Verify</span>
+              </button>
+            </div>
+          )}
           {analyzedRecords.length > 1 && (
             <div className="flex items-center gap-4 bg-muted/20 border border-border/40 p-4 rounded-2xl">
               <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Current EMAR:</span>
@@ -3106,6 +3340,7 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           {sortedWarnings.length > 0 && (
+            <div ref={warningsSectionRef}>
             <Collapsible open={warningsOpen} onOpenChange={setWarningsOpen}>
               <Card className={cn("app-surface", warningCardClass)}>
                 <CollapsibleTrigger asChild>
@@ -3163,6 +3398,7 @@ ${generatedProtocol.additionalComments}`;
                 </CollapsibleContent>
               </Card>
             </Collapsible>
+            </div>
           )}
 
           {result.userVerificationItems && result.userVerificationItems.length > 0 && (
@@ -3260,7 +3496,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="app-surface animate-slide-up stagger-3">
+          <Card className="app-surface animate-slide-up stagger-3" ref={summaryCardRef}>
             <CardContent className="p-8">
               <div className="flex items-center justify-between mb-8 border-b border-border/40 pb-6 flex-wrap gap-4">
                 <div className="flex items-center gap-3">
@@ -3268,33 +3504,35 @@ ${generatedProtocol.additionalComments}`;
                     <Activity className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black tracking-tight text-foreground">Audit Summary</h3>
+                    <h3 className="text-lg sm:text-xl font-black tracking-tight text-foreground">Audit Summary</h3>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Method: {result.extractionMethod === 'grid-parser' ? 'Grid Parser' : result.extractionMethod || 'AI Analysis'}</p>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={downloadPDF}
-                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 hover:bg-muted/30 transition-all"
-                  data-testid="button-download-pdf"
-                >
-                  <Download size={15} />
-                  Export PDF Report
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={sendEmarToExtension}
-                  className="rounded-xl border-border/60 font-semibold bg-background/50 gap-2 hover:bg-muted/30 transition-all"
-                  data-testid="button-send-emar-extension"
-                >
-                  <Activity size={15} />
-                  Send to EMAR Extension
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={downloadPDF}
+                    className="flex-1 sm:flex-initial rounded-xl border-border/60 font-semibold bg-background/50 gap-2 hover:bg-muted/30 transition-all"
+                    data-testid="button-download-pdf"
+                  >
+                    <Download size={15} />
+                    <span className="hidden xs:inline">Export</span> PDF
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={sendEmarToExtension}
+                    className="flex-1 sm:flex-initial rounded-xl border-border/60 font-semibold bg-background/50 gap-2 hover:bg-muted/30 transition-all"
+                    data-testid="button-send-emar-extension"
+                  >
+                    <Activity size={15} />
+                    <span className="hidden xs:inline">Send to</span> Extension
+                  </Button>
+                </div>
               </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5">
-                <CopyableBox label="Service User" value={serviceUserDisplay} className="bg-muted/40 border border-border/40" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <CopyableBox label="Service User" value={serviceUserDisplay} className="bg-muted/40 border border-border/40 col-span-2 sm:col-span-1" />
                 <CopyableBox label="Medication Level" value={getServiceUserTypeDisplay()} className="bg-muted/40 border border-border/40" />
                 <CopyableBox label="Auditor" value={auditorDisplay} className="bg-muted/40 border border-border/40" />
                 <CopyableBox label="Period Start" value={result.auditPeriodStart} className="bg-muted/40 border border-border/40" />
@@ -3320,23 +3558,28 @@ ${generatedProtocol.additionalComments}`;
             "border-l-4 transition-all duration-500",
             hasAnyDiscrepancies() ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"
           )}>
-            <CardContent className="p-8">
-              <div className="flex items-center justify-between gap-6">
+            <CardContent className="p-6 sm:p-8">
+              <div className="flex items-center justify-between gap-6 flex-wrap">
                 <div className="flex items-center gap-5">
                   <div className={cn(
-                    "h-14 w-14 rounded-2xl flex items-center justify-center shadow-sm",
+                    "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shadow-sm shrink-0",
                     hasAnyDiscrepancies() ? "bg-destructive/20 text-destructive" : "bg-success/20 text-success"
                   )}>
-                    {hasAnyDiscrepancies() ? <X className="h-8 w-8" /> : <Check className="h-8 w-8" />}
+                    {hasAnyDiscrepancies() ? <X className="h-7 w-7 sm:h-8 sm:w-8" /> : <Check className="h-7 w-7 sm:h-8 sm:w-8" />}
                   </div>
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Audit Outcome</p>
                     <h4 className={cn(
-                      "text-2xl font-black tracking-tighter",
+                      "text-xl sm:text-2xl font-black tracking-tighter",
                       hasAnyDiscrepancies() ? "text-destructive" : "text-success"
                     )}>
                       {hasAnyDiscrepancies() ? "Discrepancies Found" : "No Discrepancies"}
                     </h4>
+                    {hasAnyDiscrepancies() && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {getAllDiscrepancies().length} issue{getAllDiscrepancies().length !== 1 ? 's' : ''} across {getGroupedDiscrepancies.length} care worker{getGroupedDiscrepancies.length !== 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3350,7 +3593,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {hasAnyDiscrepancies() && (
-            <Card className="app-surface animate-slide-up stagger-4 overflow-hidden border-destructive/20">
+            <Card className="app-surface animate-slide-up stagger-4 overflow-hidden border-destructive/20" ref={discrepanciesSectionRef}>
               <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap bg-destructive/5 border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive shadow-sm">
@@ -3396,8 +3639,8 @@ ${generatedProtocol.additionalComments}`;
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {/* Non-Conformance Table - User Requested Format */}
-                <div className="overflow-x-auto">
+                {/* Desktop: Non-Conformance Table */}
+                <div className="hidden md:block overflow-x-auto emar-discrepancy-table">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-destructive/5 border-b border-border/40">
@@ -3565,6 +3808,84 @@ ${generatedProtocol.additionalComments}`;
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Mobile: Card layout for discrepancies */}
+                <div className="md:hidden divide-y divide-border/30">
+                  {getGroupedDiscrepancies.map((group, idx) => {
+                    const carerMapping = carerMappings.find(m => m.initials === group.careWorkerName);
+                    let displayName = group.careWorkerName;
+                    if (carerMapping?.fullName) {
+                      displayName = `${carerMapping.initials} / ${carerMapping.fullName}`;
+                    }
+                    const shortDates = group.dates.map(formatShortDate).join(", ");
+                    const formattedIssues = group.reasonsWithDates.map(r => {
+                      if (r.issue.startsWith('(')) return r.issue;
+                      const sd = formatShortDate(r.date);
+                      const parts = sd.split('/');
+                      return `(${parts[0]?.padStart(2, '0') || '00'}/${parts[1]?.padStart(2, '0') || '00'}) ${r.issue}`;
+                    });
+
+                    return (
+                      <div key={idx} className="p-4 space-y-3" data-testid={`discrepancy-mobile-${idx}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-foreground">{displayName}</span>
+                            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-destructive/20 text-destructive font-bold text-xs">
+                              {group.totalCount}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{shortDates}</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {formattedIssues.map((issue, i) => (
+                            <p key={i} className="text-xs text-destructive leading-relaxed">{issue}</p>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                            <Checkbox
+                              checked={group.discrepancies.some(d => d.actions.notesRecorded)}
+                              onCheckedChange={(checked) => {
+                                setActionOverrides(prev => ({
+                                  ...prev,
+                                  [group.careWorkerName]: { ...prev[group.careWorkerName], notesRecorded: !!checked },
+                                }));
+                              }}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span className="text-muted-foreground">Notes</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                            <Checkbox
+                              checked={group.discrepancies.some(d => d.actions.discussedWithStaff)}
+                              onCheckedChange={(checked) => {
+                                setActionOverrides(prev => ({
+                                  ...prev,
+                                  [group.careWorkerName]: { ...prev[group.careWorkerName], discussedWithStaff: !!checked },
+                                }));
+                              }}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span className="text-muted-foreground">Discussed</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                            <Checkbox
+                              checked={group.discrepancies.some(d => d.actions.escalatedToManager)}
+                              onCheckedChange={(checked) => {
+                                setActionOverrides(prev => ({
+                                  ...prev,
+                                  [group.careWorkerName]: { ...prev[group.careWorkerName], escalatedToManager: !!checked },
+                                }));
+                              }}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span className="text-muted-foreground">Escalated</span>
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -3622,7 +3943,7 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Reasons Not Administered - Unified Refusal Section */}
           {unifiedRefusals.length > 0 && (
-            <Card className="app-surface animate-slide-up stagger-5 border-amber-500/20 overflow-hidden">
+            <Card className="app-surface animate-slide-up stagger-5 border-amber-500/20 overflow-hidden" ref={refusalsSectionRef}>
               <CardHeader className="bg-amber-500/5 border-b border-border/40 py-6">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
@@ -3769,18 +4090,65 @@ ${generatedProtocol.additionalComments}`;
                           </div>
                         )}
                       </div>
-                      <Button
-                        onClick={handleSubmitRefusalReview}
-                        disabled={getRefusalReviewStats.reviewed === 0}
-                        className="h-11 px-8 rounded-xl font-medium tracking-tight group"
-                        data-testid="button-submit-refusal-review"
-                      >
-                        {getRefusalReviewStats.toEscalate > 0 && (
-                          <AlertTriangle className="h-4 w-4 mr-2.5" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Batch action buttons */}
+                        {getRefusalReviewStats.pending > 0 && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-9 px-4 rounded-lg font-semibold text-[10px] uppercase tracking-widest border-success/30 text-success hover:bg-success/10"
+                              onClick={() => {
+                                const allItems = unifiedRefusals.flatMap(g => g.items);
+                                const newDecisions = { ...refusalDecisions };
+                                allItems.forEach(item => {
+                                  if (!newDecisions[item.key]) {
+                                    newDecisions[item.key] = 'acceptable';
+                                  }
+                                });
+                                setRefusalDecisions(newDecisions);
+                                toast({ title: "All Verified", description: `Marked ${getRefusalReviewStats.pending} remaining entries as verified.` });
+                              }}
+                              data-testid="button-verify-all-refusals"
+                            >
+                              <Check size={14} className="mr-1.5" />
+                              Verify All
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-9 px-4 rounded-lg font-semibold text-[10px] uppercase tracking-widest border-destructive/30 text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                const allItems = unifiedRefusals.flatMap(g => g.items);
+                                const newDecisions = { ...refusalDecisions };
+                                allItems.forEach(item => {
+                                  if (!newDecisions[item.key]) {
+                                    newDecisions[item.key] = 'escalate';
+                                  }
+                                });
+                                setRefusalDecisions(newDecisions);
+                                toast({ title: "All Escalated", description: `Marked ${getRefusalReviewStats.pending} remaining entries for escalation.` });
+                              }}
+                              data-testid="button-escalate-all-refusals"
+                            >
+                              <X size={14} className="mr-1.5" />
+                              Escalate All
+                            </Button>
+                          </>
                         )}
-                        Submit Review
-                        {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} to escalate)`}
-                      </Button>
+                        <Button
+                          onClick={handleSubmitRefusalReview}
+                          disabled={getRefusalReviewStats.reviewed === 0}
+                          className="h-11 px-8 rounded-xl font-medium tracking-tight group"
+                          data-testid="button-submit-refusal-review"
+                        >
+                          {getRefusalReviewStats.toEscalate > 0 && (
+                            <AlertTriangle className="h-4 w-4 mr-2.5" />
+                          )}
+                          Submit Review
+                          {getRefusalReviewStats.toEscalate > 0 && ` (${getRefusalReviewStats.toEscalate} to escalate)`}
+                        </Button>
+                      </div>
                     </div>
                   </>
                 )}
@@ -3788,7 +4156,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="app-surface animate-slide-up stagger-6 overflow-hidden border-amber-500/10">
+          <Card className="app-surface animate-slide-up stagger-6 overflow-hidden border-amber-500/10" ref={prnSectionRef}>
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-amber-500/5">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm">
@@ -4001,7 +4369,8 @@ ${generatedProtocol.additionalComments}`;
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-1" data-testid="text-office-closed-description">
                   Entries closed by office staff (codes without care worker initials). These are excluded from gap analysis.
                 </p>
-                <div className="rounded-2xl border border-border/40 overflow-hidden bg-muted/10">
+                {/* Desktop table */}
+                <div className="hidden md:block rounded-2xl border border-border/40 overflow-hidden bg-muted/10">
                   <Table data-testid="table-office-closed">
                     <TableHeader className="bg-muted/30">
                       <TableRow className="border-border/40">
@@ -4031,6 +4400,25 @@ ${generatedProtocol.additionalComments}`;
                     </TableBody>
                   </Table>
                 </div>
+                {/* Mobile card layout */}
+                <div className="md:hidden space-y-3">
+                  {result.officeClosedEntries.map((entry, idx) => (
+                    <div key={idx} className="rounded-xl border border-border/40 bg-muted/10 p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-sm leading-tight">{getMedicationDisplayName(entry.medication)}</span>
+                        <Badge className="bg-blue-500/15 text-blue-500 border-blue-500/20 rounded-lg font-black text-[10px] shrink-0">
+                          {entry.code}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{entry.date}</span></div>
+                        <div><span className="text-muted-foreground">Time:</span> <span className="font-medium">{entry.timeSlot}</span></div>
+                        <div><span className="text-muted-foreground">Staff:</span> <span className="font-bold text-blue-500 uppercase tracking-tighter">{entry.closedByStaff || 'OFFICE'}</span></div>
+                        <div><span className="text-muted-foreground">Logged:</span> <span className="font-medium">{entry.closedTime || '-'}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -4038,21 +4426,27 @@ ${generatedProtocol.additionalComments}`;
           <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-8">
             <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Themes & Trends</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Themes & Trends</CardTitle>
+                </div>
                 <CopyButton text={result.themesAndTrends} label="themes" />
               </CardHeader>
               <CardContent className="pt-5">
-                <p className="text-sm font-medium text-foreground/80 leading-relaxed">{result.themesAndTrends}</p>
+                <p className="text-sm font-medium text-foreground/80 leading-relaxed whitespace-pre-line">{result.themesAndTrends || "No significant themes identified."}</p>
               </CardContent>
             </Card>
 
             <Card className="app-surface overflow-hidden">
-              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Training & Knowledge Gaps</CardTitle>
+              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-amber-500/5">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Training & Knowledge Gaps</CardTitle>
+                </div>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
               </CardHeader>
               <CardContent className="pt-5">
-                <p className="text-sm font-medium text-foreground/80 leading-relaxed">{result.gapsInKnowledge}</p>
+                <p className="text-sm font-medium text-foreground/80 leading-relaxed whitespace-pre-line">{result.gapsInKnowledge || "No knowledge gaps identified."}</p>
               </CardContent>
             </Card>
           </div>

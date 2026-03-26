@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,7 +88,7 @@ export default function Messages() {
 
   // Fetch users for recipient picker
   const { data: allUsers = [] } = useQuery<UserForRecipient[]>({
-    queryKey: ["/api/users"],
+    queryKey: queryKeys.users.all(),
   });
   const availableRecipients = allUsers.filter((u: UserForRecipient) => u.status === "active" && u.id !== user?.id);
 

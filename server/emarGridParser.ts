@@ -590,18 +590,23 @@ const normalizeGridCode = (raw: string): string => {
 
   if (normalized === "N/A" || normalized === "NA") return "N/A";
   if (normalized === "F/A" || normalized === "FA" || normalized === "F") return "FA";
-  if (normalized === "S/A" || normalized === "S-A") return "SA";
-  if (normalized === "M/U" || normalized === "MU") return "MU";
-  if (normalized === "N/H" || normalized === "NH") return "NH";
-  if (normalized === "A/D") return "AD";
-  if (normalized === "A/S") return "AS";
-  if (normalized === "PRNR" || normalized === "PRN-R") return "PRN-R";
-  if (normalized === "PRNAD" || normalized === "PRN-AD") return "PRN-AD";
-  if (normalized === "PRNAS" || normalized === "PRN-AS") return "PRN-AS";
-  if (normalized === "REFUSED" || normalized === "REFUSE" || normalized === "REF") return "R";
-  if (normalized === "NOTHOME") return "NH";
-  if (normalized === "SELADMIN" || normalized === "SELFADMIN") return "SA";
-  if (normalized === "MEDUNAV" || normalized === "MEDUNAVAILABLE" || normalized === "UNAVAILABLE") return "MU";
+  if (normalized === "S/A" || normalized === "S-A" || normalized === "SA") return "SA";
+  if (normalized === "M/U" || normalized === "MU" || normalized === "M-U") return "MU";
+  if (normalized === "N/H" || normalized === "NH" || normalized === "N-H") return "NH";
+  if (normalized === "A/D" || normalized === "AD" || normalized === "A-D") return "AD";
+  if (normalized === "A/S" || normalized === "AS" || normalized === "A-S") return "AS";
+  if (normalized === "PRNR" || normalized === "PRN-R" || normalized === "PRN/R" || normalized === "PRN.R") return "PRN-R";
+  if (normalized === "PRNAD" || normalized === "PRN-AD" || normalized === "PRN/AD" || normalized === "PRN.AD") return "PRN-AD";
+  if (normalized === "PRNAS" || normalized === "PRN-AS" || normalized === "PRN/AS" || normalized === "PRN.AS") return "PRN-AS";
+  if (normalized === "REFUSED" || normalized === "REFUSE" || normalized === "REF" || normalized === "REFUSAL") return "R";
+  if (normalized === "GIVEN" || normalized === "GIV") return "AD";
+  if (normalized === "NOTHOME" || normalized === "NOTATHOME") return "NH";
+  if (normalized === "SELADMIN" || normalized === "SELFADMIN" || normalized === "SELF-ADMIN") return "SA";
+  if (normalized === "MEDUNAV" || normalized === "MEDUNAVAILABLE" || normalized === "UNAVAILABLE" || normalized === "MEDUNAVAIL") return "MU";
+  if (normalized === "NOADMIN" || normalized === "NONADMIN" || normalized === "NOTADMIN") return "N/A";
+  if (normalized === "P" || normalized === "PROMPT" || normalized === "PROMPTED") return "P";
+  if (normalized === "ASSISTED" || normalized === "ASSIST") return "AS";
+  if (normalized === "ADMINISTERED" || normalized === "ADMINISTER") return "AD";
 
   return normalized;
 };
@@ -2829,7 +2834,7 @@ export function extractCodesFromCell(
     return { code: "BLANK", careWorker: "", time: "" };
   }
 
-  const upperContent = content.toUpperCase();
+  const upperContent = stripped.toUpperCase();
   const normalizedContent = normalizeCodeText(upperContent);
   // Reset lastIndex for the shared global regex before each use.
   CELL_CODE_REGEX.lastIndex = 0;

@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
@@ -155,7 +156,7 @@ export default function Dashboard() {
   }, [user?.isDemo, loadDemoData]);
 
   const { data, isLoading, isError, error: fetchError, refetch, isRefetching } = useQuery<DashboardResponse>({
-    queryKey: ["/api/dashboard/stats"],
+    queryKey: queryKeys.dashboard.stats(),
     queryFn: async () => {
       const res = await fetch("/api/dashboard/stats", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch dashboard stats");
@@ -168,7 +169,7 @@ export default function Dashboard() {
   });
 
   const { data: widgetPrefs } = useQuery<{ widgets: string[] | null }>({
-    queryKey: ["/api/dashboard/widgets"],
+    queryKey: queryKeys.dashboard.widgets(),
     queryFn: async () => {
       const res = await fetch("/api/dashboard/widgets", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch widget preferences");
@@ -182,7 +183,7 @@ export default function Dashboard() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/widgets"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.widgets() });
     },
   });
 
@@ -197,7 +198,7 @@ export default function Dashboard() {
   }
 
   const { data: activityData } = useQuery<ActivityItem[]>({
-    queryKey: ["/api/dashboard/activity"],
+    queryKey: queryKeys.dashboard.activity(),
     queryFn: async () => {
       const res = await fetch("/api/dashboard/activity?limit=15", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch activity");

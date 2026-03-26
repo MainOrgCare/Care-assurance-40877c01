@@ -1,6 +1,7 @@
 import { useState, useMemo, memo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/context/AuthContext";
 import {
   Card,
@@ -207,11 +208,11 @@ function PolicyAcknowledgement() {
   const [viewAcksDialog, setViewAcksDialog] = useState<PolicyDocument | null>(null);
 
   const { data: policies = [], isLoading: loadingPolicies } = useQuery<PolicyDocument[]>({
-    queryKey: ["/api/policies"],
+    queryKey: queryKeys.policies.all(),
   });
 
   const { data: allAcks = [], isLoading: loadingAcks } = useQuery<PolicyAck[]>({
-    queryKey: ["/api/policy-acknowledgements"],
+    queryKey: queryKeys.policies.acknowledgements(),
   });
 
   const userAcks = useMemo(() => {
@@ -371,7 +372,7 @@ function PolicyAcknowledgement() {
           policy={ackDialog}
           onClose={() => setAckDialog(null)}
           onAcknowledged={() => {
-            queryClient.invalidateQueries({ queryKey: ["/api/policy-acknowledgements"] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.policies.acknowledgements() });
           }}
         />
       )}

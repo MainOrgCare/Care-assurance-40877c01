@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download, AlertCircle } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { useDataExport } from "@/hooks/useDataExport";
 
 interface CareWorkerDiscrepancy {
@@ -29,7 +30,7 @@ export default function CarersList() {
   const { exportCSV } = useDataExport();
 
   const { data: careWorkers = [], isLoading: loading, isError, error } = useQuery<CareWorkerFromAudits[]>({
-    queryKey: ["/api/audits/care-workers"],
+    queryKey: queryKeys.audits.careWorkers(),
     queryFn: async () => {
       const res = await fetch("/api/audits/care-workers", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch data");

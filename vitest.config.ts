@@ -26,6 +26,12 @@ export default defineConfig({
         "backups/**",
         "client/src/components/ui/**",
       ],
+      thresholds: {
+        statements: 15,
+        branches: 10,
+        functions: 15,
+        lines: 15,
+      },
     },
   },
 });

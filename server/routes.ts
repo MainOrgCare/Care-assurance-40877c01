@@ -53,6 +53,27 @@ import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseA
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
+import { upload, uploadExcel, uploadImages } from "./utils/uploadConfig";
+import {
+  BILLING_DAY_KEYS,
+  type BillingDayKey,
+  type BillingDayCounts,
+  normalizeDate,
+  addDays,
+  differenceInDays,
+  startOfWeekMonday,
+  parseDateInput,
+  formatDate,
+  parseInteger,
+  normalizeTime,
+  parseTimeToMinutes,
+  parseDurationMinutes,
+  formatDurationFromMinutes,
+  getBillingDayIndex,
+  getBillingDayKey,
+  getWeekIndex,
+  parseJsonFromModel,
+} from "./utils/billingHelpers";
 import mammoth from "mammoth";
 import { scanFile } from "./services/fileScan";
 import { SafeXLSX, RawXLSX } from "./utils/safe-xlsx";
@@ -80,59 +101,6 @@ import {
 // Vision-based extraction for improved EMAR accuracy
 
 const execFileAsync = promisify(execFile);
-
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 40 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const name = file.originalname.toLowerCase();
-    const mime = (file.mimetype || "").toLowerCase();
-    const isPdf = mime === "application/pdf" || name.endsWith(".pdf");
-    const isDocx = mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || name.endsWith(".docx");
-    const isDoc = mime === "application/msword" || name.endsWith(".doc");
-    const isOctetWithKnownExt =
-      mime === "application/octet-stream" && (name.endsWith(".pdf") || name.endsWith(".doc") || name.endsWith(".docx"));
-    if (isPdf || isDocx || isDoc || isOctetWithKnownExt) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only PDF and Word files are allowed"));
-    }
-  }
-});
-
-const uploadExcel = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const isExcel = file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || 
-                    file.mimetype === "application/vnd.ms-excel" ||
-                    file.originalname.toLowerCase().endsWith(".xlsx") ||
-                    file.originalname.toLowerCase().endsWith(".xls");
-    const isCSV = file.mimetype === "text/csv" ||
-                  file.mimetype === "application/csv" ||
-                  file.originalname.toLowerCase().endsWith(".csv");
-    if (isExcel || isCSV) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only Excel files (.xlsx, .xls) or CSV files are allowed"));
-    }
-  }
-});
-
-const uploadImages = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 12 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const mime = file.mimetype || "";
-    const name = file.originalname.toLowerCase();
-    const isPng = mime === "image/png" || name.endsWith(".png");
-    if (isPng) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only PNG images are allowed"));
-    }
-  },
-});
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
@@ -313,169 +281,6 @@ async function scanAndLogFile(
     };
   }
 }
-
-// Billing tool helpers
-const BILLING_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-type BillingDayKey = typeof BILLING_DAY_KEYS[number];
-type BillingDayCounts = Record<BillingDayKey, number>;
-
-const normalizeDate = (date: Date): Date =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-const addDays = (date: Date, amount: number): Date => {
-  const next = new Date(date);
-  next.setDate(next.getDate() + amount);
-  return normalizeDate(next);
-};
-
-const differenceInDays = (start: Date, end: Date): number => {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.round((normalizeDate(end).getTime() - normalizeDate(start).getTime()) / msPerDay);
-};
-
-const startOfWeekMonday = (date: Date): Date => {
-  const day = date.getDay();
-  const diff = (day + 6) % 7;
-  return addDays(normalizeDate(date), -diff);
-};
-
-const parseDateInput = (value?: string | null): Date | null => {
-  if (!value) return null;
-  const trimmed = String(value).trim();
-  if (!trimmed) return null;
-
-  const isoMatch = trimmed.match(/^(\d{4})[\\/-](\d{1,2})[\\/-](\d{1,2})$/);
-  if (isoMatch) {
-    const year = Number(isoMatch[1]);
-    const month = Number(isoMatch[2]);
-    const day = Number(isoMatch[3]);
-    const date = new Date(year, month - 1, day);
-    if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
-      return normalizeDate(date);
-    }
-    return null;
-  }
-
-  const match = trimmed.match(/(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{2,4})/);
-  if (!match) return null;
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  let year = Number(match[3]);
-  if (year < 100) year += 2000;
-
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
-    return normalizeDate(date);
-  }
-  return null;
-};
-
-const formatDate = (date: Date): string => {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = String(date.getFullYear());
-  return `${day}/${month}/${year}`;
-};
-
-const parseInteger = (value: any): number => {
-  if (value === null || value === undefined) return 0;
-  const match = String(value).match(/-?\\d+/);
-  if (!match) return 0;
-  const parsed = Number.parseInt(match[0], 10);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const normalizeTime = (value?: string | null): string | null => {
-  if (!value) return null;
-  const trimmed = String(value).trim();
-  const match = trimmed.match(/(\\d{1,2})[:.](\\d{2})/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const mins = Number(match[2]);
-  if (!Number.isFinite(hours) || !Number.isFinite(mins)) return null;
-  if (hours < 0 || hours > 23 || mins < 0 || mins > 59) return null;
-  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-};
-
-const parseTimeToMinutes = (value?: string | null): number | null => {
-  const normalized = normalizeTime(value);
-  if (!normalized) return null;
-  const [hours, mins] = normalized.split(":").map((v) => Number.parseInt(v, 10));
-  if (!Number.isFinite(hours) || !Number.isFinite(mins)) return null;
-  return hours * 60 + mins;
-};
-
-const parseDurationMinutes = (value?: string | null): number | null => {
-  if (!value) return null;
-  const trimmed = String(value).trim();
-  if (!trimmed) return null;
-
-  const timeMatch = trimmed.match(/(\\d{1,2})[:.](\\d{2})/);
-  if (timeMatch) {
-    const hours = Number(timeMatch[1]);
-    const mins = Number(timeMatch[2]);
-    if (Number.isFinite(hours) && Number.isFinite(mins)) {
-      return hours * 60 + mins;
-    }
-  }
-
-  const hourMatch = trimmed.match(/(\\d+(?:\\.\\d+)?)\\s*h/i);
-  if (hourMatch) {
-    const hours = Number(hourMatch[1]);
-    if (Number.isFinite(hours)) return Math.round(hours * 60);
-  }
-
-  const minMatch = trimmed.match(/(\\d+(?:\\.\\d+)?)\\s*m/i);
-  if (minMatch) {
-    const mins = Number(minMatch[1]);
-    if (Number.isFinite(mins)) return Math.round(mins);
-  }
-
-  return null;
-};
-
-const formatDurationFromMinutes = (minutes: number): string => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-};
-
-const getBillingDayIndex = (date: Date): number => (date.getDay() + 6) % 7;
-
-const getBillingDayKey = (date: Date): BillingDayKey => BILLING_DAY_KEYS[getBillingDayIndex(date)];
-
-const getWeekIndex = (start: Date, date: Date): number => {
-  const startWeek = startOfWeekMonday(start);
-  const dateWeek = startOfWeekMonday(date);
-  const diffDays = differenceInDays(startWeek, dateWeek);
-  return Math.floor(diffDays / 7);
-};
-
-const parseJsonFromModel = (content: string): any => {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1].trim() : trimmed;
-  const startCandidates = [candidate.indexOf("{"), candidate.indexOf("[")].filter((idx) => idx >= 0);
-  const endIndex = Math.max(candidate.lastIndexOf("}"), candidate.lastIndexOf("]"));
-  if (startCandidates.length === 0 || endIndex < 0) {
-    throw new Error("Model response did not contain JSON");
-  }
-  const startIndex = Math.min(...startCandidates);
-  const jsonText = candidate.slice(startIndex, endIndex + 1);
-  try {
-    return JSON.parse(jsonText);
-  } catch (e: any) {
-    // Attempt recovery: strip trailing commas before closing braces/brackets
-    const cleaned = jsonText
-      .replace(/,\s*([}\]])/g, "$1")
-      .replace(/'/g, '"');
-    try {
-      return JSON.parse(cleaned);
-    } catch {
-      throw new Error(`Failed to parse model JSON response: ${e.message}`);
-    }
-  }
-};
 
 const BILLING_EXTRACTION_PROMPT = `You are extracting rows from a "Service Requirement Details" table in a care service order screenshot.
 
@@ -4798,13 +4603,13 @@ export async function registerRoutes(
     }, FORCE_LOGOUT_WARNING_SECONDS * 1000);
   };
 
-  const DEFAULT_SESSION_SECRET = "carecompli-secret-key-change-in-prod";
-  if (
-    process.env.NODE_ENV === "production" &&
-    (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === DEFAULT_SESSION_SECRET)
-  ) {
-    throw new Error("SESSION_SECRET must be set to a strong value in production.");
+  if (!process.env.SESSION_SECRET) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SESSION_SECRET environment variable must be set in production.");
+    }
+    console.warn("[Auth] SESSION_SECRET not set — using random ephemeral secret for development. Sessions will not persist across restarts.");
   }
+  const sessionSecret = process.env.SESSION_SECRET || require("node:crypto").randomBytes(32).toString("hex");
 
   // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {
@@ -4822,7 +4627,7 @@ export async function registerRoutes(
   // Note: trust proxy is set in index.ts (before routes are registered)
   const sessionMiddleware = session({
     ...(sessionStore ? { store: sessionStore } : {}),
-    secret: process.env.SESSION_SECRET || "carecompli-secret-key-change-in-prod",
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     proxy: true,
@@ -6176,6 +5981,8 @@ export async function registerRoutes(
     try {
       const controls = await getPlatformControls();
       const runtime = getPlatformControlsRuntime(controls);
+      // Short-lived client cache — this endpoint is polled frequently
+      res.set("Cache-Control", "private, max-age=30");
       return res.json({
         maintenanceMode: controls.maintenanceMode,
         readOnlyMode: controls.readOnlyMode,

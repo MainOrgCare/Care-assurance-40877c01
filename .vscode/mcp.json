@@ -1,25 +1,4 @@
 {
-	"servers": {
-		"render-mcp": {
-			"type": "http",
-			"url": "https://mcp.render.com/mcp",
-			"headers": {
-				"Authorization": "Bearer ${input:token}"
-			}
-		},
-		"io.github.github/github-mcp-server": {
-			"type": "stdio",
-			"command": "docker",
-			"args": [
-				"run",
-				"-i",
-				"--rm",
-				"-e",
-				"GITHUB_PERSONAL_ACCESS_TOKEN=${input:token}",
-				"ghcr.io/github/github-mcp-server:0.31.0"
-			],
-		}
-	},
 	"inputs": [
 		{
 			"id": "token",
@@ -27,5 +6,6 @@
 			"description": "Render API key",
 			"password": true
 		}
-	]
+	],
+	"servers": {}
 }

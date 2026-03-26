@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ interface Audit {
 
 export default function Compliance() {
   const { data: audits, isLoading, error } = useQuery<Audit[]>({
-    queryKey: ["/api/audits"],
+    queryKey: queryKeys.audits.all(),
     queryFn: async () => {
       const res = await fetch("/api/audits", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch audits");
