@@ -2128,12 +2128,21 @@ interface NarrativeThresholds {
 
 function looksLikeProperName(word: string): boolean {
   if (!word || word.length < 2) return false;
-  // Must start with uppercase, rest lowercase (or apostrophe patterns)
-  if (!/^[A-Z][a-z]+$/.test(word) && !/^(?:O'|Mc|Mac)[A-Z][a-z]+$/.test(word)) return false;
+  // Title-case names, surname prefixes, or short initials-like tokens.
+  if (
+    !/^[A-Z][a-z]{2,}(?:['-][A-Z]?[a-z]+)*$/.test(word) &&
+    !/^(?:O'|Mc|Mac)[A-Z][a-z]+$/.test(word) &&
+    !/^[A-Z]{2,3}$/.test(word)
+  ) {
+    return false;
+  }
   // Not a common word or clinical term
   const lower = word.toLowerCase();
   if (COMMON_ENGLISH_WORDS.has(lower)) return false;
+  if (NON_NAME_CAPITALIZED_WORDS.has(lower)) return false;
   if (isClinicalOrMedicalTerm(word)) return false;
+  if (MEDICATION_WHITELIST.has(lower)) return false;
+  if (word.length <= 3 && NON_NAME_ABBREVIATIONS.has(word.toUpperCase())) return false;
   return true;
 }
 
@@ -2290,6 +2299,22 @@ function scrubPII(data: any, stats?: ScrubStats): any {
       (_m, ctx) => {
         s.addresses++;
         return `${ctx} [ADDRESS_REDACTED]`;
+      }
+    );
+
+    // === PHASE 7: Final standalone name sweep ===
+    // Enforce that names are always redacted, even without explicit relationship/service-user context.
+    scrubbed = scrubbed.replace(
+      /\b([A-Z][a-z]{2,}(?:['-][A-Z]?[a-z]+)*|[A-Z]{2,3})(?:\s+and\s+([A-Z][a-z]{2,}(?:['-][A-Z]?[a-z]+)*|[A-Z]{2,3}))?\b/g,
+      (match, firstName, secondName) => {
+        if (!looksLikeProperName(firstName)) return match;
+
+        s.names++;
+        if (secondName && looksLikeProperName(secondName)) {
+          s.names++;
+          return "[PERSON_REDACTED] and [PERSON_REDACTED]";
+        }
+        return "[PERSON_REDACTED]";
       }
     );
 
