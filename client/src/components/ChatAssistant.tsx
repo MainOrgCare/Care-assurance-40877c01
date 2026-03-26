@@ -166,7 +166,7 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
         <div className="absolute -top-[4px] left-1/2 -translate-x-1/2 w-[40%] h-[6px] bg-amber-400 rounded-sm border border-amber-500" />
         <div className="absolute top-[35%] left-[20%] w-[60%] h-[2px] bg-emerald-500 rounded" />
         <div className="absolute top-[55%] left-[20%] w-[40%] h-[2px] bg-emerald-500 rounded" />
-        <div className="absolute top-[75%] left-[20%] w-[50%] h-[2px] bg-emerald-400 rounded" />
+        <div className="absolute top-[75%] left-[20%] w-[50%] h-[2px] bg-primary/70 rounded" />
       </div>
       <div className="absolute bottom-[18%] left-1/2 -translate-x-1/2 flex gap-[3px]">
         <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
@@ -536,7 +536,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
           : "top-0 right-0 w-full sm:w-[430px] h-full"
       )}
     >
-      <div className="relative flex items-center justify-between px-3.5 py-3 bg-emerald-600 text-white">
+      <div className="relative flex items-center justify-between px-3.5 py-3 bg-primary text-primary-foreground">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
         <div className="flex items-center gap-2.5 min-w-0">
           <ComplieeAvatar size="md" animate={isLoading} />
@@ -611,7 +611,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 className={cn(
                   "rounded-xl border px-3 py-2.5 text-xs flex items-start justify-between gap-2",
                   assistantAvailable
-                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-800"
+                    ? "border-primary/30 bg-primary/5 text-foreground"
                     : limitedMode
                       ? "border-amber-300/60 bg-amber-50 text-amber-900"
                       : "border-destructive/30 bg-destructive/10 text-destructive"
@@ -690,7 +690,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                   className={cn(
                     "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-[var(--shadow-xs)]",
                     message.role === "user"
-                      ? "bg-emerald-500 text-white rounded-br-md border border-emerald-400/60 shadow-emerald-700/25"
+                      ? "bg-primary text-primary-foreground rounded-br-md border border-primary/40 shadow-sm"
                       : "bg-background/95 border border-border/70 rounded-bl-md shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)]"
                   )}
                 >
@@ -755,15 +755,15 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 <div className="bg-background border border-border/70 shadow-[var(--shadow-xs)] rounded-2xl rounded-bl-md px-3.5 py-3">
                   <div className="flex gap-1.5">
                     <span
-                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      className="h-2 w-2 bg-primary/70 rounded-full animate-bounce"
                       style={{ animationDelay: "0ms" }}
                     />
                     <span
-                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      className="h-2 w-2 bg-primary/70 rounded-full animate-bounce"
                       style={{ animationDelay: "120ms" }}
                     />
                     <span
-                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      className="h-2 w-2 bg-primary/70 rounded-full animate-bounce"
                       style={{ animationDelay: "240ms" }}
                     />
                   </div>
@@ -808,7 +808,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 }
                 size="icon"
                 aria-label="Send message"
-                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600 shadow-[0_12px_24px_-14px_rgba(5,150,105,0.75)]"
+                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-primary hover:bg-primary/90 shadow-sm"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

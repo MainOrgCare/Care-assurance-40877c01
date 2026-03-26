@@ -1,5 +1,6 @@
 import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 export default function ComplieeIdleButton({
   onClick,
@@ -9,22 +10,24 @@ export default function ComplieeIdleButton({
   className?: string;
 }) {
   return (
-    <button
+    <motion.button
       onClick={onClick}
+      whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.97 }}
       className={cn(
-        "group relative isolate flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all duration-200 overflow-hidden",
-        "bg-primary text-primary-foreground text-sm font-semibold shadow-[0_12px_24px_-14px_rgba(5,150,105,0.7)]",
-        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-white/70",
-        "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:transition-opacity after:duration-200 after:bg-white/10",
-        "hover:from-emerald-600 hover:to-teal-600 hover:shadow-[0_18px_30px_-16px_rgba(5,150,105,0.78)] hover:after:opacity-100",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "group relative isolate flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-300 overflow-hidden",
+        "bg-primary text-primary-foreground text-[13px] font-bold shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)]",
+        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-white/20",
+        "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:transition-opacity after:duration-300 after:bg-white/10",
+        "hover:shadow-[0_8px_20px_rgba(0,0,0,0.15)] hover:after:opacity-100",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
       aria-label="Get help"
     >
-      <HelpCircle className="h-4 w-4 relative z-10" />
-      <span className="relative z-10">Ask Compli-ee</span>
-      <span className="relative z-10 h-2 w-2 rounded-full bg-white/75 group-hover:bg-white" />
-    </button>
+      <HelpCircle className="h-4 w-4 relative z-10 opacity-90 group-hover:opacity-100 transition-opacity" />
+      <span className="relative z-10 tracking-tight">Ask Compli-ee</span>
+      <span className="relative z-10 ml-0.5 h-2 w-2 rounded-full bg-primary-foreground/60 group-hover:bg-primary-foreground transition-colors mix-blend-overlay" />
+    </motion.button>
   );
 }

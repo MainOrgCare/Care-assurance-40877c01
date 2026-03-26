@@ -1733,3 +1733,34 @@ html.theme-ocean .bg-violet-500\/10 {
     transform: none;
   }
 }
+
+@layer base {
+  :root {
+    --compliee-primary: hsl(45 96% 56%);
+    --compliee-skin: hsl(38 100% 91%);
+    --compliee-eyes: hsl(215 98% 36%);
+    --compliee-outfit: hsl(235 88% 56%);
+    --compliee-vest: hsl(238 54% 41%);
+    --compliee-accent: hsl(34 100% 32%);
+    --compliee-blush: hsl(351 100% 86%);
+    --compliee-feet: hsl(217 19% 27%);
+  }
+
+  /* Compli-ee dark mode colors */
+  .dark {
+    --compliee-primary: hsl(45 96% 65%);
+    --compliee-skin: hsl(38 80% 80%);
+    --compliee-outfit: hsl(235 80% 65%);
+    --compliee-vest: hsl(238 50% 50%);
+    --compliee-feet: hsl(217 20% 40%);
+  }
+}
+
+@layer components {
+  .transition-smooth {
+    @apply transition-all duration-300 ease-[var(--ease-smooth)];
+  }
+  .transition-spring {
+    @apply transition-all duration-500 ease-[var(--ease-spring)];
+  }
+}

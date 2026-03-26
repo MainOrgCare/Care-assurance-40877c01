@@ -462,6 +462,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
@@ -847,10 +848,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
         {/* Main Content */}
-        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
+        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }} onScroll={(e) => setIsScrolled((e.target as HTMLElement).scrollTop > 10)}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/90 backdrop-blur-md px-4 md:px-6 shadow-none transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
+          <header className={cn("workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b transition-all duration-300 px-4 md:px-6 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-primary/0 before:via-primary/10 before:to-primary/0", isScrolled ? "bg-card/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-border backdrop-blur-xl" : "bg-card/50 shadow-none border-transparent backdrop-blur-sm")} role="banner" aria-label="Page header" style={{ backdropFilter: isScrolled ? "blur(16px)" : "blur(4px)" }}>
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
