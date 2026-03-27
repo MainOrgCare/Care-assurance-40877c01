@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -36,6 +37,7 @@ export default function Compliance() {
   });
 
   const { exportCSV } = useDataExport();
+  usePageTitle("Compliance");
 
   if (isLoading) {
     return (

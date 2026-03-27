@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -172,6 +173,7 @@ const SECURITY_CATEGORIES = [
 
 export default function ROICalculator() {
   const { user } = useAuth();
+  usePageTitle("Features & Benefits");
   const [, setLocation] = useLocation();
   
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useCallback, useState, useMemo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -106,6 +107,7 @@ export default function EmailAssistant() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  usePageTitle("Email Assistant");
 
   const wordCount = useMemo(() => {
     const input = inputText.trim().split(/\s+/).filter(Boolean).length;

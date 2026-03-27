@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,7 @@ export default function SystemLogs() {
 
   const debouncedSearch = useDebounce(search, 300);
   const { toast } = useToast();
+  usePageTitle("System Logs");
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);

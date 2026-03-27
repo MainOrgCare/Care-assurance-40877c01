@@ -94,27 +94,27 @@ export function SessionTimeoutWarning() {
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-[100] max-w-sm rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-950/80 p-4 shadow-[var(--shadow-strong)] backdrop-blur-sm",
+        "fixed bottom-4 right-4 z-[100] max-w-sm rounded-xl border border-warning/30 bg-warning/[0.06] dark:bg-warning/[0.08] p-4 shadow-[var(--shadow-strong)] backdrop-blur-sm",
         "animate-in slide-in-from-bottom-4 fade-in duration-300"
       )}
       role="alert"
       aria-live="assertive"
     >
       <div className="flex items-start gap-3">
-        <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-          <AlertTriangle className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+        <div className="h-9 w-9 rounded-lg bg-warning/15 flex items-center justify-center shrink-0">
+          <AlertTriangle className="h-4 w-4 text-warning" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+          <p className="text-sm font-semibold text-foreground">
             Session Expiring Soon
           </p>
-          <p className="text-xs text-amber-700/80 dark:text-amber-300/70 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Your session will expire in {minutesLeft} minute{minutesLeft !== 1 ? "s" : ""} due to inactivity.
           </p>
           <Button
             size="sm"
             variant="outline"
-            className="mt-2.5 h-7 text-xs font-medium border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+            className="mt-2.5 h-7 text-xs font-medium border-warning/30 text-warning hover:bg-warning/10"
             onClick={extendSession}
             disabled={extending}
           >

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, memo, useEffect } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import {
   Card,
   CardContent,
@@ -39,7 +40,7 @@ const CQC_DOMAINS = [
   {
     id: "safe",
     title: "Safe",
-    icon: <ShieldCheck className="text-green-600" size={18} />,
+    icon: <ShieldCheck className="text-success" size={18} />,
     color: "green",
     description: "People are protected from abuse and avoidable harm.",
     questions: [
@@ -93,7 +94,7 @@ const CQC_DOMAINS = [
   {
     id: "well-led",
     title: "Well-Led",
-    icon: <Building2 className="text-amber-600" size={18} />,
+    icon: <Building2 className="text-warning" size={18} />,
     color: "amber",
     description: "Leadership, management, and governance assures high-quality care.",
     questions: [
@@ -107,11 +108,11 @@ const CQC_DOMAINS = [
 ];
 
 const RATING_OPTIONS = [
-  { value: "outstanding", label: "Outstanding", color: "bg-green-600 text-white" },
-  { value: "good", label: "Good", color: "bg-green-500 text-white" },
-  { value: "requires_improvement", label: "Requires Improvement", color: "bg-amber-500 text-white" },
-  { value: "inadequate", label: "Inadequate", color: "bg-red-500 text-white" },
-  { value: "not_assessed", label: "Not Assessed", color: "bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-300" },
+  { value: "outstanding", label: "Outstanding", color: "bg-success text-white" },
+  { value: "good", label: "Good", color: "bg-success/80 text-white" },
+  { value: "requires_improvement", label: "Requires Improvement", color: "bg-warning text-white" },
+  { value: "inadequate", label: "Inadequate", color: "bg-destructive text-white" },
+  { value: "not_assessed", label: "Not Assessed", color: "bg-muted text-muted-foreground" },
 ];
 
 type Assessment = {
@@ -144,6 +145,7 @@ const RatingBadge = memo(function RatingBadge({ value }: { value: string }) {
 
 function CQCSelfAssessment() {
   const { toast } = useToast();
+  usePageTitle("CQC Self-Assessment");
   const [assessment, setAssessment] = useState<Assessment>(loadAssessment);
   const [expandedDomain, setExpandedDomain] = useState<string | null>("safe");
 

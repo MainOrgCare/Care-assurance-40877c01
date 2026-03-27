@@ -105,9 +105,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">7. AI Features and Human Review</h3>
-              <div className="rounded-lg p-4 mb-4 bg-amber-500/10 border border-amber-500/20">
-                <p className="font-medium mb-2 text-amber-600">DECISION SUPPORT ONLY</p>
-                <p className="text-sm text-amber-900 dark:text-amber-300">
+              <div className="rounded-lg p-4 mb-4 bg-warning/8 border border-warning/20">
+                <p className="font-medium mb-2 text-warning">DECISION SUPPORT ONLY</p>
+                <p className="text-sm text-foreground/80">
                   The Service may generate outputs using automated processing (including AI). Outputs may be incomplete or inaccurate. You must review and validate outputs before acting on them.
                 </p>
               </div>
@@ -158,9 +158,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">13. Limitation of Liability</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">IMPORTANT</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">IMPORTANT</p>
+                <p className="text-sm text-foreground/80">
                   Nothing in these Terms excludes or limits liability for death or personal injury caused by negligence, fraud/fraudulent misrepresentation, or any liability that cannot be excluded under applicable law.
                 </p>
               </div>
@@ -192,9 +192,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">7. Regulatory Compliance Responsibility</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">USER ASSUMES ALL REGULATORY COMPLIANCE RISK</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">USER ASSUMES ALL REGULATORY COMPLIANCE RISK</p>
+                <p className="text-sm text-foreground/80">
                   By using this Software, you explicitly acknowledge and agree that YOU bear sole and complete responsibility for ensuring compliance with all applicable regulations, including but not limited to CQC (Care Quality Commission) requirements, NICE guidelines, NHS standards, and any other regulatory frameworks applicable to your organization and jurisdiction.
                 </p>
               </div>
@@ -243,7 +243,7 @@ export default function TermsConditions() {
             <section>
               <h3 className="text-lg font-semibold text-foreground">10. Data Handling and Volatile Storage</h3>
               <p className="text-muted-foreground">
-                <strong className="text-amber-600">Important:</strong> All uploaded documents are stored in volatile (temporary) memory only. This "Privacy by Design" approach ensures that sensitive data is not permanently retained. Uploaded files are automatically and permanently deleted:
+                <strong className="text-warning">Important:</strong> All uploaded documents are stored in volatile (temporary) memory only. This "Privacy by Design" approach ensures that sensitive data is not permanently retained. Uploaded files are automatically and permanently deleted:
               </p>
               <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
                 <li>After 30 minutes of session inactivity</li>
@@ -338,9 +338,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">13. Non-Copying and Non-Replication</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">ABSOLUTE PROHIBITION ON COPYING</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">ABSOLUTE PROHIBITION ON COPYING</p>
+                <p className="text-sm text-foreground/80">
                   You are strictly prohibited from copying, replicating, reproducing, or creating derivative works based on any aspect of CareAssurance. This prohibition applies regardless of whether you have been granted access to the Software, viewed a demonstration, or been presented with the concept in any form.
                 </p>
               </div>
@@ -401,9 +401,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">17. Limitation of Liability</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">LIMITATION OF LIABILITY</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">LIMITATION OF LIABILITY</p>
+                <p className="text-sm text-foreground/80">
                   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL LEWIS BARRON, HIS AFFILIATES, AGENTS, OR LICENSORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES, INCLUDING BUT NOT LIMITED TO DAMAGES FOR LOSS OF PROFITS, GOODWILL, USE, DATA, OR OTHER INTANGIBLE LOSSES, REGARDLESS OF WHETHER ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
                 </p>
               </div>
@@ -424,9 +424,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">19. Termination</h3>
-              <div className="rounded-lg p-4 mb-4 bg-amber-500/10 border border-amber-500/20">
-                <p className="font-medium mb-2 text-amber-600">Service Suspension or Termination</p>
-                <p className="text-sm text-amber-900 dark:text-amber-300">
+              <div className="rounded-lg p-4 mb-4 bg-warning/8 border border-warning/20">
+                <p className="font-medium mb-2 text-warning">Service Suspension or Termination</p>
+                <p className="text-sm text-foreground/80">
                   Access may be suspended or ended where there is a breach of these Terms, a security or compliance risk, or where continued use is not commercially viable. We will usually give notice and a chance to address issues unless urgent action is required to protect users or data.
                 </p>
               </div>

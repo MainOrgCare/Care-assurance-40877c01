@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ type FilterTab = "all" | "compliant" | "at-risk" | "critical";
 
 export default function Performance() {
   const { toast } = useToast();
+  usePageTitle("Performance");
   const [careWorkers, setCareWorkers] = useState<CareWorkerFromAudits[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);

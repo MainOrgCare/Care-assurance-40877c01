@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -75,6 +76,7 @@ export default function Settings() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  usePageTitle("Settings");
   const {
     theme,
     setTheme,

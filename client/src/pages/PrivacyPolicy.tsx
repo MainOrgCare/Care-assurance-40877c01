@@ -102,12 +102,12 @@ export default function PrivacyPolicy() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">5. Special Category (Health) Data</h3>
-              <div className="rounded-lg p-4 mb-4 bg-amber-500/10 border border-amber-500/20">
+              <div className="rounded-lg p-4 mb-4 bg-warning/8 border border-warning/20">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-500" />
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5 text-warning" />
                   <div>
-                    <p className="font-medium mb-2 text-amber-600">Health data may be included</p>
-                    <p className="text-sm text-amber-900 dark:text-amber-300">
+                    <p className="font-medium mb-2 text-warning">Health data may be included</p>
+                    <p className="text-sm text-foreground/80">
                       Uploaded documents may include health and care information. CareAssurance is designed to minimise retention and to apply access controls appropriate to this category of data.
                     </p>
                   </div>

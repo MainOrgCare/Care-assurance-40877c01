@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -131,13 +132,14 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     label: "Plan Enhancer",
     description: "Enhance existing care plans with AI",
     href: "/service-users/plan-enhancer",
-    panelTone: "bg-emerald-500/[0.03] border-emerald-500/20",
-    iconTone: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
+    panelTone: "bg-success/[0.03] border-success/20",
+    iconTone: "bg-success/12 text-success",
   },
 ];
 
 export default function Dashboard() {
   const { user } = useAuth();
+  usePageTitle("Dashboard");
   const { loadDemoData } = useTemporaryData();
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -387,8 +389,8 @@ export default function Dashboard() {
           <Card key={widgetId} className="group" data-testid="widget-risk-assessments">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
               <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Risk Assessments</CardTitle>
-              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-amber-500/8">
-                <Shield className="h-3.5 w-3.5 text-amber-600" />
+              <div className="h-8 w-8 rounded-md flex items-center justify-center bg-warning/8">
+                <Shield className="h-3.5 w-3.5 text-warning" />
               </div>
             </CardHeader>
             <CardContent className="pt-0.5">
@@ -520,14 +522,14 @@ export default function Dashboard() {
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/service-users/risk-assessment")} className="cursor-pointer">
-                <Shield className="h-4 w-4 mr-2 text-amber-500" />
+                <Shield className="h-4 w-4 mr-2 text-warning" />
                 <div className="flex flex-col">
                   <span>Risk Assessment</span>
                   <span className="text-xs text-muted-foreground">Create risk assessments</span>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/service-users/plan-enhancer")} className="cursor-pointer">
-                <Sparkles className="h-4 w-4 mr-2 text-emerald-500" />
+                <Sparkles className="h-4 w-4 mr-2 text-success" />
                 <div className="flex flex-col">
                   <span>Plan Enhancer</span>
                   <span className="text-xs text-muted-foreground">Enhance existing plans</span>
@@ -574,8 +576,8 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="space-y-3.5 animate-slide-up stagger-2">
         <div className="flex items-center gap-2.5 px-0.5">
-          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/15 shadow-[var(--shadow-xs)]">
-            <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-warning/10 border border-warning/15 shadow-[var(--shadow-xs)]">
+            <Zap className="h-3.5 w-3.5 text-warning" />
           </div>
           <div>
             <h2 className="text-[0.8125rem] font-semibold tracking-[-0.01em] text-foreground">Launch Center</h2>
@@ -882,7 +884,7 @@ export default function Dashboard() {
                 { label: "Total Operations", value: totalWork, icon: Activity, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/15" },
                 { label: "Active Alerts", value: stats?.activeAlerts ?? 0, icon: AlertCircle, color: (stats?.activeAlerts ?? 0) > 0 ? "text-destructive" : "text-success", bg: (stats?.activeAlerts ?? 0) > 0 ? "bg-destructive/10" : "bg-success/10", border: (stats?.activeAlerts ?? 0) > 0 ? "border-destructive/15" : "border-success/15" },
                 { label: "Plans Updated", value: stats?.plansUpdated ?? 0, icon: FileText, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/15" },
-                { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/15" },
+                { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-warning", bg: "bg-warning/10", border: "border-warning/15" },
               ];
               return summaryItems.map((item) => (
                 <div key={item.label} className={cn("p-4 rounded-xl border transition-all duration-200 hover:shadow-[var(--shadow-medium)] hover:-translate-y-px", item.border, "bg-background")}>

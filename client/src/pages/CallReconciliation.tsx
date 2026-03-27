@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Info, AlertCircle } from "lucide-react";
@@ -7,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 export default function CallReconciliation() {
   const { toast } = useToast();
+  usePageTitle("Call Reconciliation");
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<"upload" | "processing" | "complete">("upload");
   const [error, setError] = useState<string | null>(null);

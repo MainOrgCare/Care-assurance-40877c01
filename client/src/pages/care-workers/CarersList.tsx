@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ interface CareWorkerFromAudits {
 export default function CarersList() {
   const [searchQuery, setSearchQuery] = useState("");
   const { exportCSV } = useDataExport();
+  usePageTitle("Care Workers");
 
   const { data: careWorkers = [], isLoading: loading, isError, error, refetch } = useQuery<CareWorkerFromAudits[]>({
     queryKey: queryKeys.audits.careWorkers(),
@@ -237,7 +239,7 @@ export default function CarersList() {
                           <div className="mt-6 space-y-4">
                             {worker.discrepancyCount >= 3 && (
                               <div 
-                                className="p-4 bg-red-950/20 border border-red-900/50 rounded-lg flex gap-3 text-red-400 text-sm"
+                                className="p-4 bg-destructive/8 border border-destructive/25 rounded-lg flex gap-3 text-destructive text-sm"
                                 data-testid={`alert-threshold-${worker.name.replace(/\s/g, '-')}`}
                               >
                                 <AlertTriangle className="shrink-0" />

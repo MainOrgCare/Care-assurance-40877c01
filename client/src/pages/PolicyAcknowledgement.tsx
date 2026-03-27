@@ -1,4 +1,5 @@
 import { useState, useMemo, memo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { queryKeys } from "@/lib/queryKeys";
@@ -77,6 +78,7 @@ function AcknowledgeDialog({
   onAcknowledged: () => void;
 }) {
   const { toast } = useToast();
+  usePageTitle("Policies");
   const [signatureName, setSignatureName] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
@@ -272,7 +274,7 @@ function PolicyAcknowledgement() {
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs font-medium text-muted-foreground">Pending</p>
-              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>}
+              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold text-warning">{stats.pending}</p>}
             </CardContent>
           </Card>
         </div>
