@@ -4609,7 +4609,8 @@ export async function registerRoutes(
     }
     console.warn("[Auth] SESSION_SECRET not set — using random ephemeral secret for development. Sessions will not persist across restarts.");
   }
-  const sessionSecret = process.env.SESSION_SECRET || require("node:crypto").randomBytes(32).toString("hex");
+  const crypto = await import("node:crypto");
+  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 
   // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {

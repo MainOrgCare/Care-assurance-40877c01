@@ -65,6 +65,60 @@ services:
       - key: OPENAI_FALLBACK_API_KEY
         sync: false
 
+  - type: web
+    name: care-assurance-api-dev
+    runtime: node
+    plan: standard
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
+    startCommand: npm run start:api
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: development
+      - key: ENABLE_CANONICAL_REDIRECT
+        value: "false"
+      - key: SERVE_STATIC
+        value: "false"
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: AI_ENABLED
+        value: "true"
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: CONTACT_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: CLOUDMERSIVE_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSLMODE
+        value: require
+      - key: PGSSLREJECTUNAUTHORIZED
+        value: "false"
+      - key: PAT_AI_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_FALLBACK_API_KEY
+        sync: false
+
   - type: worker
     name: care-assurance-worker
     runtime: node
