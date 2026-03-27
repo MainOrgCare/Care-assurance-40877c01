@@ -1,5 +1,6 @@
 import { Progress } from "@/components/ui/progress";
 import { Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface ProgressIndicatorProps {
   progress: number;
@@ -18,7 +19,7 @@ export function ProgressIndicator({
     <div className={`space-y-3 ${className}`} data-testid="progress-indicator">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Loader2 size={16} className="animate-spin text-blue-400" />
+          <Loader2 size={16} className="animate-spin text-primary" />
           <span className="text-sm text-muted-foreground" data-testid="progress-status">{status}</span>
         </div>
         {showPercentage && (
@@ -47,7 +48,7 @@ export function MultiStepProgress({ steps, className = "" }: MultiStepProgressPr
     <div className={`space-y-3 ${className}`} data-testid="multi-step-progress">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Loader2 size={16} className="animate-spin text-blue-400" />
+          <Loader2 size={16} className="animate-spin text-primary" />
           <span className="text-sm text-muted-foreground" data-testid="progress-current-step">
             {currentStep}
           </span>
@@ -59,19 +60,23 @@ export function MultiStepProgress({ steps, className = "" }: MultiStepProgressPr
       <Progress value={progress} className="h-2" />
       <div className="flex flex-wrap gap-2">
         {steps.map((step, idx) => (
-          <span
+          <motion.span
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2, delay: idx * 0.05 }}
             key={idx}
-            className={`text-xs px-2 py-1 rounded-full ${
+            className={`text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded-full px-2 py-1 rounded-full ${
               step.status === "completed"
-                ? "bg-emerald-500/40 text-emerald-400"
+                ? "bg-success/20 text-success"
                 : step.status === "in_progress"
-                ? "bg-blue-500/40 text-blue-400 animate-pulse"
+                ? "bg-primary/20 text-primary animate-pulse"
                 : "bg-muted text-muted-foreground"
             }`}
             data-testid={`step-${idx}`}
           >
             {step.name}
-          </span>
+          </motion.span>
         ))}
       </div>
     </div>

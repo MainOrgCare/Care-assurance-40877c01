@@ -1411,7 +1411,7 @@ export default function RiskAssessment() {
           </Alert>
         )}
         {isRuleBasedAnalysis && (
-          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+          <Alert className="border-success/20 bg-success/10 text-success-foreground">
             <Info className="h-4 w-4" />
             <AlertTitle>Secure Rule-Based Mode</AlertTitle>
             <AlertDescription>
@@ -1771,7 +1771,7 @@ export default function RiskAssessment() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {hasRuleBasedGeneratedAssessments && (
-              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+              <Badge className="bg-success/15 text-success-foreground border border-success/30">
                 Secure Rule-Based Output
               </Badge>
             )}

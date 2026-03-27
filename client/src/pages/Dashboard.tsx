@@ -17,6 +17,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useLocation } from "wouter";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface DashboardStats {
@@ -585,6 +586,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {QUICK_ACTIONS.map((action, index) => (
             <Link key={index} href={action.href}>
+              <motion.div whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }} className="h-full">
               <Card className=" group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
                 <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-[var(--shadow-medium)]`}>
                   <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 shadow-[var(--shadow-xs)]`}>
@@ -600,6 +602,7 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
+              </motion.div>
             </Link>
           ))}
         </div>

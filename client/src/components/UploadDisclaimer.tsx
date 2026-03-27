@@ -1,4 +1,5 @@
 import { Clock, Shield } from "lucide-react";
+import { motion } from "framer-motion";
 import { useTemporaryDataTimer } from "@/context/TemporaryDataContext";
 
 export default function UploadDisclaimer() {
@@ -11,7 +12,7 @@ export default function UploadDisclaimer() {
   };
 
   return (
-    <div className="space-y-4">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-4">
       <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl">
         <div className="flex items-start gap-3">
           <div className="flex items-center gap-2 shrink-0">
@@ -52,6 +53,6 @@ export default function UploadDisclaimer() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

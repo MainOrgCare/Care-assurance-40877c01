@@ -2,6 +2,7 @@ import { useState } from "react";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -128,7 +129,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="page-shell page-shell-compact max-w-3xl mx-auto">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="page-shell page-shell-compact max-w-3xl mx-auto">
       <div className="flex items-center gap-4 mb-8">
         <Button
           variant="ghost"
@@ -159,7 +160,9 @@ export default function Settings() {
               {themeOptions.map((option) => {
                 const isActive = theme === option.value;
                 return (
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     key={option.value}
                     type="button"
                     role="radio"
@@ -205,7 +208,7 @@ export default function Settings() {
                         aria-hidden="true"
                       />
                     </div>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -506,6 +509,6 @@ export default function Settings() {
           </section>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 }

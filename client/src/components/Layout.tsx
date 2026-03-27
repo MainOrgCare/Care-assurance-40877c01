@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   FileText,
@@ -829,10 +830,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* Desktop Sidebar */}
-      <aside
+      <motion.aside
+        initial={false}
+        animate={{ width: isSidebarCollapsed ? 80 : 260 }}
+        transition={{ type: "spring", damping: 30, stiffness: 280 }}
         className={cn(
           "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
-          isSidebarCollapsed ? "w-[72px]" : "w-[260px]"
+          ""
         )}
         aria-label="Main navigation"
         role="navigation"
@@ -843,7 +847,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           logout={logout}
           collapsed={isSidebarCollapsed}
         />
-      </aside>
+      </motion.aside>
 
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
@@ -935,15 +939,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                     unreadMessageCount > 0
-                      ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/18"
+                      ? "bg-primary/10 text-primary hover:bg-primary/18"
                       : "bg-muted/40 hover:bg-muted/60"
                   )}
                   title="Messages"
                   aria-label={unreadMessageCount > 0 ? `Messages (${unreadMessageCount} unread)` : "Messages"}
                 >
-                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
+                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-primary" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}
@@ -966,7 +970,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div className="flex items-center justify-end gap-1 mt-0.5">
                     <span
                       title={isConnected ? "Online" : "Offline"}
-                      className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-emerald-500" : "bg-red-500")}
+                      className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-primary" : "bg-red-500")}
                     />
                     {user?.role === "admin" && (
                       <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-1.5 py-0 text-[7px] font-medium uppercase tracking-[0.04em] leading-[1.2] text-muted-foreground">
@@ -980,7 +984,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
                     "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card transition-colors",
-                    isConnected ? "bg-emerald-500" : "bg-red-500"
+                    isConnected ? "bg-primary" : "bg-red-500"
                   )} />
                 </div>
               </div>
@@ -1028,7 +1032,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Compli-ee access for full-bleed studio routes */}
             <ComplieeIdleButton
               onClick={openChatAssistant}
-              className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-emerald-500/30"
+              className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-primary/30"
             />
             <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
@@ -1116,7 +1120,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         <button className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/40 transition-colors cursor-help">
                           <span className={cn(
                             "h-1.5 w-1.5 rounded-full transition-colors",
-                            isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                            isConnected ? "bg-primary animate-pulse" : "bg-red-500"
                           )} />
                           <span>{isConnected ? "Connected" : "Disconnected"}</span>
                         </button>

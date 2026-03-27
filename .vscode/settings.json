@@ -83,4 +83,5 @@
   "github.copilot.chat.githubMcpServer.enabled": true,
   "github.copilot.chat.codesearch.enabled": true,
   "github.copilot.chat.agent.autoFix": true,
+  "livePreview.portNumber": 5173,
 }

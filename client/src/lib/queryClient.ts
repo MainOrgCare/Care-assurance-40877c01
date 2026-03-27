@@ -185,8 +185,8 @@ export const queryClient = new QueryClient({
       refetchOnMount: false,
       // Keep data reasonably fresh without forcing a visible loading state on navigation.
       // When cached data exists, React Query will show it immediately and refetch in the background.
-      staleTime: 5 * 60_000, // 5 minutes
-      gcTime: 15 * 60_000, // 15 minutes
+      staleTime: 60 * 60_000, // 1 hour (cost saving mode)
+      gcTime: 65 * 60_000, // 65 minutes 
       placeholderData: (previousData: unknown) => previousData,
       retry: (failureCount: number, error: unknown) => {
         if (failureCount >= 2) return false;

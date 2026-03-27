@@ -1,3 +1,4 @@
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -446,6 +447,17 @@ const WARNING_SEVERITY_STYLES: Record<string, { card: string; badge: string; acc
     badge: "bg-primary/10 text-primary",
     accent: "text-primary",
   },
+};
+
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 350, damping: 25 } },
 };
 
 export default function EMARAudit() {
@@ -2713,16 +2725,16 @@ ${generatedProtocol.additionalComments}`;
   };
 
   return (
-    <div className="page-shell page-shell-compact max-w-6xl mx-auto emar-audit-page">
-      <div className="space-y-2 animate-slide-up stagger-1">
+    <motion.div variants={containerVariants} initial="hidden" animate="show" className="page-shell page-shell-compact max-w-6xl mx-auto emar-audit-page">
+      <motion.div variants={itemVariants} className="space-y-2">
         <h1 className="page-title">EMAR Audit</h1>
         <p className="page-subtitle max-w-2xl">
           Upload and analyse electronic medication administration records. Discrepancies, refusals and compliance issues are identified automatically.
         </p>
-      </div>
+      </motion.div>
 
       {!analyzed ? (
-        <Card className="app-surface animate-slide-up stagger-2">
+        <Card className="app-surface ">
           <CardHeader className="border-b border-border/40 pb-6 mb-2">
             <CardTitle className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center">
@@ -3078,18 +3090,36 @@ ${generatedProtocol.additionalComments}`;
                   })}
                 </div>
                 {/* Progress bar and status */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 overflow-hidden">
+                  <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground" data-testid="progress-status">{progressStatus}</span>
+                      <div className="relative flex h-5 w-5 items-center justify-center">
+                        <Loader2 className="absolute h-full w-full animate-spin text-primary opacity-50" />
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                      </div>
+                      <motion.span 
+                        key={progressStatus} 
+                        initial={{ opacity: 0, y: 5 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        className="text-sm font-medium text-primary" 
+                        data-testid="progress-status"
+                      >
+                        {progressStatus}
+                      </motion.span>
                     </div>
-                    <span className="text-sm font-semibold text-foreground tabular-nums" data-testid="progress-percentage">
+                    <motion.div 
+                      key={progress}
+                      initial={{ scale: 0.9, opacity: 0.5 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                      className="text-xs font-bold text-foreground tabular-nums bg-muted px-2 py-0.5 rounded-full" 
+                      data-testid="progress-percentage"
+                    >
                       {Math.round(progress)}%
-                    </span>
+                    </motion.div>
                   </div>
-                  <Progress value={progress} className="h-1.5" data-testid="progress-bar" />
-                </div>
+                  <Progress value={progress} className="h-2 w-full bg-muted shadow-inner" data-testid="progress-bar" />
+                </motion.div>
               </div>
             )}
 
@@ -3099,10 +3129,10 @@ ${generatedProtocol.additionalComments}`;
           </CardContent>
         </Card>
       ) : result && (
-        <div className="space-y-10 animate-fade-in" ref={resultsSectionRef}>
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-10" ref={resultsSectionRef}>
           {/* At-a-glance audit statistics bar */}
           {auditStats && (
-            <div className="emar-stats-bar grid grid-cols-3 sm:grid-cols-6 gap-3 animate-slide-up stagger-2" data-testid="emar-stats-bar">
+            <div className="emar-stats-bar grid grid-cols-3 sm:grid-cols-6 gap-3 " data-testid="emar-stats-bar">
               <button
                 type="button"
                 onClick={() => scrollToSection(discrepanciesSectionRef)}
@@ -3496,7 +3526,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="app-surface animate-slide-up stagger-3" ref={summaryCardRef}>
+          <Card className="app-surface " ref={summaryCardRef}>
             <CardContent className="p-8">
               <div className="flex items-center justify-between mb-8 border-b border-border/40 pb-6 flex-wrap gap-4">
                 <div className="flex items-center gap-3">
@@ -3593,7 +3623,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {hasAnyDiscrepancies() && (
-            <Card className="app-surface animate-slide-up stagger-4 overflow-hidden border-destructive/20" ref={discrepanciesSectionRef}>
+            <Card className="app-surface  overflow-hidden border-destructive/20" ref={discrepanciesSectionRef}>
               <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap bg-destructive/5 border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-destructive/20 flex items-center justify-center text-destructive shadow-sm">
@@ -3943,7 +3973,7 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Reasons Not Administered - Unified Refusal Section */}
           {unifiedRefusals.length > 0 && (
-            <Card className="app-surface animate-slide-up stagger-5 border-amber-500/20 overflow-hidden" ref={refusalsSectionRef}>
+            <Card className="app-surface  border-amber-500/20 overflow-hidden" ref={refusalsSectionRef}>
               <CardHeader className="bg-amber-500/10 border-b border-border/40 py-6">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
@@ -4156,7 +4186,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="app-surface animate-slide-up stagger-6 overflow-hidden border-amber-500/10" ref={prnSectionRef}>
+          <Card className="app-surface  overflow-hidden border-amber-500/10" ref={prnSectionRef}>
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-amber-500/10">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm">
@@ -4342,7 +4372,7 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
-            <Card className="app-surface animate-slide-up stagger-7 overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
+            <Card className="app-surface  overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
               <CardHeader className="bg-blue-500/5 flex flex-row items-center justify-between border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 shadow-sm">
@@ -4423,7 +4453,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <div className="grid md:grid-cols-2 gap-6 animate-slide-up stagger-8">
+          <div className="grid md:grid-cols-2 gap-6 ">
             <Card className="app-surface overflow-hidden">
               <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-primary/5">
                 <div className="flex items-center gap-2">
@@ -4451,7 +4481,7 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-10 border-t border-border/40 animate-slide-up stagger-9">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-10 border-t border-border/40 ">
             <div className="flex-1 w-full max-w-sm">
               <CopyableBox label="Date Completed" value={formatDate(new Date())} className="border-border/40 bg-muted/10 rounded-xl" />
             </div>
@@ -4469,7 +4499,7 @@ ${generatedProtocol.additionalComments}`;
               </Button>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -4657,6 +4687,6 @@ ${generatedProtocol.additionalComments}`;
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

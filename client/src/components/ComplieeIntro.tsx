@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ComplieeIntroProps {
   onComplete: () => void;
@@ -21,79 +22,130 @@ function AnimatedCompliee({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 64 80"
-      className={cn("compliee-svg", className)}
+      className={cn("compliee-svg overflow-visible", className)}
     >
-      <g className="compliee-head">
+      <motion.g 
+        className="compliee-head origin-[32px_30px]"
+        animate={{ rotate: [-2, 2.5, -2] }}
+        transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+      >
         {/* Hair base */}
-        <rect x="10" y="8" width="44" height="20" rx="10" fill="var(--compliee-primary)"/>
+        <rect x="10" y="8" width="44" height="20" rx="10" fill="var(--compliee-primary, #6366f1)"/>
 
         {/* Face */}
-        <rect x="8" y="16" width="48" height="36" rx="12" fill="var(--compliee-skin)"/>
+        <rect x="8" y="16" width="48" height="36" rx="12" fill="var(--compliee-skin, #ffedd5)"/>
 
         {/* Hair bangs ;D */}
-        <rect x="12" y="6" width="16" height="14" rx="6" fill="var(--compliee-primary)"/>
-        <rect x="24" y="4" width="16" height="16" rx="6" fill="var(--compliee-primary)"/>
-        <rect x="36" y="6" width="16" height="14" rx="6" fill="var(--compliee-primary)"/>
+        <rect x="12" y="6" width="16" height="14" rx="6" fill="var(--compliee-primary, #6366f1)"/>
+        <rect x="24" y="4" width="16" height="16" rx="6" fill="var(--compliee-primary, #6366f1)"/>
+        <rect x="36" y="6" width="16" height="14" rx="6" fill="var(--compliee-primary, #6366f1)"/>
 
         {/* Eyes - with blink state */}
+        <AnimatePresence mode="wait">
         {isBlinking ? (
-          <>
+          <motion.g
+            key="blink"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.05 }}
+          >
             {/* Closed eyes (horizontal lines) */}
-            <rect x="14" y="33" rx="2" width="14" height="3" fill="var(--compliee-eyes)"/>
-            <rect x="36" y="33" rx="2" width="14" height="3" fill="var(--compliee-eyes)"/>
-          </>
+            <rect x="14" y="33" rx="2" width="14" height="3" fill="var(--compliee-eyes, #1e1e1e)"/>
+            <rect x="36" y="33" rx="2" width="14" height="3" fill="var(--compliee-eyes, #1e1e1e)"/>
+          </motion.g>
         ) : (
-          <>
+          <motion.g
+            key="open"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.05 }}
+          >
             {/* Open eyes */}
             <circle cx="21" cy="34" r="10" fill="white"/>
             <circle cx="43" cy="34" r="10" fill="white"/>
-            <circle cx="24" cy="35" r="6" fill="var(--compliee-eyes)" className="compliee-iris"/>
-            <circle cx="46" cy="35" r="6" fill="var(--compliee-eyes)" className="compliee-iris"/>
-            <circle cx="27" cy="32" r="3" fill="white" className="compliee-eye-spark"/>
-            <circle cx="49" cy="32" r="3" fill="white" className="compliee-eye-spark"/>
-          </>
+            <motion.circle 
+              cx="24" cy="35" r="6" 
+              fill="var(--compliee-eyes, #1e1e1e)" 
+              animate={{ x: [0, 1, -1, 0], y: [0, -1, 1, 0] }}
+              transition={{ repeat: Infinity, duration: 3.6, ease: "easeInOut" }}
+            />
+            <motion.circle 
+              cx="46" cy="35" r="6" 
+              fill="var(--compliee-eyes, #1e1e1e)" 
+              animate={{ x: [0, 1, -1, 0], y: [0, -1, 1, 0] }}
+              transition={{ repeat: Infinity, duration: 3.6, ease: "easeInOut" }}
+            />
+            {/* Eye Sparks */}
+            <motion.circle 
+              cx="27" cy="32" r="3" fill="white"
+              animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.3, 0.9, 0.3] }}
+              transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
+            />
+            <motion.circle 
+              cx="49" cy="32" r="3" fill="white"
+              animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.3, 0.9, 0.3] }}
+              transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
+            />
+          </motion.g>
         )}
+        </AnimatePresence>
 
         {/* Smile */}
-        <path d="M24 46 Q32 52 40 46" stroke="var(--compliee-accent)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+        <path d="M24 46 Q32 52 40 46" stroke="var(--compliee-accent, #ec4899)" strokeWidth="2" fill="none" strokeLinecap="round"/>
 
         {/* Blush */}
-        <rect x="6" y="36" width="6" height="4" rx="2" fill="var(--compliee-blush)" opacity="0.6"/>
-        <rect x="52" y="36" width="6" height="4" rx="2" fill="var(--compliee-blush)" opacity="0.6"/>
-      </g>
+        <rect x="6" y="36" width="6" height="4" rx="2" fill="var(--compliee-blush, #f43f5e)" opacity="0.6"/>
+        <rect x="52" y="36" width="6" height="4" rx="2" fill="var(--compliee-blush, #f43f5e)" opacity="0.6"/>
+      </motion.g>
 
       {/* Body */}
       <g className="compliee-body">
-        <rect x="14" y="50" width="36" height="26" rx="4" fill="var(--compliee-outfit)"/>
+        <rect x="14" y="50" width="36" height="26" rx="4" fill="var(--compliee-outfit, #2dd4bf)"/>
 
         {/* V detail */}
-        <path d="M22 50 L32 60 L42 50" fill="var(--compliee-vest)"/>
+        <path d="M22 50 L32 60 L42 50" fill="var(--compliee-vest, #0f766e)"/>
         <line x1="22" y1="50" x2="32" y2="60" stroke="white" strokeWidth="2.5"/>
         <line x1="42" y1="50" x2="32" y2="60" stroke="white" strokeWidth="1.5"/>
 
         {/* Left hand with clipboard */}
-        <rect x="4" y="56" width="10" height="10" rx="4" fill="var(--compliee-skin)"/>
+        <rect x="4" y="56" width="10" height="10" rx="4" fill="var(--compliee-skin, #ffedd5)"/>
         <rect x="0" y="52" width="8" height="10" rx="1" fill="#A5B4FC"/>
         <rect x="2" y="50" width="4" height="3" rx="1" fill="#F59E0B"/>
 
         {/* Right hand - waving or normal */}
         {isWaving ? (
-          <g className="origin-[55px_59px] animate-compliee-wave">
-            <rect x="50" y="48" width="10" height="10" rx="4" fill="var(--compliee-skin)"/>
+          <motion.g 
+            className="origin-[55px_59px]"
+            animate={{ rotate: [0, -18, 22, -12, 0] }}
+            transition={{ repeat: Infinity, duration: 0.6, ease: "easeInOut" }}
+          >
+            <rect x="50" y="48" width="10" height="10" rx="4" fill="var(--compliee-skin, #ffedd5)"/>
             {/* Fingers up for wave */}
-            <rect x="52" y="42" width="3" height="8" rx="1.5" fill="var(--compliee-skin)"/>
-            <rect x="56" y="44" width="3" height="6" rx="1.5" fill="var(--compliee-skin)"/>
-          </g>
+            <rect x="52" y="42" width="3" height="8" rx="1.5" fill="var(--compliee-skin, #ffedd5)"/>
+            <rect x="56" y="44" width="3" height="6" rx="1.5" fill="var(--compliee-skin, #ffedd5)"/>
+          </motion.g>
         ) : (
-          <rect x="50" y="54" width="10" height="10" rx="4" fill="var(--compliee-skin)" className="compliee-hand"/>
+          <motion.rect 
+            x="50" y="54" width="10" height="10" rx="4" 
+            fill="var(--compliee-skin, #ffedd5)" 
+            className="origin-[55px_60px]"
+            animate={{ rotate: [0, -6, 0] }}
+            transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
+          />
         )}
 
         {/* Feet */}
-        <rect x="20" y="74" width="10" height="5" rx="2" fill="var(--compliee-feet)"/>
-        <rect x="34" y="74" width="10" height="5" rx="2" fill="var(--compliee-feet)"/>
+        <rect x="20" y="74" width="10" height="5" rx="2" fill="var(--compliee-feet, #1e293b)"/>
+        <rect x="34" y="74" width="10" height="5" rx="2" fill="var(--compliee-feet, #1e293b)"/>
       </g>
 
-      <circle cx="8" cy="14" r="2.5" fill="#FDE68A" className="compliee-sparkle" />
+      <motion.circle 
+        cx="8" cy="14" r="2.5" fill="#FDE68A" 
+        animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.3, 0.9, 0.3] }}
+        transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+      />
     </svg>
   );
 }
@@ -151,7 +203,7 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
 
   // Blinking animation (random intervals when in idle/askHelp state)
   useEffect(() => {
-    if (phase !== "askHelp" && phase !== "idle") return;
+    if (phase !== "askHelp" && phase !== "idle" && phase !== "wave" && phase !== "slideIn") return;
 
     const blink = () => {
       setIsBlinking(true);
@@ -175,150 +227,112 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
   const handleYes = useCallback(() => {
     localStorage.setItem("compliee_intro_seen", "true");
     setPhase("complete");
+    setShowBubble(false);
     onAskHelp();
   }, [onAskHelp]);
 
   const handleNo = useCallback(() => {
     localStorage.setItem("compliee_intro_seen", "true");
     setPhase("complete");
+    setShowBubble(false);
     onComplete();
   }, [onComplete]);
 
   if (phase === "complete" || phase === "hidden") return null;
 
-  return (
-    <>
-      {/* Styles for animations */}
-      <style>{`
-        @keyframes peekIn {
-          0% { transform: translateX(100%) scale(0.95); }
-          100% { transform: translateX(30%) scale(1); }
-        }
-        @keyframes peekOut {
-          0% { transform: translateX(30%) scale(1); }
-          100% { transform: translateX(100%) scale(0.96); }
-        }
-        @keyframes slideInFull {
-          0% { transform: translateX(30%) scale(0.98); }
-          100% { transform: translateX(0) scale(1); }
-        }
-        @keyframes complieeWave {
-          0%, 100% { transform: rotate(0deg); }
-          20% { transform: rotate(-18deg); }
-          50% { transform: rotate(22deg); }
-          80% { transform: rotate(-12deg); }
-        }
-        @keyframes complieeFloat {
-          0%, 100% { transform: translateY(0) translateX(0); }
-          30% { transform: translateY(-4px) translateX(2px); }
-          60% { transform: translateY(2px) translateX(-2px); }
-        }
-        @keyframes headTilt {
-          0%, 100% { transform: rotate(0deg); }
-          35% { transform: rotate(-2deg); }
-          70% { transform: rotate(2.5deg); }
-        }
-        @keyframes irisDrift {
-          0%, 100% { transform: translate(0, 0); }
-          30% { transform: translate(1px, -1px); }
-          60% { transform: translate(-1px, 1px); }
-        }
-        @keyframes sparklePulse {
-          0%, 100% { transform: scale(0.8); opacity: 0.3; }
-          50% { transform: scale(1.2); opacity: 0.9; }
-        }
-        @keyframes handSwing {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-6deg); }
-        }
-        @keyframes bubblePop {
-          0% { transform: scale(0); opacity: 0; }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        .animate-compliee-wave {
-          animation: complieeWave 0.6s ease-in-out infinite;
-        }
-        .animate-compliee-float {
-          animation: complieeFloat 2.6s ease-in-out infinite;
-        }
-        .animate-bubble-pop {
-          animation: bubblePop 0.3s ease-out forwards;
-        }
-        .compliee-head {
-          transform-origin: 32px 30px;
-          animation: headTilt 4s ease-in-out infinite;
-        }
-        .compliee-iris {
-          transform-origin: center;
-          animation: irisDrift 3.6s ease-in-out infinite;
-        }
-        .compliee-eye-spark {
-          animation: sparklePulse 2.4s ease-in-out infinite;
-        }
-        .compliee-sparkle {
-          transform-origin: center;
-          animation: sparklePulse 1.8s ease-in-out infinite;
-        }
-        .compliee-hand {
-          transform-origin: 55px 60px;
-          animation: handSwing 2.8s ease-in-out infinite;
-        }
-      `}</style>
+  // Determine variants for Compliee container based on phase
+  const complieeVariants = {
+    hidden: { x: "100%", y: 0, scale: 0.9 },
+    peek1: { x: "40%", y: 0, scale: 1 },
+    hide1: { x: "100%", y: 0, scale: 0.95 },
+    peek2: { x: "40%", y: 0, scale: 1 },
+    wave: { x: "25%", y: 0, scale: 1 },
+    slideIn: { x: 0, y: 0, scale: 1 },
+    askHelp: { x: 0, y: [0, -4, 2, 0], scale: 1 }, 
+  };
 
-      <div className="fixed bottom-6 right-0 z-50 flex items-end gap-3">
+  return (
+    <AnimatePresence>
+      <div className="fixed bottom-6 right-6 z-50 flex items-end gap-4 pointer-events-none">
+        
         {/* Speech bubble */}
-        {showBubble && (
-          <div 
-            className={cn(
-              "bg-card rounded-2xl shadow-xl border border-border p-4 max-w-[260px]",
-              "animate-bubble-pop origin-bottom-right"
-            )}
-          >
-            <p className="text-sm text-foreground mb-3 font-medium">
-              👋 Hi there! I'm <span className="text-primary font-semibold">Compli-ee</span>!
-              <br />
-              <span className="text-muted-foreground">Would you like a quick tour of the platform?</span>
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={handleYes}
-                className="flex-1 px-3 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                Yes please! 🎉
-              </button>
-              <button
-                onClick={handleNo}
-                className="flex-1 px-3 py-2 bg-muted text-foreground text-sm font-semibold rounded-lg hover:bg-muted/80 transition-colors"
-              >
-                Maybe later
-              </button>
-            </div>
-            {/* Speech bubble tail */}
-            <div className="absolute -right-2 bottom-6 w-4 h-4 bg-card border-r border-b border-border transform rotate-[-45deg]" />
-          </div>
-        )}
+        <AnimatePresence>
+          {showBubble && (
+            <motion.div 
+              initial={{ scale: 0, opacity: 0, transformOrigin: "bottom right" }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              className={cn(
+                "bg-card rounded-2xl shadow-2xl border border-border p-5 max-w-[280px] pointer-events-auto",
+                "backdrop-blur-md bg-card/95"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <motion.span 
+                    animate={{ rotate: [0, 15, -10, 0] }}
+                    transition={{ repeat: Infinity, duration: 1.5, repeatDelay: 1 }}
+                    className="text-lg"
+                  >
+                    👋
+                  </motion.span>
+                </div>
+                <h3 className="font-semibold text-foreground text-sm flex-1">
+                  Hi, I'm <span className="text-primary">Compli-ee</span>!
+                </h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                I'm your AI compliance assistant. Would you like a quick tour of the dashboard?
+              </p>
+              <div className="flex gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleYes}
+                  className="flex-1 px-3 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors"
+                >
+                  Yes please! ✨
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleNo}
+                  className="flex-1 px-3 py-2 bg-muted text-foreground text-sm font-semibold rounded-xl hover:bg-muted/80 transition-colors"
+                >
+                  Maybe later
+                </motion.button>
+              </div>
+              
+              {/* Refined tail */}
+              <div className="absolute -right-2 bottom-6 w-4 h-4 bg-card border-r border-b border-border transform rotate-[-45deg] shadow-[2px_2px_4px_rgba(0,0,0,0.05)]" />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Compli-ee character */}
-        <div
-          className={cn(
-            "w-20 h-24 transition-transform duration-300",
-            phase === "peek1" && "animate-[peekIn_0.4s_ease-out_forwards]",
-            phase === "hide1" && "animate-[peekOut_0.3s_ease-in_forwards]",
-            phase === "peek2" && "animate-[peekIn_0.3s_ease-out_forwards]",
-            phase === "wave" && "translate-x-[30%]",
-            phase === "slideIn" && "animate-[slideInFull_0.4s_ease-out_forwards]",
-            (phase === "askHelp" || phase === "idle") && "translate-x-0 animate-compliee-float"
-          )}
+        <motion.div
+          variants={complieeVariants}
+          initial="hidden"
+          animate={phase}
+          transition={
+            phase === "askHelp" 
+              ? { repeat: Infinity, duration: 2.6, ease: "easeInOut" }
+              : { type: "spring", stiffness: 180, damping: 15 }
+          }
+          className="w-24 h-28 pointer-events-auto cursor-pointer drop-shadow-2xl"
+          onClick={() => {
+            if (phase === "askHelp") handleYes();
+          }}
+          whileHover={{ scale: 1.05 }}
         >
           <AnimatedCompliee 
             isWaving={phase === "wave" || phase === "slideIn"}
             isBlinking={isBlinking}
-            className="w-full h-full drop-shadow-[var(--shadow-strong)]"
+            className="w-full h-full"
           />
-        </div>
+        </motion.div>
       </div>
-    </>
+    </AnimatePresence>
   );
 }
-

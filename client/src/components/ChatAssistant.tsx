@@ -14,6 +14,7 @@ import {
   Download,
   ArrowUpRight,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -157,25 +158,48 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
     <div
       className={cn(
         sizeClasses[size],
-        "relative rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-[var(--shadow-medium)]",
+        "relative rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg border border-primary/20",
         animate && "animate-pulse"
       )}
       title="Compli-ee - Your Compliance Assistant"
     >
-      <div className="absolute inset-[15%] bg-white rounded-sm border-2 border-emerald-600/30">
-        <div className="absolute -top-[4px] left-1/2 -translate-x-1/2 w-[40%] h-[6px] bg-amber-400 rounded-sm border border-amber-500" />
-        <div className="absolute top-[35%] left-[20%] w-[60%] h-[2px] bg-emerald-500 rounded" />
-        <div className="absolute top-[55%] left-[20%] w-[40%] h-[2px] bg-emerald-500 rounded" />
-        <div className="absolute top-[75%] left-[20%] w-[50%] h-[2px] bg-primary/70 rounded" />
-      </div>
-      <div className="absolute bottom-[18%] left-1/2 -translate-x-1/2 flex gap-[3px]">
-        <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
-        <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
-      </div>
-      <div
-        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[20%] h-[2px] bg-emerald-700 rounded-full"
-        style={{ borderRadius: "0 0 50% 50%" }}
-      />
+      <motion.svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 64 80"
+        className={cn("w-full h-full p-1 overflow-visible drop-shadow-sm", animate && "animate-bounce")}
+        initial="rest"
+        whileHover="hover"
+        animate="rest"
+      >
+        <motion.g 
+          className="origin-[32px_30px]"
+          variants={{
+            rest: { rotate: 0 },
+            hover: { rotate: [0, -10, 10, -5, 5, 0], transition: { duration: 0.8 } }
+          }}
+        >
+          <rect x="10" y="8" width="44" height="20" rx="10" fill="white"/>
+          <rect x="8" y="16" width="48" height="36" rx="12" fill="var(--compliee-skin, #ffedd5)"/>
+          
+          {/* Bangs */}
+          <rect x="12" y="6" width="16" height="14" rx="6" fill="white"/>
+          <rect x="24" y="4" width="16" height="16" rx="6" fill="white"/>
+          <rect x="36" y="6" width="16" height="14" rx="6" fill="white"/>
+
+          {/* Eyes */}
+          <circle cx="21" cy="34" r="10" fill="white"/>
+          <circle cx="43" cy="34" r="10" fill="white"/>
+          <circle cx="24" cy="35" r="6" fill="#1e1e1e"/>
+          <circle cx="46" cy="35" r="6" fill="#1e1e1e"/>
+          <circle cx="27" cy="32" r="3" fill="white"/>
+          <circle cx="49" cy="32" r="3" fill="white"/>
+
+          {/* Smile */}
+          <path d="M24 46 Q32 52 40 46" stroke="#ec4899" strokeWidth="3" fill="none" strokeLinecap="round"/>
+          <rect x="6" y="36" width="6" height="4" rx="2" fill="#f43f5e" opacity="0.6"/>
+          <rect x="52" y="36" width="6" height="4" rx="2" fill="#f43f5e" opacity="0.6"/>
+        </motion.g>
+      </motion.svg>
     </div>
   );
 });
@@ -527,15 +551,21 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
   if (!user) return null;
 
   return (
-    <div
-      className={cn(
-        "fixed z-50 transition-all duration-250 bg-background border-l border-border shadow-[var(--shadow-strong)] overflow-hidden flex flex-col",
-        isOpen ? "translate-x-0" : "translate-x-full",
-        isMinimized
-          ? "bottom-4 right-4 w-[300px] h-14 rounded-xl"
-          : "top-0 right-0 w-full sm:w-[430px] h-full"
-      )}
-    >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ x: "100%", opacity: 0.5 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: "100%", opacity: 0 }}
+          transition={{ type: "spring", damping: 30, stiffness: 300, mass: 1 }}
+          className={cn(
+            "fixed z-50 transition-all duration-250 bg-background border-l border-border shadow-[var(--shadow-strong)] overflow-hidden flex flex-col",
+            /* framer-motion handles entrance/exit */
+            isMinimized
+              ? "bottom-4 right-4 w-[300px] h-14 rounded-xl"
+              : "top-0 right-0 w-full sm:w-[430px] h-full"
+          )}
+        >
       <div className="relative flex items-center justify-between px-3.5 py-3 bg-primary text-primary-foreground">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
         <div className="flex items-center gap-2.5 min-w-0">
@@ -672,8 +702,13 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
               </div>
             )}
 
+            <AnimatePresence initial={false}>
             {messages.map((message) => (
-              <div
+              <motion.div
+                layout
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 key={message.id}
                 className={cn(
                   "flex gap-2.5",
@@ -744,31 +779,40 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                     <User className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
 
-            {isLoading && (
-              <div className="flex gap-2.5 justify-start">
+                        {isLoading && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex gap-2.5 justify-start"
+              >
                 <div className="flex-shrink-0 mt-0.5">
                   <ComplieeAvatar size="sm" animate />
                 </div>
-                <div className="bg-background border border-border/70 shadow-[var(--shadow-xs)] rounded-2xl rounded-bl-md px-3.5 py-3">
-                  <div className="flex gap-1.5">
-                    <span
-                      className="h-2 w-2 bg-primary/70 rounded-full animate-bounce"
-                      style={{ animationDelay: "0ms" }}
+                <div className="bg-background border border-border/70 shadow-[var(--shadow-xs)] rounded-2xl rounded-bl-md px-4 py-3 flex items-center h-[38px]">
+                  <div className="flex gap-1.5 items-center justify-center">
+                    <motion.div
+                      className="h-2 w-2 bg-primary/60 rounded-full"
+                      animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0 }}
                     />
-                    <span
-                      className="h-2 w-2 bg-primary/70 rounded-full animate-bounce"
-                      style={{ animationDelay: "120ms" }}
+                    <motion.div
+                      className="h-2 w-2 bg-primary/60 rounded-full"
+                      animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
                     />
-                    <span
-                      className="h-2 w-2 bg-primary/70 rounded-full animate-bounce"
-                      style={{ animationDelay: "240ms" }}
+                    <motion.div
+                      className="h-2 w-2 bg-primary/60 rounded-full"
+                      animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
                     />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             <div ref={messagesEndRef} />
@@ -792,7 +836,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 dir="ltr"
                 className={cn(
                   "flex-1 resize-none bg-muted/55 border border-border/80 rounded-xl px-3.5 py-2.5 text-sm text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
-                  "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50",
+                  "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50",
                   "min-h-[42px] max-h-[140px] placeholder:text-muted-foreground overflow-y-auto"
                 )}
                 disabled={isLoading || availabilityLoading || !canSendMessages}
@@ -825,6 +869,8 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
           </div>
         </>
       )}
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
