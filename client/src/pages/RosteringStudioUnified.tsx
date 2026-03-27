@@ -2361,9 +2361,9 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-constraints flex items-center gap-2 px-3 py-2">
-                        <UserCog className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <UserCog className="h-4 w-4 text-warning" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Constraints</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-warning/100/10 text-warning border-warning/20">
                           {constraintsForEditor.length}
                         </Badge>
                       </div>

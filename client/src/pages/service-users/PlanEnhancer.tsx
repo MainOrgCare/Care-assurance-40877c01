@@ -36,7 +36,7 @@ function highlightPlaceholders(text: string): React.ReactNode {
     parts.push(
       <span
         key={key++}
-        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-semibold text-xs border border-amber-300 dark:border-amber-700"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 bg-warning/10 dark:bg-warning/30 text-warning rounded font-semibold text-xs border border-warning/30"
         title={`Fill in: ${match[1]}`}
       >
         {match[0]}
@@ -147,7 +147,7 @@ const TextBlock = memo(function TextBlock({ label, value, copyValue }: { label: 
         <div className="flex items-center gap-2">
           <h4 className="text-sm font-medium text-foreground">{label}</h4>
           {placeholderCount > 0 && (
-            <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs">
+            <Badge variant="secondary" className="bg-warning/10 dark:bg-warning/30 text-warning text-xs">
               <Edit3 size={10} className="mr-1" />
               {placeholderCount} fields
             </Badge>
@@ -1330,7 +1330,7 @@ export default function PlanEnhancer() {
                     <div className="flex items-center gap-2">
                       <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full transition-all ${preAnalysis.qualityScore >= 70 ? "bg-emerald-500" : preAnalysis.qualityScore >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+                          className={`h-full transition-all ${preAnalysis.qualityScore >= 70 ? "bg-emerald-500" : preAnalysis.qualityScore >= 50 ? "bg-warning/100" : "bg-red-500"}`}
                           style={{ width: `${preAnalysis.qualityScore}%` }}
                         />
                       </div>
@@ -1440,7 +1440,7 @@ export default function PlanEnhancer() {
           )}
           
           {isAnyParsing() && (
-            <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
+            <p className="text-[10px] font-semibold text-warning uppercase tracking-widest text-center mt-2 animate-pulse">
               System busy: extracting document context...
             </p>
           )}
@@ -1451,13 +1451,13 @@ export default function PlanEnhancer() {
         <div className="space-y-6 animate-slide-up">
             {/* Input truncation warning (large documents) */}
             {(displayResult as any)?._inputTruncated && (
-              <Card className="app-surface border-amber-500/40 bg-amber-500/10">
+              <Card className="app-surface border-warning/40 bg-warning/100/10">
                 <CardContent className="py-4 space-y-2">
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                  <p className="text-sm font-semibold text-warning flex items-center gap-2">
                     <AlertTriangle size={16} />
                     Large Documents Detected
                   </p>
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                  <p className="text-sm text-warning">
                     {(displayResult as any)?._inputTruncationWarning || "Your uploaded documents were very large and were automatically truncated to fit API limits."}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -1496,13 +1496,13 @@ export default function PlanEnhancer() {
               </Card>
             )}
             {(displayResult as any)?._qualityScore != null && (displayResult as any)._qualityScore < 50 && !(displayResult as any)?._truncated && (
-              <Card className="app-surface border-amber-500/30 bg-amber-500/10">
+              <Card className="app-surface border-warning/30 bg-warning/100/10">
                 <CardContent className="py-4">
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                  <p className="text-sm font-semibold text-warning flex items-center gap-2">
                     <AlertTriangle size={16} />
                     Low Quality Score: {(displayResult as any)._qualityScore}/100
                   </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  <p className="text-xs text-warning mt-1">
                     Several sections did not meet minimum word count thresholds. Consider providing more detailed input documents.
                   </p>
                 </CardContent>
@@ -1544,7 +1544,7 @@ export default function PlanEnhancer() {
                       <TooltipTrigger asChild>
                         <Badge 
                           variant="secondary" 
-                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-amber-500 text-white border-0"
+                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-warning/100 text-white border-0"
                         >
                           {verificationStats.total}
                         </Badge>
@@ -1577,12 +1577,12 @@ export default function PlanEnhancer() {
             </div>
 
           {displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0 && (
-            <Card className="app-surface border-amber-500/30 bg-amber-500/10">
+            <Card className="app-surface border-warning/30 bg-warning/100/10">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-amber-700 dark:text-amber-300">Verification Needed</CardTitle>
+                <CardTitle className="text-sm text-warning">Verification Needed</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-amber-800 dark:text-amber-200">
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+              <CardContent className="space-y-2 text-sm text-warning">
+                <p className="text-xs text-warning">
                   Please confirm the items below in the update box above, then regenerate.
                 </p>
                 <ul className="list-disc list-inside space-y-1">
@@ -1608,7 +1608,7 @@ export default function PlanEnhancer() {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b border-border">
-                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                      <div className="w-3 h-3 rounded-full bg-warning/100" />
                       <h4 className="font-semibold text-foreground">Original Documents</h4>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
@@ -1743,7 +1743,7 @@ export default function PlanEnhancer() {
               <FieldRow label="Communicates Decision" value={displayResult.riskSection1Health?.communicatesDecision || ""} copyValue={copyResult?.riskSection1Health?.communicatesDecision || ""} />
               <TextBlock label="Capacity Details" value={displayResult.riskSection1Health?.capacityDetails || ""} copyValue={copyResult?.riskSection1Health?.capacityDetails || ""} />
             </div>
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection1Health?.riskLevel || ""} copyValue={copyResult?.riskSection1Health?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection1Health?.riskPrevention || ""} copyValue={copyResult?.riskSection1Health?.riskPrevention || ""} />
             </div>
@@ -1779,7 +1779,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Warfarin" value={displayResult.riskSection2Medication?.warfarin || ""} copyValue={copyResult?.riskSection2Medication?.warfarin || ""} />
             <FieldRow label="Skin Integrity Risk" value={displayResult.riskSection2Medication?.skinIntegrity || ""} copyValue={copyResult?.riskSection2Medication?.skinIntegrity || ""} />
             <TextBlock label="Skin Details" value={displayResult.riskSection2Medication?.skinDetails || ""} copyValue={copyResult?.riskSection2Medication?.skinDetails || ""} />
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection2Medication?.riskLevel || ""} copyValue={copyResult?.riskSection2Medication?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection2Medication?.riskPrevention || ""} copyValue={copyResult?.riskSection2Medication?.riskPrevention || ""} />
             </div>
@@ -1800,7 +1800,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Portion Size" value={displayResult.riskSection3Nutrition?.portionSize || ""} copyValue={copyResult?.riskSection3Nutrition?.portionSize || ""} />
             <FieldRow label="Preferred Main Meal Time" value={displayResult.riskSection3Nutrition?.mainMealTime || ""} copyValue={copyResult?.riskSection3Nutrition?.mainMealTime || ""} />
             <FieldRow label="Fluid Intake" value={displayResult.riskSection3Nutrition?.fluidIntake || ""} copyValue={copyResult?.riskSection3Nutrition?.fluidIntake || ""} />
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection3Nutrition?.riskLevel || ""} copyValue={copyResult?.riskSection3Nutrition?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection3Nutrition?.riskPrevention || ""} copyValue={copyResult?.riskSection3Nutrition?.riskPrevention || ""} />
             </div>
@@ -1817,7 +1817,7 @@ export default function PlanEnhancer() {
               </div>
             ))}
             <TextBlock label="Remedial Action" value={displayResult.riskSection4Equipment?.remedialAction || ""} copyValue={copyResult?.riskSection4Equipment?.remedialAction || ""} />
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection4Equipment?.riskLevel || ""} copyValue={copyResult?.riskSection4Equipment?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection4Equipment?.riskPrevention || ""} copyValue={copyResult?.riskSection4Equipment?.riskPrevention || ""} />
             </div>
@@ -1853,7 +1853,7 @@ export default function PlanEnhancer() {
             <FieldRow label="In/Out of Bed" value={displayResult.riskSection5Mobility?.inOutOfBed || ""} copyValue={copyResult?.riskSection5Mobility?.inOutOfBed || ""} />
             <FieldRow label="Can Be Left Alone" value={displayResult.riskSection5Mobility?.canBeLeftAlone || ""} copyValue={copyResult?.riskSection5Mobility?.canBeLeftAlone || ""} />
             <FieldRow label="Prone to Falls" value={displayResult.riskSection5Mobility?.proneToFalls || ""} copyValue={copyResult?.riskSection5Mobility?.proneToFalls || ""} />
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection5Mobility?.riskLevel || ""} copyValue={copyResult?.riskSection5Mobility?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection5Mobility?.riskPrevention || ""} copyValue={copyResult?.riskSection5Mobility?.riskPrevention || ""} />
             </div>
@@ -1911,7 +1911,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Personal Security" value={displayResult.riskSection9External?.personalSecurity || ""} copyValue={copyResult?.riskSection9External?.personalSecurity || ""} />
             <FieldRow label="Parking" value={displayResult.riskSection9External?.parking || ""} copyValue={copyResult?.riskSection9External?.parking || ""} />
             <TextBlock label="Actions Required" value={displayResult.riskSection9External?.actionsRequired || ""} copyValue={copyResult?.riskSection9External?.actionsRequired || ""} />
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection9External?.riskLevel || ""} copyValue={copyResult?.riskSection9External?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection9External?.riskPrevention || ""} copyValue={copyResult?.riskSection9External?.riskPrevention || ""} />
             </div>
@@ -1926,7 +1926,7 @@ export default function PlanEnhancer() {
             <FieldRow label="Gas Shut Off Location" value={displayResult.riskSection10Security?.gasShutOff || ""} copyValue={copyResult?.riskSection10Security?.gasShutOff || ""} />
             <FieldRow label="Stop Tap/Mains Location" value={displayResult.riskSection10Security?.stopTap || ""} copyValue={copyResult?.riskSection10Security?.stopTap || ""} />
             <FieldRow label="Fuse Box Location" value={displayResult.riskSection10Security?.fuseBox || ""} copyValue={copyResult?.riskSection10Security?.fuseBox || ""} />
-            <div className="mt-4 p-3 bg-amber-100/60 border border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/30 rounded-lg">
+            <div className="mt-4 p-3 bg-warning/10 border border-warning/30 dark:bg-warning/20 dark:border-warning/30 rounded-lg">
               <FieldRow label="Risk Level" value={displayResult.riskSection10Security?.riskLevel || ""} copyValue={copyResult?.riskSection10Security?.riskLevel || ""} />
               <TextBlock label="Risk Prevention" value={displayResult.riskSection10Security?.riskPrevention || ""} copyValue={copyResult?.riskSection10Security?.riskPrevention || ""} />
             </div>

@@ -76,13 +76,15 @@ RULES
 - Return valid JSON only.
 - Must match the provided structured output schema exactly.
 - No markdown, no prose, no extra keys.
-- Allowed non-administration codes: R, SA, F, NH, MU.
-- NH always requires verification.
-- Include all detected care worker names in allCareWorkers.
+- Allowed non-administration codes: R (Refused), SA (Self-Administered), F (Family Administered), NH (Not Home), MU (Medication Unavailable).
+- NH always requires verification (requiresVerification=true).
+- Include all detected care worker names/initials in allCareWorkers.
 - If care worker is unknown, infer from records in the same date + timeSlot when possible and set inferredFromSameSlot=true.
 - If unknown after inference, set careWorker=null and inferredFromSameSlot=false.
 - Use YYYY-MM-DD dates when possible; otherwise null.
-- Add trendWarnings when repeated R/SA/F/NH/MU patterns appear.`;
+- Add trendWarnings when repeated R/SA/F/NH/MU patterns appear for the same service user across multiple dates.
+- Blank cells for scheduled medications must be captured as missing administrations with code=null and requiresVerification=true.
+- Do NOT omit entries — completeness is critical for compliance auditing.`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

@@ -173,11 +173,11 @@ export function TemplateFiller({
           <div className="flex items-center gap-2">
             <Badge 
               variant={allComplete ? "default" : "secondary"}
-              className={allComplete ? "bg-green-600" : ""}
+              className={allComplete ? "bg-success" : ""}
             >
               {completed} / {total} completed
             </Badge>
-            {allComplete && <CheckCircle2 size={16} className="text-green-600" />}
+            {allComplete && <CheckCircle2 size={16} className="text-success" />}
           </div>
         </div>
 
@@ -190,7 +190,7 @@ export function TemplateFiller({
                     {p.placeholder}
                   </Badge>
                   {values[p.placeholder]?.trim() && (
-                    <CheckCircle2 size={14} className="text-green-600" />
+                    <CheckCircle2 size={14} className="text-success" />
                   )}
                 </Label>
                 <Input
@@ -207,9 +207,9 @@ export function TemplateFiller({
         </ScrollArea>
 
         {!allComplete && (
-          <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-            <AlertCircle size={16} className="text-amber-600 dark:text-amber-400" />
-            <span className="text-sm text-amber-700 dark:text-amber-300">
+          <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/30 dark:border-warning/30 rounded-lg">
+            <AlertCircle size={16} className="text-warning" />
+            <span className="text-sm text-warning">
               {total - completed} field{total - completed !== 1 ? 's' : ''} still need{total - completed === 1 ? 's' : ''} to be filled
             </span>
           </div>
@@ -285,7 +285,7 @@ export function TemplatePreview({
       parts.push(
         <span
           key={key++}
-          className="inline-flex items-center px-1 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded text-xs font-medium border border-amber-300 dark:border-amber-700"
+          className="inline-flex items-center px-1 py-0.5 mx-0.5 bg-warning/10 dark:bg-warning/30 text-warning rounded text-xs font-medium border border-warning/30"
         >
           {match[0]}
         </span>

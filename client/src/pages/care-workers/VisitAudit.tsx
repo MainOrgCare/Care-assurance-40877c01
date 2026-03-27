@@ -758,7 +758,7 @@ The AI will automatically extract:
                               <TableCell>
                                 <div className="flex flex-wrap gap-1.5">
                                   {disc.actions.performanceNote && (
-                                    <span className="px-2 py-1 bg-amber-500/15 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Note</span>
+                                    <span className="px-2 py-1 bg-warning/15 text-warning border border-warning/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Note</span>
                                   )}
                                   {disc.actions.meeting === "phone" && (
                                     <span className="px-2 py-1 bg-blue-500/15 text-blue-400 border border-blue-400/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Phone</span>

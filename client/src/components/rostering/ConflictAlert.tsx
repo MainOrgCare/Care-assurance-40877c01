@@ -28,13 +28,13 @@ export interface ConflictDetail {
 const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: string; bgColor: string }> = {
   overlap: {
     icon: Clock,
-    color: "text-red-600 dark:text-red-400",
-    bgColor: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50",
+    color: "text-destructive dark:text-red-400",
+    bgColor: "bg-destructive/10 dark:bg-red-950/30 border-destructive/30 dark:border-red-800/50",
   },
   travel: {
     icon: MapPin,
-    color: "text-amber-600 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50",
+    color: "text-warning",
+    bgColor: "bg-warning/10 border-warning/30",
   },
   "double-up": {
     icon: Users,
@@ -48,8 +48,8 @@ const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: 
   },
   workload: {
     icon: Users,
-    color: "text-amber-700 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50",
+    color: "text-warning",
+    bgColor: "bg-warning/10 border-warning/30",
   },
 };
 
@@ -103,13 +103,13 @@ export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts, onR
 
   if (total === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+      <div className="flex items-center gap-2 rounded-lg border border-success/30 dark:border-success-800/50 bg-success/10 dark:bg-success-950/30 px-3 py-2">
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-success/100 text-white">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">No conflicts detected</p>
+        <p className="text-sm font-medium text-success dark:text-success-400">No conflicts detected</p>
       </div>
     );
   }

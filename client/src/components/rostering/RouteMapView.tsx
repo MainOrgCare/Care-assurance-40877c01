@@ -231,7 +231,7 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ entries, showTravelL
                       <span>{entry.durationMinutes}m</span>
                     </div>
                     {entry.isTimeCritical && (
-                      <div className="mt-1 inline-block rounded-full bg-amber-100 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                      <div className="mt-1 inline-block rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
                         Time critical
                       </div>
                     )}

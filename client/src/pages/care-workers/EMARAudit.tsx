@@ -438,9 +438,9 @@ const WARNING_SEVERITY_STYLES: Record<string, { card: string; badge: string; acc
     accent: "text-destructive",
   },
   medium: {
-    card: "bg-amber-500/10 border-amber-500/30",
-    badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-    accent: "text-amber-600 dark:text-amber-300",
+    card: "bg-warning/10 border-warning/30",
+    badge: "bg-warning/15 text-warning",
+    accent: "text-warning dark:text-warning",
   },
   low: {
     card: "bg-primary/5 border-primary/20",
@@ -2948,14 +2948,14 @@ ${generatedProtocol.additionalComments}`;
                 </div>
               )}
               {!aiStatusLoading && !aiAvailable && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+                <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 space-y-3">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-700 dark:text-amber-200" />
+                    <AlertTriangle className="h-4 w-4 mt-0.5 text-warning" />
                     <div>
-                      <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      <p className="text-sm font-semibold text-warning">
                         Continue in Manual Assurance Mode
                       </p>
-                      <p className="text-xs text-amber-800/90 dark:text-amber-100/80 mt-1">
+                      <p className="text-xs text-warning/90 mt-1">
                         AI analysis is paused, but you can still complete a defensible review using Quick Check and a structured manual checklist.
                       </p>
                     </div>
@@ -2966,7 +2966,7 @@ ${generatedProtocol.additionalComments}`;
                       variant="outline"
                       onClick={runPreflightCheck}
                       disabled={!file || !fileReady || preflightLoading}
-                      className="border-amber-600/30 bg-background/80 hover:bg-background"
+                      className="border-warning/30 bg-background/80 hover:bg-background"
                     >
                       {preflightLoading ? (
                         <>
@@ -2984,7 +2984,7 @@ ${generatedProtocol.additionalComments}`;
                       type="button"
                       variant="outline"
                       onClick={() => void copyManualChecklist()}
-                      className="border-amber-600/30 bg-background/80 hover:bg-background"
+                      className="border-warning/30 bg-background/80 hover:bg-background"
                     >
                       <Copy className="mr-2 h-4 w-4" />
                       Copy Manual Checklist
@@ -3024,7 +3024,7 @@ ${generatedProtocol.additionalComments}`;
                     <span>File size: <span className="text-foreground font-medium">{preflightResult.fileSizeMb} MB</span></span>
                   </div>
                   {preflightResult.warnings?.length > 0 && (
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-200 space-y-1">
+                    <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning space-y-1">
                       {preflightResult.warnings.map((warning, idx) => (
                         <div key={idx} className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 mt-0.5" />
@@ -3129,13 +3129,13 @@ ${generatedProtocol.additionalComments}`;
                 className={cn(
                   "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
                   auditStats.warnings > 0
-                    ? "bg-amber-500/8 border-amber-500/20 hover:bg-amber-500/12"
+                    ? "bg-warning/8 border-warning/20 hover:bg-warning/12"
                     : "bg-muted/30 border-border/40 hover:bg-muted/50"
                 )}
               >
                 <span className={cn(
                   "text-2xl font-black tabular-nums leading-none",
-                  auditStats.warnings > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                  auditStats.warnings > 0 ? "text-warning" : "text-muted-foreground"
                 )}>
                   {auditStats.warnings}
                 </span>
@@ -3147,13 +3147,13 @@ ${generatedProtocol.additionalComments}`;
                 className={cn(
                   "emar-stat-pill group flex flex-col items-center gap-1 p-3 rounded-xl border transition-all cursor-pointer hover:shadow-sm",
                   auditStats.refusals > 0
-                    ? "bg-amber-500/8 border-amber-500/20 hover:bg-amber-500/12"
+                    ? "bg-warning/8 border-warning/20 hover:bg-warning/12"
                     : "bg-muted/30 border-border/40 hover:bg-muted/50"
                 )}
               >
                 <span className={cn(
                   "text-2xl font-black tabular-nums leading-none",
-                  auditStats.refusals > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                  auditStats.refusals > 0 ? "text-warning" : "text-muted-foreground"
                 )}>
                   {auditStats.refusals}
                 </span>
@@ -3407,7 +3407,7 @@ ${generatedProtocol.additionalComments}`;
             <Card className="app-surface bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  <AlertTriangle className="h-5 w-5 text-warning" />
                   Verification Required ({result.userVerificationItems.length})
                 </CardTitle>
                 <CardDescription>
@@ -3441,9 +3441,9 @@ ${generatedProtocol.additionalComments}`;
           )}
 
           {result.codeConflictDetected && (
-            <Card className="app-surface bg-amber-500/10 border-amber-500/30">
+            <Card className="app-surface bg-warning/10 border-warning/30">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                <CardTitle className="flex items-center gap-2 text-warning">
                   <AlertTriangle className="h-5 w-5" />
                   Code Conflict Detected
                 </CardTitle>
@@ -3616,7 +3616,7 @@ ${generatedProtocol.additionalComments}`;
                       onClick={() => setEditMode(!editMode)}
                       className={cn(
                         "rounded-xl font-medium tracking-tight gap-2 transition-all",
-                        editMode ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20" : "border-border/60"
+                        editMode ? "bg-warning hover:bg-warning/90 text-white shadow-warning/20" : "border-border/60"
                       )}
                       data-testid="button-toggle-edit-mode"
                     >
@@ -3897,7 +3897,7 @@ ${generatedProtocol.additionalComments}`;
             <Card className="app-surface bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  <AlertTriangle className="h-5 w-5 text-warning" />
                   Drug Interactions ({result.drugInteractions.length})
                 </CardTitle>
                 <CardDescription>
@@ -3908,12 +3908,12 @@ ${generatedProtocol.additionalComments}`;
                 {result.drugInteractions.map((interaction, idx) => {
                   const severityColors = {
                     high: 'border-destructive/50 bg-destructive/10 text-destructive',
-                    moderate: 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+                    moderate: 'border-warning/50 bg-warning/10 text-warning',
                     low: 'border-primary/50 bg-primary/10 text-primary',
                   };
                   const severityBadgeColors = {
                     high: 'bg-destructive/20 text-destructive',
-                    moderate: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+                    moderate: 'bg-warning/20 text-warning',
                     low: 'bg-primary/20 text-primary',
                   };
                   
@@ -3945,16 +3945,16 @@ ${generatedProtocol.additionalComments}`;
 
           {/* Reasons Not Administered - Unified Refusal Section */}
           {unifiedRefusals.length > 0 && (
-            <Card className="app-surface animate-slide-up stagger-5 border-amber-500/20 overflow-hidden" ref={refusalsSectionRef}>
-              <CardHeader className="bg-amber-500/5 border-b border-border/40 py-6">
+            <Card className="app-surface animate-slide-up stagger-5 border-warning/20 overflow-hidden" ref={refusalsSectionRef}>
+              <CardHeader className="bg-warning/5 border-b border-border/40 py-6">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shadow-sm">
+                    <div className="h-10 w-10 rounded-xl bg-warning/20 flex items-center justify-center text-warning shadow-sm">
                       <AlertTriangle className="h-5 w-5" />
                     </div>
                     <div>
                       <CardTitle className="text-lg">Refusals & Non-Administration</CardTitle>
-                      <CardDescription className="font-semibold text-amber-600/80 uppercase tracking-tighter text-xs">
+                      <CardDescription className="font-semibold text-warning/80 uppercase tracking-tighter text-xs">
                         {totalRefusalCount} {totalRefusalCount === 1 ? 'entry' : 'entries'} to review
                       </CardDescription>
                     </div>
@@ -3962,7 +3962,7 @@ ${generatedProtocol.additionalComments}`;
                   {!refusalReviewSubmitted && (
                     <div className="flex items-center gap-3 bg-background/50 px-4 py-2 rounded-xl border border-border/60">
                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Reviewed:</p>
-                       <span className="text-sm font-black text-amber-500">{getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total}</span>
+                       <span className="text-sm font-black text-warning">{getRefusalReviewStats.reviewed}/{getRefusalReviewStats.total}</span>
                     </div>
                   )}
                 </div>
@@ -3996,7 +3996,7 @@ ${generatedProtocol.additionalComments}`;
                           >
                             <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-muted/30 transition-all">
                               <div className="flex items-center gap-4 flex-1">
-                                <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 font-black text-xs border border-amber-500/20">
+                                <div className="h-9 w-9 rounded-lg bg-warning/10 flex items-center justify-center text-warning font-black text-xs border border-warning/20">
                                   {codeGroup.code}
                                 </div>
                                 <div className="text-left">
@@ -4006,7 +4006,7 @@ ${generatedProtocol.additionalComments}`;
                                 {allCodeReviewed ? (
                                   <Badge className="bg-success/15 text-success border-success/20 rounded-lg font-black text-[10px] ml-auto mr-4">REVIEWED</Badge>
                                 ) : codeReviewedCount > 0 && (
-                                  <Badge variant="outline" className="text-amber-500 border-amber-500/30 rounded-lg font-black text-[10px] ml-auto mr-4">{codeReviewedCount}/{codeGroup.count} COMPLETE</Badge>
+                                  <Badge variant="outline" className="text-warning border-warning/30 rounded-lg font-black text-[10px] ml-auto mr-4">{codeReviewedCount}/{codeGroup.count} COMPLETE</Badge>
                                 )}
                               </div>
                             </AccordionTrigger>
@@ -4081,7 +4081,7 @@ ${generatedProtocol.additionalComments}`;
                     <div className="flex items-center justify-between pt-6 border-t border-border/40">
                       <div className="flex items-center gap-3">
                         {getRefusalReviewStats.pending > 0 ? (
-                          <div className="flex items-center gap-2 text-amber-500 animate-pulse">
+                          <div className="flex items-center gap-2 text-warning animate-pulse">
                             <Clock size={16} />
                             <span className="text-xs font-black uppercase tracking-widest">{getRefusalReviewStats.pending} remaining</span>
                           </div>
@@ -4158,15 +4158,15 @@ ${generatedProtocol.additionalComments}`;
             </Card>
           )}
 
-          <Card className="app-surface animate-slide-up stagger-6 overflow-hidden border-amber-500/10" ref={prnSectionRef}>
-            <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-amber-500/5">
+          <Card className="app-surface animate-slide-up stagger-6 overflow-hidden border-warning/10" ref={prnSectionRef}>
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 py-6 bg-warning/5">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm">
+                <div className="h-10 w-10 rounded-xl bg-warning/20 flex items-center justify-center text-warning shadow-sm">
                   <Pill size={20} />
                 </div>
                 <div>
                    <CardTitle className="text-lg">PRN Protocols</CardTitle>
-                   <CardDescription className="text-xs font-semibold uppercase tracking-widest text-amber-600/70">Check PRN medication protocols are complete and to standard</CardDescription>
+                   <CardDescription className="text-xs font-semibold uppercase tracking-widest text-warning/70">Check PRN medication protocols are complete and to standard</CardDescription>
                 </div>
               </div>
 	              <CopyButton 
@@ -4182,7 +4182,7 @@ ${generatedProtocol.additionalComments}`;
               <div className="flex items-center gap-6 p-4 rounded-2xl bg-muted/20 border border-border/40">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">PRN Medications Found:</p>
                 {result.prnMedications.hasPRN ? (
-                  <div className="flex items-center gap-2 text-amber-500 font-black text-xs uppercase tracking-widest bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+                  <div className="flex items-center gap-2 text-warning font-black text-xs uppercase tracking-widest bg-warning/10 px-3 py-1 rounded-full border border-warning/20">
                     <CheckCircle2 className="h-3.5 w-3.5" /> CONFIRMED
                   </div>
                 ) : (
@@ -4440,10 +4440,10 @@ ${generatedProtocol.additionalComments}`;
             </Card>
 
             <Card className="app-surface overflow-hidden">
-              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-amber-500/5">
+              <CardHeader className="border-b border-border/40 pb-4 flex flex-row items-center justify-between bg-warning/5">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Training & Knowledge Gaps</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-warning">Training & Knowledge Gaps</CardTitle>
                 </div>
                 <CopyButton text={result.gapsInKnowledge} label="gaps" />
               </CardHeader>

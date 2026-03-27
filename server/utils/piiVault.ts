@@ -481,6 +481,29 @@ export class PIIVault {
 
     // === PHASE 3: Name patterns ===
 
+    // ALL-CAPS name pairs: "JOHN SMITH", "PATRICIA ANNE WALKER" — common in formal UK care documents
+    s = s.replace(
+      /\b([A-Z]{2,})[ \t]+([A-Z]{2,})(?:[ \t]+([A-Z]{2,}))?\b/g,
+      (match, first, second, third) => {
+        // Skip known abbreviations and acronyms (e.g. GP, NHS, UK, DOB)
+        if (NON_NAME_ABBREVIATIONS.has(first) || NON_NAME_ABBREVIATIONS.has(second)) return match;
+        // Skip short 2-letter combos unless they look like genuine names (>= 3 chars each)
+        if (first.length < 3 || second.length < 3) return match;
+        const parts = [first, second];
+        if (third) parts.push(third);
+        return parts.map((p) => this.store(p, "NAME")).join(" ");
+      }
+    );
+
+    // ALL-CAPS single name after a role or context label: "Assessed by PATRICIA"
+    s = s.replace(
+      /\b(assessed by|reviewed by|visited by|completed by|performed by|signed by|attended by|present|carer|worker|nurse|coordinator)\s+([A-Z]{3,})\b/gi,
+      (_match, ctx, name) => {
+        if (NON_NAME_ABBREVIATIONS.has(name)) return _match;
+        return `${ctx} ${this.store(name, "NAME")}`;
+      }
+    );
+
     // Explicit name introductions
     s = s.replace(
       /\b(my name is|i am called|i'm called|call me|known as|also known as|a\.k\.a\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,

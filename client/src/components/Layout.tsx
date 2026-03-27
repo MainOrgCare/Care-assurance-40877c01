@@ -435,7 +435,7 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-red-400/60 hover:text-red-400 hover:bg-red-500/8",
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-red-400/60 hover:text-red-400 hover:bg-destructive/100/8",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           onClick={logout}
@@ -798,16 +798,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { className: string; iconClassName: string }
   > = {
     info: {
-      className: "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300 shadow-[0_6px_16px_-14px_rgba(37,99,235,0.45)]",
-      iconClassName: "text-blue-600 dark:text-blue-400",
+      className: "border-primary/20 bg-primary/100/10 text-primary dark:text-blue-300 shadow-[0_6px_16px_-14px_rgba(37,99,235,0.45)]",
+      iconClassName: "text-primary dark:text-blue-400",
     },
     warning: {
-      className: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300 shadow-[0_6px_16px_-14px_rgba(217,119,6,0.45)]",
-      iconClassName: "text-amber-600 dark:text-amber-400",
+      className: "border-warning/20 bg-warning/10 text-warning",
+      iconClassName: "text-warning",
     },
     critical: {
-      className: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300 shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
-      iconClassName: "text-red-600 dark:text-red-400",
+      className: "border-destructive/20 bg-destructive/100/10 text-destructive dark:text-red-300 shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
+      iconClassName: "text-destructive dark:text-red-400",
     },
   };
 

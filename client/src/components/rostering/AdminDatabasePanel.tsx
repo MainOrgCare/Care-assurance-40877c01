@@ -187,9 +187,9 @@ export const AdminDatabasePanel: React.FC = () => {
   });
 
   const statItems = [
-    { label: "Service Users", value: stats?.serviceUsersCount ?? 0, icon: Users, color: "bg-blue-500" },
-    { label: "Care Workers", value: stats?.careWorkersCount ?? 0, icon: Users, color: "bg-green-500" },
-    { label: "Service Orders", value: stats?.serviceOrdersCount ?? 0, icon: Clipboard, color: "bg-amber-500" },
+    { label: "Service Users", value: stats?.serviceUsersCount ?? 0, icon: Users, color: "bg-primary/100" },
+    { label: "Care Workers", value: stats?.careWorkersCount ?? 0, icon: Users, color: "bg-success/100" },
+    { label: "Service Orders", value: stats?.serviceOrdersCount ?? 0, icon: Clipboard, color: "bg-warning/100" },
     { label: "Template Assignments", value: stats?.templateAssignmentsCount ?? 0, icon: Calendar, color: "bg-violet-500" },
     { label: "Pending Recommendations", value: stats?.pendingRecommendationsCount ?? 0, icon: AlertCircle, color: "bg-orange-500" },
     { label: "Workbook Uploads", value: stats?.workbookUploadsCount ?? 0, icon: Database, color: "bg-zinc-500" },
@@ -343,9 +343,9 @@ export const AdminDatabasePanel: React.FC = () => {
 
         {/* Last Cleanup Result */}
         {cleanupMutation.data && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+          <div className="rounded-xl border border-success/20 bg-success/100/5 p-4">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5" />
+              <CheckCircle2 className="h-5 w-5 text-success mt-0.5" />
               <div>
                 <h4 className="font-medium text-foreground">Last Cleanup Result</h4>
                 <div className="mt-2 flex flex-wrap gap-2">

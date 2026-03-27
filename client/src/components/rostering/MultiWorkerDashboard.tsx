@@ -64,7 +64,7 @@ export const MultiWorkerDashboard: React.FC<MultiWorkerDashboardProps> = ({
               <p className="text-xs text-muted-foreground mt-1">
                 {worker.totalCalls} calls · {worker.uniqueServiceUsers} SUs · {formatMinutes(worker.totalDurationMinutes)}
               </p>
-              <p className="text-[11px] text-amber-600 mt-1">Time critical: {worker.timeCriticalCalls}</p>
+              <p className="text-[11px] text-warning mt-1">Time critical: {worker.timeCriticalCalls}</p>
               <div className="mt-3">
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                   <span>Utilization</span>
@@ -72,7 +72,7 @@ export const MultiWorkerDashboard: React.FC<MultiWorkerDashboardProps> = ({
                 </div>
                 <div className="mt-1 h-1.5 w-full rounded-full bg-background/60">
                   <div
-                    className="h-1.5 rounded-full bg-emerald-500"
+                    className="h-1.5 rounded-full bg-success/100"
                     style={{ width: `${utilization}%` }}
                   />
                 </div>

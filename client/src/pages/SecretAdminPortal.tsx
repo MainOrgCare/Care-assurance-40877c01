@@ -912,7 +912,7 @@ const AIAdminLog = memo(function AIAdminLog() {
                     </div>
                     <div className="flex items-center gap-2">
                       {(log.retryCount || 0) > 0 && (
-                        <Badge variant="secondary" className="text-xs bg-amber-500/15 text-amber-700 border-amber-500/30">
+                        <Badge variant="secondary" className="text-xs bg-warning/100/15 text-warning border-warning/30">
                           {log.retryCount} retry{(log.retryCount || 0) > 1 ? "ies" : ""}
                         </Badge>
                       )}
@@ -1015,7 +1015,7 @@ const AICostSection = memo(function AICostSection() {
     "emar_pass": "bg-purple-500/10 text-purple-500",
     "drug_interactions": "bg-destructive/10 text-destructive",
     "care_plan": "bg-success/10 text-success",
-    "risk_assessment": "bg-amber-500/10 text-amber-500",
+    "risk_assessment": "bg-warning/100/10 text-warning",
     "plan_enhancer": "bg-cyan-500/10 text-cyan-500",
   };
 
@@ -1123,11 +1123,11 @@ const AICostSection = memo(function AICostSection() {
         <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Activity size={14} className="text-amber-500" /> Avg Cost / Call
+              <Activity size={14} className="text-warning" /> Avg Cost / Call
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-amber-600">{formatCost(avgCostPerCall)}</div>
+            <div className="text-2xl font-semibold text-warning">{formatCost(avgCostPerCall)}</div>
             <p className="text-xs text-muted-foreground">{avgTokensPerCall.toFixed(0)} tokens per call</p>
           </CardContent>
         </Card>
@@ -2071,7 +2071,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
     <>
     <div className="border-t border-border/30 pt-6">
       <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-        <Zap size={16} className="text-amber-400" />
+        <Zap size={16} className="text-warning" />
         AI Optimization (Cost Reduction)
       </h4>
       
@@ -2118,7 +2118,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
 
       {/* Cache Stats */}
       {cacheStats && (
-        <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+        <div className="mt-4 p-3 bg-warning/100/10 rounded-lg border border-warning/20">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-foreground">Cache Statistics</span>
             <button
@@ -2474,7 +2474,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          className="border-amber-500/50 text-amber-300 hover:bg-amber-950"
+                          className="border-warning/50 text-warning hover:bg-warning"
                           onClick={(e) => { e.stopPropagation(); setSuspendingUser(user.id); }}
                           data-testid={`button-suspend-${user.id}`}
                         >
@@ -2584,7 +2584,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSuspendingUser(null)} className="border-border text-foreground">Cancel</Button>
-            <Button onClick={() => suspendingUser && handleSuspend(suspendingUser)} className="bg-amber-600 hover:bg-amber-500 text-white">Suspend User</Button>
+            <Button onClick={() => suspendingUser && handleSuspend(suspendingUser)} className="bg-warning hover:bg-warning/100 text-white">Suspend User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3128,11 +3128,11 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <MailOpen size={14} className="text-amber-500" /> Unread
+              <MailOpen size={14} className="text-warning" /> Unread
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-amber-400">{unreadCount}</div>
+            <div className="text-2xl font-semibold text-warning">{unreadCount}</div>
             <p className="text-xs text-muted-foreground">Awaiting review</p>
           </CardContent>
         </Card>
@@ -3307,7 +3307,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
             <Button
               variant="outline"
               onClick={() => selectedMessage && handleArchive(selectedMessage.id)}
-              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              className="border-warning/30 text-warning hover:bg-warning/100/10"
             >
               <Archive size={14} className="mr-2" />
               Archive
@@ -3751,7 +3751,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <AlertTriangle size={14} className="text-amber-500" /> Incident Queue
+              <AlertTriangle size={14} className="text-warning" /> Incident Queue
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -3827,7 +3827,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                   }}
                 />
               </div>
-              <Badge variant="outline" className={controls?.maintenanceMode ? "border-amber-500/40 text-amber-300" : "border-border text-muted-foreground"}>
+              <Badge variant="outline" className={controls?.maintenanceMode ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}>
                 {controls?.maintenanceMode ? "Enabled" : "Disabled"}
               </Badge>
             </div>
@@ -3866,7 +3866,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                   variant="outline"
                   className={
                     controls?.maintenanceWindowActive
-                      ? "border-amber-500/40 text-amber-300"
+                      ? "border-warning/40 text-warning"
                       : controls?.maintenanceWindowUpcoming
                         ? "border-primary/30 text-primary"
                         : "border-border text-muted-foreground"
@@ -3880,7 +3880,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={controls?.maintenanceActive ? "border-amber-500/40 text-amber-300" : "border-border text-muted-foreground"}
+                  className={controls?.maintenanceActive ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}
                 >
                   Effective Maintenance: {controls?.maintenanceActive ? "On" : "Off"}
                 </Badge>
@@ -4035,7 +4035,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
       <Card>
         <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-base text-foreground">
-            <AlertTriangle size={18} className="text-amber-500" />
+            <AlertTriangle size={18} className="text-warning" />
             Incident & Session Controls
           </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
@@ -4046,7 +4046,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
           <div className="grid gap-3 md:grid-cols-2">
             <Button
               variant="outline"
-              className="justify-start border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              className="justify-start border-warning/40 text-warning hover:bg-warning/100/10"
               onClick={handleMarkAllAlertsRead}
               data-testid="button-clear-all-alerts"
             >
@@ -4108,7 +4108,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                         incident.severity === "critical"
                           ? "border-destructive/30 text-destructive"
                           : incident.severity === "warning"
-                            ? "border-amber-500/40 text-amber-300"
+                            ? "border-warning/40 text-warning"
                             : "border-primary/30 text-primary"
                       }
                     >
@@ -4766,7 +4766,7 @@ export default function SecretAdminPortal() {
                 <TabsTrigger value="users" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 relative data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Shield className="h-3.5 w-3.5" />
                   Users
-                  {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
+                  {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-warning/100 rounded-full animate-pulse" />}
                 </TabsTrigger>
                 <TabsTrigger value="presence" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
@@ -4795,27 +4795,27 @@ export default function SecretAdminPortal() {
               
               {/* Private Alert Section */}
               {adminAlerts.length > 0 && (
-                <Card className="bg-amber-950/20 border-amber-900/50 backdrop-blur-sm">
+                <Card className="bg-warning/20 border-warning/30 backdrop-blur-sm">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-amber-400 flex items-center gap-2">
+                    <CardTitle className="text-warning flex items-center gap-2">
                       <AlertTriangle /> Priority Staff Alerts
                     </CardTitle>
-                    <CardDescription className="text-amber-400/70">
+                    <CardDescription className="text-warning/70">
                       Staff members with 3+ discrepancies of the same type.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {adminAlerts.map((alert) => (
-                        <div key={alert.id} className="flex items-center justify-between p-3 bg-amber-950/40 rounded border border-amber-900/30" data-testid={`alert-${alert.id}`}>
+                        <div key={alert.id} className="flex items-center justify-between p-3 bg-warning/40 rounded border border-warning/30" data-testid={`alert-${alert.id}`}>
                           <div>
                             <p className="text-foreground font-semibold" data-testid={`alert-name-${alert.careWorkerId}`}>{alert.careWorkerName}</p>
-                            <p className="text-xs text-amber-300" data-testid={`alert-message-${alert.id}`}>{alert.discrepancyCount}x {alert.discrepancyType} Discrepancies</p>
+                            <p className="text-xs text-warning" data-testid={`alert-message-${alert.id}`}>{alert.discrepancyCount}x {alert.discrepancyType} Discrepancies</p>
                           </div>
                           <Button 
                             size="sm" 
                             variant="outline"
-                            className="border-amber-500/50 text-amber-300 hover:bg-amber-950"
+                            className="border-warning/50 text-warning hover:bg-warning"
                             onClick={() => handleMarkAlertRead(alert.id)}
                             data-testid={`button-dismiss-alert-${alert.id}`}
                           >
@@ -4910,7 +4910,7 @@ export default function SecretAdminPortal() {
               <div className="grid md:grid-cols-4 gap-4">
                 {[
                   { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", iconCls: "text-success", bgCls: "bg-success/10", icon: ShieldCheck },
-                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-amber-500", bgCls: "bg-amber-500/10", icon: Clock },
+                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-warning", bgCls: "bg-warning/100/10", icon: Clock },
                   { label: "Suspended", value: users.filter(u => (u.status as string) === "suspended").length.toString(), sub: "Account suspensions", iconCls: "text-destructive", bgCls: "bg-destructive/10", icon: Lock },
                   { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", iconCls: "text-primary", bgCls: "bg-primary/10", icon: Activity }
                 ].map((stat, i) => (
@@ -5077,12 +5077,12 @@ export default function SecretAdminPortal() {
               </Card>
 
               {/* Pending Approvals */}
-              <Card className="bg-amber-950/20 border-amber-900/30 backdrop-blur-sm">
-                <CardHeader className="border-b border-amber-900/30 bg-muted/20">
-                  <CardTitle className="text-amber-400 text-base flex items-center gap-2">
+              <Card className="bg-warning/20 border-warning/30 backdrop-blur-sm">
+                <CardHeader className="border-b border-warning/30 bg-muted/20">
+                  <CardTitle className="text-warning text-base flex items-center gap-2">
                     <Clock size={18} /> Pending Approvals
                     {pendingUsers.length > 0 && (
-                      <Badge className="bg-amber-600 text-foreground ml-2">{pendingUsers.length}</Badge>
+                      <Badge className="bg-warning text-foreground ml-2">{pendingUsers.length}</Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
@@ -5192,16 +5192,16 @@ export default function SecretAdminPortal() {
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className={u.status === "active" ? "border-success/30 text-success" : "border-amber-500/30 text-amber-500"} data-testid={`badge-status-${u.id}`}>
+                            <Badge variant="outline" className={u.status === "active" ? "border-success/30 text-success" : "border-warning/30 text-warning"} data-testid={`badge-status-${u.id}`}>
                               {u.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden md:table-cell" data-testid={`text-terms-${u.id}`}>
                             {u.termsVersion ? (
                               <div className="flex items-center gap-1.5">
-                                <FileCheck size={14} className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-amber-400"} />
+                                <FileCheck size={14} className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-warning"} />
                                 <div className="text-xs">
-                                  <span className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-amber-300"}>
+                                  <span className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-warning"}>
                                     v{u.termsVersion}
                                   </span>
                                   {u.termsSignatureName && (
@@ -5258,7 +5258,7 @@ export default function SecretAdminPortal() {
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                className="h-7 w-7 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-950/30"
+                                className="h-7 w-7 p-0 text-warning hover:text-warning hover:bg-warning/30"
                                 onClick={() => {
                                   setResetPasswordUser({ id: u.id, username: u.username });
                                   setResetPasswordValue("");
@@ -5553,7 +5553,7 @@ export default function SecretAdminPortal() {
               <Button
                 type="submit"
                 disabled={userActionLoading}
-                className="bg-amber-600 hover:bg-amber-500 text-white"
+                className="bg-warning hover:bg-warning/100 text-white"
                 data-testid="button-confirm-reset-password"
               >
                 {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileKey size={16} className="mr-2" />} Reset Password

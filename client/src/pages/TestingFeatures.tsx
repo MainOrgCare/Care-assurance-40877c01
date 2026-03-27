@@ -4834,7 +4834,7 @@ export default function TestingFeatures() {
                   {summary.totalPrimary.toLocaleString()} unique slots
                 </Badge>
                 <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                  <AlertCircle className="mr-2 h-3.5 w-3.5 text-amber-500" />
+                  <AlertCircle className="mr-2 h-3.5 w-3.5 text-warning" />
                   {summary.attention.toLocaleString()} flagged rows
                 </Badge>
                 <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
@@ -4874,10 +4874,10 @@ export default function TestingFeatures() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-stretch motion-safe:animate-slide-up stagger-2">
-        <Alert className="relative overflow-hidden border-amber-500/25 bg-amber-500/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-amber-500/30 dark:bg-amber-500/10">
+        <Alert className="relative overflow-hidden border-warning/25 bg-warning/100/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-warning/30 dark:bg-warning/100/10">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
           <AlertTitle className="flex items-center gap-2 text-base">
-            <Shield className="h-4 w-4 text-amber-500" />
+            <Shield className="h-4 w-4 text-warning" />
             {careWorkerRosters.length > 0 ? "Ready to save" : "Volatile workspace"}
           </AlertTitle>
           <AlertDescription className="text-sm">
@@ -5500,7 +5500,7 @@ export default function TestingFeatures() {
               helper="Same carer moved >2h"
             />
             <MetricCard
-              icon={<Timer className="h-4 w-4 text-amber-500" />}
+              icon={<Timer className="h-4 w-4 text-warning" />}
               label="Duration Alerts"
               value={summary.durationAlerts.toLocaleString()}
               helper="Under 80% or over 120%"
@@ -5695,7 +5695,7 @@ export default function TestingFeatures() {
           <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,146,60,0.18),transparent_55%)]" />
             <CardHeader className="relative z-10 flex flex-row items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-warning/100/15 text-warning">
                 <AlertCircle className="h-5 w-5" />
               </div>
               <div>
@@ -6898,7 +6898,7 @@ export default function TestingFeatures() {
                                           isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
                                             ? "bg-red-500/70"
                                             : isAfterSoftLimit || isBeforeDayStart
-                                            ? "bg-amber-400/80"
+                                            ? "bg-warning/80"
                                             : entry.isDoubleUp
                                             ? "bg-emerald-500/70"
                                             : "bg-primary/70";
@@ -6906,7 +6906,7 @@ export default function TestingFeatures() {
                                           isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
                                             ? "border-l-red-500/70"
                                             : isAfterSoftLimit || isBeforeDayStart
-                                            ? "border-l-amber-400/80"
+                                            ? "border-l-warning/80"
                                             : entry.isDoubleUp
                                             ? "border-l-emerald-500/70"
                                             : "border-l-primary/70";
@@ -6965,7 +6965,7 @@ export default function TestingFeatures() {
                                                 {isAfterSoftLimit && (
                                                   <Badge
                                                     variant="outline"
-                                                    className="text-xs font-semibold border-amber-500/40 text-amber-600 dark:text-amber-300"
+                                                    className="text-xs font-semibold border-warning/40 text-warning dark:text-warning"
                                                   >
                                                     After 22:00
                                                   </Badge>
@@ -7835,26 +7835,26 @@ const toneSurfaceMap: Record<InsightTone, string> = {
   default:
     "border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
   warning:
-    "border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
+    "border-warning/30 bg-gradient-to-br from-warning/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
   destructive:
     "border-red-500/30 bg-gradient-to-br from-red-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
 };
 
 const toneTextMap: Record<InsightTone, string> = {
   default: "text-emerald-600 dark:text-emerald-400",
-  warning: "text-amber-600 dark:text-amber-400",
+  warning: "text-warning",
   destructive: "text-red-600 dark:text-red-400",
 };
 
 const toneGlowMap: Record<InsightTone, string> = {
   default: "from-emerald-400/50 via-emerald-400/15 to-transparent",
-  warning: "from-amber-400/50 via-amber-400/15 to-transparent",
+  warning: "from-warning/50 via-warning/15 to-transparent",
   destructive: "from-red-400/50 via-red-400/15 to-transparent",
 };
 
 const toneBarMap: Record<InsightTone, string> = {
   default: "from-emerald-400/80 via-emerald-400/40 to-transparent",
-  warning: "from-amber-400/80 via-amber-400/40 to-transparent",
+  warning: "from-warning/80 via-warning/40 to-transparent",
   destructive: "from-red-400/80 via-red-400/40 to-transparent",
 };
 
@@ -7971,7 +7971,7 @@ function QualityDimensionCard({
   const gradeColor =
     grade === "A" ? "text-emerald-600 dark:text-emerald-400" :
     grade === "B" ? "text-sky-600 dark:text-sky-400" :
-    grade === "C" ? "text-amber-600 dark:text-amber-400" :
+    grade === "C" ? "text-warning" :
     grade === "D" ? "text-orange-600 dark:text-orange-400" :
     "text-red-600 dark:text-red-400";
 
@@ -8037,7 +8037,7 @@ function RateMetric({
   const progressColor = isAboveTarget 
     ? "bg-emerald-500" 
     : value >= target * 0.8 
-    ? "bg-amber-500" 
+    ? "bg-warning/100" 
     : "bg-red-500";
 
   return (
@@ -8281,7 +8281,7 @@ function DiagnosticStat({
 function InsightPill({ tone = "default", children }: { tone?: InsightTone; children: ReactNode }) {
   const toneClass: Record<InsightTone, string> = {
     default: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    warning: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    warning: "bg-warning/100/15 text-warning",
     destructive: "bg-red-500/15 text-red-600 dark:text-red-400",
   };
   return (

@@ -162,18 +162,18 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
       )}
       title="Compli-ee - Your Compliance Assistant"
     >
-      <div className="absolute inset-[15%] bg-white rounded-sm border-2 border-emerald-600/30">
-        <div className="absolute -top-[4px] left-1/2 -translate-x-1/2 w-[40%] h-[6px] bg-amber-400 rounded-sm border border-amber-500" />
-        <div className="absolute top-[35%] left-[20%] w-[60%] h-[2px] bg-emerald-500 rounded" />
-        <div className="absolute top-[55%] left-[20%] w-[40%] h-[2px] bg-emerald-500 rounded" />
-        <div className="absolute top-[75%] left-[20%] w-[50%] h-[2px] bg-emerald-400 rounded" />
+      <div className="absolute inset-[15%] bg-white rounded-sm border-2 border-success/30">
+        <div className="absolute -top-[4px] left-1/2 -translate-x-1/2 w-[40%] h-[6px] bg-warning rounded-sm border border-warning" />
+        <div className="absolute top-[35%] left-[20%] w-[60%] h-[2px] bg-success/100 rounded" />
+        <div className="absolute top-[55%] left-[20%] w-[40%] h-[2px] bg-success/100 rounded" />
+        <div className="absolute top-[75%] left-[20%] w-[50%] h-[2px] bg-success-400 rounded" />
       </div>
       <div className="absolute bottom-[18%] left-1/2 -translate-x-1/2 flex gap-[3px]">
-        <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
-        <div className="h-[3px] w-[3px] bg-emerald-700 rounded-full" />
+        <div className="h-[3px] w-[3px] bg-success-700 rounded-full" />
+        <div className="h-[3px] w-[3px] bg-success-700 rounded-full" />
       </div>
       <div
-        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[20%] h-[2px] bg-emerald-700 rounded-full"
+        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[20%] h-[2px] bg-success-700 rounded-full"
         style={{ borderRadius: "0 0 50% 50%" }}
       />
     </div>

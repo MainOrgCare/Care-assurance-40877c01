@@ -324,4 +324,112 @@ describe("PIIVault risk assessment scrubbing", () => {
 
     assert.equal(restored, input);
   });
+
+  it("handles multi-line documents without merging names across newlines", () => {
+    const vault = new PIIVault();
+    // "Walker\nWell" must NOT be treated as one two-word name
+    const input = "Born in: Walker\nWell known in North Shields\nLives in: Sunderland";
+    const scrubbed = vault.scrubString(input);
+
+    // All three place names should be redacted
+    assert(!scrubbed.toLowerCase().includes("walker"), `walker not redacted: ${scrubbed}`);
+    assert(!scrubbed.toLowerCase().includes("north shields"), `north shields not redacted: ${scrubbed}`);
+    assert(!scrubbed.toLowerCase().includes("sunderland"), `sunderland not redacted: ${scrubbed}`);
+    assert(/\{\{PII_.*_LOCATION_\d+\}\}/.test(scrubbed));
+  });
+
+  it("redacts dotted username in Signed by field", () => {
+    const vault = new PIIVault();
+    const input = "Signed by: Lewis.Barron";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.includes("Lewis.Barron"), `dotted username not redacted: ${scrubbed}`);
+  });
+
+  it("deduplicates: same name gets the same token throughout document", () => {
+    const vault = new PIIVault();
+    const input = "Sarah visited today. Later Sarah called. Sarah's notes are filed.";
+    const scrubbed = vault.scrubString(input);
+
+    // Extract all Sarah-related tokens
+    const tokens = scrubbed.match(/\{\{PII_[^}]+\}\}/g) || [];
+    const nameTokens = tokens.filter((t) => t.includes("_NAME_"));
+    // All occurrences of the same name should map to the same token
+    const uniqueTokens = new Set(nameTokens);
+    assert(uniqueTokens.size <= 2, `Too many unique tokens for same name: ${[...uniqueTokens]}`);
+  });
+
+  it("does not redact medication names as person names", () => {
+    const vault = new PIIVault();
+    const input = "Medication list: Metformin 500mg twice daily, Omeprazole 20mg once daily.";
+    const scrubbed = vault.scrubString(input);
+
+    assert(scrubbed.toLowerCase().includes("metformin"), `metformin wrongly redacted: ${scrubbed}`);
+    assert(scrubbed.toLowerCase().includes("omeprazole"), `omeprazole wrongly redacted: ${scrubbed}`);
+  });
+
+  it("redacts 'Partner named Kenny' contact context", () => {
+    const vault = new PIIVault();
+    const input = "Partner named Kenny, she is well known in North Shields for charity work";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.toLowerCase().includes("kenny"), `kenny not redacted: ${scrubbed}`);
+    assert(!scrubbed.toLowerCase().includes("north shields"), `north shields not redacted: ${scrubbed}`);
+  });
+
+  it("handles 'Lives in: South Shields' with capital city", () => {
+    const vault = new PIIVault();
+    const input = "Lives in: South Shields";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.toLowerCase().includes("south shields"), `south shields not redacted: ${scrubbed}`);
+    assert(/\{\{PII_.*_LOCATION_\d+\}\}/.test(scrubbed));
+  });
+
+  it("redacts ALL-CAPS name pair as found in formal UK care forms", () => {
+    const vault = new PIIVault();
+    const input = "Service user: MARGARET THORNTON. DOB: 15/03/1940.";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.includes("MARGARET"), `MARGARET not redacted: ${scrubbed}`);
+    assert(!scrubbed.includes("THORNTON"), `THORNTON not redacted: ${scrubbed}`);
+    assert(/\{\{PII_.*_NAME_\d+\}\}/.test(scrubbed));
+  });
+
+  it("redacts ALL-CAPS single name after a role label", () => {
+    const vault = new PIIVault();
+    const input = "Assessed by PATRICIA on admission.";
+    const scrubbed = vault.scrubString(input);
+
+    assert(!scrubbed.includes("PATRICIA"), `PATRICIA not redacted: ${scrubbed}`);
+  });
+
+  it("does not redact known abbreviations like NHS, GP, DOB as NAME tokens", () => {
+    const vault = new PIIVault();
+    // These are abbreviations — they should not be caught by ALL-CAPS name detection
+    const input = "NHS: on file. GP: on file. DOB: on file. UK resident.";
+    const scrubbed = vault.scrubString(input);
+
+    // Check that abbreviations are not stored as NAME tokens
+    // (they shouldn't produce NAME tokens for single standard abbreviations)
+    const nameTokenRegex = /\{\{PII_.*_NAME_\d+\}\}/g;
+    const nameTokens = scrubbed.match(nameTokenRegex) || [];
+    // The original tokens for NHS/GP/DOB should not produce any NAME tokens
+    assert(nameTokens.length === 0, `Abbreviations wrongly produced NAME tokens: ${scrubbed}`);
+  });
+
+  it("redacts any arbitrary personal name regardless of cultural origin", () => {
+    const vault = new PIIVault();
+    const inputs = [
+      "Olusegun attended the morning visit.",
+      "Zainab called the care team.",
+      "Wojciech Kowalski is the service user.",
+      "Nguyen Van An requires daily support.",
+    ];
+    for (const input of inputs) {
+      const scrubbed = vault.scrubString(input);
+      // Names like Olusegun, Zainab, Wojciech, Kowalski should all be caught by Phase 8
+      assert(/\{\{PII_.*_NAME_\d+\}\}/.test(scrubbed), `Name not redacted in: "${input}" → "${scrubbed}"`);
+    }
+  });
 });

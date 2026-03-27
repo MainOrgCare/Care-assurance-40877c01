@@ -38,7 +38,7 @@ function highlightPlaceholders(text: string): React.ReactNode {
     parts.push(
       <span
         key={key++}
-        className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md font-semibold text-xs border border-amber-300 dark:border-amber-700 cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors"
+        className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-warning/10 dark:bg-warning/30 text-warning rounded-md font-semibold text-xs border border-warning/30 cursor-pointer hover:bg-warning/20 dark:hover:bg-warning/10 transition-colors"
         title={`Click to fill in: ${match[1]}`}
       >
         <Edit3 size={10} />
@@ -537,7 +537,7 @@ export default function CarePlanning() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "high": return "text-red-400 bg-red-950/30 border-red-900/50";
-      case "medium": return "text-amber-400 bg-amber-950/30 border-amber-900/50";
+      case "medium": return "text-warning bg-warning/30 border-warning/30";
       case "low": return "text-emerald-400 bg-emerald-950/30 border-emerald-900/50";
       default: return "text-muted-foreground bg-muted/50 border-border";
     }
@@ -766,7 +766,7 @@ export default function CarePlanning() {
           )}
           
           {isAnyParsing() && (
-            <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest text-center mt-2 animate-pulse">
+            <p className="text-[10px] font-semibold text-warning uppercase tracking-widest text-center mt-2 animate-pulse">
               System busy: parsing baseline documents...
             </p>
           )}
@@ -832,7 +832,7 @@ export default function CarePlanning() {
                   <div className="flex items-center gap-2">
                     {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
                       <>
-                        <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">
+                        <Badge variant="secondary" className="bg-warning/10 dark:bg-warning/30 text-warning font-semibold">
                           <Edit3 size={12} className="mr-1" />
                           {countPlaceholders(carePlan.content)} fields to complete
                         </Badge>
@@ -867,8 +867,8 @@ export default function CarePlanning() {
               </CardHeader>
               <CardContent className="pt-6">
                 {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
-                  <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium flex items-center gap-2">
+                  <div className="mb-4 p-3 bg-warning/10 border border-warning/30 dark:border-warning/30 rounded-lg">
+                    <p className="text-xs text-warning font-medium flex items-center gap-2">
                       <Edit3 size={14} />
                       <span>
                         <strong>Template Output:</strong> This plan contains {countPlaceholders(carePlan.content)} placeholder fields highlighted in yellow.
@@ -900,7 +900,7 @@ export default function CarePlanning() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="rounded-lg font-semibold">TOTAL {sectionStats.total}</Badge>
                   <Badge className="rounded-lg font-semibold bg-destructive/15 text-destructive border-destructive/20">HIGH {sectionStats.high}</Badge>
-                  <Badge className="rounded-lg font-semibold bg-amber-500/15 text-amber-500 border-amber-500/20">MED {sectionStats.medium}</Badge>
+                  <Badge className="rounded-lg font-semibold bg-warning/100/15 text-warning border-warning/20">MED {sectionStats.medium}</Badge>
                   <Badge className="rounded-lg font-semibold bg-success/15 text-success border-success/20">LOW {sectionStats.low}</Badge>
                 </div>
               </div>
@@ -1041,7 +1041,7 @@ export default function CarePlanning() {
                         <div className={cn(
                           "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500",
                           section.priority === 'high' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                          section.priority === 'medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                          section.priority === 'medium' ? 'bg-warning/100/10 border-warning/20 text-warning' :
                           'bg-success/10 border-success/20 text-success'
                         )}>
                           {section.title.toLowerCase().includes('warning') || section.priority === 'high' ? (
@@ -1055,7 +1055,7 @@ export default function CarePlanning() {
                           <span className={cn(
                             "text-[10px] font-black uppercase tracking-widest",
                             section.priority === 'high' ? 'text-destructive' :
-                            section.priority === 'medium' ? 'text-amber-500' :
+                            section.priority === 'medium' ? 'text-warning' :
                             'text-success'
                           )}>
                             PRIORITY: {section.priority}

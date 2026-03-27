@@ -61,8 +61,8 @@ const CORE_FEATURES = [
     highlights: ["Early warning detection", "Mitigation strategies", "Monitoring plans", "Evidence-based"],
     timeSaving: "3 hr → 45 sec",
     costPence: 4,
-    color: "text-amber-500",
-    bgColor: "bg-amber-500/10",
+    color: "text-warning",
+    bgColor: "bg-warning/100/10",
   },
   {
     icon: MapPin,

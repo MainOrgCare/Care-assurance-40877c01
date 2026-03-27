@@ -44,7 +44,7 @@ function highlightPlaceholders(text: string): React.ReactNode {
     parts.push(
       <span
         key={key++}
-        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-semibold text-xs border border-amber-300 dark:border-amber-700"
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 bg-warning/10 dark:bg-warning/30 text-warning rounded font-semibold text-xs border border-warning/30"
         title={`Fill in: ${match[1]}`}
       >
         {match[0]}
@@ -1475,7 +1475,7 @@ export default function RiskAssessment() {
                   <ul className="mt-2 space-y-1">
                     {analysis.concerns.map((concern, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <AlertTriangle size={12} className="mt-0.5 text-amber-400 flex-shrink-0" />
+                        <AlertTriangle size={12} className="mt-0.5 text-warning flex-shrink-0" />
                         <span>{concern}</span>
                       </li>
                     ))}
@@ -1527,7 +1527,7 @@ export default function RiskAssessment() {
                 </Button>
               )}
             </div>
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-300">
+            <div className="rounded-md border border-warning/30 bg-warning/100/10 px-3 py-2 text-xs text-warning dark:text-warning">
               Assessments without supporting evidence are not auto-listed. Add them manually below if needed.
             </div>
           </CardHeader>
@@ -1778,7 +1778,7 @@ export default function RiskAssessment() {
               </Badge>
             )}
             {totalPlaceholders > 0 && (
-              <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">
+              <Badge variant="secondary" className="bg-warning/10 dark:bg-warning/30 text-warning font-semibold">
                 <Edit3 size={12} className="mr-1" />
                 {totalPlaceholders} placeholder{totalPlaceholders !== 1 ? 's' : ''} to fill
               </Badge>
@@ -1827,13 +1827,13 @@ export default function RiskAssessment() {
         </div>
 
         {totalPlaceholders > 0 && (
-          <Alert className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
-            <Edit3 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertTitle className="text-amber-700 dark:text-amber-300">Template Output</AlertTitle>
-            <AlertDescription className="text-amber-600 dark:text-amber-400">
+          <Alert className="bg-warning/10 border-warning/30 dark:border-warning/30">
+            <Edit3 className="h-4 w-4 text-warning" />
+            <AlertTitle className="text-warning">Template Output</AlertTitle>
+            <AlertDescription className="text-warning">
               These assessments contain {totalPlaceholders} placeholder{totalPlaceholders !== 1 ? 's' : ''} shown as{' '}
-              <span className="inline-flex items-center px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded text-xs font-medium border border-amber-300 dark:border-amber-700">[Name]</span>,{' '}
-              <span className="inline-flex items-center px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded text-xs font-medium border border-amber-300 dark:border-amber-700">[NHS Number]</span>, etc.
+              <span className="inline-flex items-center px-1 py-0.5 bg-warning/10 dark:bg-warning/50 text-warning rounded text-xs font-medium border border-warning/30">[Name]</span>,{' '}
+              <span className="inline-flex items-center px-1 py-0.5 bg-warning/10 dark:bg-warning/50 text-warning rounded text-xs font-medium border border-warning/30">[NHS Number]</span>, etc.
               Copy the assessment and replace each placeholder with actual data before adding to the care record.
             </AlertDescription>
           </Alert>
