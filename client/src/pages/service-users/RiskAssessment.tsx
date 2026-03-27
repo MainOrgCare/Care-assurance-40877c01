@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -105,6 +106,7 @@ export default function RiskAssessment() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
   const { user } = useAuth();
   const { toast } = useToast();
+  usePageTitle("Risk Assessment");
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisRaw, setAnalysisRaw] = useState<RiskAnalysis | null>(null);

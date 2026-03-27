@@ -707,7 +707,7 @@ export default function Dashboard() {
                          {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.carePlanReviews ?? 0}
                        </p>
                     </div>
-                    <div className="space-y-1 pl-2.5 border-l-2 border-amber-500/20">
+                    <div className="space-y-1 pl-2.5 border-l-2 border-warning/25">
                        <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Risk Assessments</p>
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments">
                          {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.riskAssessments ?? 0}

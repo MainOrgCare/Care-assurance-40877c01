@@ -276,14 +276,14 @@ export default function ComplieeIntro({ onComplete, onAskHelp }: ComplieeIntroPr
             )}
           >
             <p className="text-sm text-gray-700 mb-3 font-medium">
-              👋 Hi there! I'm <span className="text-indigo-600 font-semibold">Compli-ee</span>!
+              👋 Hi there! I'm <span className="text-secondary font-semibold">Compli-ee</span>!
               <br />
               <span className="text-gray-600">Would you like a quick tour of the platform?</span>
             </p>
             <div className="flex gap-2">
               <button
                 onClick={handleYes}
-                className="flex-1 px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                className="flex-1 px-3 py-2 bg-secondary text-secondary-foreground text-sm font-semibold rounded-lg hover:bg-secondary/90 transition-colors"
               >
                 Yes please! 🎉
               </button>

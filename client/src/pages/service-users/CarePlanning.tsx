@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -99,6 +100,7 @@ export default function CarePlanning() {
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
   const { user } = useAuth();
   const { toast } = useToast();
+  usePageTitle("Care Planning");
   
   // Call type management
   const [availableCallTypes, setAvailableCallTypes] = useState<string[]>([]);

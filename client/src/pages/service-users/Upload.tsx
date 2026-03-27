@@ -95,11 +95,11 @@ export default function ServiceUserUpload() {
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
                 serviceUserData.socialWork 
                   ? 'bg-success/12' 
-                  : 'bg-blue-500/10'
+                  : 'bg-primary/10'
               }`}>
                 {serviceUserData.socialWork 
                   ? <Check className="h-4 w-4 text-success" /> 
-                  : <FileText className="h-4 w-4 text-blue-400" />
+                  : <FileText className="h-4 w-4 text-primary/70" />
                 }
               </div>
               Social Work Docs
@@ -118,7 +118,7 @@ export default function ServiceUserUpload() {
                    </span>
                  </div>
                  {serviceUserData.socialWork.isParsing ? (
-                   <div className="flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                   <div className="flex items-center justify-center gap-1.5 text-xs text-primary bg-primary/10 py-1.5 px-3 rounded-full mx-auto w-fit">
                      <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                    </div>
                  ) : serviceUserData.socialWork.parseError ? (
@@ -130,8 +130,8 @@ export default function ServiceUserUpload() {
              ) : (
                <div className="w-full">
                  <label htmlFor="upload-social" className="cursor-pointer flex flex-col items-center group">
-                    <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-blue-500/10 transition-colors">
-                      <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-blue-400 transition-colors" />
+                    <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-primary/10 transition-colors">
+                      <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-primary transition-colors" />
                     </div>
                     <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">Drop file here or click to browse</span>
                  </label>
@@ -148,7 +148,7 @@ export default function ServiceUserUpload() {
             serviceUserData.initialAssessment 
               ? 'border-success/40 bg-success/5 shadow-glow'
               : dragOver === 'initialAssessment'
-                ? 'border-violet-500/50 bg-violet-500/5 border-dashed border-2 scale-[1.03]'
+                ? 'border-secondary/50 bg-secondary/5 border-dashed border-2 scale-[1.03]'
                 : 'border-dashed border-2 border-border/60 hover:border-violet-500/40 hover:bg-muted/30'
           )}
           onDrop={(e) => handleDrop("initialAssessment", e)}
@@ -163,11 +163,11 @@ export default function ServiceUserUpload() {
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
                 serviceUserData.initialAssessment 
                   ? 'bg-success/12' 
-                  : 'bg-violet-500/10'
+                  : 'bg-secondary/10'
               }`}>
                 {serviceUserData.initialAssessment 
                   ? <Check className="h-4 w-4 text-success" /> 
-                  : <Shield className="h-4 w-4 text-violet-400" />
+                  : <Shield className="h-4 w-4 text-secondary" />
                 }
               </div>
               Initial Assessment
@@ -195,7 +195,7 @@ export default function ServiceUserUpload() {
                    </span>
                  </div>
                  {serviceUserData.initialAssessment.isParsing ? (
-                   <div className="flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                   <div className="flex items-center justify-center gap-1.5 text-xs text-primary bg-primary/10 py-1.5 px-3 rounded-full mx-auto w-fit">
                      <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                    </div>
                  ) : serviceUserData.initialAssessment.parseError ? (
@@ -232,8 +232,8 @@ export default function ServiceUserUpload() {
              ) : (
                <div className="w-full">
                  <label htmlFor="upload-assess" className="cursor-pointer flex flex-col items-center group">
-                    <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-violet-500/10 transition-colors">
-                      <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-violet-400 transition-colors" />
+                    <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-secondary/10 transition-colors">
+                      <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-secondary transition-colors" />
                     </div>
                     <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">Drop file here or click to browse</span>
                  </label>
@@ -260,8 +260,8 @@ export default function ServiceUserUpload() {
             serviceUserData.carePlan 
               ? 'border-success/40 bg-success/5 shadow-glow' 
               : dragOver === 'carePlan'
-                ? 'border-amber-500/50 bg-amber-500/5 border-dashed border-2 scale-[1.03]'
-                : 'border-dashed border-2 border-border/60 hover:border-amber-500/40 hover:bg-muted/30'
+                ? 'border-warning/50 bg-warning/5 border-dashed border-2 scale-[1.03]'
+                : 'border-dashed border-2 border-border/60 hover:border-warning/40 hover:bg-muted/30'
           )}
           onDrop={(e) => handleDrop("carePlan", e)}
           onDragOver={(e) => handleDragOver("carePlan", e)}
@@ -275,11 +275,11 @@ export default function ServiceUserUpload() {
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
                 serviceUserData.carePlan 
                   ? 'bg-success/12' 
-                  : 'bg-amber-500/10'
+                  : 'bg-warning/10'
               }`}>
                 {serviceUserData.carePlan 
                   ? <Check className="h-4 w-4 text-success" /> 
-                  : <AlertCircle className="h-4 w-4 text-amber-400" />
+                  : <AlertCircle className="h-4 w-4 text-warning" />
                 }
               </div>
               Current Care Plan
@@ -298,7 +298,7 @@ export default function ServiceUserUpload() {
                    </span>
                  </div>
                  {serviceUserData.carePlan.isParsing ? (
-                   <div className="flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                   <div className="flex items-center justify-center gap-1.5 text-xs text-primary bg-primary/10 py-1.5 px-3 rounded-full mx-auto w-fit">
                      <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                    </div>
                  ) : serviceUserData.carePlan.parseError ? (
@@ -310,8 +310,8 @@ export default function ServiceUserUpload() {
              ) : (
                <div className="w-full">
                  <label htmlFor="upload-plan" className="cursor-pointer flex flex-col items-center group">
-                    <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-amber-500/10 transition-colors">
-                      <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-amber-400 transition-colors" />
+                    <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-warning/10 transition-colors">
+                      <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-warning transition-colors" />
                     </div>
                     <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">Drop file here or click to browse</span>
                  </label>
@@ -373,7 +373,7 @@ export default function ServiceUserUpload() {
                   </span>
                 </div>
                 {serviceUserData.movingHandling.isParsing ? (
-                  <div className="flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-primary bg-primary/10 py-1.5 px-3 rounded-full mx-auto w-fit">
                     <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                   </div>
                 ) : serviceUserData.movingHandling.parseError ? (
@@ -414,7 +414,7 @@ export default function ServiceUserUpload() {
             (serviceUserData.additionalDocuments || []).length > 0
               ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "additionalDocuments"
-                ? "border-indigo-500/50 bg-indigo-500/5 border-dashed border-2 scale-[1.03]"
+                ? "border-primary/50 bg-primary/5 border-dashed border-2 scale-[1.03]"
                 : "border-dashed border-2 border-border/60 hover:border-indigo-500/40 hover:bg-muted/30"
           )}
           onDrop={(e) => handleDrop("additionalDocuments", e)}
@@ -426,8 +426,8 @@ export default function ServiceUserUpload() {
           )}
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2.5 text-base">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-indigo-500/10">
-                <Upload className="h-4 w-4 text-indigo-400" />
+              <div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10">
+                <Upload className="h-4 w-4 text-primary" />
               </div>
               Additional Documents
             </CardTitle>
@@ -438,8 +438,8 @@ export default function ServiceUserUpload() {
           <CardContent className="flex flex-col items-center justify-center py-6 text-center space-y-3">
             <div className="w-full">
               <label htmlFor="upload-additional" className="cursor-pointer flex flex-col items-center group">
-                <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-indigo-500/10 transition-colors">
-                  <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-indigo-400 transition-colors" />
+                <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-primary/10 transition-colors">
+                  <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-primary transition-colors" />
                 </div>
                 <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">
                   Drop files here or click to browse
@@ -464,7 +464,7 @@ export default function ServiceUserUpload() {
                         {doc.name}
                       </p>
                       {doc.isParsing ? (
-                        <span className="text-[10px] text-blue-400">Parsing...</span>
+                        <span className="text-[10px] text-primary">Parsing...</span>
                       ) : doc.parseError ? (
                         <span className="text-[10px] text-destructive">{doc.parseError}</span>
                       ) : (

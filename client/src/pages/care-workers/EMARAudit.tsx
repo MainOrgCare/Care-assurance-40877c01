@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Copy, Check, X, AlertTriangle, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, UserPlus, Users, Sparkles, RefreshCw, Pencil, Save, Download, Brain, Activity, Clock, Pill } from "lucide-react";
@@ -390,6 +391,7 @@ function formatServiceUserInitials(value?: string): string {
 
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
+  usePageTitle("EMAR Audit");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {

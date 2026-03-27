@@ -9,6 +9,7 @@
  */
 
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -438,6 +439,7 @@ export default function RosteringStudioUnified({
   embedded?: boolean;
 }) {
   const { toast } = useToast();
+  usePageTitle("Rostering Studio");
   const queryClient = useQueryClient();
 
   // Warm optional heavy chunks in idle time so first panel-open feels instant.

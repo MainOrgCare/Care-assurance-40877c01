@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -224,9 +225,34 @@ export default function Performance() {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground animate-pulse">
-          <BookOpen className="h-12 w-12 mb-4 opacity-20" />
-          <p className="font-semibold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
+        <div className="space-y-4">
+          {/* Stats skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Card key={i}>
+                <CardContent className="pt-4 pb-3">
+                  <Skeleton className="h-3 w-20 mb-2" />
+                  <Skeleton className="h-8 w-14 mb-1" />
+                  <Skeleton className="h-2.5 w-24" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* Table skeleton */}
+          <Card>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border/30">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="flex items-center gap-4 p-4">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-16 ml-auto" />
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       ) : fetchError ? (
         <Card className="animate-slide-up mt-6 border-destructive/30">

@@ -244,6 +244,7 @@ export default function Settings() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 autoComplete="current-password"
+                aria-label="Current password"
                 data-testid="input-current-password"
               />
               <Input
@@ -252,6 +253,7 @@ export default function Settings() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 autoComplete="new-password"
+                aria-label="New password"
                 data-testid="input-new-password"
               />
               <Input

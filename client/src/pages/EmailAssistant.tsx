@@ -283,7 +283,7 @@ export default function EmailAssistant() {
           <CardFooter className="flex flex-col gap-3 px-5 py-4 bg-muted/10 border-t border-border/30">
             <div className="flex items-center gap-3 w-full">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 whitespace-nowrap">Tone</Label>
-              <Select value={tone} onValueChange={setTone}>
+              <Select value={tone} onValueChange={setTone} aria-label="Email tone">
                 <SelectTrigger className="h-8 text-xs flex-1">
                   <SelectValue />
                 </SelectTrigger>

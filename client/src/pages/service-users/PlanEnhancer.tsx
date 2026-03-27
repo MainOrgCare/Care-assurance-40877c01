@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect, memo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import jsPDF from "jspdf";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
@@ -105,6 +106,7 @@ type PlanEnhancerResult = {
 
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
+  usePageTitle("Plan Enhancer");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {

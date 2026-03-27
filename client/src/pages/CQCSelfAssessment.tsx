@@ -54,7 +54,7 @@ const CQC_DOMAINS = [
   {
     id: "effective",
     title: "Effective",
-    icon: <Lightbulb className="text-blue-600" size={18} />,
+    icon: <Lightbulb className="text-primary" size={18} />,
     color: "blue",
     description: "Care, treatment, and support achieves good outcomes.",
     questions: [
@@ -68,7 +68,7 @@ const CQC_DOMAINS = [
   {
     id: "caring",
     title: "Caring",
-    icon: <Heart className="text-pink-600" size={18} />,
+    icon: <Heart className="text-secondary/70" size={18} />,
     color: "pink",
     description: "Staff treat people with compassion, kindness, dignity, and respect.",
     questions: [
@@ -81,7 +81,7 @@ const CQC_DOMAINS = [
   {
     id: "responsive",
     title: "Responsive",
-    icon: <UserCheck className="text-purple-600" size={18} />,
+    icon: <UserCheck className="text-secondary" size={18} />,
     color: "purple",
     description: "Services are organised so they meet people's needs.",
     questions: [

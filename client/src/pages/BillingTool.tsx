@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import jsPDF from "jspdf";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -120,6 +121,7 @@ const formatDuration = (minutes: number | null, fallback?: string | null) => {
 export default function BillingTool() {
   const { user } = useAuth();
   const { toast } = useToast();
+  usePageTitle("Billing");
   const [dragOver, setDragOver] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [isCurrent, setIsCurrent] = useState(true);

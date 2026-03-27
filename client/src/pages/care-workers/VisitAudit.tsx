@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, memo, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Copy, ClipboardList, Check, X, AlertTriangle, Loader2 } from "lucide-react";
@@ -85,6 +86,7 @@ function formatCarerName(name: string): string {
 
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
+  usePageTitle("Visit Audit");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {

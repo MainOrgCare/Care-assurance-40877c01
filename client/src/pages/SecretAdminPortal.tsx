@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, memo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1401,6 +1402,7 @@ const AICostSection = memo(function AICostSection() {
 
 const AIProviderSection = memo(function AIProviderSection() {
   const { toast } = useToast();
+  usePageTitle("Admin Portal");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
   const [hasLocalLLM, setHasLocalLLM] = useState(false);

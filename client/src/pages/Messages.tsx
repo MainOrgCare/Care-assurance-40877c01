@@ -166,9 +166,9 @@ export default function Messages() {
   const getPriorityIcon = (priority: string) => {
     switch (priority) {
       case "urgent":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-destructive" />;
       case "high":
-        return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+        return <AlertTriangle className="h-4 w-4 text-warning" />;
       default:
         return null;
     }
@@ -242,9 +242,9 @@ export default function Messages() {
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">To *</label>
+                  <label id="compose-to-label" className="text-xs font-medium text-muted-foreground mb-1 block">To *</label>
                   <Select value={composeForm.recipientId} onValueChange={(v) => setComposeForm({ ...composeForm, recipientId: v })}>
-                    <SelectTrigger aria-label="Select recipient"><SelectValue placeholder="Select recipient..." /></SelectTrigger>
+                    <SelectTrigger aria-labelledby="compose-to-label" aria-required="true"><SelectValue placeholder="Select recipient..." /></SelectTrigger>
                     <SelectContent>
                       {availableRecipients.map((u: UserForRecipient) => (
                         <SelectItem key={u.id} value={u.id}>
@@ -256,18 +256,20 @@ export default function Messages() {
                 </div>
                 <div className="grid grid-cols-[1fr_140px] gap-2">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Subject *</label>
+                    <label htmlFor="compose-subject" className="text-xs font-medium text-muted-foreground mb-1 block">Subject *</label>
                     <Input
+                      id="compose-subject"
                       value={composeForm.subject}
                       onChange={(e) => setComposeForm({ ...composeForm, subject: e.target.value })}
                       placeholder="Message subject..."
                       maxLength={200}
+                      aria-required="true"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority</label>
                     <Select value={composeForm.priority} onValueChange={(v: "normal" | "high" | "urgent") => setComposeForm({ ...composeForm, priority: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Message priority"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="normal">Normal</SelectItem>
                         <SelectItem value="high">High</SelectItem>
@@ -277,13 +279,15 @@ export default function Messages() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Message *</label>
+                  <label htmlFor="compose-message" className="text-xs font-medium text-muted-foreground mb-1 block">Message *</label>
                   <Textarea
+                    id="compose-message"
                     value={composeForm.message}
                     onChange={(e) => setComposeForm({ ...composeForm, message: e.target.value })}
                     placeholder="Type your message..."
                     rows={6}
                     maxLength={5000}
+                    aria-required="true"
                   />
                   <p className="text-[10px] text-muted-foreground text-right mt-0.5">{composeForm.message.length}/5000</p>
                 </div>
