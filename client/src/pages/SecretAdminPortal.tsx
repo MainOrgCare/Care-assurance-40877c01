@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, memo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 
 interface AdminAlert {
@@ -464,7 +466,7 @@ const AIAdminLog = memo(function AIAdminLog() {
 
   const providerRetryBadgeClass = (provider: string): string => {
     const normalized = (provider || "unknown").toLowerCase();
-    if (normalized === "openai") return "border-emerald-500/35 bg-emerald-500/10 text-emerald-700";
+    if (normalized === "openai") return "border-success/30 bg-success/10 text-success";
     if (normalized === "local") return "border-sky-500/35 bg-sky-500/10 text-sky-700";
     if (normalized === "github") return "border-violet-500/35 bg-violet-500/10 text-violet-700";
     return "border-border/60 bg-muted/30 text-muted-foreground";
@@ -910,7 +912,7 @@ const AIAdminLog = memo(function AIAdminLog() {
                     </div>
                     <div className="flex items-center gap-2">
                       {(log.retryCount || 0) > 0 && (
-                        <Badge variant="secondary" className="text-xs bg-amber-500/15 text-amber-700 border-amber-500/30">
+                        <Badge variant="secondary" className="text-xs bg-warning/100/15 text-warning border-warning/30">
                           {log.retryCount} retry{(log.retryCount || 0) > 1 ? "ies" : ""}
                         </Badge>
                       )}
@@ -1013,7 +1015,7 @@ const AICostSection = memo(function AICostSection() {
     "emar_pass": "bg-purple-500/10 text-purple-500",
     "drug_interactions": "bg-destructive/10 text-destructive",
     "care_plan": "bg-success/10 text-success",
-    "risk_assessment": "bg-amber-500/10 text-amber-500",
+    "risk_assessment": "bg-warning/100/10 text-warning",
     "plan_enhancer": "bg-cyan-500/10 text-cyan-500",
   };
 
@@ -1061,7 +1063,7 @@ const AICostSection = memo(function AICostSection() {
 
   const providerBadgeClass = (value: string): string => (
     value === "openai"
-      ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
+      ? "border-success/30 text-success bg-success/10"
       : "border-white/10 text-muted-foreground bg-muted/30"
   );
 
@@ -1121,11 +1123,11 @@ const AICostSection = memo(function AICostSection() {
         <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Activity size={14} className="text-amber-500" /> Avg Cost / Call
+              <Activity size={14} className="text-warning" /> Avg Cost / Call
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-amber-600">{formatCost(avgCostPerCall)}</div>
+            <div className="text-2xl font-semibold text-warning">{formatCost(avgCostPerCall)}</div>
             <p className="text-xs text-muted-foreground">{avgTokensPerCall.toFixed(0)} tokens per call</p>
           </CardContent>
         </Card>
@@ -1169,7 +1171,7 @@ const AICostSection = memo(function AICostSection() {
         <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <TrendingUp size={14} className="text-emerald-500" /> Top Cost Driver
+              <TrendingUp size={14} className="text-success" /> Top Cost Driver
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1186,7 +1188,7 @@ const AICostSection = memo(function AICostSection() {
                 </div>
                 <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                   <div
-                    className="h-full bg-emerald-400/70"
+                    className="h-full bg-success/10"
                     style={{ width: `${Math.max(6, Math.min(100, totalCost > 0 ? (topFeature[1].cost / totalCost) * 100 : 0))}%` }}
                   />
                 </div>
@@ -1283,38 +1285,51 @@ const AICostSection = memo(function AICostSection() {
                   <SelectItem value="other">Other providers</SelectItem>
                 </SelectContent>
               </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={filteredLogs.length === 0}
-                onClick={() => {
-                  const headers = ["Timestamp", "User", "Feature", "Provider", "Model", "Input Tokens", "Output Tokens", "Total Tokens", "Cost (micro $)", "Duration (ms)"];
-                  const rows = filteredLogs.map(log => [
-                    new Date(log.createdAt).toISOString(),
-                    log.username || "System",
-                    log.featureName,
-                    log.provider || "unknown",
-                    log.model,
-                    log.inputTokens,
-                    log.outputTokens,
-                    log.totalTokens,
-                    log.costMicroDollars,
-                    log.durationMs ?? "",
-                  ]);
-                  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `ai-usage-${new Date().toISOString().slice(0, 10)}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <Download size={14} />
-                Export CSV
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={filteredLogs.length === 0 ? 0 : -1}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={filteredLogs.length === 0}
+                        onClick={() => {
+                          const headers = ["Timestamp", "User", "Feature", "Provider", "Model", "Input Tokens", "Output Tokens", "Total Tokens", "Cost (micro $)", "Duration (ms)"];
+                          const rows = filteredLogs.map(log => [
+                            new Date(log.createdAt).toISOString(),
+                            log.username || "System",
+                            log.featureName,
+                            log.provider || "unknown",
+                            log.model,
+                            log.inputTokens,
+                            log.outputTokens,
+                            log.totalTokens,
+                            log.costMicroDollars,
+                            log.durationMs ?? "",
+                          ]);
+                          const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `ai-usage-${new Date().toISOString().slice(0, 10)}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                      >
+                        <Download size={14} />
+                        Export CSV
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {filteredLogs.length === 0 && (
+                    <TooltipContent>
+                      <p>No AI usage logs to export</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </CardHeader>
@@ -1670,17 +1685,17 @@ const AIProviderSection = memo(function AIProviderSection() {
               disabled={updating || !hasOpenAIKey}
               className={`p-4 rounded-lg border-2 text-left transition-all ${
                 selectedProvider === "openai" 
-                  ? "border-emerald-500/50 bg-emerald-50" 
+                  ? "border-success/30 bg-success/10" 
                   : hasOpenAIKey 
-                    ? "border-border/40 bg-muted/30 hover:border-emerald-300" 
+                    ? "border-border/40 bg-muted/30 hover:border-success/30" 
                     : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasOpenAIKey ? "bg-emerald-500/20" : "bg-muted/50"
+                  hasOpenAIKey ? "bg-success/10" : "bg-muted/50"
                 }`}>
-                  <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-muted-foreground/60"} />
+                  <Cpu size={20} className={hasOpenAIKey ? "text-success" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">OpenAI</div>
@@ -1693,7 +1708,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                 variant="secondary"
                 className={`mt-2 ${
                   selectedProvider === "openai"
-                    ? "bg-emerald-500/20 text-emerald-600"
+                    ? "bg-success/10 text-success"
                     : hasOpenAIKey
                       ? "bg-muted/50 text-muted-foreground"
                       : "bg-yellow-100 text-yellow-600"
@@ -1938,7 +1953,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                 <span>Core EMAR extraction (accuracy critical)</span>
               </div>
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">{selectedModel}</Badge>
+                <Badge variant="secondary" className="bg-success/10 text-success border-success/30 shrink-0">{selectedModel}</Badge>
                 <span>Count validation, equivalence checks, drug interactions, validation passes (cost-efficient with temperature support)</span>
               </div>
             </div>
@@ -2056,7 +2071,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
     <>
     <div className="border-t border-border/30 pt-6">
       <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-        <Zap size={16} className="text-amber-400" />
+        <Zap size={16} className="text-warning" />
         AI Optimization (Cost Reduction)
       </h4>
       
@@ -2103,7 +2118,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
 
       {/* Cache Stats */}
       {cacheStats && (
-        <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+        <div className="mt-4 p-3 bg-warning/100/10 rounded-lg border border-warning/20">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-foreground">Cache Statistics</span>
             <button
@@ -2124,7 +2139,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
               <div className="text-muted-foreground">Tokens Saved</div>
             </div>
             <div className="bg-background/60 rounded p-2 text-center">
-              <div className="font-semibold text-emerald-600">{cacheStats.estimatedCostSaved}</div>
+              <div className="font-semibold text-success">{cacheStats.estimatedCostSaved}</div>
               <div className="text-muted-foreground">Cost Saved</div>
             </div>
           </div>
@@ -2135,30 +2150,30 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
       )}
       
       {/* Feature Benefits Summary */}
-      <div className="mt-4 p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+      <div className="mt-4 p-3 bg-success/10 rounded-lg border border-success/30">
         <span className="text-xs font-medium text-foreground mb-2 block">Optimization Benefits</span>
         <div className="space-y-1.5 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Response Caching:</span>
-            <span className={`font-medium ${useCache ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`font-medium ${useCache ? "text-success" : "text-muted-foreground"}`}>
               {useCache ? "~30% API cost reduction" : "Disabled"}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Rules-First Engine:</span>
-            <span className={`font-medium ${useRulesFirst ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`font-medium ${useRulesFirst ? "text-success" : "text-muted-foreground"}`}>
               {useRulesFirst ? "~40% fewer AI calls" : "Disabled"}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Lite Mode:</span>
-            <span className={`font-medium ${liteMode ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`font-medium ${liteMode ? "text-success" : "text-muted-foreground"}`}>
               {liteMode ? "~25% smaller prompts" : "Disabled"}
             </span>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-emerald-500/20">
+          <div className="flex items-center justify-between pt-2 border-t border-success/30">
             <span className="text-muted-foreground font-medium">Estimated Total Savings:</span>
-            <span className="font-semibold text-emerald-600">
+            <span className="font-semibold text-success">
               ~{((useCache ? 30 : 0) + (useRulesFirst ? 40 : 0) + (liteMode ? 15 : 0))}%
             </span>
           </div>
@@ -2459,7 +2474,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          className="border-amber-500/50 text-amber-300 hover:bg-amber-950"
+                          className="border-warning/50 text-warning hover:bg-warning"
                           onClick={(e) => { e.stopPropagation(); setSuspendingUser(user.id); }}
                           data-testid={`button-suspend-${user.id}`}
                         >
@@ -2569,7 +2584,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSuspendingUser(null)} className="border-border text-foreground">Cancel</Button>
-            <Button onClick={() => suspendingUser && handleSuspend(suspendingUser)} className="bg-warning hover:bg-warning/90 text-warning-foreground">Suspend User</Button>
+            <Button onClick={() => suspendingUser && handleSuspend(suspendingUser)} className="bg-warning hover:bg-warning/100 text-white">Suspend User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2910,7 +2925,7 @@ const PolicyDocumentsSection = memo(function PolicyDocumentsSection() {
 	      <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
-            <FileText size={18} className="text-emerald-400" />
+            <FileText size={18} className="text-success" />
             Uploaded Policy Documents
           </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
@@ -3113,11 +3128,11 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <MailOpen size={14} className="text-amber-500" /> Unread
+              <MailOpen size={14} className="text-warning" /> Unread
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-amber-400">{unreadCount}</div>
+            <div className="text-2xl font-semibold text-warning">{unreadCount}</div>
             <p className="text-xs text-muted-foreground">Awaiting review</p>
           </CardContent>
         </Card>
@@ -3292,7 +3307,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
             <Button
               variant="outline"
               onClick={() => selectedMessage && handleArchive(selectedMessage.id)}
-              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              className="border-warning/30 text-warning hover:bg-warning/100/10"
             >
               <Archive size={14} className="mr-2" />
               Archive
@@ -3736,7 +3751,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <AlertTriangle size={14} className="text-amber-500" /> Incident Queue
+              <AlertTriangle size={14} className="text-warning" /> Incident Queue
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -3812,7 +3827,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                   }}
                 />
               </div>
-              <Badge variant="outline" className={controls?.maintenanceMode ? "border-amber-500/40 text-amber-300" : "border-border text-muted-foreground"}>
+              <Badge variant="outline" className={controls?.maintenanceMode ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}>
                 {controls?.maintenanceMode ? "Enabled" : "Disabled"}
               </Badge>
             </div>
@@ -3851,7 +3866,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                   variant="outline"
                   className={
                     controls?.maintenanceWindowActive
-                      ? "border-amber-500/40 text-amber-300"
+                      ? "border-warning/40 text-warning"
                       : controls?.maintenanceWindowUpcoming
                         ? "border-primary/30 text-primary"
                         : "border-border text-muted-foreground"
@@ -3865,7 +3880,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={controls?.maintenanceActive ? "border-amber-500/40 text-amber-300" : "border-border text-muted-foreground"}
+                  className={controls?.maintenanceActive ? "border-warning/40 text-warning" : "border-border text-muted-foreground"}
                 >
                   Effective Maintenance: {controls?.maintenanceActive ? "On" : "Off"}
                 </Badge>
@@ -3963,7 +3978,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                   variant="outline"
                   className={
                     hasActiveAnnouncement
-                      ? "border-emerald-500/40 text-emerald-300"
+                      ? "border-success/30 text-success"
                       : "border-border text-muted-foreground"
                   }
                 >
@@ -4020,7 +4035,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
       <Card>
         <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-base text-foreground">
-            <AlertTriangle size={18} className="text-amber-500" />
+            <AlertTriangle size={18} className="text-warning" />
             Incident & Session Controls
           </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
@@ -4031,7 +4046,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
           <div className="grid gap-3 md:grid-cols-2">
             <Button
               variant="outline"
-              className="justify-start border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              className="justify-start border-warning/40 text-warning hover:bg-warning/100/10"
               onClick={handleMarkAllAlertsRead}
               data-testid="button-clear-all-alerts"
             >
@@ -4093,7 +4108,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                         incident.severity === "critical"
                           ? "border-destructive/30 text-destructive"
                           : incident.severity === "warning"
-                            ? "border-amber-500/40 text-amber-300"
+                            ? "border-warning/40 text-warning"
                             : "border-primary/30 text-primary"
                       }
                     >
@@ -4174,6 +4189,7 @@ interface EditingUser {
 }
 
 export default function SecretAdminPortal() {
+  usePageTitle("Admin Portal");
   const { users, approveUser, rejectUser, auditLogs, fetchUsers } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [adminAlerts, setAdminAlerts] = useState<AdminAlert[]>([]);
@@ -4665,7 +4681,7 @@ export default function SecretAdminPortal() {
     <div className="relative space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-40 right-0 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
-        <div className="absolute top-40 left-0 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute top-40 left-0 h-80 w-80 rounded-full bg-success/10 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
       </div>
       {/* Header */}
@@ -4750,7 +4766,7 @@ export default function SecretAdminPortal() {
                 <TabsTrigger value="users" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 relative data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Shield className="h-3.5 w-3.5" />
                   Users
-                  {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse" />}
+                  {pendingUsers.length > 0 && <span className="absolute -top-1 -right-1 h-2 w-2 bg-warning/100 rounded-full animate-pulse" />}
                 </TabsTrigger>
                 <TabsTrigger value="presence" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
@@ -4779,27 +4795,27 @@ export default function SecretAdminPortal() {
               
               {/* Private Alert Section */}
               {adminAlerts.length > 0 && (
-                <Card className="bg-amber-950/20 border-amber-900/50 backdrop-blur-sm">
+                <Card className="bg-warning/20 border-warning/30 backdrop-blur-sm">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-amber-400 flex items-center gap-2">
+                    <CardTitle className="text-warning flex items-center gap-2">
                       <AlertTriangle /> Priority Staff Alerts
                     </CardTitle>
-                    <CardDescription className="text-amber-400/70">
+                    <CardDescription className="text-warning/70">
                       Staff members with 3+ discrepancies of the same type.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       {adminAlerts.map((alert) => (
-                        <div key={alert.id} className="flex items-center justify-between p-3 bg-amber-950/40 rounded border border-amber-900/30" data-testid={`alert-${alert.id}`}>
+                        <div key={alert.id} className="flex items-center justify-between p-3 bg-warning/40 rounded border border-warning/30" data-testid={`alert-${alert.id}`}>
                           <div>
                             <p className="text-foreground font-semibold" data-testid={`alert-name-${alert.careWorkerId}`}>{alert.careWorkerName}</p>
-                            <p className="text-xs text-amber-300" data-testid={`alert-message-${alert.id}`}>{alert.discrepancyCount}x {alert.discrepancyType} Discrepancies</p>
+                            <p className="text-xs text-warning" data-testid={`alert-message-${alert.id}`}>{alert.discrepancyCount}x {alert.discrepancyType} Discrepancies</p>
                           </div>
                           <Button 
                             size="sm" 
                             variant="outline"
-                            className="border-amber-500/50 text-amber-300 hover:bg-amber-950"
+                            className="border-warning/50 text-warning hover:bg-warning"
                             onClick={() => handleMarkAlertRead(alert.id)}
                             data-testid={`button-dismiss-alert-${alert.id}`}
                           >
@@ -4880,7 +4896,7 @@ export default function SecretAdminPortal() {
                         Rebuild Package
                       </Button>
                     </div>
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                    <Badge variant="outline" className="border-success/30 text-success bg-success/10">
                       {extensionInfo?.package?.rebuilt ? "Package rebuilt this refresh" : "Package freshness verified"}
                     </Badge>
                   </div>
@@ -4894,7 +4910,7 @@ export default function SecretAdminPortal() {
               <div className="grid md:grid-cols-4 gap-4">
                 {[
                   { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", iconCls: "text-success", bgCls: "bg-success/10", icon: ShieldCheck },
-                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-amber-500", bgCls: "bg-amber-500/10", icon: Clock },
+                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-warning", bgCls: "bg-warning/100/10", icon: Clock },
                   { label: "Suspended", value: users.filter(u => (u.status as string) === "suspended").length.toString(), sub: "Account suspensions", iconCls: "text-destructive", bgCls: "bg-destructive/10", icon: Lock },
                   { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", iconCls: "text-primary", bgCls: "bg-primary/10", icon: Activity }
                 ].map((stat, i) => (
@@ -5061,12 +5077,12 @@ export default function SecretAdminPortal() {
               </Card>
 
               {/* Pending Approvals */}
-              <Card className="bg-amber-950/20 border-amber-900/30 backdrop-blur-sm">
-                <CardHeader className="border-b border-amber-900/30 bg-muted/20">
-                  <CardTitle className="text-amber-400 text-base flex items-center gap-2">
+              <Card className="bg-warning/20 border-warning/30 backdrop-blur-sm">
+                <CardHeader className="border-b border-warning/30 bg-muted/20">
+                  <CardTitle className="text-warning text-base flex items-center gap-2">
                     <Clock size={18} /> Pending Approvals
                     {pendingUsers.length > 0 && (
-                      <Badge className="bg-amber-600 text-foreground ml-2">{pendingUsers.length}</Badge>
+                      <Badge className="bg-warning text-foreground ml-2">{pendingUsers.length}</Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
@@ -5176,16 +5192,16 @@ export default function SecretAdminPortal() {
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className={u.status === "active" ? "border-success/30 text-success" : "border-amber-500/30 text-amber-500"} data-testid={`badge-status-${u.id}`}>
+                            <Badge variant="outline" className={u.status === "active" ? "border-success/30 text-success" : "border-warning/30 text-warning"} data-testid={`badge-status-${u.id}`}>
                               {u.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden md:table-cell" data-testid={`text-terms-${u.id}`}>
                             {u.termsVersion ? (
                               <div className="flex items-center gap-1.5">
-                                <FileCheck size={14} className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-amber-400"} />
+                                <FileCheck size={14} className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-warning"} />
                                 <div className="text-xs">
-                                  <span className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-amber-300"}>
+                                  <span className={u.termsVersion === CURRENT_TERMS_VERSION ? "text-success" : "text-warning"}>
                                     v{u.termsVersion}
                                   </span>
                                   {u.termsSignatureName && (
@@ -5242,7 +5258,7 @@ export default function SecretAdminPortal() {
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                className="h-7 w-7 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-950/30"
+                                className="h-7 w-7 p-0 text-warning hover:text-warning hover:bg-warning/30"
                                 onClick={() => {
                                   setResetPasswordUser({ id: u.id, username: u.username });
                                   setResetPasswordValue("");
@@ -5537,7 +5553,7 @@ export default function SecretAdminPortal() {
               <Button
                 type="submit"
                 disabled={userActionLoading}
-                className="bg-warning hover:bg-warning/90 text-warning-foreground"
+                className="bg-warning hover:bg-warning/100 text-white"
                 data-testid="button-confirm-reset-password"
               >
                 {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <FileKey size={16} className="mr-2" />} Reset Password

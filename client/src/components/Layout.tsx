@@ -204,7 +204,7 @@ const SidebarContent = memo(function SidebarContent({
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
             <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/8 border border-sidebar-primary/20 shadow-[var(--shadow-xs)]">
-              <ShieldCheck className="h-4.5 w-4.5 text-sidebar-primary" />
+              <ShieldCheck className="h-4 w-4 text-sidebar-primary" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
@@ -436,7 +436,7 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-red-400/60 hover:text-red-400 hover:bg-red-500/8",
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-destructive hover:text-destructive hover:bg-destructive/100/8",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           onClick={logout}
@@ -800,16 +800,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { className: string; iconClassName: string }
   > = {
     info: {
-      className: "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300 shadow-[0_6px_16px_-14px_rgba(37,99,235,0.45)]",
-      iconClassName: "text-blue-600 dark:text-blue-400",
+      className: "border-primary/20 bg-primary/100/10 text-primary dark:text-blue-300 shadow-[0_6px_16px_-14px_rgba(37,99,235,0.45)]",
+      iconClassName: "text-primary dark:text-blue-400",
     },
     warning: {
-      className: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300 shadow-[0_6px_16px_-14px_rgba(217,119,6,0.45)]",
-      iconClassName: "text-amber-600 dark:text-amber-400",
+      className: "border-warning/20 bg-warning/10 text-warning",
+      iconClassName: "text-warning",
     },
     critical: {
-      className: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300 shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
-      iconClassName: "text-red-600 dark:text-red-400",
+      className: "border-destructive/20 bg-destructive/100/10 text-destructive dark:text-destructive shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
+      iconClassName: "text-destructive dark:text-destructive",
     },
   };
 
@@ -852,7 +852,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
         {/* Main Content */}
-        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }} onScroll={(e) => setIsScrolled((e.target as HTMLElement).scrollTop > 10)}>
+        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
           <header className={cn("workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b transition-all duration-300 px-4 md:px-6 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-primary/0 before:via-primary/10 before:to-primary/0", isScrolled ? "bg-card/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-border backdrop-blur-xl" : "bg-card/50 shadow-none border-transparent backdrop-blur-sm")} role="banner" aria-label="Page header" style={{ backdropFilter: isScrolled ? "blur(16px)" : "blur(4px)" }}>
@@ -861,7 +861,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/60 rounded-lg transition-colors h-8 w-8">
-                    <Menu className="h-4.5 w-4.5 text-foreground" />
+                    <Menu className="h-4 w-4 text-foreground" />
                     <span className="sr-only">Toggle menu</span>
                   </Button>
                 </SheetTrigger>
@@ -896,7 +896,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <h2 className="text-[0.875rem] font-semibold tracking-[-0.012em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
                 </div>
                 {breadcrumbs.length > 0 && (
-                  <div className="hidden xl:block border-l border-border pl-3 ml-1">
+                  <div className="hidden xl:block border-l border-border/30 pl-3 ml-1">
                     <Breadcrumb>
                       <BreadcrumbList>
                         {breadcrumbs.map((crumb, i) => (
@@ -939,15 +939,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                     unreadMessageCount > 0
-                      ? "bg-primary/10 text-primary hover:bg-primary/18"
+                      ? "bg-success/10 text-success hover:bg-success/15"
                       : "bg-muted/40 hover:bg-muted/60"
                   )}
                   title="Messages"
                   aria-label={unreadMessageCount > 0 ? `Messages (${unreadMessageCount} unread)` : "Messages"}
                 >
-                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-primary" : "text-muted-foreground")} />
+                  <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-success" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1.5 rounded-full bg-success text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}
@@ -970,7 +970,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div className="flex items-center justify-end gap-1 mt-0.5">
                     <span
                       title={isConnected ? "Online" : "Offline"}
-                      className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-primary" : "bg-red-500")}
+                      className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-success" : "bg-destructive")}
                     />
                     {user?.role === "admin" && (
                       <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-1.5 py-0 text-[7px] font-medium uppercase tracking-[0.04em] leading-[1.2] text-muted-foreground">
@@ -984,7 +984,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
                     "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card transition-colors",
-                    isConnected ? "bg-primary" : "bg-red-500"
+                    isConnected ? "bg-success" : "bg-destructive"
                   )} />
                 </div>
               </div>
@@ -1032,7 +1032,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Compli-ee access for full-bleed studio routes */}
             <ComplieeIdleButton
               onClick={openChatAssistant}
-              className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-primary/30"
+              className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-success/25"
             />
             <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
@@ -1120,7 +1120,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         <button className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/40 transition-colors cursor-help">
                           <span className={cn(
                             "h-1.5 w-1.5 rounded-full transition-colors",
-                            isConnected ? "bg-primary animate-pulse" : "bg-red-500"
+                            isConnected ? "bg-success animate-pulse" : "bg-destructive"
                           )} />
                           <span>{isConnected ? "Connected" : "Disconnected"}</span>
                         </button>

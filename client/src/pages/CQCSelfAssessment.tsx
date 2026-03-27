@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, memo, useEffect } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import {
   Card,
   CardContent,
@@ -39,7 +40,7 @@ const CQC_DOMAINS = [
   {
     id: "safe",
     title: "Safe",
-    icon: <ShieldCheck className="text-green-600" size={20} />,
+    icon: <ShieldCheck className="text-success" size={18} />,
     color: "green",
     description: "People are protected from abuse and avoidable harm.",
     questions: [
@@ -53,7 +54,7 @@ const CQC_DOMAINS = [
   {
     id: "effective",
     title: "Effective",
-    icon: <Lightbulb className="text-blue-600" size={20} />,
+    icon: <Lightbulb className="text-primary" size={18} />,
     color: "blue",
     description: "Care, treatment, and support achieves good outcomes.",
     questions: [
@@ -67,7 +68,7 @@ const CQC_DOMAINS = [
   {
     id: "caring",
     title: "Caring",
-    icon: <Heart className="text-pink-600" size={20} />,
+    icon: <Heart className="text-secondary/70" size={18} />,
     color: "pink",
     description: "Staff treat people with compassion, kindness, dignity, and respect.",
     questions: [
@@ -80,7 +81,7 @@ const CQC_DOMAINS = [
   {
     id: "responsive",
     title: "Responsive",
-    icon: <UserCheck className="text-purple-600" size={20} />,
+    icon: <UserCheck className="text-secondary" size={18} />,
     color: "purple",
     description: "Services are organised so they meet people's needs.",
     questions: [
@@ -93,7 +94,7 @@ const CQC_DOMAINS = [
   {
     id: "well-led",
     title: "Well-Led",
-    icon: <Building2 className="text-amber-600" size={20} />,
+    icon: <Building2 className="text-warning" size={18} />,
     color: "amber",
     description: "Leadership, management, and governance assures high-quality care.",
     questions: [
@@ -107,10 +108,10 @@ const CQC_DOMAINS = [
 ];
 
 const RATING_OPTIONS = [
-  { value: "outstanding", label: "Outstanding", color: "bg-emerald-600 text-white" },
-  { value: "good", label: "Good", color: "bg-success text-success-foreground" },
-  { value: "requires_improvement", label: "Requires Improvement", color: "bg-warning text-warning-foreground" },
-  { value: "inadequate", label: "Inadequate", color: "bg-destructive text-destructive-foreground" },
+  { value: "outstanding", label: "Outstanding", color: "bg-success text-white" },
+  { value: "good", label: "Good", color: "bg-success/80 text-white" },
+  { value: "requires_improvement", label: "Requires Improvement", color: "bg-warning text-white" },
+  { value: "inadequate", label: "Inadequate", color: "bg-destructive text-white" },
   { value: "not_assessed", label: "Not Assessed", color: "bg-muted text-muted-foreground" },
 ];
 
@@ -144,6 +145,7 @@ const RatingBadge = memo(function RatingBadge({ value }: { value: string }) {
 
 function CQCSelfAssessment() {
   const { toast } = useToast();
+  usePageTitle("CQC Self-Assessment");
   const [assessment, setAssessment] = useState<Assessment>(loadAssessment);
   const [expandedDomain, setExpandedDomain] = useState<string | null>("safe");
 

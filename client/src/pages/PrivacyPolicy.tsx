@@ -2,8 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Shield, AlertTriangle, Clock, Lock, Database } from "lucide-react";
 import { Link } from "wouter";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 export default function PrivacyPolicy() {
+  usePageTitle("Privacy Policy");
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -102,12 +104,12 @@ export default function PrivacyPolicy() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">5. Special Category (Health) Data</h3>
-              <div className="rounded-lg p-4 mb-4 bg-amber-500/10 border border-amber-500/20">
+              <div className="rounded-lg p-4 mb-4 bg-warning/8 border border-warning/20">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-500" />
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5 text-warning" />
                   <div>
-                    <p className="font-medium mb-2 text-amber-600">Health data may be included</p>
-                    <p className="text-sm text-amber-900 dark:text-amber-300">
+                    <p className="font-medium mb-2 text-warning">Health data may be included</p>
+                    <p className="text-sm text-foreground/80">
                       Uploaded documents may include health and care information. CareAssurance is designed to minimise retention and to apply access controls appropriate to this category of data.
                     </p>
                   </div>
@@ -140,7 +142,7 @@ export default function PrivacyPolicy() {
               <h3 className="text-lg font-semibold text-foreground">7. AI and Subprocessors</h3>
               <div className="rounded-lg p-4 mb-4 bg-muted border border-border">
                 <div className="flex items-start gap-3">
-                  <Database className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
+                  <Database className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
                   <div>
                     <p className="font-medium mb-2 text-foreground">Third-party processing</p>
                     <p className="text-sm text-muted-foreground">
@@ -235,7 +237,7 @@ export default function PrivacyPolicy() {
               <h3 className="text-lg font-semibold text-foreground">9. AI and Third-Party Data Processing</h3>
               <div className="rounded-lg p-4 mb-4 bg-muted border border-border">
                 <div className="flex items-start gap-3">
-                  <Database className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
+                  <Database className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
                   <div>
                     <p className="font-medium mb-2 text-foreground">OpenAI Data Processing Disclosure</p>
                     <p className="text-sm text-muted-foreground">
@@ -392,12 +394,12 @@ export default function PrivacyPolicy() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">16. Intellectual Property, Name, and Design Rights</h3>
-              <div className="rounded-lg p-4 mb-4 bg-blue-500/10 border border-blue-500/20">
+              <div className="rounded-lg p-4 mb-4 bg-primary/[0.06] border border-primary/20">
                 <div className="flex items-start gap-3">
-                  <Lock className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
+                  <Lock className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
                   <div>
-                    <p className="font-medium mb-2 text-blue-500">ORIGINAL WORK AND WAIVER OF CLAIMS</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="font-medium mb-2 text-primary">ORIGINAL WORK AND WAIVER OF CLAIMS</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
                       The name "CareAssurance," the CareAssurance logo, all related names, logos, designs, user interface designs, visual elements, and all associated branding elements are the original creative works of Lewis Barron, independently conceived and created. All rights in and to these elements are exclusively reserved.
                     </p>
                   </div>

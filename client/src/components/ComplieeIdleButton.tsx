@@ -64,12 +64,12 @@ export default function ComplieeIdleButton({
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       className={cn(
-        "group relative isolate flex items-center gap-2 px-4 py-2.5 rounded-full transition-all duration-300 overflow-visible",
-        "bg-primary text-primary-foreground text-[14px] font-bold shadow-lg shadow-primary/25",
-        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-white/30",
-        "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:transition-opacity after:duration-300 after:bg-white/10",
-        "hover:shadow-[0_12px_30px_rgba(0,0,0,0.2)] hover:after:opacity-100 ring-2 ring-transparent hover:ring-primary/30 ring-offset-2 ring-offset-background",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+        "group relative isolate flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all duration-200 overflow-hidden",
+        "bg-gradient-to-r from-secondary to-secondary/80 text-secondary-foreground text-sm font-semibold shadow-[0_12px_24px_-14px_color-mix(in_oklab,var(--color-secondary)_50%,transparent)]",
+        "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-white/70",
+        "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:transition-opacity after:duration-200 after:bg-white/10",
+        "hover:from-secondary/90 hover:to-secondary/70 hover:shadow-[0_18px_30px_-16px_color-mix(in_oklab,var(--color-secondary)_55%,transparent)] hover:after:opacity-100",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
       aria-label="Get help"

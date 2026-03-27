@@ -8,11 +8,11 @@ export interface OptimizationScoreProps {
 }
 
 const gradeColors: Record<OptimizationMetrics["grade"], { bg: string; text: string; border: string }> = {
-  A: { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-300 dark:border-emerald-700/60" },
-  B: { bg: "bg-green-100 dark:bg-green-950/40", text: "text-green-700 dark:text-green-400", border: "border-green-300 dark:border-green-700/60" },
-  C: { bg: "bg-amber-100 dark:bg-amber-950/40", text: "text-amber-700 dark:text-amber-400", border: "border-amber-300 dark:border-amber-700/60" },
+  A: { bg: "bg-success/10 dark:bg-success-950/40", text: "text-success dark:text-success-400", border: "bg-success/10" },
+  B: { bg: "bg-success/10 dark:bg-green-950/40", text: "text-success dark:text-green-400", border: "border-green-300 dark:border-green-700/60" },
+  C: { bg: "bg-warning/10", text: "text-warning", border: "border-warning/30/60" },
   D: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-700 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
-  F: { bg: "bg-red-100 dark:bg-red-950/40", text: "text-red-700 dark:text-red-400", border: "border-red-300 dark:border-red-700/60" },
+  F: { bg: "bg-destructive/10 dark:bg-destructive/10", text: "text-destructive dark:text-destructive", border: "border-destructive/30" },
 };
 
 const gradeDescriptions: Record<OptimizationMetrics["grade"], string> = {
@@ -55,10 +55,10 @@ export const OptimizationScore: React.FC<OptimizationScoreProps> = ({
         <div
           className={`h-2 rounded-full transition-all ${
             metrics.efficiency >= 75
-              ? "bg-emerald-500"
+              ? "bg-success/100"
               : metrics.efficiency >= 50
-              ? "bg-amber-500"
-              : "bg-red-500"
+              ? "bg-warning/100"
+              : "bg-destructive/100"
           }`}
           style={{ width: `${metrics.efficiency}%` }}
         />
@@ -90,13 +90,13 @@ export const OptimizationScore: React.FC<OptimizationScoreProps> = ({
           <div className="rounded-lg border border-border/50 bg-background/60 px-3 py-2">
             <div className="flex items-center gap-2 text-muted-foreground">
               {metrics.conflictCount > 0 ? (
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                <AlertTriangle className="h-3.5 w-3.5 text-warning" />
               ) : (
-                <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                <CheckCircle className="h-3.5 w-3.5 text-success" />
               )}
               <span className="text-[10px] uppercase tracking-wide">Conflicts</span>
             </div>
-            <p className={`text-sm font-semibold mt-1 ${metrics.conflictCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+            <p className={`text-sm font-semibold mt-1 ${metrics.conflictCount > 0 ? "text-warning" : "text-success dark:text-success-400"}`}>
               {metrics.conflictCount}
             </p>
           </div>

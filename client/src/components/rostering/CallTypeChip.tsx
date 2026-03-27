@@ -8,7 +8,7 @@ export interface CallTypeChipProps {
 const callTypeColors: Record<string, { bg: string; text: string; border: string }> = {
   am: { bg: "bg-sky-100 dark:bg-sky-950/40", text: "text-sky-700 dark:text-sky-400", border: "border-sky-300 dark:border-sky-700/60" },
   morning: { bg: "bg-sky-100 dark:bg-sky-950/40", text: "text-sky-700 dark:text-sky-400", border: "border-sky-300 dark:border-sky-700/60" },
-  lunch: { bg: "bg-amber-100 dark:bg-amber-950/40", text: "text-amber-700 dark:text-amber-400", border: "border-amber-300 dark:border-amber-700/60" },
+  lunch: { bg: "bg-warning/10", text: "text-warning", border: "border-warning/30/60" },
   tea: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-700 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
   teatime: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-700 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
   evening: { bg: "bg-violet-100 dark:bg-violet-950/40", text: "text-violet-700 dark:text-violet-400", border: "border-violet-300 dark:border-violet-700/60" },
@@ -18,7 +18,7 @@ const callTypeColors: Record<string, { bg: string; text: string; border: string 
   overnight: { bg: "bg-indigo-100 dark:bg-indigo-950/40", text: "text-indigo-700 dark:text-indigo-400", border: "border-indigo-300 dark:border-indigo-700/60" },
   medication: { bg: "bg-rose-100 dark:bg-rose-950/40", text: "text-rose-700 dark:text-rose-400", border: "border-rose-300 dark:border-rose-700/60" },
   meds: { bg: "bg-rose-100 dark:bg-rose-950/40", text: "text-rose-700 dark:text-rose-400", border: "border-rose-300 dark:border-rose-700/60" },
-  personal: { bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-300 dark:border-emerald-700/60" },
+  personal: { bg: "bg-success/10 dark:bg-success-950/40", text: "text-success dark:text-success-400", border: "bg-success/10" },
   domestic: { bg: "bg-teal-100 dark:bg-teal-950/40", text: "text-teal-700 dark:text-teal-400", border: "border-teal-300 dark:border-teal-700/60" },
   shopping: { bg: "bg-cyan-100 dark:bg-cyan-950/40", text: "text-cyan-700 dark:text-cyan-400", border: "border-cyan-300 dark:border-cyan-700/60" },
 };

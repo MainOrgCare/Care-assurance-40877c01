@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ExportColumn {
   /** Column header label */
@@ -15,6 +16,8 @@ interface ExportColumn {
  *   exportCSV(data, columns, "compliance-report");
  */
 export function useDataExport() {
+  const { toast } = useToast();
+
   const formatValue = useCallback((value: unknown): string => {
     if (value === null || value === undefined) return "";
     if (value instanceof Date) return value.toISOString();
@@ -52,8 +55,9 @@ export function useDataExport() {
       );
       const csv = [header, ...rows].join("\n");
       downloadBlob(csv, `${filename}.csv`, "text/csv;charset=utf-8;");
+      toast({ title: "Export ready", description: `${filename}.csv has been downloaded.` });
     },
-    [escapeCSV, getValue],
+    [escapeCSV, getValue, toast],
   );
 
   const exportJSON = useCallback(
@@ -71,8 +75,9 @@ export function useDataExport() {
       });
       const json = JSON.stringify(mapped, null, 2);
       downloadBlob(json, `${filename}.json`, "application/json");
+      toast({ title: "Export ready", description: `${filename}.json has been downloaded.` });
     },
-    [getValue],
+    [getValue, toast],
   );
 
   return { exportCSV, exportJSON };

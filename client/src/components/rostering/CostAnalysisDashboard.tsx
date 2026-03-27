@@ -103,7 +103,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-green-600" />
+            <Calculator className="h-5 w-5 text-success" />
             Cost Analysis
           </CardTitle>
           <CardDescription>
@@ -128,7 +128,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-semibold text-green-600">
+                    <div className="text-2xl font-semibold text-success">
                       {formatCurrency(totals.totalCost)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -198,7 +198,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-500" />
+                        <div className="h-3 w-3 rounded-full bg-primary/100" />
                         <span className="text-sm">Regular Pay</span>
                       </div>
                       <div className="text-right">
@@ -222,7 +222,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-green-500" />
+                        <div className="h-3 w-3 rounded-full bg-success/100" />
                         <span className="text-sm">Travel Costs</span>
                       </div>
                       <div className="text-right">

@@ -153,7 +153,7 @@ export const CallTimeEditor: React.FC<CallTimeEditorProps> = ({
   const callTypeColors: Record<string, string> = {
     morning: "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-700/60",
     am: "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-700/60",
-    lunch: "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700/60",
+    lunch: "bg-warning/10 text-warning border-warning/30",
     tea: "bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700/60",
     evening: "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-700/60",
     pm: "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-700/60",
@@ -166,7 +166,7 @@ export const CallTimeEditor: React.FC<CallTimeEditorProps> = ({
     for (const [key, style] of Object.entries(callTypeColors)) {
       if (l.includes(key)) return style;
     }
-    return "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700/60";
+    return "bg-success/10 dark:bg-success-950/40 text-success dark:text-success-400 border-success/30 dark:border-success-700/60";
   };
 
   return (

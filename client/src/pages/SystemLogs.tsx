@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Download, AlertCircle } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDataExport } from "@/hooks/useDataExport";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SystemLogEntry {
   id: string;
@@ -44,6 +47,7 @@ export default function SystemLogs() {
 
   const debouncedSearch = useDebounce(search, 300);
   const { toast } = useToast();
+  usePageTitle("System Logs");
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -107,8 +111,8 @@ export default function SystemLogs() {
     <div className="page-shell space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center shrink-0">
-            <Terminal className="h-5 w-5 text-purple-500" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center shrink-0">
+            <Terminal className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h2 className="page-title text-2xl sm:text-3xl">
@@ -120,11 +124,24 @@ export default function SystemLogs() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportLogs} disabled={logs.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button variant="outline" onClick={fetchLogs} disabled={loading}>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={logs.length === 0 ? 0 : -1}>
+                  <Button variant="outline" size="sm" onClick={handleExportLogs} disabled={logs.length === 0}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {logs.length === 0 && (
+                <TooltipContent>
+                  <p>No log entries to export</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          <Button variant="outline" onClick={fetchLogs} disabled={loading} aria-label="Refresh system logs">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -192,21 +209,26 @@ export default function SystemLogs() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Alert</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Date</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">User</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Action</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Target</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Alert</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    <RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-                  </TableCell>
-                </TableRow>
+                Array.from({ length: 8 }, (_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  </TableRow>
+                ))
               ) : logs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">

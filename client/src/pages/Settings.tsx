@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -76,6 +77,7 @@ export default function Settings() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  usePageTitle("Settings");
   const {
     theme,
     setTheme,
@@ -171,7 +173,7 @@ export default function Settings() {
                     className={cn(
                       "rounded-xl border p-3 text-left transition-all duration-150",
                       isActive
-                        ? "border-primary/50 bg-primary/[0.06] ring-1 ring-primary/15"
+                        ? "border-primary/50 bg-primary/[0.06] ring-2 ring-primary/20"
                         : "border-border/50 bg-muted/20 hover:border-primary/30 hover:bg-muted/35"
                     )}
                     data-testid={`theme-${option.value}`}
@@ -245,6 +247,7 @@ export default function Settings() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 autoComplete="current-password"
+                aria-label="Current password"
                 data-testid="input-current-password"
               />
               <Input
@@ -253,6 +256,7 @@ export default function Settings() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 autoComplete="new-password"
+                aria-label="New password"
                 data-testid="input-new-password"
               />
               <Input
@@ -501,7 +505,7 @@ export default function Settings() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Account Type</span>
-                <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-amber-500/30 text-amber-600" : "border-success/30 text-success")}>
+                <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-warning/30 text-warning" : "border-success/30 text-success")}>
                   {user?.isDemo ? "Demo" : "Production"}
                 </Badge>
               </div>

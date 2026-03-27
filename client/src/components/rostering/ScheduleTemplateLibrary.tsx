@@ -147,9 +147,9 @@ export default function ScheduleTemplateLibrary({
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "optimized":
-        return "bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/60";
+        return "bg-success/10 dark:bg-green-950/40 text-green-800 dark:text-green-400 border-green-300 dark:border-green-700/60";
       case "baseline":
-        return "bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-400 border-blue-300 dark:border-blue-700/60";
+        return "bg-primary/10 dark:bg-blue-950/40 text-blue-800 dark:text-blue-400 border-blue-300 dark:border-blue-700/60";
       case "seasonal":
         return "bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-400 border-purple-300 dark:border-purple-700/60";
       case "custom":

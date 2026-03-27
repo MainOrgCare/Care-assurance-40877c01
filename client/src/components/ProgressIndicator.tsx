@@ -68,9 +68,9 @@ export function MultiStepProgress({ steps, className = "" }: MultiStepProgressPr
             key={idx}
             className={`text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded-full px-2 py-1 rounded-full ${
               step.status === "completed"
-                ? "bg-success/20 text-success"
+                ? "bg-success/15 text-success"
                 : step.status === "in_progress"
-                ? "bg-primary/20 text-primary animate-pulse"
+                ? "bg-primary/15 text-primary animate-pulse"
                 : "bg-muted text-muted-foreground"
             }`}
             data-testid={`step-${idx}`}

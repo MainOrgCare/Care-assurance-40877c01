@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Trophy, FileText, Users, CheckCircle2, Search, ArrowUpDown, Download, Eye, X, BarChart3, TrendingUp, AlertTriangle, ChevronRight } from "lucide-react";
+import { BookOpen, Trophy, FileText, Users, CheckCircle2, Search, ArrowUpDown, Download, X, BarChart3, AlertTriangle, ChevronRight, AlertCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -37,32 +39,54 @@ type FilterTab = "all" | "compliant" | "at-risk" | "critical";
 
 export default function Performance() {
   const { toast } = useToast();
+  usePageTitle("Performance");
   const [careWorkers, setCareWorkers] = useState<CareWorkerFromAudits[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>("compliance");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [selectedWorker, setSelectedWorker] = useState<CareWorkerFromAudits | null>(null);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch("/api/audits/care-workers", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch data");
+      const workers: CareWorkerFromAudits[] = await res.json();
+      setCareWorkers(workers);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to load performance data";
+      setFetchError(message);
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     let cancelled = false;
-    const fetchData = async () => {
+    const run = async () => {
+      setLoading(true);
+      setFetchError(null);
       try {
-        setLoading(true);
         const res = await fetch("/api/audits/care-workers", { credentials: "include" });
         if (!res.ok) throw new Error("Failed to fetch data");
         const workers: CareWorkerFromAudits[] = await res.json();
         if (!cancelled) setCareWorkers(workers);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!cancelled) {
-          toast({ title: "Error", description: error.message || "Failed to load performance data", variant: "destructive" });
+          const message = error instanceof Error ? error.message : "Failed to load performance data";
+          setFetchError(message);
+          toast({ title: "Error", description: message, variant: "destructive" });
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-    fetchData();
+    run();
     return () => { cancelled = true; };
   }, [toast]);
 
@@ -175,7 +199,7 @@ export default function Performance() {
 
   const getComplianceColor = (pct: number) => {
     if (pct >= 90) return "text-success";
-    if (pct >= 70) return "text-amber-500";
+    if (pct >= 70) return "text-warning";
     return "text-destructive";
   };
 
@@ -201,10 +225,53 @@ export default function Performance() {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground animate-pulse">
-          <BookOpen className="h-12 w-12 mb-4 opacity-20" />
-          <p className="font-semibold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
+        <div className="space-y-4">
+          {/* Stats skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Card key={i}>
+                <CardContent className="pt-4 pb-3">
+                  <Skeleton className="h-3 w-20 mb-2" />
+                  <Skeleton className="h-8 w-14 mb-1" />
+                  <Skeleton className="h-2.5 w-24" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* Table skeleton */}
+          <Card>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border/30">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="flex items-center gap-4 p-4">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-16 ml-auto" />
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      ) : fetchError ? (
+        <Card className="animate-slide-up mt-6 border-destructive/30">
+          <CardContent className="py-12">
+            <div className="text-center space-y-4">
+              <div className="h-14 w-14 rounded-xl bg-destructive/8 flex items-center justify-center mx-auto">
+                <AlertCircle className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Failed to load performance data</h3>
+                <p className="text-xs text-muted-foreground mt-1">{fetchError}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchData} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : careWorkers.length === 0 ? (
         <Card className="animate-slide-up stagger-2 mt-6">
           <CardContent className="py-24">
@@ -231,7 +298,7 @@ export default function Performance() {
             </Card>
             <Card className="col-span-1">
               <CardContent className="p-3.5 text-center">
-                <p className={cn("text-2xl font-bold tracking-tight tabular-nums", stats.avgCompliance >= 90 ? "text-success" : stats.avgCompliance >= 70 ? "text-amber-500" : "text-destructive")}>
+                <p className={cn("text-2xl font-bold tracking-tight tabular-nums", stats.avgCompliance >= 90 ? "text-success" : stats.avgCompliance >= 70 ? "text-warning" : "text-destructive")}>
                   {stats.avgCompliance}%
                 </p>
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Avg Compliance</p>
@@ -257,8 +324,8 @@ export default function Performance() {
             </Card>
             <Card className="col-span-1">
               <CardContent className="p-3.5 text-center">
-                <p className="text-2xl font-bold tracking-tight text-amber-500 tabular-nums">{stats.atRisk}</p>
-                <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest mt-0.5">At Risk</p>
+                <p className="text-2xl font-bold tracking-tight text-warning tabular-nums">{stats.atRisk}</p>
+                <p className="text-[9px] font-bold text-warning uppercase tracking-widest mt-0.5">At Risk</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
@@ -290,7 +357,7 @@ export default function Performance() {
                       {stats.compliant > 0 && stats.compliant}
                     </div>
                     <div
-                      className="h-full bg-warning transition-all duration-700 flex items-center justify-center text-warning-foreground text-[10px] font-bold"
+                      className="h-full bg-warning transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
                       style={{ width: `${(stats.atRisk / stats.total) * 100}%`, minWidth: stats.atRisk > 0 ? '2rem' : '0' }}
                     >
                       {stats.atRisk > 0 && stats.atRisk}
@@ -403,7 +470,7 @@ export default function Performance() {
                           <div className={cn(
                             "h-8 w-8 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0",
                             risk === "compliant" ? "bg-success/10 text-success" :
-                            risk === "at-risk" ? "bg-warning/20 text-warning" :
+                            risk === "at-risk" ? "bg-warning/10 text-warning" :
                             "bg-destructive/10 text-destructive"
                           )}>
                             {worker.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
@@ -436,7 +503,7 @@ export default function Performance() {
                           {risk !== "compliant" && (
                             <Badge variant="outline" className={cn(
                               "text-[9px] font-bold tracking-wider px-1.5 py-0",
-                              risk === "at-risk" ? "border-amber-500/30 text-amber-600" : "border-destructive/30 text-destructive"
+                              risk === "at-risk" ? "border-warning/30 text-warning" : "border-destructive/30 text-destructive"
                             )}>
                               {risk === "at-risk" ? "RISK" : "CRITICAL"}
                             </Badge>
@@ -458,8 +525,8 @@ export default function Performance() {
             <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/30 pb-4">
                 <CardTitle className="flex items-center gap-3">
-                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-warning/15">
-                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-warning/8">
+                    <Trophy className="h-3.5 w-3.5 text-warning" />
                   </div>
                   Top Performers
                 </CardTitle>
@@ -555,7 +622,7 @@ export default function Performance() {
                   <div className={cn(
                     "h-10 w-10 rounded-xl flex items-center justify-center text-sm font-bold",
                     getRiskLevel(selectedWorker) === "compliant" ? "bg-success/10 text-success" :
-                    getRiskLevel(selectedWorker) === "at-risk" ? "bg-warning/20 text-warning" :
+                    getRiskLevel(selectedWorker) === "at-risk" ? "bg-warning/10 text-warning" :
                     "bg-destructive/10 text-destructive"
                   )}>
                     {selectedWorker.name.split(" ").map(n => n[0]).join("").slice(0, 2)}

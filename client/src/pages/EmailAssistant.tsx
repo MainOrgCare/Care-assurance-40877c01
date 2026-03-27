@@ -1,4 +1,5 @@
 import { useCallback, useState, useMemo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -106,6 +107,7 @@ export default function EmailAssistant() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  usePageTitle("Email Assistant");
 
   const wordCount = useMemo(() => {
     const input = inputText.trim().split(/\s+/).filter(Boolean).length;
@@ -169,8 +171,9 @@ export default function EmailAssistant() {
       saveHistory(updated);
 
       toast({ title: "Email Rewritten", description: `Your text has been polished with a ${tone} tone.` });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to rewrite email", variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to rewrite email";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -280,7 +283,7 @@ export default function EmailAssistant() {
           <CardFooter className="flex flex-col gap-3 px-5 py-4 bg-muted/10 border-t border-border/30">
             <div className="flex items-center gap-3 w-full">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 whitespace-nowrap">Tone</Label>
-              <Select value={tone} onValueChange={setTone}>
+              <Select value={tone} onValueChange={setTone} aria-label="Email tone">
                 <SelectTrigger className="h-8 text-xs flex-1">
                   <SelectValue />
                 </SelectTrigger>

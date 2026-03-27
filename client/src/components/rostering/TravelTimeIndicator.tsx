@@ -51,12 +51,12 @@ export const TravelTimeIndicator: React.FC<TravelTimeIndicatorProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">{travelMinutes} min travel</span>
           {isTight && (
-            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">
+            <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
               Tight!
             </span>
           )}
           {hasExcessGap && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+            <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
               Gap: {gapMinutes}m
             </span>
           )}

@@ -633,12 +633,14 @@ Extract metadata from the document text. The document may contain multiple pages
 Return a structured JSON output reflecting the document's records exactly as required by the schema.
 
 CRITICAL RULES:
-1. serviceUserInitials: Convert "Freda O'Neill" -> "F.O.". Ensure initials are followed by dots.
-2. medications: Be exhaustive. Scan EVERY page. Include strength (e.g., 500mg) and form (e.g., Tablets).
-3. isPRN: True if instructions mention "PRN", "as required", "when needed", etc.
-4. instructions: Capture EVERYTHING in the medication label area, including "Route Oral", "Apply thin layer", etc.
-5. scheduledTimeSlots: For each medication, identify which time slots have grid boxes for administration.
-6. dates: Extract ALL dates that appear as column headers in the grid. Format them exactly as they appear (e.g., "Sun, 30 Nov").`;
+1. serviceUserInitials: Convert "Freda O'Neill" -> "F.O.". Two-part names get two initials with dots. Ensure initials are followed by dots.
+2. medications: Be exhaustive. Scan EVERY page. Include strength (e.g., 500mg) and form (e.g., Tablets). Do NOT merge separate medications even if similar.
+3. isPRN: True ONLY if instructions explicitly mention "PRN", "as required", "when needed", "if needed", "up to X times", or "when necessary". Regular scheduled medications are NOT PRN.
+4. instructions: Capture EVERYTHING in the medication label area verbatim, including route (e.g., "Route Oral", "Apply thin layer"), frequency, and any special instructions.
+5. scheduledTimeSlots: For each medication, identify ONLY time slots where a grid cell/box exists for administration. Omit time slots not applicable to that medication.
+6. dates: Extract ALL dates that appear as column headers in the grid. Format them EXACTLY as they appear (e.g., "Sun, 30 Nov"). Do not add or omit any.
+7. requiredGapHours: Minimum hours between doses (used to detect time-gap violations for PRN/repeat doses) — "four times daily" → 4, "three times daily" → 6, "twice daily" → 8, "once daily" → 12, "PRN max 4-hourly" → 4. Default 4 when unclear.
+8. allergies: Extract the full allergy/adverse reaction text. Use "NKDA" or "None known" if stated, or empty string if not mentioned.`;
 
 const buildEntriesPrompt = (
   medList: string,
@@ -661,14 +663,15 @@ Respond with STRICT JSON data adhering to the schema.
 
 EXTRACTION RULES:
 1. MAP TO GRID: Each entry must correspond to a specific (medication, date, timeSlot) intersection in the grid.
-2. NON-ADMINISTRATION CODES ARE VITAL: Always capture R (Refused), MU (Medication Unavailable), NH (Not Home), SA (Self Admin), F (Family Admin).
-3. BLANK CELLS: If a cell is blank and it's a scheduled dose (non-PRN), it's a MISSING entry. Use "MISSED" as code.
-4. PRN DOSES: For PRN medications, only include entries if there is a code, time, or signature. If the box is empty for a PRN med, do NOT create an entry.
-5. TIME: Only set "hasTime" true and provide "time" if an actual administration time (e.g., 08:45) is handwritten or typed in the box, distinct from the slot header.
-6. INITIALS: Capture the 2 or 3 letter care worker initials if present.
-7. AMBIGUITY: If you see a code like "AD" or a signature but the exact time slot is hard to determine, use the most likely slot and set timeSlot to "UNSPECIFIED" if truly impossible to map.
-8. CODE LEGEND: AD=Administered, AS=Assisted Self-Admin, R=Refused, MU=Medication Unavailable, NH=Not Home, SA=Self Admin, F=Family Admin, P=Prompt, PRN=PRN Administered, PRN-AD=PRN Administered, PRN-R=PRN Refused, MISSED=Scheduled dose not recorded.
-9. DATE FORMAT: Use dates EXACTLY as they appear in the DATES list above. Do not reformat or invent dates.`;
+2. NON-ADMINISTRATION CODES ARE VITAL: You MUST capture R (Refused), MU (Medication Unavailable), NH (Not Home), SA (Self Admin), F (Family Admin). Missing these causes compliance failures.
+3. BLANK CELLS: If a cell is blank and it's a scheduled dose (non-PRN medication with that time slot in its scheduledTimeSlots), it's a MISSING entry. Use "MISSED" as code. Do NOT skip blank scheduled cells.
+4. PRN DOSES: For PRN medications, only include entries if there is a visible code, time, or signature. A completely empty PRN cell is NOT an entry.
+5. TIME: Only set "hasTime" true and provide "time" if an actual administration time (e.g., 08:45) is handwritten or typed in the cell, distinct from the time-slot header.
+6. INITIALS: Capture the 2 or 3 letter care worker initials from the cell exactly as written. Leave empty string "" if absent.
+7. AMBIGUITY: If a code or signature exists but the time slot is unclear, assign the most probable slot. Use timeSlot "UNSPECIFIED" only when truly impossible to determine.
+8. CODE LEGEND: AD=Administered, AS=Assisted Self-Admin, R=Refused, MU=Medication Unavailable, NH=Not Home, SA=Self Admin, F=Family Admin, P=Prompted, PRN=PRN Administered, PRN-AD=PRN Administered, PRN-AS=PRN Assisted, PRN-R=PRN Refused, MISSED=Scheduled dose not recorded.
+9. DATE FORMAT: Use dates EXACTLY as they appear in the DATES list above. Do not reformat, shorten, or invent dates.
+10. COMPLETENESS: For SCHEDULED medications, generate one entry per (medication × date × timeSlot) for every slot in its scheduledTimeSlots — including blank cells (use "MISSED"). For PRN medications, only include entries where administration occurred (see Rule 4). Omitting scheduled entries causes missed-dose detection to fail.`;
 
 const metadataSchema = {
   name: "EMARMetadata",

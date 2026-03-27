@@ -1,11 +1,14 @@
 import { useCallback, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Info, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function CallReconciliation() {
   const { toast } = useToast();
+  usePageTitle("Call Reconciliation");
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<"upload" | "processing" | "complete">("upload");
   const [error, setError] = useState<string | null>(null);
@@ -53,13 +56,14 @@ export default function CallReconciliation() {
         title: "Reconciliation Complete",
         description: "Your processed Excel file has been downloaded.",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred while processing the file";
       console.error("Reconciliation error:", err);
-      setError(err.message || "An error occurred while processing the file");
+      setError(message);
       setStep("upload");
       toast({
         title: "Processing Failed",
-        description: err.message || "An error occurred",
+        description: message,
         variant: "destructive",
       });
     }
@@ -86,10 +90,10 @@ export default function CallReconciliation() {
       {step === "upload" && (
         <div className="space-y-8">
            {error && (
-             <Card className="app-surface border-red-500/30 bg-red-500/20 max-w-2xl mx-auto">
+             <Card className="app-surface border-destructive/30 bg-destructive/8 max-w-2xl mx-auto">
                <CardContent className="p-4 flex gap-3">
-                 <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
-                 <p className="text-sm text-red-300">{error}</p>
+                 <AlertCircle className="text-destructive shrink-0 mt-0.5" size={18} />
+                 <p className="text-sm text-destructive">{error}</p>
                </CardContent>
              </Card>
            )}
@@ -130,21 +134,34 @@ export default function CallReconciliation() {
            </Card>
 
            <div className="flex justify-center">
-             <Button 
-               size="lg" 
-               className="w-full md:w-auto min-w-[200px] bg-primary hover:bg-primary/90 text-primary-foreground" 
-               disabled={!file}
-               onClick={handleProcess}
-               data-testid="button-run-reconciliation"
-             >
-               <ArrowRightLeft className="mr-2 h-4 w-4" /> Process and Download
-             </Button>
+             <TooltipProvider>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <span tabIndex={!file ? 0 : -1}>
+                     <Button 
+                       size="lg" 
+                       className="w-full md:w-auto min-w-[200px] bg-primary hover:bg-primary/90 text-primary-foreground" 
+                       disabled={!file}
+                       onClick={handleProcess}
+                       data-testid="button-run-reconciliation"
+                     >
+                       <ArrowRightLeft className="mr-2 h-4 w-4" /> Process and Download
+                     </Button>
+                   </span>
+                 </TooltipTrigger>
+                 {!file && (
+                   <TooltipContent>
+                     <p>Upload an Excel file to process</p>
+                   </TooltipContent>
+                 )}
+               </Tooltip>
+             </TooltipProvider>
            </div>
            
-           <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+           <Card className="app-surface border-primary/20 bg-primary/5 max-w-2xl mx-auto">
              <CardContent className="p-4">
                <div className="flex gap-3">
-                 <div className="mt-0.5 text-blue-400"><Info size={18} /></div>
+                 <div className="mt-0.5 text-primary/70"><Info size={18} /></div>
                  <div className="space-y-3 text-sm">
                    <div>
                      <strong className="text-foreground">What this tool does:</strong>
@@ -191,8 +208,8 @@ export default function CallReconciliation() {
       {step === "complete" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-500">
           <Card className="app-surface p-12 flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
-            <div className="h-20 w-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 size={40} className="text-emerald-400" />
+            <div className="h-20 w-20 rounded-full bg-success/15 flex items-center justify-center">
+              <CheckCircle2 size={40} className="text-success" />
             </div>
             <div className="space-y-2">
               <h3 className="text-2xl font-semibold text-foreground">Reconciliation Complete</h3>
@@ -212,10 +229,10 @@ export default function CallReconciliation() {
             </div>
           </Card>
 
-          <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+          <Card className="app-surface border-primary/20 bg-primary/5 max-w-2xl mx-auto">
             <CardContent className="p-4">
               <div className="flex gap-3">
-                <div className="mt-0.5 text-blue-400"><Download size={18} /></div>
+                <div className="mt-0.5 text-primary/70"><Download size={18} /></div>
                 <div className="text-sm">
                   <strong className="text-foreground">File Downloaded</strong>
                   <p className="text-muted-foreground mt-1">

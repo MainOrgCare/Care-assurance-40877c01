@@ -98,9 +98,9 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-success";
-    if (score >= 75) return "text-info";
+    if (score >= 75) return "text-primary";
     if (score >= 60) return "text-yellow-600";
-    if (score >= 40) return "text-warning";
+    if (score >= 40) return "text-orange-600";
     return "text-destructive";
   };
 
@@ -126,10 +126,10 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
   };
 
   const getBurnoutRiskColor = (risk: number) => {
-    if (risk >= 70) return "bg-red-500";
+    if (risk >= 70) return "bg-destructive/100";
     if (risk >= 50) return "bg-orange-500";
     if (risk >= 30) return "bg-yellow-500";
-    return "bg-green-500";
+    return "bg-success/100";
   };
 
   return (

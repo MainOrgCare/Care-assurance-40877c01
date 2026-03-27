@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import jsPDF from "jspdf";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -120,6 +121,7 @@ const formatDuration = (minutes: number | null, fallback?: string | null) => {
 export default function BillingTool() {
   const { user } = useAuth();
   const { toast } = useToast();
+  usePageTitle("Billing");
   const [dragOver, setDragOver] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [isCurrent, setIsCurrent] = useState(true);
@@ -746,7 +748,7 @@ export default function BillingTool() {
                     disabled={isCurrent}
                   />
                   {!isCurrent && !endDate && (
-                    <p className="text-[11px] text-amber-200">
+                    <p className="text-[11px] text-warning">
                       Please enter an end date to enable analysis.
                     </p>
                   )}
@@ -780,10 +782,10 @@ export default function BillingTool() {
       </div>
 
       {error && (
-        <Card className="app-surface border-red-500/30 bg-red-500/10">
+        <Card className="app-surface border-destructive/30 bg-destructive/10">
           <CardContent className="p-4 flex gap-3">
-            <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
-            <p className="text-sm text-red-200">{error}</p>
+            <AlertCircle className="text-destructive shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-destructive">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -793,7 +795,7 @@ export default function BillingTool() {
           <Card className="app-surface border-border/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                <CheckCircle2 className="h-5 w-5 text-success" />
                 Billing Summary
               </CardTitle>
               <CardDescription>
@@ -819,7 +821,7 @@ export default function BillingTool() {
                 </div>
               )}
               {analysis.summary.warnings && analysis.summary.warnings.length > 0 && (
-                <div className="sm:col-span-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                <div className="sm:col-span-3 rounded-xl border border-warning/30 bg-warning/100/10 px-4 py-3 text-sm text-warning">
                   <ul className="list-disc list-inside space-y-1">
                     {analysis.summary.warnings.map((warning) => (
                       <li key={warning}>{warning}</li>
@@ -909,7 +911,7 @@ export default function BillingTool() {
               </div>
 
               {supportPlanError && (
-                <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-200">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {supportPlanError}
                 </div>
               )}
@@ -929,8 +931,8 @@ export default function BillingTool() {
                   </div>
 
                   {supportPlanResult.extractionWarnings?.length ? (
-                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
-                      <p className="text-xs uppercase tracking-[0.15em] text-amber-600 dark:text-amber-400 mb-1">Extraction warnings</p>
+                    <div className="rounded-lg border border-warning/40 bg-warning/100/10 px-3 py-2 text-sm text-warning">
+                      <p className="text-xs uppercase tracking-[0.15em] text-warning mb-1">Extraction warnings</p>
                       <ul className="list-disc list-inside space-y-1">
                         {supportPlanResult.extractionWarnings.map((warning) => (
                           <li key={warning}>{warning}</li>
@@ -980,13 +982,13 @@ export default function BillingTool() {
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Discrepancies</p>
                     {supportPlanResult.comparison.discrepancies.length === 0 ? (
-                      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">
+                      <div className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
                         No discrepancies detected.
                       </div>
                     ) : (
                       <ul className="space-y-2 text-sm">
                         {supportPlanResult.comparison.discrepancies.map((item) => (
-                          <li key={item} className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-800 dark:text-amber-200">
+                          <li key={item} className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/100/10 px-3 py-2 text-warning">
                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                             <span>{item}</span>
                           </li>

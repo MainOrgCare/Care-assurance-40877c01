@@ -90,10 +90,10 @@ const getCallTypeColor = (callTypeLabel: string | null | undefined): { bg: strin
     return { bg: "bg-sky-100/80 dark:bg-sky-950/35", border: "border-sky-300/80 dark:border-sky-700/60" };
   }
   if (label.includes("lunch") || label.includes("midday") || label.includes("noon")) {
-    return { bg: "bg-amber-100/80 dark:bg-amber-950/30", border: "border-amber-300/80 dark:border-amber-700/60" };
+    return { bg: "bg-warning/10", border: "border-warning/30" };
   }
   if (label.includes("tea") || label.includes("afternoon") || /(^| )pm( |$)/.test(label)) {
-    return { bg: "bg-emerald-100/80 dark:bg-emerald-950/30", border: "border-emerald-300/80 dark:border-emerald-700/60" };
+    return { bg: "bg-success/10/80 dark:bg-success-950/30", border: "bg-success/10" };
   }
   if (label.includes("bed") || label.includes("evening") || label.includes("night") || label.includes("eve")) {
     return { bg: "bg-indigo-100/80 dark:bg-indigo-950/30", border: "border-indigo-300/80 dark:border-indigo-700/60" };
@@ -108,8 +108,8 @@ const getTimeBandBackgrounds = (
   const totalMinutes = Math.max(endMinutes - startMinutes, 1);
   const bands = [
     { key: "am", start: 6 * 60, end: 12 * 60, className: "bg-sky-500/5 dark:bg-sky-400/10" },
-    { key: "lunch", start: 12 * 60, end: 14 * 60, className: "bg-amber-500/5 dark:bg-amber-400/10" },
-    { key: "tea", start: 14 * 60, end: 17 * 60, className: "bg-emerald-500/5 dark:bg-emerald-400/10" },
+    { key: "lunch", start: 12 * 60, end: 14 * 60, className: "bg-warning/5" },
+    { key: "tea", start: 14 * 60, end: 17 * 60, className: "bg-success/100/5 dark:bg-success-400/10" },
     { key: "bed", start: 17 * 60, end: 22 * 60, className: "bg-indigo-500/5 dark:bg-indigo-400/10" },
   ];
 
@@ -498,19 +498,19 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
           </div>
           <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground flex-wrap">
             <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-blue-600" /> AM
+              <span className="h-2 w-2 rounded-full bg-primary" /> AM
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-amber-600" /> Lunch
+              <span className="h-2 w-2 rounded-full bg-warning" /> Lunch
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-600" /> Tea
+              <span className="h-2 w-2 rounded-full bg-success" /> Tea
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-indigo-600" /> Evening
             </span>
             {totalConflicts > 0 && (
-              <span className="inline-flex items-center gap-1 text-red-500 font-medium">
+              <span className="inline-flex items-center gap-1 text-destructive font-medium">
                 <AlertTriangle className="h-3 w-3" /> {totalConflicts / 2} conflicts
               </span>
             )}
@@ -585,10 +585,10 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                   const left = ((currentMinutes - startMinutes) / totalMinutes) * 100;
                   return (
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+                      className="absolute top-0 bottom-0 w-0.5 bg-destructive/100 z-10"
                       style={{ left: `${left}%` }}
                     >
-                      <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500" />
+                      <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-destructive/100" />
                     </div>
                   );
                 }
@@ -679,7 +679,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                               <div className="flex-1 h-1 rounded-full bg-muted/50 max-w-[60px]">
                                 <div
                                   className={`h-1 rounded-full transition-all ${
-                                    utilization > 100 ? "bg-red-500" : utilization > 80 ? "bg-amber-500" : "bg-emerald-500"
+                                    utilization > 100 ? "bg-destructive/100" : utilization > 80 ? "bg-warning" : "bg-success/100"
                                   }`}
                                   style={{ width: `${Math.min(utilization, 100)}%` }}
                                 />
@@ -724,7 +724,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                                 style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
                                 title={`${gap.gapMinutes} minute gap`}
                               >
-                                <div className="h-full w-full rounded border border-dashed border-amber-400/40 bg-amber-50/10" />
+                                <div className="h-full w-full rounded border border-dashed border-warning/40 bg-warning/5" />
                               </div>
                             ))}
                             {/* Entry blocks */}
@@ -782,7 +782,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                           <div className="flex-1 h-1 rounded-full bg-muted/50 max-w-[60px]">
                             <div
                               className={`h-1 rounded-full transition-all ${
-                                utilization > 100 ? "bg-red-500" : utilization > 80 ? "bg-amber-500" : "bg-emerald-500"
+                                utilization > 100 ? "bg-destructive/100" : utilization > 80 ? "bg-warning" : "bg-success/100"
                               }`}
                               style={{ width: `${Math.min(utilization, 100)}%` }}
                             />
@@ -827,7 +827,7 @@ export const GanttTimeline: React.FC<GanttTimelineProps> = ({
                             style={{ left: `${gap.leftPercent}%`, width: `${gap.widthPercent}%`, top: `${gapTop}px`, height: `${gapHeight}px` }}
                             title={`${gap.gapMinutes} minute gap`}
                           >
-                            <div className="h-full w-full rounded border border-dashed border-amber-400/40 bg-amber-50/10" />
+                            <div className="h-full w-full rounded border border-dashed border-warning/40 bg-warning/5" />
                           </div>
                         ))}
                         {/* Entry blocks */}
@@ -935,8 +935,8 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
       {entry.callTypeLabel && <div className="text-muted-foreground">{entry.callTypeLabel}</div>}
       {entry.address && <div className="text-muted-foreground truncate max-w-[200px]">{entry.address}</div>}
       {entry.isTimeCritical && <div className="text-rose-500 font-medium">⚠ Time Critical</div>}
-      {entry.isDoubleUp && <div className="text-blue-500 font-medium">👥 Double-Up Required</div>}
-      {hasConflict && <div className="text-red-500 font-medium">⚠ Schedule Conflict</div>}
+      {entry.isDoubleUp && <div className="text-primary font-medium">👥 Double-Up Required</div>}
+      {hasConflict && <div className="text-destructive font-medium">⚠ Schedule Conflict</div>}
     </div>
   );
 
@@ -969,7 +969,7 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
           )}
           {/* Double-up badge */}
           {entry.isDoubleUp && (
-            <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-blue-600 border border-background shadow-[var(--shadow-xs)] flex items-center justify-center">
+            <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary border border-background shadow-[var(--shadow-xs)] flex items-center justify-center">
               <span className="text-[9px] font-semibold text-white">2</span>
             </div>
           )}
@@ -979,13 +979,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
             </span>
           </div>
           {hasConflict && !entry.isDoubleUp && (
-            <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border border-background" />
+            <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive/100 border border-background" />
           )}
           {/* Recommended time indicator */}
           {recommendedStatus?.hasRecommendation && !entry.isDoubleUp && (
             <div
               className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center ${
-                recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
+                recommendedStatus.isWithinWindow ? "bg-success/100" : "bg-warning"
               }`}
             >
               <Target className="h-2 w-2 text-white" />

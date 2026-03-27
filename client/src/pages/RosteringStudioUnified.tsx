@@ -9,6 +9,7 @@
  */
 
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -438,6 +439,7 @@ export default function RosteringStudioUnified({
   embedded?: boolean;
 }) {
   const { toast } = useToast();
+  usePageTitle("Rostering Studio");
   const queryClient = useQueryClient();
 
   // Warm optional heavy chunks in idle time so first panel-open feels instant.
@@ -1912,9 +1914,9 @@ export default function RosteringStudioUnified({
               {conflictsCount > 0 ? (
                 <AlertTriangle className="h-3 w-3 text-destructive" />
               ) : (
-                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                <CheckCircle2 className="h-3 w-3 text-success" />
               )}
-              <span className={`font-semibold ${conflictsCount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+              <span className={`font-semibold ${conflictsCount > 0 ? "text-destructive" : "text-success"}`}>
                 {conflictsCount}
               </span>
               <span className="text-muted-foreground">Conflicts</span>
@@ -2359,9 +2361,9 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-constraints flex items-center gap-2 px-3 py-2">
-                        <UserCog className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <UserCog className="h-4 w-4 text-warning" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Constraints</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-warning/100/10 text-warning border-warning/20">
                           {constraintsForEditor.length}
                         </Badge>
                       </div>
@@ -2584,7 +2586,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-costs flex items-center gap-2 px-3 py-2">
-                        <Calculator className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <Calculator className="h-4 w-4 text-success" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Cost Analysis</span>
                       </div>
                       <ScrollArea className="rstd-scroll-area flex-1 min-h-0">

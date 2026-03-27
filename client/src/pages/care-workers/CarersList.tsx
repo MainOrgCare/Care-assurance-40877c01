@@ -1,14 +1,17 @@
 import { useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download, AlertCircle } from "lucide-react";
+import { AlertTriangle, ChevronRight, Search, Users, FileText, Download, AlertCircle, RefreshCw } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDataExport } from "@/hooks/useDataExport";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CareWorkerDiscrepancy {
   date: string;
@@ -28,8 +31,9 @@ interface CareWorkerFromAudits {
 export default function CarersList() {
   const [searchQuery, setSearchQuery] = useState("");
   const { exportCSV } = useDataExport();
+  usePageTitle("Care Workers");
 
-  const { data: careWorkers = [], isLoading: loading, isError, error } = useQuery<CareWorkerFromAudits[]>({
+  const { data: careWorkers = [], isLoading: loading, isError, error, refetch } = useQuery<CareWorkerFromAudits[]>({
     queryKey: queryKeys.audits.careWorkers(),
     queryFn: async () => {
       const res = await fetch("/api/audits/care-workers", { credentials: "include" });
@@ -72,7 +76,7 @@ export default function CarersList() {
   };
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell-compact">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="page-title">Care Workers</h2>
@@ -81,26 +85,39 @@ export default function CarersList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={careWorkers.length === 0}
-            onClick={() =>
-              exportCSV(
-                careWorkers as unknown as Record<string, unknown>[],
-                [
-                  { header: "Name", accessor: "name" },
-                  { header: "Audit Count", accessor: "auditCount" },
-                  { header: "Discrepancy Count", accessor: "discrepancyCount" },
-                  { header: "Last Seen", accessor: "lastSeen" },
-                ],
-                `care-workers-${new Date().toISOString().slice(0, 10)}`,
-              )
-            }
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={careWorkers.length === 0 ? 0 : -1}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={careWorkers.length === 0}
+                    onClick={() =>
+                      exportCSV(
+                        careWorkers as unknown as Record<string, unknown>[],
+                        [
+                          { header: "Name", accessor: "name" },
+                          { header: "Audit Count", accessor: "auditCount" },
+                          { header: "Discrepancy Count", accessor: "discrepancyCount" },
+                          { header: "Last Seen", accessor: "lastSeen" },
+                        ],
+                        `care-workers-${new Date().toISOString().slice(0, 10)}`,
+                      )
+                    }
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {careWorkers.length === 0 && (
+                <TooltipContent>
+                  <p>No care worker data to export yet</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           <div className="relative w-full md:w-[300px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <Input 
@@ -127,6 +144,10 @@ export default function CarersList() {
                   {error instanceof Error ? error.message : "An unexpected error occurred. Please try again."}
                 </p>
               </div>
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -135,8 +156,8 @@ export default function CarersList() {
       <Card>
         <CardHeader className="border-b border-border/30">
           <CardTitle className="flex items-center gap-3">
-            <div className="h-7 w-7 rounded-md bg-amber-500/8 flex items-center justify-center">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            <div className="h-7 w-7 rounded-md bg-warning/8 flex items-center justify-center">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" />
             </div>
             Staff with Discrepancies
           </CardTitle>
@@ -144,9 +165,15 @@ export default function CarersList() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Loading care workers...
+            <div className="divide-y divide-border/30">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-24 ml-4" />
+                  <Skeleton className="h-5 w-16 rounded-full ml-auto" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              ))}
             </div>
           ) : filteredWorkersWithDiscrepancies.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -219,7 +246,7 @@ export default function CarersList() {
                           <div className="mt-6 space-y-4">
                             {worker.discrepancyCount >= 3 && (
                               <div 
-                                className="p-4 bg-red-950/20 border border-red-900/50 rounded-lg flex gap-3 text-red-400 text-sm"
+                                className="p-4 bg-destructive/8 border border-destructive/25 rounded-lg flex gap-3 text-destructive text-sm"
                                 data-testid={`alert-threshold-${worker.name.replace(/\s/g, '-')}`}
                               >
                                 <AlertTriangle className="shrink-0" />
@@ -272,9 +299,14 @@ export default function CarersList() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Loading care workers...
+            <div className="divide-y divide-border/30">
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-24 ml-4" />
+                  <Skeleton className="h-5 w-20 rounded-full ml-auto" />
+                </div>
+              ))}
             </div>
           ) : filteredAllWorkers.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -320,7 +352,7 @@ export default function CarersList() {
                     <TableCell>
                       <Badge 
                         variant={worker.discrepancyCount === 0 ? "default" : "secondary"}
-                        className={worker.discrepancyCount === 0 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" : ""}
+                        className={worker.discrepancyCount === 0 ? "bg-success/15 text-success border-success/30" : ""}
                         data-testid={`badge-worker-status-${worker.name.replace(/\s/g, '-')}`}
                       >
                         {worker.discrepancyCount === 0 ? "Compliant" : `${worker.discrepancyCount} issues`}

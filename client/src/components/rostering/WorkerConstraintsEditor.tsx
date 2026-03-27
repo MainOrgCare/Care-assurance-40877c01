@@ -341,18 +341,18 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
                 key={w.key}
                 className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
                   w.status === "overloaded"
-                    ? "border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-950/30"
+                    ? "border-destructive/30 dark:border-destructive/30 bg-destructive/10 dark:bg-destructive/10"
                     : w.status === "warning"
-                    ? "border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30"
+                    ? "border-warning/30 bg-warning/10"
                     : ""
                 }`}
               >
                 <div className="flex items-center gap-2">
                   {w.status === "overloaded" && (
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   )}
                   {w.status === "warning" && (
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <AlertTriangle className="h-4 w-4 text-warning" />
                   )}
                   <span className="font-medium truncate max-w-[140px]">{w.name}</span>
                   <span className="text-xs text-muted-foreground">

@@ -2,8 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, AlertTriangle, Shield } from "lucide-react";
 import { Link } from "wouter";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 export default function TermsConditions() {
+  usePageTitle("Terms and Conditions");
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -105,9 +107,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">7. AI Features and Human Review</h3>
-              <div className="rounded-lg p-4 mb-4 bg-amber-500/10 border border-amber-500/20">
-                <p className="font-medium mb-2 text-amber-600">DECISION SUPPORT ONLY</p>
-                <p className="text-sm text-amber-900 dark:text-amber-300">
+              <div className="rounded-lg p-4 mb-4 bg-warning/8 border border-warning/20">
+                <p className="font-medium mb-2 text-warning">DECISION SUPPORT ONLY</p>
+                <p className="text-sm text-foreground/80">
                   The Service may generate outputs using automated processing (including AI). Outputs may be incomplete or inaccurate. You must review and validate outputs before acting on them.
                 </p>
               </div>
@@ -158,9 +160,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">13. Limitation of Liability</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">IMPORTANT</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">IMPORTANT</p>
+                <p className="text-sm text-foreground/80">
                   Nothing in these Terms excludes or limits liability for death or personal injury caused by negligence, fraud/fraudulent misrepresentation, or any liability that cannot be excluded under applicable law.
                 </p>
               </div>
@@ -192,9 +194,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">7. Regulatory Compliance Responsibility</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">USER ASSUMES ALL REGULATORY COMPLIANCE RISK</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">USER ASSUMES ALL REGULATORY COMPLIANCE RISK</p>
+                <p className="text-sm text-foreground/80">
                   By using this Software, you explicitly acknowledge and agree that YOU bear sole and complete responsibility for ensuring compliance with all applicable regulations, including but not limited to CQC (Care Quality Commission) requirements, NICE guidelines, NHS standards, and any other regulatory frameworks applicable to your organization and jurisdiction.
                 </p>
               </div>
@@ -243,7 +245,7 @@ export default function TermsConditions() {
             <section>
               <h3 className="text-lg font-semibold text-foreground">10. Data Handling and Volatile Storage</h3>
               <p className="text-muted-foreground">
-                <strong className="text-amber-600">Important:</strong> All uploaded documents are stored in volatile (temporary) memory only. This "Privacy by Design" approach ensures that sensitive data is not permanently retained. Uploaded files are automatically and permanently deleted:
+                <strong className="text-warning">Important:</strong> All uploaded documents are stored in volatile (temporary) memory only. This "Privacy by Design" approach ensures that sensitive data is not permanently retained. Uploaded files are automatically and permanently deleted:
               </p>
               <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
                 <li>After 30 minutes of session inactivity</li>
@@ -275,12 +277,12 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">11A. Name, Branding, and Design Rights</h3>
-              <div className="rounded-lg p-4 mb-4 bg-blue-500/[0.08] border border-blue-500/20">
+              <div className="rounded-lg p-4 mb-4 bg-primary/[0.06] border border-primary/20">
                 <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
+                  <Shield className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
                   <div>
-                    <p className="font-medium mb-2 text-blue-700">ORIGINAL WORK AND PROPRIETARY RIGHTS</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="font-medium mb-2 text-primary">ORIGINAL WORK AND PROPRIETARY RIGHTS</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
                       The name "CareAssurance," the CareAssurance logo, all related names, logos, product and service names, designs, user interface designs, visual elements, and all associated branding elements are the original creative works of Lewis Barron. These elements were independently conceived, created, and developed by Lewis Barron without reference to or copying of any third-party works. All rights in and to these elements are exclusively reserved.
                     </p>
                   </div>
@@ -294,9 +296,9 @@ export default function TermsConditions() {
                 <li><strong>No License Granted:</strong> Nothing contained on this Platform or in these Terms should be construed as granting any license or right to use the CareAssurance name, logo, or design elements without the prior express written permission of Lewis Barron.</li>
                 <li><strong>Design Rights:</strong> The visual design, layout, look and feel, color schemes, iconography, typography, and overall aesthetic of the Platform are proprietary to Lewis Barron.</li>
               </ul>
-              <div className="rounded-lg p-4 mt-4 mb-4 bg-blue-500/[0.08] border border-blue-500/20">
-                <p className="font-medium mb-2 text-blue-700">BRANDING AND DESIGN</p>
-                <p className="text-sm text-muted-foreground">
+              <div className="rounded-lg p-4 mt-4 mb-4 bg-primary/[0.06] border border-primary/20">
+                <p className="font-medium mb-2 text-primary">BRANDING AND DESIGN</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
                   The CareAssurance name, logo, and visual design belong to Lewis Barron. Using the platform does not grant rights to reuse or adapt these elements. If you have questions or concerns about branding or design, please contact the Owner to discuss.
                 </p>
               </div>
@@ -307,9 +309,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">12. Confidentiality and Non-Disclosure</h3>
-              <div className="rounded-lg p-4 mb-4 bg-purple-500/[0.08] border border-purple-500/20">
-                <p className="font-medium mb-2 text-violet-600">BINDING CONFIDENTIALITY AGREEMENT</p>
-                <p className="text-sm text-violet-900 dark:text-violet-300">
+              <div className="rounded-lg p-4 mb-4 bg-secondary/[0.08] border border-secondary/20">
+                <p className="font-medium mb-2 text-secondary">BINDING CONFIDENTIALITY AGREEMENT</p>
+                <p className="text-sm text-foreground/80">
                   By accessing this Software, you enter into a legally binding confidentiality agreement. All aspects of CareAssurance, including but not limited to its functionality, features, user interface, workflows, algorithms, methods, processes, and business model constitute Confidential Information owned exclusively by Lewis Barron.
                 </p>
               </div>
@@ -338,9 +340,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">13. Non-Copying and Non-Replication</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">ABSOLUTE PROHIBITION ON COPYING</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">ABSOLUTE PROHIBITION ON COPYING</p>
+                <p className="text-sm text-foreground/80">
                   You are strictly prohibited from copying, replicating, reproducing, or creating derivative works based on any aspect of CareAssurance. This prohibition applies regardless of whether you have been granted access to the Software, viewed a demonstration, or been presented with the concept in any form.
                 </p>
               </div>
@@ -401,9 +403,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">17. Limitation of Liability</h3>
-              <div className="rounded-lg p-4 mb-4 bg-red-500/[0.08] border border-red-500/20">
-                <p className="font-medium mb-2 text-red-600">LIMITATION OF LIABILITY</p>
-                <p className="text-sm text-red-900 dark:text-red-300">
+              <div className="rounded-lg p-4 mb-4 bg-destructive/[0.06] border border-destructive/20">
+                <p className="font-medium mb-2 text-destructive">LIMITATION OF LIABILITY</p>
+                <p className="text-sm text-foreground/80">
                   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL LEWIS BARRON, HIS AFFILIATES, AGENTS, OR LICENSORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES, INCLUDING BUT NOT LIMITED TO DAMAGES FOR LOSS OF PROFITS, GOODWILL, USE, DATA, OR OTHER INTANGIBLE LOSSES, REGARDLESS OF WHETHER ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
                 </p>
               </div>
@@ -424,9 +426,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">19. Termination</h3>
-              <div className="rounded-lg p-4 mb-4 bg-amber-500/10 border border-amber-500/20">
-                <p className="font-medium mb-2 text-amber-600">Service Suspension or Termination</p>
-                <p className="text-sm text-amber-900 dark:text-amber-300">
+              <div className="rounded-lg p-4 mb-4 bg-warning/8 border border-warning/20">
+                <p className="font-medium mb-2 text-warning">Service Suspension or Termination</p>
+                <p className="text-sm text-foreground/80">
                   Access may be suspended or ended where there is a breach of these Terms, a security or compliance risk, or where continued use is not commercially viable. We will usually give notice and a chance to address issues unless urgent action is required to protect users or data.
                 </p>
               </div>

@@ -82,10 +82,10 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
 
   const getScoreColor = (score: number) => {
     if (score >= 40) return "text-success dark:text-green-400";
-    if (score >= 10) return "text-info dark:text-blue-400";
+    if (score >= 10) return "text-primary dark:text-blue-400";
     if (score >= -9) return "text-muted-foreground";
-    if (score >= -39) return "text-warning dark:text-orange-400";
-    return "text-destructive dark:text-red-400";
+    if (score >= -39) return "text-orange-600 dark:text-orange-400";
+    return "text-destructive dark:text-destructive";
   };
 
   const getScoreIcon = (score: number) => {
@@ -97,7 +97,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
   const getDeltaDisplay = (delta: number, suffix: string = "") => {
     if (delta === 0) return <span className="text-muted-foreground">—</span>;
     const sign = delta > 0 ? "+" : "";
-    const color = delta > 0 ? "text-destructive dark:text-red-400" : "text-success dark:text-green-400";
+    const color = delta > 0 ? "text-destructive dark:text-destructive" : "text-success dark:text-green-400";
     return <span className={`font-semibold ${color}`}>{sign}{delta}{suffix}</span>;
   };
 
@@ -117,7 +117,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <GitCompare className="h-5 w-5 text-info" />
+                <GitCompare className="h-5 w-5 text-primary" />
                 Schedule Comparison
               </CardTitle>
               <CardDescription>
@@ -220,7 +220,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
                   </Card>
                 </div>
 
-                <Alert className={comparison.improvementScore >= 10 ? "border-green-500" : comparison.improvementScore < -9 ? "border-red-500" : ""}>
+                <Alert className={comparison.improvementScore >= 10 ? "border-success" : comparison.improvementScore < -9 ? "border-destructive" : ""}>
                   <AlertDescription>
                     <p className="font-semibold mb-2">{comparison.summary}</p>
                     <p className="text-sm text-muted-foreground">{comparison.recommendation}</p>

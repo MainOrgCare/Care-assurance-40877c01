@@ -141,8 +141,8 @@ export default function NotificationCenter() {
   };
 
   const typeIcon = (type: string) => {
-    if (type.toLowerCase().includes("emar")) return <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />;
-    return <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />;
+    if (type.toLowerCase().includes("emar")) return <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />;
+    return <FileText className="h-3.5 w-3.5 text-primary shrink-0" />;
   };
 
   return (
@@ -152,15 +152,15 @@ export default function NotificationCenter() {
           className={cn(
             "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
             unreadCount > 0
-              ? "bg-amber-500/20 text-amber-600 hover:bg-amber-500/18"
+              ? "bg-warning/10 text-warning hover:bg-warning/15"
               : "bg-muted/40 hover:bg-muted/60"
           )}
           title={unreadCount > 0 ? `${unreadCount} unread alert${unreadCount !== 1 ? "s" : ""}` : "Notifications"}
           aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
         >
-          <Bell className={cn("h-4 w-4", unreadCount > 0 ? "text-amber-600" : "text-muted-foreground")} />
+          <Bell className={cn("h-4 w-4", unreadCount > 0 ? "text-warning" : "text-muted-foreground")} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
+            <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-warning text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -174,7 +174,7 @@ export default function NotificationCenter() {
             <Bell className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">Notifications</span>
             {unreadCount > 0 && (
-              <span className="rounded-full bg-amber-500/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+              <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
                 {unreadCount}
               </span>
             )}
@@ -234,8 +234,8 @@ export default function NotificationCenter() {
                     <span className={cn(
                       "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium",
                       alert.discrepancyType.toLowerCase().includes("emar")
-                        ? "bg-amber-500/20 text-amber-600"
-                        : "bg-blue-500/10 text-blue-600"
+                        ? "bg-warning/10 text-warning"
+                        : "bg-primary/10 text-primary"
                     )}>
                       {alert.discrepancyType}
                     </span>

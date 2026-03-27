@@ -767,14 +767,14 @@ export default function Homepage() {
                 </div>
                 <div className="home-card-soft p-4">
                   <p className="text-xs font-medium home-text-soft">Time saved</p>
-                  <p className="text-2xl font-semibold text-green-600" data-testid="text-hours-saved">
+                  <p className="text-2xl font-semibold text-success" data-testid="text-hours-saved">
                     {roi.hoursSaved.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
                   </p>
                   <p className="text-xs font-medium home-text-soft">per year</p>
                 </div>
                 <div className="home-card-soft p-4">
                   <p className="text-xs font-medium home-text-soft">Money saved</p>
-                  <p className="text-2xl font-semibold text-green-600" data-testid="text-money-saved">
+                  <p className="text-2xl font-semibold text-success" data-testid="text-money-saved">
                     £{roi.moneySaved.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
                   <p className="text-xs font-medium home-text-soft">per year at £14.50/hr*</p>
@@ -784,11 +784,11 @@ export default function Homepage() {
               <div className="mt-6">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium home-text-soft">Efficiency gain</span>
-                  <span className="font-semibold text-green-600">{savingsPercent}% faster</span>
+                  <span className="font-semibold text-success">{savingsPercent}% faster</span>
                 </div>
                 <div className="mt-3 h-2.5 rounded-full overflow-hidden bg-muted">
                   <div
-                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-blue-500 to-green-600"
+                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-primary to-success"
                     style={{ width: `${savingsPercent}%` }}
                   />
                 </div>
@@ -832,7 +832,7 @@ export default function Homepage() {
                   {contactSuccess ? (
                     <div className="home-card-soft p-6">
                       <div className="flex items-center gap-2 home-text-heading">
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        <CheckCircle2 className="h-5 w-5 text-success" />
                         <span className="font-semibold">Message sent</span>
                       </div>
                       <p className="mt-2 text-sm home-text-soft">
@@ -892,7 +892,7 @@ export default function Homepage() {
                         />
                       </div>
                       {contactError && (
-                        <div className="rounded-lg border border-red-400/40 bg-red-100/60 px-4 py-2 text-sm text-red-600">
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
                           {contactError}
                         </div>
                       )}

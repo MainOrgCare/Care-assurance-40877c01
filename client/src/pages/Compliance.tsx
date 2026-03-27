@@ -1,11 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download } from "lucide-react";
+import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download, RefreshCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { useDataExport } from "@/hooks/useDataExport";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AuditResults {
   discrepancies?: { length: number }[];
@@ -25,7 +28,7 @@ interface Audit {
 }
 
 export default function Compliance() {
-  const { data: audits, isLoading, error } = useQuery<Audit[]>({
+  const { data: audits, isLoading, error, refetch, isRefetching } = useQuery<Audit[]>({
     queryKey: queryKeys.audits.all(),
     queryFn: async () => {
       const res = await fetch("/api/audits", { credentials: "include" });
@@ -35,12 +38,37 @@ export default function Compliance() {
   });
 
   const { exportCSV } = useDataExport();
+  usePageTitle("Compliance");
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-        <p className="text-sm text-muted-foreground">Loading compliance data&hellip;</p>
+      <div className="page-shell page-shell-compact">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-9 w-9 rounded-lg" />
+              </CardHeader>
+              <CardContent className="pt-0.5">
+                <Skeleton className="h-8 w-16 mt-1" />
+                <Skeleton className="h-3 w-28 mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 2 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3 border-b border-border/30">
+                <Skeleton className="h-4 w-36" />
+              </CardHeader>
+              <CardContent className="pt-4">
+                <Skeleton className="h-[250px] w-full rounded-lg" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -52,6 +80,10 @@ export default function Compliance() {
           <CardContent className="pt-6 flex flex-col items-center gap-3">
             <AlertTriangle className="h-8 w-8 text-destructive/50" />
             <p className="text-sm font-medium text-destructive">Failed to load compliance data. Please try again.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2">
+              {isRefetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -75,7 +107,7 @@ export default function Compliance() {
 
   const auditTypeData = [
     { name: "EMAR Audits", value: emarAudits.length, color: "hsl(var(--primary))" },
-    { name: "Visit Audits", value: visitAudits.length, color: "hsl(142, 71%, 45%)" },
+    { name: "Visit Audits", value: visitAudits.length, color: "hsl(var(--secondary))" },
   ];
 
   const monthlyData = getMonthlyAuditData(auditList);
@@ -87,28 +119,41 @@ export default function Compliance() {
           <h2 className="page-title">Compliance Overview</h2>
           <p className="page-subtitle max-w-lg">View audit history, discrepancies, and compliance metrics across all service users.</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={auditList.length === 0}
-          onClick={() =>
-            exportCSV(
-              auditList as unknown as Record<string, unknown>[],
-              [
-                { header: "Service User", accessor: "serviceUserName" },
-                { header: "Auditor", accessor: "auditor" },
-                { header: "Audit Type", accessor: "auditType" },
-                { header: "Period Start", accessor: "periodStart" },
-                { header: "Period End", accessor: "periodEnd" },
-                { header: "Created At", accessor: "createdAt" },
-              ],
-              `compliance-report-${new Date().toISOString().slice(0, 10)}`,
-            )
-          }
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Export Report
-        </Button>
+        <TooltipProvider>
+          <UITooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={auditList.length === 0 ? 0 : -1}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={auditList.length === 0}
+                  onClick={() =>
+                    exportCSV(
+                      auditList as unknown as Record<string, unknown>[],
+                      [
+                        { header: "Service User", accessor: "serviceUserName" },
+                        { header: "Auditor", accessor: "auditor" },
+                        { header: "Audit Type", accessor: "auditType" },
+                        { header: "Period Start", accessor: "periodStart" },
+                        { header: "Period End", accessor: "periodEnd" },
+                        { header: "Created At", accessor: "createdAt" },
+                      ],
+                      `compliance-report-${new Date().toISOString().slice(0, 10)}`,
+                    )
+                  }
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Report
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {auditList.length === 0 && (
+              <TooltipContent>
+                <p>No audit data to export yet</p>
+              </TooltipContent>
+            )}
+          </UITooltip>
+        </TooltipProvider>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -130,8 +175,8 @@ export default function Compliance() {
         <Card data-testid="stat-discrepancies">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Discrepancies Found</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-500/20 shadow-[var(--shadow-xs)]">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-warning/10 shadow-[var(--shadow-xs)]">
+              <AlertTriangle className="h-4 w-4 text-warning" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
@@ -143,8 +188,8 @@ export default function Compliance() {
         <Card data-testid="stat-warnings">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Warnings</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-yellow-500/10 shadow-[var(--shadow-xs)]">
-              <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-warning/10 shadow-[var(--shadow-xs)]">
+              <AlertTriangle className="h-4 w-4 text-warning" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
@@ -156,8 +201,8 @@ export default function Compliance() {
         <Card data-testid="stat-compliance-rate">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Rate</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-emerald-500/20 shadow-[var(--shadow-xs)]">
-              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-success/10 shadow-[var(--shadow-xs)]">
+              <CheckCircle className="h-4 w-4 text-success" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
@@ -262,7 +307,7 @@ export default function Compliance() {
         </CardHeader>
         <CardContent>
           {auditList.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {auditList.slice(0, 10).map((audit: Audit) => {
                 const results = audit.results;
                 const discrepancyCount = results?.discrepancies?.length || 0;
@@ -286,7 +331,7 @@ export default function Compliance() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge variant={audit.auditType === "EMAR" ? "default" : "secondary"}>
+                      <Badge variant={audit.auditType === "EMAR" ? "default" : "secondary"} className={audit.auditType === "EMAR" ? "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15" : undefined}>
                         {audit.auditType}
                       </Badge>
                       {discrepancyCount > 0 && (
@@ -296,12 +341,12 @@ export default function Compliance() {
                         </Badge>
                       )}
                       {warningCount > 0 && (
-                        <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
+                        <Badge variant="warning" className="gap-1">
                           {warningCount} warnings
                         </Badge>
                       )}
                       {discrepancyCount === 0 && warningCount === 0 && (
-                        <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
+                        <Badge variant="success" className="gap-1">
                           <CheckCircle className="h-3 w-3" />
                           Clean
                         </Badge>

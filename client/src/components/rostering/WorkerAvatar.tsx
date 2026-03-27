@@ -8,9 +8,9 @@ export interface WorkerAvatarProps {
 
 const avatarColors = [
   { bg: "bg-sky-500", text: "text-white" },
-  { bg: "bg-emerald-500", text: "text-white" },
+  { bg: "bg-success/100", text: "text-white" },
   { bg: "bg-violet-500", text: "text-white" },
-  { bg: "bg-amber-500", text: "text-white" },
+  { bg: "bg-warning/100", text: "text-white" },
   { bg: "bg-rose-500", text: "text-white" },
   { bg: "bg-cyan-500", text: "text-white" },
   { bg: "bg-indigo-500", text: "text-white" },

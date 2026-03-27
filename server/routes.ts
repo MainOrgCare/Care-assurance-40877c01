@@ -793,7 +793,7 @@ class PIIVault {
   private static readonly PROFILE_THRESHOLDS: Record<ScrubProfile, NarrativeThresholds> = {
     strict: { autoRedact: 0.62 },
     balanced: { autoRedact: 0.7 },
-    conservative: { autoRedact: 0.78 },
+    conservative: { autoRedact: 0.85 },
   };
   
   constructor(options: PIIVaultOptions = {}) {
@@ -940,7 +940,28 @@ class PIIVault {
     scrubbed = scrubbed.replace(PII_PATTERNS.dateFormats, (match) => this.store(match, 'DATE'));
     
     // === PHASE 3: Name patterns ===
-    
+
+    // ALL-CAPS name pairs: "JOHN SMITH", "PATRICIA ANNE WALKER" — common in formal UK care documents
+    scrubbed = scrubbed.replace(
+      /\b([A-Z]{2,})[ \t]+([A-Z]{2,})(?:[ \t]+([A-Z]{2,}))?\b/g,
+      (match, first, second, third) => {
+        if (NON_NAME_ABBREVIATIONS.has(first) || NON_NAME_ABBREVIATIONS.has(second)) return match;
+        if (first.length < 3 || second.length < 3) return match;
+        const parts = [first, second];
+        if (third) parts.push(third);
+        return parts.map((p) => this.store(p, 'NAME')).join(' ');
+      }
+    );
+
+    // ALL-CAPS single name after a role or context label: "Assessed by PATRICIA"
+    scrubbed = scrubbed.replace(
+      /\b(assessed by|reviewed by|visited by|completed by|performed by|signed by|attended by|present|carer|worker|nurse|coordinator)\s+([A-Z]{3,})\b/gi,
+      (_match, ctx, name) => {
+        if (NON_NAME_ABBREVIATIONS.has(name)) return _match;
+        return `${ctx} ${this.store(name, 'NAME')}`;
+      }
+    );
+
     // Explicit name introductions
     scrubbed = scrubbed.replace(
       /\b(my name is|i am called|i'm called|call me|known as|also known as|a\.k\.a\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
@@ -948,7 +969,8 @@ class PIIVault {
     );
 
     // Initials like M.S. or J.D.
-    scrubbed = scrubbed.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, (match) => this.store(match, 'NAME'));
+    // Trailing \b fails after '.' (non-word char); use lookahead instead
+    scrubbed = scrubbed.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?(?=[\s,;:!?"'\n]|$)/g, (match) => this.store(match, 'NAME'));
 
     // Initials without dots: MS, KB, JD, etc. (2-3 capital letters as standalone)
     // Only if preceded by "initials:" or similar context
@@ -961,22 +983,23 @@ class PIIVault {
     );
     
     // === PHASE 4: Labeled PII fields ===
-    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
+    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)'s\b/g, (match, name) => {
       if (isClinicalOrMedicalTerm(name)) return match;
       if (COMMON_ENGLISH_WORDS.has(name.toLowerCase())) return match;
       return `${this.store(name, 'NAME')}'s`;
     });
 
-    // Full name patterns (First Last or First Middle Last)
-    // Handle mixed case: "Kaylee spencer", "kaylee Spencer", "KAYLEE SPENCER", etc.
+    // Full name patterns (First Last or First Middle Last) — same line only
+    // [ \t]+ prevents spanning newlines (which would incorrectly merge two lines)
     scrubbed = scrubbed.replace(
-      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+))?\b/g,
+      /\b([A-Z][a-z]+)[ \t]+((?:O'|Mc|Mac)?[A-Za-z][a-z]+)(?:[ \t]+((?:O'|Mc|Mac)?[A-Za-z][a-z]+))?\b/g,
       (match, first, second, third) => {
         const phrase = match.toLowerCase();
         if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
         if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
         if (third && isClinicalOrMedicalTerm(third)) return match;
-        if (COMMON_ENGLISH_WORDS.has(first.toLowerCase())) return match;
+        const lowerFirst = first.toLowerCase();
+        if (COMMON_ENGLISH_WORDS.has(lowerFirst) || NON_NAME_CAPITALIZED_WORDS.has(lowerFirst)) return match;
         return this.store(match, 'NAME');
       }
     );
@@ -992,9 +1015,12 @@ class PIIVault {
         if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
         if (third && isClinicalOrMedicalTerm(third)) return match;
         
-        // Additional check: if followed by context like "- granddaughter", "- mother", likely a name
+        const basePhrase = `${first} ${second}`;
+        if (CARE_PHRASE_WHITELIST.has(basePhrase)) return match;
+        // Only trigger when relationship word is the FIRST word — prevents consuming
+        // e.g. "and my granddaughter" which would hide the real name that follows
         const contextMatch = /(mother|father|son|daughter|granddaughter|grandson|sister|brother|wife|husband|partner|friend|carer|neighbor|neighbour)/i;
-        if (contextMatch.test(match)) {
+        if (contextMatch.test(first)) {
           return this.store(match, 'NAME');
         }
         
@@ -1031,9 +1057,10 @@ class PIIVault {
       }
     );
 
-    // Explicit locality context in biography sections (e.g., "grew up in walker").
+    // Explicit locality context in biography sections.
+    // [ \t]+ prevents spanning newlines; optional colon for "Born in: Walker" forms.
     scrubbed = scrubbed.replace(
-      /\b(grew up in|well known in|lives in)\s+([A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,}){0,2})\b/gi,
+      /\b(grew up in|born in|well known in|lives in|live in|living in|resides in)\s*:?\s*([A-Za-z][a-z]{2,}(?:[ \t]+[A-Za-z][a-z]{2,}){0,2})\b/gi,
       (match, ctx, place) => {
         const lowerPlace = String(place || '').toLowerCase();
         if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
@@ -1041,6 +1068,26 @@ class PIIVault {
       }
     );
     
+
+    // === PHASE 3.5: Biographical patterns (must precede single-name-in-context) ===
+
+    // Contact-role identifying combinations: "daughter is next of kin and works as GP"
+    scrubbed = scrubbed.replace(
+      /(?:my\s+)?(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|mother|father)\b[^.!?\n]*?\b(?:next of kin|works? as|employed as|is a)\b[^.!?\n]*/gi,
+      (m) => this.store(m, 'BIOGRAPHICAL')
+    );
+
+    // Family member death: must run before Phase 6 single-name-in-context
+    // to prevent "daughter died" splitting into daughter(ctx) + died(name)
+    scrubbed = scrubbed.replace(
+      /\b(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|child|children)\s+(?:died|passed away|death|deceased)\b[^\n.;]*/gi,
+      (m) => this.store(m, 'BIOGRAPHICAL')
+    );
+
+    // Sensitive biography fragments (married twice, had N children, etc.)
+    scrubbed = scrubbed.replace(PII_PATTERNS.sensitiveBiography, (m) => this.store(m, 'BIOGRAPHICAL'));
+
+
     // === PHASE 4: Labeled PII fields ===
     
     // DOB with date
@@ -1122,18 +1169,13 @@ class PIIVault {
       (m) => this.store(m, 'BIOGRAPHICAL')
     );
 
-    // Family member death patterns: "daughter died at age 27", "son passed away"
+    // Generational markers paired with occupations or age (not simple "born in <place>")
+    // Note: simple "born in <place>" is handled by the locality pattern above (LOCATION token)
     scrubbed = scrubbed.replace(
-      /\b(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|child|children)\s+(?:died|passed away|death|deceased|age)\b[^\n.;]*/gi,
-      (m) => this.store(m, 'BIOGRAPHICAL')
-    );
-
-    // Generational markers paired with locations or occupations
-    scrubbed = scrubbed.replace(
-      /\b(?:born|grew up|raised|brought up|from a young age|childhood|youngest|eldest|firstborn)\s+(?:in|during|as a|at age)\b[^\n.;]*/gi,
+      /\b(?:born|grew up|raised|brought up|from a young age|childhood|firstborn)\s+(?:in|during|as a|at age)\b[^\n.;]*/gi,
       (m) => {
-        // Only store if it looks like biographical context (contains age, location, or other markers)
-        if (/\d{1,3}|[A-Z][a-z]+/.test(m)) {
+        // Only store when genuine biographical context (age markers, occupation, death)
+        if (/\b(?:age\s*\d{1,3}|\d{1,3}\s*year|occupation|worked\s+as|profession|well\s+known|died)\b/i.test(m)) {
           return this.store(m, 'BIOGRAPHICAL');
         }
         return m;
@@ -1861,6 +1903,8 @@ const CARE_PHRASE_WHITELIST = new Set([
   "person centered", "best practice", "quality assurance", "clinical governance",
   "duty of care", "capacity assessment", "mental capacity", "best interests",
   "deprivation of liberty", "advance directive", "lasting power", "power of attorney",
+  "family history", "family background", "personal history",
+  "reduced capacity", "mental capacity", "lacks capacity", "has capacity",
   "hospital discharge", "community nurse", "practice nurse", "occupational therapy",
   "speech therapy", "physical therapy", "blood glucose", "blood sugar",
   "fluid intake", "food intake", "bowel movement", "urinary output",
@@ -1884,6 +1928,18 @@ const COMMON_ENGLISH_WORDS = new Set([
   "want", "because", "these", "give", "most", "care", "health", "support",
   "need", "needs", "help", "ensure", "provide", "assist", "monitor",
   "check", "review", "assess", "plan", "record", "document", "report",
+  // Common verbs and function words that are NOT personal names
+  "died", "passed", "works", "worked", "manages", "managed", "visited",
+  "called", "moved", "came", "went", "lives", "lived", "require", "requires",
+  "often", "later", "sometimes", "usually", "always", "never", "both",
+  "each", "every", "many", "much", "very", "quite", "rather", "still",
+  "once", "twice", "again", "though", "while", "since", "either", "whether",
+  // Generic geography/place words that should never be NAMEs
+  "nearby", "town", "area", "place", "local", "region", "centre", "center",
+  "north", "south", "east", "west", "central", "upper", "lower", "inner", "outer",
+  // Care domain words that should never be treated as names
+  "reduced", "capacity", "continence", "dementia", "mobility", "nutrition",
+  "diabetes", "catheter", "stoma", "incontinence", "hygiene", "dignity",
 ]);
 
 const NON_NAME_ABBREVIATIONS = new Set([
@@ -1896,6 +1952,12 @@ const NON_NAME_CAPITALIZED_WORDS = new Set([
   "contact", "phone", "email", "mobile", "dob", "born", "lives", "well", "known", "gender", "initials",
   "case", "id", "notes", "summary", "medication", "history", "family", "partner", "daughter", "son",
   "raised", "street", "road", "lane", "avenue", "town", "city", "county", "north", "south", "east", "west",
+  // Common sentence-start words that are not names
+  "generic", "later", "both", "often", "sometimes", "usually", "always", "never",
+  "she", "he", "his", "her", "they", "their", "this", "that", "these", "those",
+  "then", "when", "where", "which", "while", "though", "although", "however",
+  "therefore", "further", "moreover", "each", "every", "either", "neither",
+  "local", "other", "another", "similar", "above", "below",
 ]);
 
 const GENERIC_LOCATION_WORDS = new Set([
@@ -2012,6 +2074,23 @@ function scrubPII(data: any, stats?: ScrubStats): any {
     scrubbed = scrubbed.replace(PII_PATTERNS.shortMonthNumericDate, () => { s.dates++; return "[DATE_REDACTED]"; });
 
     // === PHASE 3: Name patterns ===
+
+    // ALL-CAPS name pairs: "JOHN SMITH" — common in formal UK care documents
+    scrubbed = scrubbed.replace(
+      /\b([A-Z]{2,})[ \t]+([A-Z]{2,})(?:[ \t]+([A-Z]{2,}))?\b/g,
+      (match, first, second) => {
+        if (NON_NAME_ABBREVIATIONS.has(first) || NON_NAME_ABBREVIATIONS.has(second)) return match;
+        if (first.length < 3 || second.length < 3) return match;
+        s.names += 2;
+        return "[SERVICE_USER]";
+      }
+    );
+
+    // ALL-CAPS single name after a role or context label
+    scrubbed = scrubbed.replace(
+      /\b(assessed by|reviewed by|visited by|completed by|performed by|signed by|attended by|carer|worker|nurse|coordinator)\s+([A-Z]{3,})\b/gi,
+      (_match, ctx) => { s.names++; return `${ctx} [SERVICE_USER]`; }
+    );
     
     // Explicit name introductions
     scrubbed = scrubbed.replace(
@@ -2020,7 +2099,7 @@ function scrubPII(data: any, stats?: ScrubStats): any {
     );
 
     // Initials like M.S. or J.D.
-    scrubbed = scrubbed.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, () => { s.names++; return "[SERVICE_USER]"; });
+    scrubbed = scrubbed.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?(?=[\s,;:!?"'\n]|$)/g, () => { s.names++; return "[SERVICE_USER]"; });
     
     // Possessive patterns not in whitelist
     scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
@@ -2047,6 +2126,24 @@ function scrubPII(data: any, stats?: ScrubStats): any {
         return "[SERVICE_USER]";
       }
     );
+
+
+    // === PHASE 3.5: Biographical patterns (before single-name-in-context) ===
+
+    // Contact-role identifying combinations: "daughter is next of kin and works as GP"
+    scrubbed = scrubbed.replace(
+      /(?:my\s+)?(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|mother|father)\b[^.!?\n]*?\b(?:next of kin|works? as|employed as|is a)\b[^.!?\n]*/gi,
+      () => { s.other++; return "[BIOGRAPHICAL_REDACTED]"; }
+    );
+
+    // Family member death patterns
+    scrubbed = scrubbed.replace(
+      /\b(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|child|children)\s+(?:died|passed away|death|deceased)\b[^\n.;]*/gi,
+      () => { s.other++; return "[BIOGRAPHICAL_REDACTED]"; }
+    );
+
+    // Sensitive biography fragments (married twice, had N children, etc.)
+    scrubbed = scrubbed.replace(PII_PATTERNS.sensitiveBiography, () => { s.other++; return "[FIELD_REDACTED]"; });
 
     // === PHASE 4: Labeled PII fields ===
     
@@ -2100,7 +2197,7 @@ function scrubPII(data: any, stats?: ScrubStats): any {
 
     // Explicit locality context in biography sections (e.g., "grew up in walker").
     scrubbed = scrubbed.replace(
-      /\b(grew up in|well known in|lives in)\s+[A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,}){0,2}\b/gi,
+      /\b(grew up in|born in|well known in|lives in|live in|living in|resides in)\s*:?\s*[A-Za-z][a-z]{2,}(?:[ \t]+[A-Za-z][a-z]{2,}){0,2}\b/gi,
       (_m, ctx) => {
         s.addresses++;
         return `${ctx} [ADDRESS_REDACTED]`;
@@ -13651,10 +13748,13 @@ ${auditContextBlock}
 
 VALIDATION RULES:
 1. LOCATION: Carer must log in at location (less than 200m from service user's address) for the call to be compliant.
-2. DURATION: Care call is compliant if carer stayed for ≥70% of expected time.
-3. JUSTIFICATIONS: Visit can still be compliant if notes explain valid reason (service user in hospital, service user requested early departure, etc.)
-4. CONCERNS: Check if notes mention any concerns and whether appropriate action was taken.
-5. NOTE QUALITY: Assess if notes are of acceptable professional standard.
+2. DURATION: Care call is compliant if carer stayed for ≥70% of expected time. Calculate: (actual / expected) × 100. Round to nearest integer.
+3. JUSTIFICATIONS: Visit can still be compliant if notes explain valid reason (service user in hospital, service user requested early departure, service user was not at home and carer left appropriate note, etc.)
+4. CONCERNS: Check if notes mention any concerns, incidents, changes in condition, falls, or safeguarding issues — and whether appropriate action was taken or escalated.
+5. NOTE QUALITY: Assess if notes are of acceptable professional standard — they should describe what was done (personal care, meals, medication, mobility) not just "all tasks completed".
+6. LATE/EARLY ARRIVAL: Flag if carer arrived significantly early or late (>15 minutes from scheduled time) without documented reason.
+7. MISSED TASKS: If the care plan specifies tasks (medication, meals, personal care) and notes do not confirm completion, flag as unverified task.
+8. UNSIGNED VISITS: If a visit has no carer signature or initials, flag as unverified unless the notes document a valid reason (e.g., emergency contact, relief carer, system error).
 
 Respond ONLY with valid JSON in this exact format:
 {

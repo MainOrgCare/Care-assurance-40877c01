@@ -92,7 +92,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
             </p>
             <Badge
               variant={isBalanced ? "secondary" : "outline"}
-              className={`text-[10px] ${!isBalanced ? "text-amber-600 border-amber-400" : ""}`}
+              className={`text-[10px] ${!isBalanced ? "text-warning border-warning/40" : ""}`}
             >
               {totalWeight}% total
             </Badge>
@@ -123,7 +123,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Users className="h-3.5 w-3.5 text-emerald-500" />
+                <Users className="h-3.5 w-3.5 text-success" />
                 <span className="text-xs font-medium">Balance Workload</span>
               </div>
               <span className="text-xs text-muted-foreground">{weights.balance}%</span>
@@ -263,15 +263,15 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
         {/* Enforced Rules */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Lock className="h-3.5 w-3.5 text-amber-500" />
+            <Lock className="h-3.5 w-3.5 text-warning" />
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Enforced Rules
             </p>
           </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 p-3 space-y-3">
+          <div className="rounded-lg border border-warning/30 bg-warning/10/50 dark:border-warning/30 dark:bg-warning/30 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Lock className="h-3.5 w-3.5 text-amber-600" />
+                <Lock className="h-3.5 w-3.5 text-warning" />
                 <div>
                   <p className="text-xs font-medium">Lock templated calls</p>
                   <p className="text-[10px] text-muted-foreground">
@@ -287,7 +287,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                 <label className="text-xs font-medium">Time-critical tolerance</label>
               </div>
               <div className="flex items-center gap-2">
@@ -308,7 +308,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5 text-amber-600" />
+                <Clock className="h-3.5 w-3.5 text-warning" />
                 <label className="text-xs font-medium">Working hours</label>
               </div>
               <div className="flex items-center gap-2 text-xs">

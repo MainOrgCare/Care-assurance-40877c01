@@ -117,15 +117,15 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
 
   const getBarColor = (workload: WorkerWorkload): string => {
     if (workload.capacityUsed !== undefined && workload.capacityUsed > 100) {
-      return "bg-red-500";
+      return "bg-destructive/100";
     }
     if (workload.isOverloaded) {
-      return "bg-amber-500";
+      return "bg-warning/100";
     }
     if (workload.isUnderloaded) {
       return "bg-blue-400";
     }
-    return "bg-emerald-500";
+    return "bg-success/100";
   };
 
   const formatDuration = (minutes: number): string => {
@@ -159,19 +159,19 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
         </CardDescription>
         <div className="flex gap-2 mt-2">
           {stats.overloaded > 0 && (
-            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">
+            <Badge variant="outline" className="text-[10px] text-warning border-warning/30 bg-warning/10">
               <TrendingUp className="h-3 w-3 mr-1" />
               {stats.overloaded} overloaded
             </Badge>
           )}
           {stats.underloaded > 0 && (
-            <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-200 bg-blue-50">
+            <Badge variant="outline" className="text-[10px] text-primary border-primary/30 bg-primary/10">
               <TrendingDown className="h-3 w-3 mr-1" />
               {stats.underloaded} underloaded
             </Badge>
           )}
           {stats.balanced > 0 && (
-            <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 bg-emerald-50">
+            <Badge variant="outline" className="text-[10px] text-success border-success/30 bg-success/10">
               <Minus className="h-3 w-3 mr-1" />
               {stats.balanced} balanced
             </Badge>
@@ -199,7 +199,7 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
                           {workload.name}
                         </span>
                         {workload.isOverloaded && (
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -234,7 +234,7 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
                             : ""}
                         </span>
                         {workload.capacityUsed !== undefined && (
-                          <span className={workload.capacityUsed > 100 ? "text-red-500 font-medium" : ""}>
+                          <span className={workload.capacityUsed > 100 ? "text-destructive font-medium" : ""}>
                             {workload.capacityUsed}% of limit
                           </span>
                         )}
@@ -251,12 +251,12 @@ export const WorkloadHeatmap: React.FC<WorkloadHeatmapProps> = ({
                     {workload.percentage}% of average workload
                   </p>
                   {workload.isOverloaded && (
-                    <p className="text-xs text-amber-500 mt-1">
+                    <p className="text-xs text-warning mt-1">
                       ⚠️ Worker is overloaded
                     </p>
                   )}
                   {workload.isUnderloaded && (
-                    <p className="text-xs text-blue-500 mt-1">
+                    <p className="text-xs text-primary mt-1">
                       ℹ️ Worker has capacity for more
                     </p>
                   )}

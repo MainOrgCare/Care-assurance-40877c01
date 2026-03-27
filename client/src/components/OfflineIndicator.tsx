@@ -54,8 +54,8 @@ export function OfflineIndicator() {
       className={cn(
         "fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-normal shadow-[var(--shadow-strong)] backdrop-blur-sm transition-all duration-300",
         isOffline
-          ? "border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
-          : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+          ? "border border-destructive/30 bg-destructive/8 text-destructive"
+          : "border border-success/30 bg-success/8 text-success"
       )}
       role="status"
       aria-live="polite"
@@ -67,7 +67,7 @@ export function OfflineIndicator() {
         </>
       ) : (
         <>
-          <Wifi className="h-4 w-4 text-emerald-500" aria-hidden />
+          <Wifi className="h-4 w-4 text-success" aria-hidden />
           <span>Connection restored</span>
         </>
       )}

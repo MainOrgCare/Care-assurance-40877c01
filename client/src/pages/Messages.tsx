@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -9,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +76,7 @@ export default function Messages() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  usePageTitle("Messages");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -128,6 +132,7 @@ export default function Messages() {
         setSelectedMessage(prev => prev ? { ...prev, isRead: true } : prev);
       } catch (error) {
         console.error("Failed to mark message as read:", error);
+        toast({ title: "Warning", description: "Could not mark message as read", variant: "destructive" });
       }
     }
   };
@@ -161,9 +166,9 @@ export default function Messages() {
   const getPriorityIcon = (priority: string) => {
     switch (priority) {
       case "urgent":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-destructive" />;
       case "high":
-        return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+        return <AlertTriangle className="h-4 w-4 text-warning" />;
       default:
         return null;
     }
@@ -237,9 +242,9 @@ export default function Messages() {
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">To *</label>
+                  <label id="compose-to-label" className="text-xs font-medium text-muted-foreground mb-1 block">To *</label>
                   <Select value={composeForm.recipientId} onValueChange={(v) => setComposeForm({ ...composeForm, recipientId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select recipient..." /></SelectTrigger>
+                    <SelectTrigger aria-labelledby="compose-to-label" aria-required="true"><SelectValue placeholder="Select recipient..." /></SelectTrigger>
                     <SelectContent>
                       {availableRecipients.map((u: UserForRecipient) => (
                         <SelectItem key={u.id} value={u.id}>
@@ -251,18 +256,20 @@ export default function Messages() {
                 </div>
                 <div className="grid grid-cols-[1fr_140px] gap-2">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Subject *</label>
+                    <label htmlFor="compose-subject" className="text-xs font-medium text-muted-foreground mb-1 block">Subject *</label>
                     <Input
+                      id="compose-subject"
                       value={composeForm.subject}
                       onChange={(e) => setComposeForm({ ...composeForm, subject: e.target.value })}
                       placeholder="Message subject..."
                       maxLength={200}
+                      aria-required="true"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority</label>
                     <Select value={composeForm.priority} onValueChange={(v: "normal" | "high" | "urgent") => setComposeForm({ ...composeForm, priority: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Message priority"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="normal">Normal</SelectItem>
                         <SelectItem value="high">High</SelectItem>
@@ -272,31 +279,46 @@ export default function Messages() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Message *</label>
+                  <label htmlFor="compose-message" className="text-xs font-medium text-muted-foreground mb-1 block">Message *</label>
                   <Textarea
+                    id="compose-message"
                     value={composeForm.message}
                     onChange={(e) => setComposeForm({ ...composeForm, message: e.target.value })}
                     placeholder="Type your message..."
                     rows={6}
                     maxLength={5000}
+                    aria-required="true"
                   />
                   <p className="text-[10px] text-muted-foreground text-right mt-0.5">{composeForm.message.length}/5000</p>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim() || composing}
-                  className="gap-1.5"
-                >
-                  {composing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={(!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim()) && !composing ? 0 : -1}>
+                        <Button
+                          onClick={handleSendMessage}
+                          disabled={!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim() || composing}
+                          className="gap-1.5"
+                        >
+                          {composing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          Send
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {(!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim()) && !composing && (
+                      <TooltipContent>
+                        <p>Please fill in all required fields (To, Subject, Message)</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" size="sm" onClick={fetchMessages} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={fetchMessages} disabled={loading} aria-label="Refresh messages">
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>
@@ -324,9 +346,17 @@ export default function Messages() {
           </CardHeader>
           <ScrollArea className="h-[clamp(380px,62vh,760px)]">
             {loading ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                Loading messages...
+              <div className="divide-y divide-border/55">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="p-4 flex items-start gap-3">
+                    <Skeleton className="h-4 w-4 mt-1 flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-28" />
+                      <Skeleton className="h-3.5 w-48" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : messages.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
@@ -334,7 +364,7 @@ export default function Messages() {
                   <Mail className="h-5 w-5 text-muted-foreground/30" />
                 </div>
                 <p className="text-sm font-semibold text-foreground/70">Inbox empty</p>
-                <p className="text-[10px] mt-1 text-muted-foreground max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
+                <p className="text-[10px] mt-1 text-muted-foreground max-w-[200px] mx-auto">No messages yet. New messages from your team will appear here.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/55">
@@ -343,9 +373,9 @@ export default function Messages() {
                     key={message.id}
                     onClick={() => handleSelectMessage(message)}
                     className={cn(
-                      "w-full text-left p-4 transition-all hover:bg-muted/45",
+                      "w-full text-left p-4 transition-all hover:bg-muted/50",
                       selectedMessage?.id === message.id && "bg-primary/8",
-                      !message.isRead && "bg-emerald-500/8"
+                      !message.isRead && "bg-success/[0.05]"
                     )}
                     data-testid={`message-item-${message.id}`}
                   >
@@ -354,7 +384,7 @@ export default function Messages() {
                         {message.isRead ? (
                           <MailOpen className="h-4 w-4 text-muted-foreground" />
                         ) : (
-                          <Mail className="h-4 w-4 text-emerald-600" />
+                          <Mail className="h-4 w-4 text-success" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -414,7 +444,7 @@ export default function Messages() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(selectedMessage.id)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/8 hover:border-destructive/30 dark:hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete
@@ -429,7 +459,7 @@ export default function Messages() {
                 </div>
                 {selectedMessage.isRead && selectedMessage.readAt && (
                   <div className="mt-6 border-t border-border/60 pt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                     Read on {format(new Date(selectedMessage.readAt), "MMMM d, yyyy 'at' h:mm a")}
                   </div>
                 )}
