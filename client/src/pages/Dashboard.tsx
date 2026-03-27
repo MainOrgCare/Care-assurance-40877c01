@@ -860,7 +860,7 @@ export default function Dashboard() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <span className={cn("h-1.5 w-1.5 rounded-full", isRefetching ? "bg-amber-500 animate-pulse" : isError ? "bg-destructive" : "bg-emerald-500")} />
+                      <span className={cn("h-1.5 w-1.5 rounded-full", isRefetching ? "bg-warning animate-pulse" : isError ? "bg-destructive" : "bg-success")} />
                       <span>{isRefetching ? "Refreshing..." : isError ? "Offline" : "Live"}</span>
                     </div>
                   </TooltipTrigger>
@@ -880,7 +880,7 @@ export default function Dashboard() {
               const totalWork = (stats?.auditsCompleted ?? 0) + (stats?.carePlanReviews ?? 0) + (stats?.riskAssessments ?? 0) + (stats?.medicationAudits ?? 0);
               const summaryItems = [
                 { label: "Total Operations", value: totalWork, icon: Activity, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/15" },
-                { label: "Active Alerts", value: stats?.activeAlerts ?? 0, icon: AlertCircle, color: (stats?.activeAlerts ?? 0) > 0 ? "text-destructive" : "text-emerald-600", bg: (stats?.activeAlerts ?? 0) > 0 ? "bg-destructive/10" : "bg-emerald-500/10", border: (stats?.activeAlerts ?? 0) > 0 ? "border-destructive/15" : "border-emerald-500/15" },
+                { label: "Active Alerts", value: stats?.activeAlerts ?? 0, icon: AlertCircle, color: (stats?.activeAlerts ?? 0) > 0 ? "text-destructive" : "text-success", bg: (stats?.activeAlerts ?? 0) > 0 ? "bg-destructive/10" : "bg-success/10", border: (stats?.activeAlerts ?? 0) > 0 ? "border-destructive/15" : "border-success/15" },
                 { label: "Plans Updated", value: stats?.plansUpdated ?? 0, icon: FileText, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/15" },
                 { label: "Risk Checks", value: stats?.riskAssessments ?? 0, icon: Shield, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/15" },
               ];

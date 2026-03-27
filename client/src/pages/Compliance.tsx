@@ -80,7 +80,7 @@ export default function Compliance() {
 
   const auditTypeData = [
     { name: "EMAR Audits", value: emarAudits.length, color: "hsl(var(--primary))" },
-    { name: "Visit Audits", value: visitAudits.length, color: "hsl(142, 71%, 45%)" },
+    { name: "Visit Audits", value: visitAudits.length, color: "hsl(var(--secondary))" },
   ];
 
   const monthlyData = getMonthlyAuditData(auditList);
@@ -174,8 +174,8 @@ export default function Compliance() {
         <Card data-testid="stat-compliance-rate">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Compliance Rate</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-emerald-500/10 shadow-[var(--shadow-xs)]">
-              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-success/10 shadow-[var(--shadow-xs)]">
+              <CheckCircle className="h-4 w-4 text-success" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">

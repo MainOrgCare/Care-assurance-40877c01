@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
@@ -339,9 +340,17 @@ export default function Messages() {
           </CardHeader>
           <ScrollArea className="h-[clamp(380px,62vh,760px)]">
             {loading ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                Loading messages...
+              <div className="divide-y divide-border/55">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="p-4 flex items-start gap-3">
+                    <Skeleton className="h-4 w-4 mt-1 flex-shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-28" />
+                      <Skeleton className="h-3.5 w-48" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : messages.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground">
@@ -360,7 +369,7 @@ export default function Messages() {
                     className={cn(
                       "w-full text-left p-4 transition-all hover:bg-muted/50",
                       selectedMessage?.id === message.id && "bg-primary/8",
-                      !message.isRead && "bg-emerald-500/8"
+                      !message.isRead && "bg-success/[0.05]"
                     )}
                     data-testid={`message-item-${message.id}`}
                   >
@@ -369,7 +378,7 @@ export default function Messages() {
                         {message.isRead ? (
                           <MailOpen className="h-4 w-4 text-muted-foreground" />
                         ) : (
-                          <Mail className="h-4 w-4 text-emerald-600" />
+                          <Mail className="h-4 w-4 text-success" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -444,7 +453,7 @@ export default function Messages() {
                 </div>
                 {selectedMessage.isRead && selectedMessage.readAt && (
                   <div className="mt-6 border-t border-border/60 pt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                     Read on {format(new Date(selectedMessage.readAt), "MMMM d, yyyy 'at' h:mm a")}
                   </div>
                 )}

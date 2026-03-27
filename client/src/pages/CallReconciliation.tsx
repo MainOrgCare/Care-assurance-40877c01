@@ -88,10 +88,10 @@ export default function CallReconciliation() {
       {step === "upload" && (
         <div className="space-y-8">
            {error && (
-             <Card className="app-surface border-red-500/30 bg-red-500/10 max-w-2xl mx-auto">
+             <Card className="app-surface border-destructive/30 bg-destructive/8 max-w-2xl mx-auto">
                <CardContent className="p-4 flex gap-3">
-                 <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={18} />
-                 <p className="text-sm text-red-300">{error}</p>
+                 <AlertCircle className="text-destructive shrink-0 mt-0.5" size={18} />
+                 <p className="text-sm text-destructive">{error}</p>
                </CardContent>
              </Card>
            )}
@@ -206,8 +206,8 @@ export default function CallReconciliation() {
       {step === "complete" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-500">
           <Card className="app-surface p-12 flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
-            <div className="h-20 w-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 size={40} className="text-emerald-400" />
+            <div className="h-20 w-20 rounded-full bg-success/15 flex items-center justify-center">
+              <CheckCircle2 size={40} className="text-success" />
             </div>
             <div className="space-y-2">
               <h3 className="text-2xl font-semibold text-foreground">Reconciliation Complete</h3>

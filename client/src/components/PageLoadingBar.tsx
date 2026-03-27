@@ -69,7 +69,7 @@ export function PageLoadingBar() {
     >
       <div
         className={cn(
-          "h-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.4)] transition-all ease-out",
+          "h-full bg-primary shadow-[0_0_8px_color-mix(in_oklab,var(--color-primary)_40%,transparent)] transition-all ease-out",
           progress === 100 ? "duration-200 opacity-0" : "duration-300 opacity-100"
         )}
         style={{ width: `${progress}%` }}

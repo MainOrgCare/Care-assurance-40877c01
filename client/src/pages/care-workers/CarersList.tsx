@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download, AlertCircle } from "lucide-react";
+import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download, AlertCircle, RefreshCw } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -30,7 +30,7 @@ export default function CarersList() {
   const [searchQuery, setSearchQuery] = useState("");
   const { exportCSV } = useDataExport();
 
-  const { data: careWorkers = [], isLoading: loading, isError, error } = useQuery<CareWorkerFromAudits[]>({
+  const { data: careWorkers = [], isLoading: loading, isError, error, refetch } = useQuery<CareWorkerFromAudits[]>({
     queryKey: queryKeys.audits.careWorkers(),
     queryFn: async () => {
       const res = await fetch("/api/audits/care-workers", { credentials: "include" });
@@ -141,6 +141,10 @@ export default function CarersList() {
                   {error instanceof Error ? error.message : "An unexpected error occurred. Please try again."}
                 </p>
               </div>
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -149,8 +153,8 @@ export default function CarersList() {
       <Card>
         <CardHeader className="border-b border-border/30">
           <CardTitle className="flex items-center gap-3">
-            <div className="h-7 w-7 rounded-md bg-amber-500/8 flex items-center justify-center">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            <div className="h-7 w-7 rounded-md bg-warning/8 flex items-center justify-center">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" />
             </div>
             Staff with Discrepancies
           </CardTitle>
@@ -334,7 +338,7 @@ export default function CarersList() {
                     <TableCell>
                       <Badge 
                         variant={worker.discrepancyCount === 0 ? "default" : "secondary"}
-                        className={worker.discrepancyCount === 0 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" : ""}
+                        className={worker.discrepancyCount === 0 ? "bg-success/15 text-success border-success/30" : ""}
                         data-testid={`badge-worker-status-${worker.name.replace(/\s/g, '-')}`}
                       >
                         {worker.discrepancyCount === 0 ? "Compliant" : `${worker.discrepancyCount} issues`}
