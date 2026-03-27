@@ -639,7 +639,7 @@ CRITICAL RULES:
 4. instructions: Capture EVERYTHING in the medication label area verbatim, including route (e.g., "Route Oral", "Apply thin layer"), frequency, and any special instructions.
 5. scheduledTimeSlots: For each medication, identify ONLY time slots where a grid cell/box exists for administration. Omit time slots not applicable to that medication.
 6. dates: Extract ALL dates that appear as column headers in the grid. Format them EXACTLY as they appear (e.g., "Sun, 30 Nov"). Do not add or omit any.
-7. requiredGapHours: Set based on dosing frequency — "twice daily" → 4, "once daily" → 8, "three times daily" → 3, "four times daily" → 2, "PRN max 4-hourly" → 4. Default 4 when unclear.
+7. requiredGapHours: Minimum hours between doses (used to detect time-gap violations for PRN/repeat doses) — "four times daily" → 4, "three times daily" → 6, "twice daily" → 8, "once daily" → 12, "PRN max 4-hourly" → 4. Default 4 when unclear.
 8. allergies: Extract the full allergy/adverse reaction text. Use "NKDA" or "None known" if stated, or empty string if not mentioned.`;
 
 const buildEntriesPrompt = (
@@ -671,7 +671,7 @@ EXTRACTION RULES:
 7. AMBIGUITY: If a code or signature exists but the time slot is unclear, assign the most probable slot. Use timeSlot "UNSPECIFIED" only when truly impossible to determine.
 8. CODE LEGEND: AD=Administered, AS=Assisted Self-Admin, R=Refused, MU=Medication Unavailable, NH=Not Home, SA=Self Admin, F=Family Admin, P=Prompted, PRN=PRN Administered, PRN-AD=PRN Administered, PRN-AS=PRN Assisted, PRN-R=PRN Refused, MISSED=Scheduled dose not recorded.
 9. DATE FORMAT: Use dates EXACTLY as they appear in the DATES list above. Do not reformat, shorten, or invent dates.
-10. COMPLETENESS: Generate one entry per (medication × date × timeSlot) for every scheduled slot in the grid. Omitting entries causes missed-dose detection to fail.`;
+10. COMPLETENESS: For SCHEDULED medications, generate one entry per (medication × date × timeSlot) for every slot in its scheduledTimeSlots — including blank cells (use "MISSED"). For PRN medications, only include entries where administration occurred (see Rule 4). Omitting scheduled entries causes missed-dose detection to fail.`;
 
 const metadataSchema = {
   name: "EMARMetadata",

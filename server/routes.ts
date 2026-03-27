@@ -13753,7 +13753,7 @@ VALIDATION RULES:
 5. NOTE QUALITY: Assess if notes are of acceptable professional standard — they should describe what was done (personal care, meals, medication, mobility) not just "all tasks completed".
 6. LATE/EARLY ARRIVAL: Flag if carer arrived significantly early or late (>15 minutes from scheduled time) without documented reason.
 7. MISSED TASKS: If the care plan specifies tasks (medication, meals, personal care) and notes do not confirm completion, flag as unverified task.
-8. UNSIGNED VISITS: If a visit has no carer signature or initials, flag as unverified.
+8. UNSIGNED VISITS: If a visit has no carer signature or initials, flag as unverified unless the notes document a valid reason (e.g., emergency contact, relief carer, system error).
 
 Respond ONLY with valid JSON in this exact format:
 {

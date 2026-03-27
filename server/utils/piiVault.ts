@@ -129,7 +129,7 @@ export const PII_PATTERNS = {
     /\b(?:The\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:House|Cottage|Lodge|Bungalow|Flat|Apartment|Villa|Manor)\b/gi,
 
   // Partial address fragments: "5 michaelgate, byker"
-  // Second word requires {3,} (min 4 total chars) to reject short words like "one" as false positives
+  // Second word uses {3,} after the first char — minimum 4 total chars (e.g. rejects "one" but keeps "byker")
   partialAddress: /\b\d{1,5}\s+[A-Za-z][A-Za-z'`-]{2,}(?:,\s*[A-Za-z][A-Za-z'`-]{3,})\b/g,
 
   // Case identifiers: "CASE-2-4150"
@@ -380,6 +380,8 @@ export class PIIVault {
   private static readonly PROFILE_THRESHOLDS: Record<ScrubProfile, NarrativeThresholds> = {
     strict: { autoRedact: 0.62 },
     balanced: { autoRedact: 0.7 },
+    // Conservative raised to 0.85: NARRATIVE_BIOGRAPHICAL_CLAUSE emits confidence 0.82,
+    // so 0.78 would auto-redact "born in a nearby town" even in conservative mode.
     conservative: { autoRedact: 0.85 },
   };
 

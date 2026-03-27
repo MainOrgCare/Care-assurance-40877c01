@@ -1138,7 +1138,7 @@ export default function PlanEnhancer() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {isRuleBasedOutput && (
-            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+            <Badge className="bg-success-100 text-success-800 border border-success-300 dark:bg-success-900/40 dark:text-success-200 dark:border-success-700">
               Secure Rule-Based Output
             </Badge>
           )}
@@ -1223,12 +1223,12 @@ export default function PlanEnhancer() {
         <CardContent className="space-y-4 pt-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {serviceUserData.carePlan && (
-              <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-sm flex items-center gap-3" data-testid="text-care-plan-doc">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-sm">
+              <div className="p-4 rounded-xl bg-success/5 border border-success-500/20 text-sm flex items-center gap-3" data-testid="text-care-plan-doc">
+                <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center text-success-500 shadow-sm">
                   <FileText size={16} />
                 </div>
                 <div>
-                  <p className="font-semibold text-emerald-500 tracking-tight">Legacy Plan</p>
+                  <p className="font-semibold text-success-500 tracking-tight">Legacy Plan</p>
                   <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.carePlan.name}</p>
                 </div>
               </div>
@@ -1296,14 +1296,14 @@ export default function PlanEnhancer() {
           
           {/* Pre-Analysis Panel (Rule-based, no AI cost) */}
           {(preAnalysis || isPreAnalyzing) && (
-            <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+            <div className="p-5 bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-success-700 flex items-center gap-2">
                   <Zap size={12} />
                   Quick Analysis
-                  <Badge variant="outline" className="text-[8px] bg-emerald-100 dark:bg-emerald-900 border-emerald-300">NO AI COST</Badge>
+                  <Badge variant="outline" className="text-[8px] bg-success-100 border-success-300">NO AI COST</Badge>
                 </h4>
-                {isPreAnalyzing && <Loader2 size={14} className="animate-spin text-emerald-600" />}
+                {isPreAnalyzing && <Loader2 size={14} className="animate-spin text-success-600" />}
               </div>
               
               {preAnalysis && (
@@ -1330,7 +1330,7 @@ export default function PlanEnhancer() {
                     <div className="flex items-center gap-2">
                       <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full transition-all ${preAnalysis.qualityScore >= 70 ? "bg-emerald-500" : preAnalysis.qualityScore >= 50 ? "bg-warning/100" : "bg-red-500"}`}
+                          className={`h-full transition-all ${preAnalysis.qualityScore >= 70 ? "bg-success" : preAnalysis.qualityScore >= 50 ? "bg-warning" : "bg-red-500"}`}
                           style={{ width: `${preAnalysis.qualityScore}%` }}
                         />
                       </div>
@@ -1358,7 +1358,7 @@ export default function PlanEnhancer() {
                   )}
                   
                   {/* AI Recommendation */}
-                  <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
+                  <div className="pt-2 border-t border-success-200 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {preAnalysis.aiNeeded ? (
                         <>
@@ -1367,8 +1367,8 @@ export default function PlanEnhancer() {
                         </>
                       ) : (
                         <>
-                          <Check size={12} className="text-emerald-600" />
-                          <span className="text-[10px] text-emerald-600 font-semibold">Good extraction quality</span>
+                          <Check size={12} className="text-success-600" />
+                          <span className="text-[10px] text-success-600 font-semibold">Good extraction quality</span>
                         </>
                       )}
                     </div>
@@ -1451,7 +1451,7 @@ export default function PlanEnhancer() {
         <div className="space-y-6 animate-slide-up">
             {/* Input truncation warning (large documents) */}
             {(displayResult as any)?._inputTruncated && (
-              <Card className="app-surface border-warning/40 bg-warning/100/10">
+              <Card className="app-surface border-warning/40 bg-warning/10">
                 <CardContent className="py-4 space-y-2">
                   <p className="text-sm font-semibold text-warning flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1496,7 +1496,7 @@ export default function PlanEnhancer() {
               </Card>
             )}
             {(displayResult as any)?._qualityScore != null && (displayResult as any)._qualityScore < 50 && !(displayResult as any)?._truncated && (
-              <Card className="app-surface border-warning/30 bg-warning/100/10">
+              <Card className="app-surface border-warning/30 bg-warning/10">
                 <CardContent className="py-4">
                   <p className="text-sm font-semibold text-warning flex items-center gap-2">
                     <AlertTriangle size={16} />
@@ -1544,7 +1544,7 @@ export default function PlanEnhancer() {
                       <TooltipTrigger asChild>
                         <Badge 
                           variant="secondary" 
-                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-warning/100 text-white border-0"
+                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-warning text-white border-0"
                         >
                           {verificationStats.total}
                         </Badge>
@@ -1577,7 +1577,7 @@ export default function PlanEnhancer() {
             </div>
 
           {displayResult.verificationQuestions && displayResult.verificationQuestions.length > 0 && (
-            <Card className="app-surface border-warning/30 bg-warning/100/10">
+            <Card className="app-surface border-warning/30 bg-warning/10">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm text-warning">Verification Needed</CardTitle>
               </CardHeader>
@@ -1608,7 +1608,7 @@ export default function PlanEnhancer() {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b border-border">
-                      <div className="w-3 h-3 rounded-full bg-warning/100" />
+                      <div className="w-3 h-3 rounded-full bg-warning" />
                       <h4 className="font-semibold text-foreground">Original Documents</h4>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
