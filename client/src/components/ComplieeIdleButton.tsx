@@ -13,11 +13,11 @@ export default function ComplieeIdleButton({
       onClick={onClick}
       className={cn(
         "group relative isolate flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all duration-200 overflow-hidden",
-        "bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-semibold shadow-[0_12px_24px_-14px_rgba(5,150,105,0.7)]",
+        "bg-gradient-to-r from-secondary to-secondary/80 text-secondary-foreground text-sm font-semibold shadow-[0_12px_24px_-14px_color-mix(in_oklab,var(--color-secondary)_50%,transparent)]",
         "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-white/70",
         "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:transition-opacity after:duration-200 after:bg-white/10",
-        "hover:from-emerald-600 hover:to-teal-600 hover:shadow-[0_18px_30px_-16px_rgba(5,150,105,0.78)] hover:after:opacity-100",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "hover:from-secondary/90 hover:to-secondary/70 hover:shadow-[0_18px_30px_-16px_color-mix(in_oklab,var(--color-secondary)_55%,transparent)] hover:after:opacity-100",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
       aria-label="Get help"

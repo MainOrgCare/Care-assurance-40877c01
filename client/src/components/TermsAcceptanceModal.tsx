@@ -89,10 +89,10 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
           </DialogDescription>
         </DialogHeader>
 
-        <div className="bg-amber-950/30 border border-amber-900/50 rounded-lg p-3 mb-4">
+        <div className="bg-warning/[0.08] border border-warning/25 rounded-lg p-3 mb-4">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-200">
+            <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+            <p className="text-sm text-foreground/85">
               Please review the key points below. The platform is assistive; keep data safe, respect IP, and verify outputs before acting.
             </p>
           </div>
@@ -119,8 +119,8 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
 
             <section>
               <h3 className="font-semibold text-foreground mb-2">3. Non-Copying and Non-Replication</h3>
-              <div className="bg-red-950/30 border border-red-900/50 rounded p-3 mb-2">
-                <p className="text-red-200 text-xs">
+              <div className="bg-destructive/[0.08] border border-destructive/25 rounded p-3 mb-2">
+                <p className="text-destructive text-xs">
                   You are strictly prohibited from copying, replicating, reproducing, or creating derivative works based on any aspect of CareAssurance. This prohibition applies regardless of whether you have been granted access, viewed a demonstration, or been presented with the concept in any form.
                 </p>
               </div>
@@ -225,7 +225,7 @@ export function TermsAcceptanceModal({ open, onAccept, onDecline }: TermsAccepta
                 data-testid="input-signature-date"
               />
               {signatureDate && signatureDate !== todayFormatted && (
-                <p className="text-xs text-amber-400">Expected: {todayFormatted}</p>
+                <p className="text-xs text-warning">Expected: {todayFormatted}</p>
               )}
             </div>
           </div>

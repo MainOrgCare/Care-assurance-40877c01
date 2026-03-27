@@ -158,10 +158,10 @@ export default function CallReconciliation() {
              </TooltipProvider>
            </div>
            
-           <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+           <Card className="app-surface border-primary/20 bg-primary/5 max-w-2xl mx-auto">
              <CardContent className="p-4">
                <div className="flex gap-3">
-                 <div className="mt-0.5 text-blue-400"><Info size={18} /></div>
+                 <div className="mt-0.5 text-primary/70"><Info size={18} /></div>
                  <div className="space-y-3 text-sm">
                    <div>
                      <strong className="text-foreground">What this tool does:</strong>
@@ -229,10 +229,10 @@ export default function CallReconciliation() {
             </div>
           </Card>
 
-          <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">
+          <Card className="app-surface border-primary/20 bg-primary/5 max-w-2xl mx-auto">
             <CardContent className="p-4">
               <div className="flex gap-3">
-                <div className="mt-0.5 text-blue-400"><Download size={18} /></div>
+                <div className="mt-0.5 text-primary/70"><Download size={18} /></div>
                 <div className="text-sm">
                   <strong className="text-foreground">File Downloaded</strong>
                   <p className="text-muted-foreground mt-1">

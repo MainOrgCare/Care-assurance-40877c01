@@ -12,18 +12,18 @@ export default function UploadDisclaimer() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl">
+      <div className="bg-warning/[0.07] border border-warning/25 p-4 rounded-xl">
         <div className="flex items-start gap-3">
           <div className="flex items-center gap-2 shrink-0">
-            <Clock className="text-amber-600 dark:text-amber-300" size={18} />
+            <Clock className="text-warning" size={18} />
             {timeLeft !== null && (
-              <span className="px-2 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-200 rounded font-mono tabular-nums text-sm font-semibold">
+              <span className="px-2 py-1 bg-warning/15 text-warning rounded font-mono tabular-nums text-sm font-semibold">
                 {formatTime(timeLeft)}
               </span>
             )}
           </div>
           <div className="space-y-1">
-            <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">Temporary Uploads</h4>
+            <h4 className="text-sm font-medium text-foreground">Temporary Uploads</h4>
             <p className="text-xs text-foreground/80 leading-relaxed">
               Uploaded documents are processed in memory and <strong className="text-foreground">not stored</strong> as files in the database. They are <strong className="text-foreground">cleared automatically</strong> after 30 minutes of inactivity or when you log out.
               Some derived information (for example, audit results) may be saved if you choose to save it.

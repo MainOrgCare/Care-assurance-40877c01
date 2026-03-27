@@ -277,11 +277,11 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">11A. Name, Branding, and Design Rights</h3>
-              <div className="rounded-lg p-4 mb-4 bg-blue-500/[0.08] border border-blue-500/20">
+              <div className="rounded-lg p-4 mb-4 bg-primary/[0.06] border border-primary/20">
                 <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
+                  <Shield className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
                   <div>
-                    <p className="font-medium mb-2 text-blue-700">ORIGINAL WORK AND PROPRIETARY RIGHTS</p>
+                    <p className="font-medium mb-2 text-primary">ORIGINAL WORK AND PROPRIETARY RIGHTS</p>
                     <p className="text-sm text-slate-700 dark:text-slate-300">
                       The name "CareAssurance," the CareAssurance logo, all related names, logos, product and service names, designs, user interface designs, visual elements, and all associated branding elements are the original creative works of Lewis Barron. These elements were independently conceived, created, and developed by Lewis Barron without reference to or copying of any third-party works. All rights in and to these elements are exclusively reserved.
                     </p>
@@ -296,8 +296,8 @@ export default function TermsConditions() {
                 <li><strong>No License Granted:</strong> Nothing contained on this Platform or in these Terms should be construed as granting any license or right to use the CareAssurance name, logo, or design elements without the prior express written permission of Lewis Barron.</li>
                 <li><strong>Design Rights:</strong> The visual design, layout, look and feel, color schemes, iconography, typography, and overall aesthetic of the Platform are proprietary to Lewis Barron.</li>
               </ul>
-              <div className="rounded-lg p-4 mt-4 mb-4 bg-blue-500/[0.08] border border-blue-500/20">
-                <p className="font-medium mb-2 text-blue-700">BRANDING AND DESIGN</p>
+              <div className="rounded-lg p-4 mt-4 mb-4 bg-primary/[0.06] border border-primary/20">
+                <p className="font-medium mb-2 text-primary">BRANDING AND DESIGN</p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   The CareAssurance name, logo, and visual design belong to Lewis Barron. Using the platform does not grant rights to reuse or adapt these elements. If you have questions or concerns about branding or design, please contact the Owner to discuss.
                 </p>
@@ -309,9 +309,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">12. Confidentiality and Non-Disclosure</h3>
-              <div className="rounded-lg p-4 mb-4 bg-purple-500/[0.08] border border-purple-500/20">
-                <p className="font-medium mb-2 text-violet-600">BINDING CONFIDENTIALITY AGREEMENT</p>
-                <p className="text-sm text-violet-900 dark:text-violet-300">
+              <div className="rounded-lg p-4 mb-4 bg-secondary/[0.08] border border-secondary/20">
+                <p className="font-medium mb-2 text-secondary">BINDING CONFIDENTIALITY AGREEMENT</p>
+                <p className="text-sm text-foreground/80">
                   By accessing this Software, you enter into a legally binding confidentiality agreement. All aspects of CareAssurance, including but not limited to its functionality, features, user interface, workflows, algorithms, methods, processes, and business model constitute Confidential Information owned exclusively by Lewis Barron.
                 </p>
               </div>
