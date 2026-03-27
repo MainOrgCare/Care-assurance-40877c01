@@ -39,7 +39,7 @@ const CQC_DOMAINS = [
   {
     id: "safe",
     title: "Safe",
-    icon: <ShieldCheck className="text-green-600" size={20} />,
+    icon: <ShieldCheck className="text-green-600" size={18} />,
     color: "green",
     description: "People are protected from abuse and avoidable harm.",
     questions: [
@@ -53,7 +53,7 @@ const CQC_DOMAINS = [
   {
     id: "effective",
     title: "Effective",
-    icon: <Lightbulb className="text-blue-600" size={20} />,
+    icon: <Lightbulb className="text-blue-600" size={18} />,
     color: "blue",
     description: "Care, treatment, and support achieves good outcomes.",
     questions: [
@@ -67,7 +67,7 @@ const CQC_DOMAINS = [
   {
     id: "caring",
     title: "Caring",
-    icon: <Heart className="text-pink-600" size={20} />,
+    icon: <Heart className="text-pink-600" size={18} />,
     color: "pink",
     description: "Staff treat people with compassion, kindness, dignity, and respect.",
     questions: [
@@ -80,7 +80,7 @@ const CQC_DOMAINS = [
   {
     id: "responsive",
     title: "Responsive",
-    icon: <UserCheck className="text-purple-600" size={20} />,
+    icon: <UserCheck className="text-purple-600" size={18} />,
     color: "purple",
     description: "Services are organised so they meet people's needs.",
     questions: [
@@ -93,7 +93,7 @@ const CQC_DOMAINS = [
   {
     id: "well-led",
     title: "Well-Led",
-    icon: <Building2 className="text-amber-600" size={20} />,
+    icon: <Building2 className="text-amber-600" size={18} />,
     color: "amber",
     description: "Leadership, management, and governance assures high-quality care.",
     questions: [

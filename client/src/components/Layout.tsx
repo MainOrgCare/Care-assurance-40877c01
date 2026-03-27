@@ -203,7 +203,7 @@ const SidebarContent = memo(function SidebarContent({
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
             <div className="relative h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-sidebar-primary/20 to-sidebar-primary/8 border border-sidebar-primary/20 shadow-[var(--shadow-xs)]">
-              <ShieldCheck className="h-4.5 w-4.5 text-sidebar-primary" />
+              <ShieldCheck className="h-4 w-4 text-sidebar-primary" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
@@ -847,7 +847,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
         {/* Main Content */}
-        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"} style={{ outline: "none" }}>
+        <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
           <header className="workspace-header  sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-none transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
@@ -856,7 +856,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" className="md:hidden hover:bg-muted/60 rounded-lg transition-colors h-8 w-8">
-                    <Menu className="h-4.5 w-4.5 text-foreground" />
+                    <Menu className="h-4 w-4 text-foreground" />
                     <span className="sr-only">Toggle menu</span>
                   </Button>
                 </SheetTrigger>
@@ -891,7 +891,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <h2 className="text-[0.875rem] font-semibold tracking-[-0.012em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
                 </div>
                 {breadcrumbs.length > 0 && (
-                  <div className="hidden xl:block border-l border-border/40 pl-3 ml-1">
+                  <div className="hidden xl:block border-l border-border/30 pl-3 ml-1">
                     <Breadcrumb>
                       <BreadcrumbList>
                         {breadcrumbs.map((crumb, i) => (
@@ -942,7 +942,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <Inbox className={cn("h-4 w-4", unreadMessageCount > 0 ? "text-emerald-600" : "text-muted-foreground")} />
                   {unreadMessageCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 px-1.5 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[var(--shadow-xs)] animate-in zoom-in-50">
                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                     </span>
                   )}

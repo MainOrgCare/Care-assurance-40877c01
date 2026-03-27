@@ -280,7 +280,7 @@ export default function Compliance() {
         </CardHeader>
         <CardContent>
           {auditList.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {auditList.slice(0, 10).map((audit: Audit) => {
                 const results = audit.results;
                 const discrepancyCount = results?.discrepancies?.length || 0;
@@ -304,7 +304,7 @@ export default function Compliance() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge variant={audit.auditType === "EMAR" ? "default" : "secondary"}>
+                      <Badge variant={audit.auditType === "EMAR" ? "default" : "secondary"} className={audit.auditType === "EMAR" ? "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15" : undefined}>
                         {audit.auditType}
                       </Badge>
                       {discrepancyCount > 0 && (

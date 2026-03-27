@@ -168,7 +168,7 @@ export default function Settings() {
                     className={cn(
                       "rounded-xl border p-3 text-left transition-all duration-150",
                       isActive
-                        ? "border-primary/50 bg-primary/[0.06] ring-1 ring-primary/15"
+                        ? "border-primary/50 bg-primary/[0.06] ring-2 ring-primary/20"
                         : "border-border/50 bg-muted/20 hover:border-primary/30 hover:bg-muted/35"
                     )}
                     data-testid={`theme-${option.value}`}

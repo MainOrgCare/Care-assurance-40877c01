@@ -635,7 +635,7 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-y-6 gap-x-5">
+                <div className="grid grid-cols-2 gap-6">
                   {[1, 2, 3, 4].map(i => (
                     <div key={i} className="space-y-2 pl-2.5 border-l-2 border-border/20">
                       <Skeleton className="h-2.5 w-20" />
@@ -692,7 +692,7 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                 <div className="grid grid-cols-2 gap-y-6 gap-x-5">
+                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-1 pl-2.5 border-l-2 border-blue-500/20">
                        <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Medication Audits</p>
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits">
@@ -732,7 +732,7 @@ export default function Dashboard() {
               <CardContent className="px-3">
                 {isLoading ? (
                   <div className="space-y-2">
-                    {[1, 2, 3].map(i => (
+                    {Array.from({ length: 3 }, (_, i) => (
                       <div key={i} className="flex items-start gap-4 p-3 rounded-lg border border-border/40">
                         <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />
                         <div className="flex-1 space-y-1.5">

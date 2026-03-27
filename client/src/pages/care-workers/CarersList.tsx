@@ -73,7 +73,7 @@ export default function CarersList() {
   };
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell-compact">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="page-title">Care Workers</h2>

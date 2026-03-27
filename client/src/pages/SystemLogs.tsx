@@ -206,12 +206,12 @@ export default function SystemLogs() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Alert</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Date</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">User</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Action</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Target</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Status</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Alert</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

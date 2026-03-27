@@ -349,7 +349,7 @@ export default function Messages() {
                   <Mail className="h-5 w-5 text-muted-foreground/30" />
                 </div>
                 <p className="text-sm font-semibold text-foreground/70">Inbox empty</p>
-                <p className="text-[10px] mt-1 text-muted-foreground max-w-[200px] mx-auto">Ask Compli-ee to send you a message to get started.</p>
+                <p className="text-[10px] mt-1 text-muted-foreground max-w-[200px] mx-auto">No messages yet. New messages from your team will appear here.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/55">
@@ -358,7 +358,7 @@ export default function Messages() {
                     key={message.id}
                     onClick={() => handleSelectMessage(message)}
                     className={cn(
-                      "w-full text-left p-4 transition-all hover:bg-muted/45",
+                      "w-full text-left p-4 transition-all hover:bg-muted/50",
                       selectedMessage?.id === message.id && "bg-primary/8",
                       !message.isRead && "bg-emerald-500/8"
                     )}
