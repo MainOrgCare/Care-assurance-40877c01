@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Trophy, FileText, Users, CheckCircle2, Search, ArrowUpDown, Download, Eye, X, BarChart3, TrendingUp, AlertTriangle, ChevronRight } from "lucide-react";
+import { BookOpen, Trophy, FileText, Users, CheckCircle2, Search, ArrowUpDown, Download, Eye, X, BarChart3, TrendingUp, AlertTriangle, ChevronRight, AlertCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -39,30 +39,51 @@ export default function Performance() {
   const { toast } = useToast();
   const [careWorkers, setCareWorkers] = useState<CareWorkerFromAudits[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>("compliance");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [selectedWorker, setSelectedWorker] = useState<CareWorkerFromAudits | null>(null);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch("/api/audits/care-workers", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch data");
+      const workers: CareWorkerFromAudits[] = await res.json();
+      setCareWorkers(workers);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to load performance data";
+      setFetchError(message);
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     let cancelled = false;
-    const fetchData = async () => {
+    const run = async () => {
+      setLoading(true);
+      setFetchError(null);
       try {
-        setLoading(true);
         const res = await fetch("/api/audits/care-workers", { credentials: "include" });
         if (!res.ok) throw new Error("Failed to fetch data");
         const workers: CareWorkerFromAudits[] = await res.json();
         if (!cancelled) setCareWorkers(workers);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!cancelled) {
-          toast({ title: "Error", description: error.message || "Failed to load performance data", variant: "destructive" });
+          const message = error instanceof Error ? error.message : "Failed to load performance data";
+          setFetchError(message);
+          toast({ title: "Error", description: message, variant: "destructive" });
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-    fetchData();
+    run();
     return () => { cancelled = true; };
   }, [toast]);
 
@@ -205,6 +226,24 @@ export default function Performance() {
           <BookOpen className="h-12 w-12 mb-4 opacity-20" />
           <p className="font-semibold tracking-widest text-xs uppercase">Synthesizing performance data...</p>
         </div>
+      ) : fetchError ? (
+        <Card className="animate-slide-up mt-6 border-destructive/30">
+          <CardContent className="py-12">
+            <div className="text-center space-y-4">
+              <div className="h-14 w-14 rounded-xl bg-destructive/8 flex items-center justify-center mx-auto">
+                <AlertCircle className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Failed to load performance data</h3>
+                <p className="text-xs text-muted-foreground mt-1">{fetchError}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchData} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : careWorkers.length === 0 ? (
         <Card className="animate-slide-up stagger-2 mt-6">
           <CardContent className="py-24">

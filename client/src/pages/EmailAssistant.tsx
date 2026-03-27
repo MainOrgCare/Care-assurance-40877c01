@@ -169,8 +169,9 @@ export default function EmailAssistant() {
       saveHistory(updated);
 
       toast({ title: "Email Rewritten", description: `Your text has been polished with a ${tone} tone.` });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to rewrite email", variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to rewrite email";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }

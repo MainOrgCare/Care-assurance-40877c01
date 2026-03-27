@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, ArrowRightLeft, CheckCircle2, Download, Info, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function CallReconciliation() {
   const { toast } = useToast();
@@ -53,13 +54,14 @@ export default function CallReconciliation() {
         title: "Reconciliation Complete",
         description: "Your processed Excel file has been downloaded.",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred while processing the file";
       console.error("Reconciliation error:", err);
-      setError(err.message || "An error occurred while processing the file");
+      setError(message);
       setStep("upload");
       toast({
         title: "Processing Failed",
-        description: err.message || "An error occurred",
+        description: message,
         variant: "destructive",
       });
     }
@@ -130,15 +132,28 @@ export default function CallReconciliation() {
            </Card>
 
            <div className="flex justify-center">
-             <Button 
-               size="lg" 
-               className="w-full md:w-auto min-w-[200px] bg-primary hover:bg-primary/90 text-primary-foreground" 
-               disabled={!file}
-               onClick={handleProcess}
-               data-testid="button-run-reconciliation"
-             >
-               <ArrowRightLeft className="mr-2 h-4 w-4" /> Process and Download
-             </Button>
+             <TooltipProvider>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <span tabIndex={!file ? 0 : -1}>
+                     <Button 
+                       size="lg" 
+                       className="w-full md:w-auto min-w-[200px] bg-primary hover:bg-primary/90 text-primary-foreground" 
+                       disabled={!file}
+                       onClick={handleProcess}
+                       data-testid="button-run-reconciliation"
+                     >
+                       <ArrowRightLeft className="mr-2 h-4 w-4" /> Process and Download
+                     </Button>
+                   </span>
+                 </TooltipTrigger>
+                 {!file && (
+                   <TooltipContent>
+                     <p>Upload an Excel file to process</p>
+                   </TooltipContent>
+                 )}
+               </Tooltip>
+             </TooltipProvider>
            </div>
            
            <Card className="app-surface border-blue-500/20 bg-blue-500/5 max-w-2xl mx-auto">

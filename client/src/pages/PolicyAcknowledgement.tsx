@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileCheck,
@@ -42,6 +43,8 @@ import {
   Eye,
   Users,
   FileText,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -207,7 +210,7 @@ function PolicyAcknowledgement() {
   const [ackDialog, setAckDialog] = useState<PolicyDocument | null>(null);
   const [viewAcksDialog, setViewAcksDialog] = useState<PolicyDocument | null>(null);
 
-  const { data: policies = [], isLoading: loadingPolicies } = useQuery<PolicyDocument[]>({
+  const { data: policies = [], isLoading: loadingPolicies, isError: policiesError, refetch: refetchPolicies } = useQuery<PolicyDocument[]>({
     queryKey: queryKeys.policies.all(),
   });
 
@@ -250,26 +253,26 @@ function PolicyAcknowledgement() {
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs font-medium text-muted-foreground">Your Compliance</p>
-              <p className="text-2xl font-bold">{stats.completionPct}%</p>
-              <Progress value={stats.completionPct} className="mt-2 h-1.5" />
+              {isLoading ? <Skeleton className="h-8 w-16 mt-1" /> : <p className="text-2xl font-bold">{stats.completionPct}%</p>}
+              <Progress value={isLoading ? 0 : stats.completionPct} className="mt-2 h-1.5" />
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs font-medium text-muted-foreground">Total Policies</p>
-              <p className="text-2xl font-bold">{stats.total}</p>
+              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold">{stats.total}</p>}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs font-medium text-muted-foreground">Acknowledged</p>
-              <p className="text-2xl font-bold text-green-600">{stats.acknowledged}</p>
+              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold text-green-600">{stats.acknowledged}</p>}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs font-medium text-muted-foreground">Pending</p>
-              <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
+              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>}
             </CardContent>
           </Card>
         </div>
@@ -287,9 +290,32 @@ function PolicyAcknowledgement() {
 
         {/* Policies Table */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border/40">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="flex items-center justify-between px-4 py-3">
+                    <div className="space-y-1.5 flex-1">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                    <Skeleton className="h-7 w-20 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : policiesError ? (
+          <Card className="border-destructive/30">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <AlertCircle className="h-8 w-8 text-destructive/50" />
+              <p className="text-sm font-medium text-destructive">Failed to load policies. Please try again.</p>
+              <Button variant="outline" size="sm" onClick={() => refetchPolicies()} className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
         ) : filtered.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
