@@ -391,7 +391,6 @@ function formatServiceUserInitials(value?: string): string {
 
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
-  usePageTitle("EMAR Audit");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -451,6 +450,7 @@ const WARNING_SEVERITY_STYLES: Record<string, { card: string; badge: string; acc
 };
 
 export default function EMARAudit() {
+  usePageTitle("EMAR Audit");
   const { user, logAction } = useAuth();
   const isAdmin = user?.role === "admin";
   const { toast } = useToast();

@@ -106,7 +106,6 @@ type PlanEnhancerResult = {
 
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
-  usePageTitle("Plan Enhancer");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -203,6 +202,7 @@ const Section = memo(function Section({ title, children, defaultOpen = false }: 
 });
 
 export default function PlanEnhancer() {
+  usePageTitle("Plan Enhancer");
   const { serviceUserData, getAllDocumentContent, isAnyParsing } = useTemporaryData();
   const { user } = useAuth();
   const { toast } = useToast();

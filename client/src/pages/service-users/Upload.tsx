@@ -149,7 +149,7 @@ export default function ServiceUserUpload() {
               ? 'border-success/40 bg-success/5 shadow-glow'
               : dragOver === 'initialAssessment'
                 ? 'border-secondary/50 bg-secondary/5 border-dashed border-2 scale-[1.03]'
-                : 'border-dashed border-2 border-border/60 hover:border-violet-500/40 hover:bg-muted/30'
+                : 'border-dashed border-2 border-border/60 hover:border-secondary/40 hover:bg-muted/30'
           )}
           onDrop={(e) => handleDrop("initialAssessment", e)}
           onDragOver={(e) => handleDragOver("initialAssessment", e)}
@@ -328,7 +328,7 @@ export default function ServiceUserUpload() {
             serviceUserData.movingHandling
               ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "movingHandling"
-                ? "border-sky-500/50 bg-sky-500/5 border-dashed border-2 scale-[1.03]"
+                ? "border-secondary/50 bg-secondary/5 border-dashed border-2 scale-[1.03]"
                 : "border-dashed border-2 border-border/60 hover:border-sky-500/40 hover:bg-muted/30"
           )}
           onDrop={(e) => handleDrop("movingHandling", e)}
@@ -348,7 +348,7 @@ export default function ServiceUserUpload() {
                 {serviceUserData.movingHandling ? (
                   <Check className="h-4 w-4 text-success" />
                 ) : (
-                  <Upload className="h-4 w-4 text-sky-400" />
+                  <Upload className="h-4 w-4 text-secondary" />
                 )}
               </div>
               Moving & Handling Plan
@@ -387,8 +387,8 @@ export default function ServiceUserUpload() {
             ) : (
               <div className="w-full">
                 <label htmlFor="upload-moving-handling" className="cursor-pointer flex flex-col items-center group">
-                  <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-sky-500/10 transition-colors">
-                    <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-sky-400 transition-colors" />
+                  <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-3 group-hover:bg-secondary/10 transition-colors">
+                    <CloudUpload className="h-6 w-6 text-muted-foreground/50 group-hover:text-secondary transition-colors" />
                   </div>
                   <span className="text-xs text-muted-foreground/70 group-hover:text-foreground/70 transition-colors">
                     Drop file here or click to browse
@@ -415,7 +415,7 @@ export default function ServiceUserUpload() {
               ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "additionalDocuments"
                 ? "border-primary/50 bg-primary/5 border-dashed border-2 scale-[1.03]"
-                : "border-dashed border-2 border-border/60 hover:border-indigo-500/40 hover:bg-muted/30"
+                : "border-dashed border-2 border-border/60 hover:border-primary/40 hover:bg-muted/30"
           )}
           onDrop={(e) => handleDrop("additionalDocuments", e)}
           onDragOver={(e) => handleDragOver("additionalDocuments", e)}

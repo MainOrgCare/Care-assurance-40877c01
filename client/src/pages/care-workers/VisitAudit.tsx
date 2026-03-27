@@ -86,7 +86,6 @@ function formatCarerName(name: string): string {
 
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
-  usePageTitle("Visit Audit");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -116,6 +115,7 @@ const CopyableBox = memo(function CopyableBox({ label, value, className = "" }: 
 });
 
 export default function VisitAudit() {
+  usePageTitle("Visit Audit");
   const { user } = useAuth();
   const { toast } = useToast();
   const { resetTimer } = useTemporaryData();

@@ -1402,7 +1402,6 @@ const AICostSection = memo(function AICostSection() {
 
 const AIProviderSection = memo(function AIProviderSection() {
   const { toast } = useToast();
-  usePageTitle("Admin Portal");
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [hasPATKey, setHasPATKey] = useState(false);
   const [hasLocalLLM, setHasLocalLLM] = useState(false);
@@ -4190,6 +4189,7 @@ interface EditingUser {
 }
 
 export default function SecretAdminPortal() {
+  usePageTitle("Admin Portal");
   const { users, approveUser, rejectUser, auditLogs, fetchUsers } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [adminAlerts, setAdminAlerts] = useState<AdminAlert[]>([]);

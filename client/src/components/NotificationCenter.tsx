@@ -141,7 +141,7 @@ export default function NotificationCenter() {
 
   const typeIcon = (type: string) => {
     if (type.toLowerCase().includes("emar")) return <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />;
-    return <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />;
+    return <FileText className="h-3.5 w-3.5 text-primary shrink-0" />;
   };
 
   return (
@@ -228,7 +228,7 @@ export default function NotificationCenter() {
                       "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium",
                       alert.discrepancyType.toLowerCase().includes("emar")
                         ? "bg-warning/10 text-warning"
-                        : "bg-blue-500/10 text-blue-600"
+                        : "bg-primary/10 text-primary"
                     )}>
                       {alert.discrepancyType}
                     </span>
