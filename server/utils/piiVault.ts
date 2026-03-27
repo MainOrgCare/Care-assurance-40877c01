@@ -129,7 +129,7 @@ export const PII_PATTERNS = {
     /\b(?:The\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:House|Cottage|Lodge|Bungalow|Flat|Apartment|Villa|Manor)\b/gi,
 
   // Partial address fragments: "5 michaelgate, byker"
-  partialAddress: /\b\d{1,5}\s+[A-Za-z][A-Za-z'`-]{2,}(?:,\s*[A-Za-z][A-Za-z'` -]{2,})\b/g,
+  partialAddress: /\b\d{1,5}\s+[A-Za-z][A-Za-z'`-]{2,}(?:,\s*[A-Za-z][A-Za-z'`-]{3,})\b/g,
 
   // Case identifiers: "CASE-2-4150"
   caseId: /\b(?:CASE|REF|CLIENT|PATIENT)[-_ ]?\d[\w-]{2,}\b/gi,
@@ -234,6 +234,8 @@ export const CARE_PHRASE_WHITELIST = new Set([
   "person centered", "best practice", "quality assurance", "clinical governance",
   "duty of care", "capacity assessment", "mental capacity", "best interests",
   "deprivation of liberty", "advance directive", "lasting power", "power of attorney",
+  "family history", "family background", "personal history",
+  "reduced capacity", "mental capacity", "lacks capacity", "has capacity",
   "hospital discharge", "community nurse", "practice nurse", "occupational therapy",
   "speech therapy", "physical therapy", "blood glucose", "blood sugar",
   "fluid intake", "food intake", "bowel movement", "urinary output",
@@ -257,6 +259,18 @@ export const COMMON_ENGLISH_WORDS = new Set([
   "want", "because", "these", "give", "most", "care", "health", "support",
   "need", "needs", "help", "ensure", "provide", "assist", "monitor",
   "check", "review", "assess", "plan", "record", "document", "report",
+  // Common verbs and function words that are NOT personal names
+  "died", "passed", "works", "worked", "manages", "managed", "visited",
+  "called", "moved", "came", "went", "lives", "lived", "require", "requires",
+  "often", "later", "sometimes", "usually", "always", "never", "both",
+  "each", "every", "many", "much", "very", "quite", "rather", "still",
+  "once", "twice", "again", "though", "while", "since", "either", "whether",
+  // Generic geography/place words that should never be NAMEs
+  "nearby", "town", "area", "place", "local", "region", "centre", "center",
+  "north", "south", "east", "west", "central", "upper", "lower", "inner", "outer",
+  // Care domain words that should never be treated as names
+  "reduced", "capacity", "continence", "dementia", "mobility", "nutrition",
+  "diabetes", "catheter", "stoma", "incontinence", "hygiene", "dignity",
 ]);
 
 /** Uppercase abbreviations and labels that should never be treated as personal names. */
@@ -271,6 +285,12 @@ const NON_NAME_CAPITALIZED_WORDS = new Set([
   "contact", "phone", "email", "mobile", "dob", "born", "lives", "well", "known", "gender", "initials",
   "case", "id", "notes", "summary", "medication", "history", "family", "partner", "daughter", "son",
   "raised", "street", "road", "lane", "avenue", "town", "city", "county", "north", "south", "east", "west",
+  // Additional common capitalized sentence-start words that are not names
+  "generic", "later", "both", "often", "sometimes", "usually", "always", "never",
+  "she", "he", "his", "her", "they", "their", "this", "that", "these", "those",
+  "then", "when", "where", "which", "while", "though", "although", "however",
+  "therefore", "further", "moreover", "each", "every", "either", "neither",
+  "local", "other", "another", "similar", "above", "below",
 ]);
 
 /** Generic geography words that are non-identifying unless tied to biography context. */
@@ -284,7 +304,7 @@ const NARRATIVE_PERSON_CONTEXT = /\b(?:my|i|me|mine|our|family|granddaughter|gra
 
 const NARRATIVE_NAME_LEAK = /\b(?:met|with|named|called|mentioned|name is|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|next of kin|gp|raised|brought up)\s+([A-Za-z][A-Za-z'`.-]{2,}(?:\s+[A-Za-z][A-Za-z'`.-]{2,}){0,2})\b/gi;
 
-const NARRATIVE_LOCATION_LEAK = /\b(?:born in|grew up in|raised in|lives in|lived in|well known in|known in the area|from|moved to|resides in|address(?: is)?|street(?: is)?|known throughout|locally in)\s+([A-Za-z][A-Za-z'` -]{2,}(?:\s+[A-Za-z][A-Za-z'` -]{2,}){0,4})\b/gi;
+const NARRATIVE_LOCATION_LEAK = /\b(?:born in|grew up in|raised in|lives in|lived in|live in|living in|well known in|known in the area|from|moved to|resides in|address(?: is)?|street(?: is)?|known throughout|locally in)\s+([A-Za-z][A-Za-z'` -]{2,}(?:\s+[A-Za-z][A-Za-z'` -]{2,}){0,4})\b/gi;
 
 const NARRATIVE_BIOGRAPHICAL_CLAUSE = /\b(?:married(?:\s+twice|\s+once|\s+\d+\s+times)?|widowed|divorc(?:ed|e)|children|sons?|daughters?|bereavement|died|death|first marriage|relationship history|occupation|worked as|well known in the area|grew up in|born in|age\s+\d{1,3}|one of\s+\d+\s+siblings|eldest|youngest|only child|raised|brought up)\b[^\n.;]*/gi;
 
@@ -359,7 +379,7 @@ export class PIIVault {
   private static readonly PROFILE_THRESHOLDS: Record<ScrubProfile, NarrativeThresholds> = {
     strict: { autoRedact: 0.62 },
     balanced: { autoRedact: 0.7 },
-    conservative: { autoRedact: 0.78 },
+    conservative: { autoRedact: 0.85 },
   };
 
   constructor(options: PIIVaultOptions = {}) {
@@ -466,8 +486,8 @@ export class PIIVault {
       (_match, prefix, name) => `${prefix} ${this.store(name, "NAME")}`,
     );
 
-    // Initials like M.S. or J.D.
-    s = s.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?\b/g, (m) => this.store(m, "NAME"));
+    // Initials like M.S. or J.D. (trailing \b removed — period is a non-word char)
+    s = s.replace(/\b[A-Z]\.[A-Z]\.(?:[A-Z]\.)?(?=[\s,;:!?"'\n]|$)/g, (m) => this.store(m, "NAME"));
 
     // Initials without dots: MS, KB, JD, etc. (2-3 capital letters as standalone)
     // Only if preceded by "initials:" or similar context
@@ -478,6 +498,25 @@ export class PIIVault {
         return this.store(initials, "NAME");
       }
     );
+
+    // === PHASE 3.5: Biographical patterns that must run before name-context detection ===
+
+    // Contact-role identifying combinations: "daughter is next of kin and works as GP"
+    // Must run BEFORE Phase 4 (which would capture "next of kin: <rest>" as a CONTACT field)
+    s = s.replace(
+      /\b(?:my\s+)?(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|mother|father)\b[^.!?\n]*\b(?:next of kin|works? as|employed as|is a)\b[^.!?\n]*/gi,
+      (m) => this.store(m, "BIOGRAPHICAL")
+    );
+
+    // Family member death patterns: must run BEFORE Phase 6 single-name-in-context
+    // to prevent e.g. "daughter died" being split into daughter(ctx) + died(name)
+    s = s.replace(
+      /\b(?:daughter|son|wife|husband|partner|granddaughter|grandson|sibling|brother|sister|child|children)\s+(?:died|passed away|death|deceased)\b[^\n.;]*/gi,
+      (m) => this.store(m, "BIOGRAPHICAL")
+    );
+
+    // Sensitive biography: specific life-story fragments
+    s = s.replace(PII_PATTERNS.sensitiveBiography, (m) => this.store(m, "BIOGRAPHICAL"));
 
     // === PHASE 4: Labelled PII fields ===
     s = s.replace(
@@ -561,15 +600,15 @@ export class PIIVault {
       return `${this.store(name, "NAME")}'s`;
     });
 
-    // Full name patterns (First Last or First Middle Last)
+    // Full name patterns (First Last or First Middle Last) — same line only
     s = s.replace(
-      /\b([A-Z][a-z]+)\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+)(?:\s+((?:O['']|Mc|Mac)?[A-Z][a-z]+))?\b/g,
+      /\b([A-Z][a-z]+)[ \t]+((?:O['']|Mc|Mac)?[A-Z][a-z]+)(?:[ \t]+((?:O['']|Mc|Mac)?[A-Z][a-z]+))?\b/g,
       (match, first, second, third, offset, full) => {
         const phrase = match.toLowerCase();
         if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
         if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
         if (third && isClinicalOrMedicalTerm(third)) return match;
-        if (COMMON_ENGLISH_WORDS.has(first.toLowerCase())) return match;
+        if (COMMON_ENGLISH_WORDS.has(first.toLowerCase()) || NON_NAME_CAPITALIZED_WORDS.has(first.toLowerCase())) return match;
         const lowerFirst = String(first).toLowerCase();
         if (["mr", "mrs", "ms", "miss", "dr", "prof", "professor"].includes(lowerFirst)) return match;
         const before = full.slice(Math.max(0, offset - 40), offset);
@@ -585,14 +624,17 @@ export class PIIVault {
       /\b([a-z]{2,})\s+([a-z]{2,})(?:\s+([a-z]{2,}))?\b/g,
       (match, first, second, third) => {
         const phrase = match.toLowerCase();
-        if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
+        const basePhrase = `${first} ${second}`;
+        if (CARE_PHRASE_WHITELIST.has(phrase) || CARE_PHRASE_WHITELIST.has(basePhrase)) return match;
         if (COMMON_ENGLISH_WORDS.has(first) && COMMON_ENGLISH_WORDS.has(second)) return match;
         if (isClinicalOrMedicalTerm(first) || isClinicalOrMedicalTerm(second)) return match;
         if (third && isClinicalOrMedicalTerm(third)) return match;
 
         const contextMatch =
           /(mother|father|son|daughter|granddaughter|grandson|sister|brother|wife|husband|partner|friend|carer|neighbor|neighbour)/i;
-        if (contextMatch.test(match)) return this.store(match, "NAME");
+        // Only store if relationship word is the FIRST word — otherwise we may consume
+        // e.g. "and my granddaughter" which wrongly hides the real name that follows
+        if (contextMatch.test(first)) return this.store(match, "NAME");
 
         const precedingContext =
           /(present at assessment|attended by|with|seen with|accompanied by):/i;
@@ -611,6 +653,17 @@ export class PIIVault {
       },
     );
 
+    // Explicit locality context in biography sections (e.g., "grew up in walker").
+    s = s.replace(
+      /\b(grew up in|born in|well known in|lives in|live in|living in|resides in)\s*:?\s*([A-Za-z][a-z]{2,}(?:[ \t]+[A-Za-z][a-z]{2,}){0,2})\b/gi,
+      (match, ctx, place) => {
+        const lowerPlace = String(place || "").toLowerCase();
+        if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
+        return `${ctx} ${this.store(place, "LOCATION")}`;
+      },
+    );
+
+
     // Single names in relationship or narrative context (e.g., "met kenny", "granddaughter kaylee").
     s = s.replace(
       /\b(met|with|named|name is|brought up|mentioned|daughter|son|granddaughter|grandson|wife|husband|partner|friend|carer|coordinator)\s+([A-Za-z][a-z]{2,}(?:\.[A-Za-z][a-z]{2,})?)(?:\s+and\s+([A-Za-z][a-z]{2,}(?:\.[A-Za-z][a-z]{2,})?))?\b/gi,
@@ -628,16 +681,6 @@ export class PIIVault {
       },
     );
 
-    // Explicit locality context in biography sections (e.g., "grew up in walker").
-    s = s.replace(
-      /\b(grew up in|well known in|lives in)\s+([A-Za-z][a-z]{2,}(?:\s+[A-Za-z][a-z]{2,}){0,2})\b/gi,
-      (match, ctx, place) => {
-        const lowerPlace = String(place || "").toLowerCase();
-        if (!lowerPlace || COMMON_ENGLISH_WORDS.has(lowerPlace)) return match;
-        return `${ctx} ${this.store(place, "LOCATION")}`;
-      },
-    );
-
     // === PHASE 7: Biographical quasi-identifiers (detected generically) ===
     // Sibling count patterns: "One of 7 siblings", "eldest of 6 children"
     s = s.replace(
@@ -651,12 +694,14 @@ export class PIIVault {
       (m) => this.store(m, "BIOGRAPHICAL")
     );
 
-    // Generational markers paired with locations or occupations
+    // Generational markers paired with occupations or age — only when truly biographical
+    // Note: simple "born in <place>" is now handled by Phase 6 locality (LOCATION token)
     s = s.replace(
-      /\b(?:born|grew up|raised|brought up|from a young age|childhood|youngest|eldest|firstborn)\s+(?:in|during|as a|at age)\b[^\n.;]*/gi,
+      /\b(?:born|grew up|raised|brought up|from a young age|childhood|firstborn)\s+(?:in|during|as a|at age)\b[^\n.;]*/gi,
       (m) => {
-        // Only store if it looks like biographical context (contains age, location, or other markers)
-        if (/\d{1,3}|[A-Z][a-z]+/.test(m)) {
+        // Only store if it contains age markers or significant biographical context
+        // Avoid storing simple "born in <place>" — those are handled as LOCATION
+        if (/\b(?:age\s*\d{1,3}|\d{1,3}\s*year|occupation|worked\s+as|profession|well\s+known|died)\b/i.test(m)) {
           return this.store(m, "BIOGRAPHICAL");
         }
         return m;
