@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Trophy, FileText, Users, CheckCircle2, Search, ArrowUpDown, Download, Eye, X, BarChart3, TrendingUp, AlertTriangle, ChevronRight, AlertCircle, RefreshCw } from "lucide-react";
+import { BookOpen, Trophy, FileText, Users, CheckCircle2, Search, ArrowUpDown, Download, X, BarChart3, AlertTriangle, ChevronRight, AlertCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
