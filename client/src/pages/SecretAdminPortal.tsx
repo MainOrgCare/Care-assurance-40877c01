@@ -466,7 +466,7 @@ const AIAdminLog = memo(function AIAdminLog() {
 
   const providerRetryBadgeClass = (provider: string): string => {
     const normalized = (provider || "unknown").toLowerCase();
-    if (normalized === "openai") return "border-emerald-500/35 bg-emerald-500/10 text-emerald-700";
+    if (normalized === "openai") return "border-success/30 bg-success/10 text-success";
     if (normalized === "local") return "border-sky-500/35 bg-sky-500/10 text-sky-700";
     if (normalized === "github") return "border-violet-500/35 bg-violet-500/10 text-violet-700";
     return "border-border/60 bg-muted/30 text-muted-foreground";
@@ -1063,7 +1063,7 @@ const AICostSection = memo(function AICostSection() {
 
   const providerBadgeClass = (value: string): string => (
     value === "openai"
-      ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10"
+      ? "border-success/30 text-success bg-success/10"
       : "border-white/10 text-muted-foreground bg-muted/30"
   );
 
@@ -1171,7 +1171,7 @@ const AICostSection = memo(function AICostSection() {
         <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <TrendingUp size={14} className="text-emerald-500" /> Top Cost Driver
+              <TrendingUp size={14} className="text-success" /> Top Cost Driver
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1188,7 +1188,7 @@ const AICostSection = memo(function AICostSection() {
                 </div>
                 <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                   <div
-                    className="h-full bg-emerald-400/70"
+                    className="h-full bg-success/10"
                     style={{ width: `${Math.max(6, Math.min(100, totalCost > 0 ? (topFeature[1].cost / totalCost) * 100 : 0))}%` }}
                   />
                 </div>
@@ -1685,17 +1685,17 @@ const AIProviderSection = memo(function AIProviderSection() {
               disabled={updating || !hasOpenAIKey}
               className={`p-4 rounded-lg border-2 text-left transition-all ${
                 selectedProvider === "openai" 
-                  ? "border-emerald-500/50 bg-emerald-50" 
+                  ? "border-success/30 bg-success/10" 
                   : hasOpenAIKey 
-                    ? "border-border/40 bg-muted/30 hover:border-emerald-300" 
+                    ? "border-border/40 bg-muted/30 hover:border-success/30" 
                     : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasOpenAIKey ? "bg-emerald-500/20" : "bg-muted/50"
+                  hasOpenAIKey ? "bg-success/10" : "bg-muted/50"
                 }`}>
-                  <Cpu size={20} className={hasOpenAIKey ? "text-emerald-400" : "text-muted-foreground/60"} />
+                  <Cpu size={20} className={hasOpenAIKey ? "text-success" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">OpenAI</div>
@@ -1708,7 +1708,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                 variant="secondary"
                 className={`mt-2 ${
                   selectedProvider === "openai"
-                    ? "bg-emerald-500/20 text-emerald-600"
+                    ? "bg-success/10 text-success"
                     : hasOpenAIKey
                       ? "bg-muted/50 text-muted-foreground"
                       : "bg-yellow-100 text-yellow-600"
@@ -1953,7 +1953,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                 <span>Core EMAR extraction (accuracy critical)</span>
               </div>
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">{selectedModel}</Badge>
+                <Badge variant="secondary" className="bg-success/10 text-success border-success/30 shrink-0">{selectedModel}</Badge>
                 <span>Count validation, equivalence checks, drug interactions, validation passes (cost-efficient with temperature support)</span>
               </div>
             </div>
@@ -2139,7 +2139,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
               <div className="text-muted-foreground">Tokens Saved</div>
             </div>
             <div className="bg-background/60 rounded p-2 text-center">
-              <div className="font-semibold text-emerald-600">{cacheStats.estimatedCostSaved}</div>
+              <div className="font-semibold text-success">{cacheStats.estimatedCostSaved}</div>
               <div className="text-muted-foreground">Cost Saved</div>
             </div>
           </div>
@@ -2150,30 +2150,30 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
       )}
       
       {/* Feature Benefits Summary */}
-      <div className="mt-4 p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+      <div className="mt-4 p-3 bg-success/10 rounded-lg border border-success/30">
         <span className="text-xs font-medium text-foreground mb-2 block">Optimization Benefits</span>
         <div className="space-y-1.5 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Response Caching:</span>
-            <span className={`font-medium ${useCache ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`font-medium ${useCache ? "text-success" : "text-muted-foreground"}`}>
               {useCache ? "~30% API cost reduction" : "Disabled"}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Rules-First Engine:</span>
-            <span className={`font-medium ${useRulesFirst ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`font-medium ${useRulesFirst ? "text-success" : "text-muted-foreground"}`}>
               {useRulesFirst ? "~40% fewer AI calls" : "Disabled"}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Lite Mode:</span>
-            <span className={`font-medium ${liteMode ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <span className={`font-medium ${liteMode ? "text-success" : "text-muted-foreground"}`}>
               {liteMode ? "~25% smaller prompts" : "Disabled"}
             </span>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-emerald-500/20">
+          <div className="flex items-center justify-between pt-2 border-t border-success/30">
             <span className="text-muted-foreground font-medium">Estimated Total Savings:</span>
-            <span className="font-semibold text-emerald-600">
+            <span className="font-semibold text-success">
               ~{((useCache ? 30 : 0) + (useRulesFirst ? 40 : 0) + (liteMode ? 15 : 0))}%
             </span>
           </div>
@@ -2614,7 +2614,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBlockingIp(null); setBlockReason(""); }} className="border-border text-foreground">Cancel</Button>
-            <Button onClick={handleBlockIp} className="bg-destructive hover:bg-destructive/90 text-white">Block IP</Button>
+            <Button onClick={handleBlockIp} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Block IP</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2925,7 +2925,7 @@ const PolicyDocumentsSection = memo(function PolicyDocumentsSection() {
 	      <Card className="overflow-hidden">
         <CardHeader className="border-b border-border/30 bg-muted/30">
           <CardTitle className="flex items-center gap-2 text-foreground text-base">
-            <FileText size={18} className="text-emerald-400" />
+            <FileText size={18} className="text-success" />
             Uploaded Policy Documents
           </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
@@ -3928,7 +3928,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
               <Button
                 onClick={handleSaveMaintenanceWindow}
                 disabled={saving}
-                className="bg-sky-600 hover:bg-sky-500 text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 data-testid="button-save-maintenance-window"
               >
                 {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <CalendarClock size={14} className="mr-2" />}
@@ -3978,7 +3978,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                   variant="outline"
                   className={
                     hasActiveAnnouncement
-                      ? "border-emerald-500/40 text-emerald-300"
+                      ? "border-success/30 text-success"
                       : "border-border text-muted-foreground"
                   }
                 >
@@ -4016,7 +4016,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
                 <Button
                   onClick={handleSaveMessaging}
                   disabled={saving}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   data-testid="button-save-platform-messaging"
                 >
                   {saving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
@@ -4681,7 +4681,7 @@ export default function SecretAdminPortal() {
     <div className="relative space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-40 right-0 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
-        <div className="absolute top-40 left-0 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute top-40 left-0 h-80 w-80 rounded-full bg-success/10 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
       </div>
       {/* Header */}
@@ -4719,7 +4719,7 @@ export default function SecretAdminPortal() {
           <div className="grid md:grid-cols-2 gap-4">
             <Link href="/call-reconciliation">
               <div className="group relative overflow-hidden rounded-xl border border-border/60 bg-background/70 p-6 shadow-soft transition-all hover-elevate cursor-pointer">
-                <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                <div className="absolute top-0 right-0 p-3 opacity-30 group-hover:opacity-50 transition-opacity">
                   <ArrowRightLeft size={80} className="text-muted-foreground" />
                 </div>
                 <div className="relative z-10">
@@ -4738,7 +4738,7 @@ export default function SecretAdminPortal() {
               data-testid="button-system-log"
               variant="ghost"
             >
-              <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+              <div className="absolute top-0 right-0 p-3 opacity-30 group-hover:opacity-50 transition-opacity">
                 <Terminal size={80} className="text-muted-foreground" />
               </div>
               <div className="relative z-10 w-full">
@@ -4896,7 +4896,7 @@ export default function SecretAdminPortal() {
                         Rebuild Package
                       </Button>
                     </div>
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                    <Badge variant="outline" className="border-success/30 text-success bg-success/10">
                       {extensionInfo?.package?.rebuilt ? "Package rebuilt this refresh" : "Package freshness verified"}
                     </Badge>
                   </div>
@@ -5109,7 +5109,7 @@ export default function SecretAdminPortal() {
                             <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10" onClick={() => rejectUser(u.id)} data-testid={`button-reject-${u.id}`} aria-label="Reject user">
                               <X size={14} />
                             </Button>
-                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-white" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`} aria-label="Approve user">
+                            <Button size="sm" className="h-8 w-8 p-0 bg-success hover:bg-success/80 text-success-foreground" onClick={() => approveUser(u.id)} data-testid={`button-approve-${u.id}`} aria-label="Approve user">
                               <Check size={14} />
                             </Button>
                           </div>
@@ -5468,7 +5468,7 @@ export default function SecretAdminPortal() {
             <Button variant="outline" onClick={() => setEditingUser(null)} className="border-border text-foreground">
               Cancel
             </Button>
-            <Button onClick={handleUpdateUser} disabled={userActionLoading} className="bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-save-user">
+            <Button onClick={handleUpdateUser} disabled={userActionLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-save-user">
               {userActionLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />} Save Changes
             </Button>
           </DialogFooter>

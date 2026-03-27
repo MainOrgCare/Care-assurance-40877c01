@@ -3,17 +3,17 @@ import { storage } from "./storage";
 async function seed() {
   console.log("Seeding database...");
 
-  // Create admin user with username Lewis.barron
+  // Create admin user with username Lewis.Barron
   try {
-    const existingAdmin = await storage.getUserByUsername("Lewis.barron");
+    const existingAdmin = await storage.getUserByUsername("Lewis.Barron");
     if (!existingAdmin) {
       await storage.createUser({
-        username: "Lewis.barron",
+        username: "Lewis.Barron",
         password: "testtest",
         role: "admin",
         status: "active",
       });
-      console.log("✓ Created admin user (username: Lewis.barron)");
+      console.log("✓ Created admin user (username: Lewis.Barron)");
     } else {
       console.log("✓ Admin user already exists");
     }

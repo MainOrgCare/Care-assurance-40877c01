@@ -975,9 +975,9 @@ export default function RiskAssessment() {
 
   const getRatingColor = (rating: string) => {
     switch (rating.toLowerCase()) {
-      case "high": return "text-red-500 bg-red-500/10 border-red-500/30";
-      case "medium": return "text-orange-500 bg-orange-500/10 border-orange-500/30";
-      case "low": return "text-green-500 bg-green-500/10 border-green-500/30";
+      case "high": return "text-destructive bg-destructive/10 border-destructive/20";
+      case "medium": return "text-warning bg-warning/10 border-warning/20";
+      case "low": return "text-success bg-success/10 border-success/20";
       default: return "text-muted-foreground bg-muted/50 border-border";
     }
   };
@@ -1290,7 +1290,7 @@ export default function RiskAssessment() {
               {serviceUserData.socialWork && (
                 <div className="flex items-center gap-2 text-sm">
                   {serviceUserData.socialWork.parseError ? (
-                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   )}
@@ -1303,7 +1303,7 @@ export default function RiskAssessment() {
               {serviceUserData.initialAssessment && (
                 <div className="flex items-center gap-2 text-sm">
                   {serviceUserData.initialAssessment.parseError ? (
-                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   )}
@@ -1316,7 +1316,7 @@ export default function RiskAssessment() {
               {serviceUserData.carePlan && (
                 <div className="flex items-center gap-2 text-sm">
                   {serviceUserData.carePlan.parseError ? (
-                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   )}
@@ -1413,7 +1413,7 @@ export default function RiskAssessment() {
           </Alert>
         )}
         {isRuleBasedAnalysis && (
-          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+          <Alert className="border-success/20 bg-success/10 text-success-foreground">
             <Info className="h-4 w-4" />
             <AlertTitle>Secure Rule-Based Mode</AlertTitle>
             <AlertDescription>
@@ -1773,7 +1773,7 @@ export default function RiskAssessment() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {hasRuleBasedGeneratedAssessments && (
-              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+              <Badge className="bg-success/15 text-success-foreground border border-success/30">
                 Secure Rule-Based Output
               </Badge>
             )}

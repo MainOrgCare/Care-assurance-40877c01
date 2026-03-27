@@ -12,7 +12,7 @@ const gradeColors: Record<OptimizationMetrics["grade"], { bg: string; text: stri
   B: { bg: "bg-success/10 dark:bg-green-950/40", text: "text-success dark:text-green-400", border: "border-green-300 dark:border-green-700/60" },
   C: { bg: "bg-warning/10", text: "text-warning", border: "border-warning/30/60" },
   D: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-700 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
-  F: { bg: "bg-destructive/10 dark:bg-red-950/40", text: "text-destructive dark:text-red-400", border: "border-red-300 dark:border-red-700/60" },
+  F: { bg: "bg-destructive/10 dark:bg-destructive/10", text: "text-destructive dark:text-destructive", border: "border-destructive/30" },
 };
 
 const gradeDescriptions: Record<OptimizationMetrics["grade"], string> = {

@@ -187,13 +187,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           aria-label="Session ending"
           aria-live="assertive"
         >
-          <div className="bg-card border border-red-500/50 rounded-xl p-8 max-w-md mx-4 text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
-              <AlertTriangle className="w-8 h-8 text-red-500" aria-hidden="true" />
+          <div className="bg-card border border-destructive/30 rounded-xl p-8 max-w-md mx-4 text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-destructive" aria-hidden="true" />
             </div>
             <h2 className="text-xl font-semibold text-foreground">Session Ending</h2>
             <p className="text-muted-foreground">{forceLogoutMessage}</p>
-            <div className="text-4xl font-semibold text-red-500">
+            <div className="text-4xl font-semibold text-destructive">
               {forceLogoutCountdown}
             </div>
             <p className="text-sm text-muted-foreground">seconds remaining</p>

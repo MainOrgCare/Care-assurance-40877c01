@@ -262,11 +262,11 @@
 }
 
 .homepage-theme .home-band {
-  background-color: var(--color-sidebar);
+  background-color: hsl(220 28% 12%);
   background-image:
     radial-gradient(820px 380px at 12% 10%, color-mix(in oklab, var(--color-sidebar-primary) 30%, transparent), transparent 66%),
     radial-gradient(740px 360px at 88% 0%, color-mix(in oklab, var(--color-secondary) 24%, transparent), transparent 68%),
-    linear-gradient(130deg, var(--color-sidebar), color-mix(in oklab, var(--color-sidebar) 80%, black));
+    linear-gradient(130deg, hsl(220 28% 12%), hsl(220 28% 8%));
 }
 
 .homepage-theme .home-band h1,

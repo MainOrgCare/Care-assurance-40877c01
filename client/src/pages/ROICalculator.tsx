@@ -291,7 +291,7 @@ export default function ROICalculator() {
                         <Clock className="h-3 w-3" />
                         {feature.timeSaving}
                       </Badge>
-                      <Badge variant="secondary" className="w-fit text-xs gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                      <Badge variant="secondary" className="w-fit text-xs gap-1 bg-success/10 text-success border-success/30">
                         {feature.costPence}p per use
                       </Badge>
                     </div>
@@ -316,7 +316,7 @@ export default function ROICalculator() {
       <Card data-testid="time-savings-summary">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center gap-2 text-2xl text-foreground">
-            <TrendingUp className="h-6 w-6 text-emerald-500" />
+            <TrendingUp className="h-6 w-6 text-success" />
             Time Savings at a Glance
           </CardTitle>
           <CardDescription>See how much time you save on every task</CardDescription>
@@ -336,13 +336,13 @@ export default function ROICalculator() {
                     </div>
                     <div className="text-xs text-muted-foreground">manual</div>
                   </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-emerald-500" />
+                  <ArrowRight className="h-4 w-4 shrink-0 text-success" />
                   <div>
-                    <div className="text-xl font-semibold text-emerald-600 dark:text-emerald-400">{task.appSeconds}s</div>
+                    <div className="text-xl font-semibold text-success">{task.appSeconds}s</div>
                     <div className="text-xs text-muted-foreground">automated</div>
                   </div>
                 </div>
-                <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{task.costPence}p per use</div>
+                <div className="text-sm font-semibold text-success">{task.costPence}p per use</div>
               </div>
             ))}
           </div>
@@ -360,9 +360,9 @@ export default function ROICalculator() {
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Card className="border-red-500/20" data-testid="manual-process-card">
+          <Card className="border-destructive/30" data-testid="manual-process-card">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <CardTitle className="flex items-center gap-2 text-destructive">
                 <XCircle className="h-5 w-5" />
                 Without CareAssurance
               </CardTitle>
@@ -372,8 +372,8 @@ export default function ROICalculator() {
               <ul className="space-y-4">
                 {COMPARISON_DATA.manual.map((item, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-red-500/10">
-                      <item.icon className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-destructive/10">
+                      <item.icon className="h-4 w-4 text-destructive" />
                     </div>
                     <span className="text-sm pt-1 text-muted-foreground">{item.text}</span>
                   </li>
@@ -381,9 +381,9 @@ export default function ROICalculator() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="border-emerald-500/20" data-testid="careassurance-card">
+          <Card className="border-success/30" data-testid="careassurance-card">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <CardTitle className="flex items-center gap-2 text-success">
                 <CheckCircle className="h-5 w-5" />
                 With CareAssurance
               </CardTitle>
@@ -393,8 +393,8 @@ export default function ROICalculator() {
               <ul className="space-y-4">
                 {COMPARISON_DATA.careassurance.map((item, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/10">
-                      <item.icon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-success/10">
+                      <item.icon className="h-4 w-4 text-success" />
                     </div>
                     <span className="text-sm pt-1 text-muted-foreground">{item.text}</span>
                   </li>

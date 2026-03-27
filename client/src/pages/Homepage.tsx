@@ -625,7 +625,7 @@ export default function Homepage() {
         <section id="compliance" className="home-band">
           <div className="max-w-6xl mx-auto px-4 py-16">
             <motion.div {...reveal()} className="text-center">
-              <p className="home-eyebrow text-white/70">Compliance foundations</p>
+              <p className="home-eyebrow text-white/85">Compliance foundations</p>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
                 Evidence you can stand behind.
               </h2>
@@ -635,12 +635,12 @@ export default function Homepage() {
             </motion.div>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
               {CERTIFICATIONS.map((item) => (
-                <motion.div key={item.title} {...reveal(0.1)} className="rounded-2xl border border-white/15 bg-white/[0.07] backdrop-blur-sm p-6">
+                <motion.div key={item.title} {...reveal(0.1)} className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm p-6">
                   <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center">
                     <item.icon className="h-5 w-5 text-white" />
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-white/75">{item.description}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-white/85">{item.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -892,7 +892,7 @@ export default function Homepage() {
                         />
                       </div>
                       {contactError && (
-                        <div className="rounded-lg border border-red-400/40 bg-red-100/60 px-4 py-2 text-sm text-red-600">
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
                           {contactError}
                         </div>
                       )}
@@ -932,7 +932,7 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border/40">
+      <footer className="relative z-10 border-t border-border/60">
         <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">

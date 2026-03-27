@@ -536,9 +536,9 @@ export default function CarePlanning() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "high": return "text-red-400 bg-red-950/30 border-red-900/50";
+      case "high": return "text-destructive bg-destructive/10 border-destructive/30";
       case "medium": return "text-warning bg-warning/30 border-warning/30";
-      case "low": return "text-emerald-400 bg-emerald-950/30 border-emerald-900/50";
+      case "low": return "text-success bg-success/10 border-success/30";
       default: return "text-muted-foreground bg-muted/50 border-border";
     }
   };
@@ -573,7 +573,7 @@ export default function CarePlanning() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {isRuleBasedCarePlan && (
-            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700">
+            <Badge className="bg-success/10 text-success border border-success/30 dark:bg-success/10 dark:text-success dark:border-success/30">
               Secure Rule-Based Output
             </Badge>
           )}
@@ -1131,16 +1131,16 @@ export default function CarePlanning() {
                           </div>
                         )}
                         {Array.isArray(section.equipment) && section.equipment.length > 0 && (
-                          <div className="bg-blue-500/5 rounded-2xl p-5 border border-blue-500/10">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-3 flex items-center gap-2">
+                          <div className="bg-primary/5 rounded-2xl p-5 border border-primary/20">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
                               <Zap size={14} />
                               Logistics Needed
                             </h4>
                             <ul className="space-y-2.5">
                               {section.equipment.map((item, eqIndex) => (
                                 <li key={eqIndex} className="flex items-start gap-3">
-                                  <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                                  <p className="text-xs font-semibold text-blue-500/80 leading-relaxed">{item}</p>
+                                  <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0 shadow-none" />
+                                  <p className="text-xs font-semibold text-primary/80 leading-relaxed">{item}</p>
                                 </li>
                               ))}
                             </ul>

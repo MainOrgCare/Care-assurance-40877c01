@@ -28,8 +28,8 @@ export interface ConflictDetail {
 const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: string; bgColor: string }> = {
   overlap: {
     icon: Clock,
-    color: "text-destructive dark:text-red-400",
-    bgColor: "bg-destructive/10 dark:bg-red-950/30 border-destructive/30 dark:border-red-800/50",
+    color: "text-destructive dark:text-destructive",
+    bgColor: "bg-destructive/10 dark:bg-destructive/10 border-destructive/30 dark:border-destructive/30",
   },
   travel: {
     icon: MapPin,

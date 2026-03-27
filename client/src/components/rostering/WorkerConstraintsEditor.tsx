@@ -341,7 +341,7 @@ export const WorkerConstraintsEditor: React.FC<WorkerConstraintsEditorProps> = (
                 key={w.key}
                 className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${
                   w.status === "overloaded"
-                    ? "border-destructive/30 dark:border-red-800/50 bg-destructive/10 dark:bg-red-950/30"
+                    ? "border-destructive/30 dark:border-destructive/30 bg-destructive/10 dark:bg-destructive/10"
                     : w.status === "warning"
                     ? "border-warning/30 bg-warning/10"
                     : ""

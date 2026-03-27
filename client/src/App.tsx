@@ -6,7 +6,6 @@ import { AuthProvider } from "@/context/AuthContext";
 import { TemporaryDataProvider } from "@/context/TemporaryDataContext";
 import { SessionProvider } from "@/context/SessionContext";
 import { SettingsProvider } from "@/context/SettingsContext";
-import { ThemeProvider } from "@/components/theme/DarkMode";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import { TermsGuard } from "@/components/TermsGuard";
@@ -166,20 +165,18 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
+      <SettingsProvider>
         <AuthProvider>
           <SessionProvider>
-            <SettingsProvider>
-              <TemporaryDataProvider>
-                <TermsGuard>
-                  <Router />
-                </TermsGuard>
-                <Toaster />
-              </TemporaryDataProvider>
-            </SettingsProvider>
+            <TemporaryDataProvider>
+              <TermsGuard>
+                <Router />
+              </TermsGuard>
+              <Toaster />
+            </TemporaryDataProvider>
           </SessionProvider>
         </AuthProvider>
-      </ThemeProvider>
+      </SettingsProvider>
     </QueryClientProvider>
   );
 }

@@ -4758,7 +4758,7 @@ export default function TestingFeatures() {
     return (
       <Card className="max-w-2xl mx-auto border-border/60 bg-background/70 shadow-medium">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-500">
+          <CardTitle className="flex items-center gap-2 text-destructive">
             <Shield size={18} />
             Restricted Access
           </CardTitle>
@@ -4796,7 +4796,7 @@ export default function TestingFeatures() {
 
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-32 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute top-40 left-0 h-96 w-96 rounded-full bg-success/10 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(56,189,248,0.08),transparent_35%)]" />
       </div>
@@ -4804,14 +4804,14 @@ export default function TestingFeatures() {
       <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl hover-elevate shimmer motion-safe:animate-slide-up stagger-1 md:p-10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%),radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_45%)]" />
         <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
-        <div className="pointer-events-none absolute -left-24 -bottom-32 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute -left-24 -bottom-32 h-64 w-64 rounded-full bg-success/10 blur-3xl" />
         <div className="relative z-10 space-y-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-4">
               <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
                 <span
                   className={`h-2 w-2 rounded-full ${
-                    processingState === "analyzing" ? "bg-emerald-500 animate-pulse" : "bg-primary"
+                    processingState === "analyzing" ? "bg-success/10 animate-pulse" : "bg-primary"
                   }`}
                 />
                 Admin Sandbox
@@ -4838,7 +4838,7 @@ export default function TestingFeatures() {
                   {summary.attention.toLocaleString()} flagged rows
                 </Badge>
                 <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                  <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+                  <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
                   {summary.clean.toLocaleString()} clean rows
                 </Badge>
               </div>
@@ -5564,7 +5564,7 @@ export default function TestingFeatures() {
           <CardHeader className="relative z-10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success">
                   <Shield className="h-6 w-6" />
                 </div>
                 <div>
@@ -5989,7 +5989,7 @@ export default function TestingFeatures() {
               <AccordionContent className="relative pb-5">
                 {rosteringFullscreen && (
                   <div
-                    className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+                    className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm"
                     onClick={() => setRosteringFullscreen(false)}
                     aria-hidden="true"
                   />
@@ -6896,11 +6896,11 @@ export default function TestingFeatures() {
                                           : 0;
                                         const barTone =
                                           isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
-                                            ? "bg-red-500/70"
+                                            ? "bg-destructive/10"
                                             : isAfterSoftLimit || isBeforeDayStart
                                             ? "bg-warning/80"
                                             : entry.isDoubleUp
-                                            ? "bg-emerald-500/70"
+                                            ? "bg-success/10"
                                             : "bg-primary/70";
                                         const borderTone =
                                           isAfterHardLimit || entry.isOutsideWindow || entry.hasWindowConflict
@@ -7833,17 +7833,17 @@ type InsightTone = "default" | "warning" | "destructive";
 
 const toneSurfaceMap: Record<InsightTone, string> = {
   default:
-    "border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
+    "border-success/30 bg-gradient-to-br from-emerald-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
   warning:
     "border-warning/30 bg-gradient-to-br from-warning/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
   destructive:
-    "border-red-500/30 bg-gradient-to-br from-red-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
+    "border-destructive/30 bg-gradient-to-br from-red-500/10 via-background/80 to-background shadow-soft backdrop-blur-xl",
 };
 
 const toneTextMap: Record<InsightTone, string> = {
-  default: "text-emerald-600 dark:text-emerald-400",
+  default: "text-success",
   warning: "text-warning",
-  destructive: "text-red-600 dark:text-red-400",
+  destructive: "text-destructive",
 };
 
 const toneGlowMap: Record<InsightTone, string> = {
@@ -7969,11 +7969,11 @@ function QualityDimensionCard({
 }) {
   const tone: InsightTone = score >= 70 ? "default" : score >= 55 ? "warning" : "destructive";
   const gradeColor =
-    grade === "A" ? "text-emerald-600 dark:text-emerald-400" :
+    grade === "A" ? "text-success" :
     grade === "B" ? "text-sky-600 dark:text-sky-400" :
     grade === "C" ? "text-warning" :
     grade === "D" ? "text-orange-600 dark:text-orange-400" :
-    "text-red-600 dark:text-red-400";
+    "text-destructive";
 
   return (
     <div className={`group relative overflow-hidden rounded-2xl border p-4 ${toneSurfaceMap[tone]} hover-elevate`}>
@@ -8035,10 +8035,10 @@ function RateMetric({
   const isAboveTarget = value >= target;
   const tone: InsightTone = value >= target ? "default" : value >= target * 0.8 ? "warning" : "destructive";
   const progressColor = isAboveTarget 
-    ? "bg-emerald-500" 
+    ? "bg-success/10" 
     : value >= target * 0.8 
     ? "bg-warning/100" 
-    : "bg-red-500";
+    : "bg-destructive/10";
 
   return (
     <div className={`rounded-2xl border p-4 ${toneSurfaceMap[tone]} hover-elevate`}>
@@ -8060,7 +8060,7 @@ function RateMetric({
       </div>
       <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
         <span>0%</span>
-        <span className={isAboveTarget ? "text-emerald-600 dark:text-emerald-400" : ""}>
+        <span className={isAboveTarget ? "text-success" : ""}>
           {isAboveTarget ? "✓ On target" : `${target - value}% below target`}
         </span>
         <span>100%</span>
@@ -8129,15 +8129,15 @@ function ComparisonMetric({
   const trendColor = isUnchanged
     ? "text-muted-foreground"
     : isImproved
-    ? "text-emerald-600 dark:text-emerald-400"
-    : "text-red-600 dark:text-red-400";
+    ? "text-success"
+    : "text-destructive";
 
   const trendIcon = isUnchanged ? "→" : isImproved ? "↑" : "↓";
   const trendBg = isUnchanged
     ? "bg-muted/50"
     : isImproved
-    ? "bg-emerald-500/10"
-    : "bg-red-500/10";
+    ? "bg-success/10"
+    : "bg-destructive/10";
 
   return (
     <div className={`rounded-2xl border border-border/70 p-4 shadow-soft hover-elevate shimmer ${trendBg}`}>
@@ -8280,9 +8280,9 @@ function DiagnosticStat({
 
 function InsightPill({ tone = "default", children }: { tone?: InsightTone; children: ReactNode }) {
   const toneClass: Record<InsightTone, string> = {
-    default: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    default: "bg-success/10 text-success",
     warning: "bg-warning/100/15 text-warning",
-    destructive: "bg-red-500/15 text-red-600 dark:text-red-400",
+    destructive: "bg-destructive/10 text-destructive",
   };
   return (
     <span

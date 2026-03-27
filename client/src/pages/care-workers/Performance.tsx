@@ -351,7 +351,7 @@ export default function Performance() {
                 {stats.total > 0 && (
                   <>
                     <div
-                      className="h-full bg-success transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
+                      className="h-full bg-success transition-all duration-700 flex items-center justify-center text-success-foreground text-[10px] font-bold"
                       style={{ width: `${(stats.compliant / stats.total) * 100}%`, minWidth: stats.compliant > 0 ? '2rem' : '0' }}
                     >
                       {stats.compliant > 0 && stats.compliant}
@@ -363,7 +363,7 @@ export default function Performance() {
                       {stats.atRisk > 0 && stats.atRisk}
                     </div>
                     <div
-                      className="h-full bg-destructive transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
+                      className="h-full bg-destructive transition-all duration-700 flex items-center justify-center text-destructive-foreground text-[10px] font-bold"
                       style={{ width: `${(stats.critical / stats.total) * 100}%`, minWidth: stats.critical > 0 ? '2rem' : '0' }}
                     >
                       {stats.critical > 0 && stats.critical}

@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   FileText,
@@ -177,7 +178,7 @@ const SidebarContent = memo(function SidebarContent({
       isCollapsed ? "px-2.5 py-2.5 justify-center gap-0" : "px-3 py-[0.4375rem]",
       isActive
         ? "bg-sidebar-primary/14 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_18%,transparent)]"
-        : "text-sidebar-foreground/55 hover:text-sidebar-foreground/88 hover:bg-sidebar-foreground/[0.08]"
+        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.08]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
@@ -185,7 +186,7 @@ const SidebarContent = memo(function SidebarContent({
       "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[0.76rem] font-medium transition-all duration-150",
       isActive
         ? "bg-sidebar-primary/8 text-sidebar-primary shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_10%,transparent)]"
-        : "text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-sidebar-foreground/[0.04]"
+        : "text-sidebar-foreground/55 hover:text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.04]"
     ), []);
 
   const labelClass = cn(
@@ -208,9 +209,9 @@ const SidebarContent = memo(function SidebarContent({
             {!isCollapsed && (
               <div className="flex flex-col">
               <h1 className="font-heading text-[15px] leading-none tracking-[-0.02em]">
-                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-medium text-sidebar-foreground/45">Assurance</span>
+                <span className="font-bold text-sidebar-foreground">Care</span><span className="font-medium text-sidebar-foreground/55">Assurance</span>
               </h1>
-              <span className="text-[9px] mt-1 font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/30">Operations Platform</span>
+              <span className="text-[9px] mt-1 font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/40">Operations Platform</span>
             </div>
             )}
           </div>
@@ -218,7 +219,7 @@ const SidebarContent = memo(function SidebarContent({
       </div>
 
       {/* Divider */}
-      <div className={cn("mx-5 h-px bg-gradient-to-r from-transparent via-sidebar-border/60 to-transparent", isCollapsed && "mx-3")} />
+      <div className={cn("mx-5 h-px bg-sidebar-border/60", isCollapsed && "mx-3")} />
 
       <nav aria-label="Main navigation" className={cn("flex-1 space-y-0.5 py-2.5 overflow-y-auto overscroll-contain", isCollapsed ? "px-2" : "px-3")}>
         
@@ -435,7 +436,7 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-red-400/60 hover:text-red-400 hover:bg-destructive/100/8",
+            "w-full flex items-center gap-3 rounded-lg text-[0.82rem] font-medium transition-all duration-150 text-destructive hover:text-destructive hover:bg-destructive/100/8",
             isCollapsed ? "justify-center px-2.5 py-2.5 gap-0" : "px-3 py-[0.4375rem]"
           )}
           onClick={logout}
@@ -462,6 +463,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const [showComplieeIntro, setShowComplieeIntro] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
@@ -701,7 +703,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isFullBleed ? "max-w-none" : "max-w-[var(--content-max-width)]"
   );
   const cardClass = cn(
-    "workspace-card  rounded-xl border border-border/50 bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-xs)] motion-safe:animate-[fade-in_120ms_ease-out]",
+    "workspace-card  rounded-xl border border-border bg-card p-4 sm:p-5 lg:p-6 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-xs)] motion-safe:animate-[fade-in_120ms_ease-out]",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -806,8 +808,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       iconClassName: "text-warning",
     },
     critical: {
-      className: "border-destructive/20 bg-destructive/100/10 text-destructive dark:text-red-300 shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
-      iconClassName: "text-destructive dark:text-red-400",
+      className: "border-destructive/20 bg-destructive/100/10 text-destructive dark:text-destructive shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
+      iconClassName: "text-destructive dark:text-destructive",
     },
   };
 
@@ -828,10 +830,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </a>
 
       {/* Desktop Sidebar */}
-      <aside
+      <motion.aside
+        initial={false}
+        animate={{ width: isSidebarCollapsed ? 80 : 260 }}
+        transition={{ type: "spring", damping: 30, stiffness: 280 }}
         className={cn(
           "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
-          isSidebarCollapsed ? "w-[72px]" : "w-[260px]"
+          ""
         )}
         aria-label="Main navigation"
         role="navigation"
@@ -842,7 +847,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           logout={logout}
           collapsed={isSidebarCollapsed}
         />
-      </aside>
+      </motion.aside>
 
       {/* Main + Footer Column */}
       <div className="relative z-10 flex w-full min-h-0 flex-1 flex-col">
@@ -850,7 +855,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className="workspace-header  sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/35 bg-card/80 backdrop-blur-md px-4 md:px-6 shadow-none transition-[background-color,border-color,box-shadow] duration-200" role="banner" aria-label="Page header">
+          <header className={cn("workspace-header sticky top-0 z-30 flex h-14 items-center justify-between border-b transition-all duration-300 px-4 md:px-6 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-primary/0 before:via-primary/10 before:to-primary/0", isScrolled ? "bg-card/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-border backdrop-blur-xl" : "bg-card/50 shadow-none border-transparent backdrop-blur-sm")} role="banner" aria-label="Page header" style={{ backdropFilter: isScrolled ? "blur(16px)" : "blur(4px)" }}>
             <div className="flex items-center gap-3 min-w-0">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -860,7 +865,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span className="sr-only">Toggle menu</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="p-0 w-[280px] border-r border-border/80 bg-sidebar">
+                <SheetContent side="left" className="p-0 w-[280px] border-r border-border bg-sidebar">
                   <SidebarContent
                     location={location}
                     handleSecretClick={handleSecretClick}
@@ -913,16 +918,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className=" flex items-center gap-1.5 rounded-xl border border-border/45 bg-background/75 backdrop-blur-sm px-2 py-1 shadow-none">
+            <div className=" flex items-center gap-1.5 rounded-xl border border-border bg-background/75 backdrop-blur-sm px-2 py-1 shadow-none">
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 transition-colors cursor-pointer"
+                className="hidden md:flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-1 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors cursor-pointer"
                 title="Command Palette (Ctrl+K)"
               >
                 <Search className="h-3.5 w-3.5" />
                 <span className="hidden lg:inline">Search...</span>
-                <kbd className="rounded border border-border/70 bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">⌘K</kbd>
+                <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">⌘K</kbd>
               </button>
 
               {/* Notification Center (admin alerts) */}
@@ -952,12 +957,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* Compli-ee Help Button */}
               <div className="flex items-center gap-1.5">
                 <ComplieeIdleButton onClick={openChatAssistant} />
-                <div className="hidden xl:flex items-center gap-1 rounded-md border border-border/50 bg-muted/35 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+                <div className="hidden xl:flex items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
                   <kbd className="font-mono text-[9px] text-muted-foreground">Ctrl /</kbd>
                 </div>
               </div>
               
-              <div className="group flex items-center gap-2.5 rounded-lg border border-border/35 bg-muted/20 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/20 hover:bg-muted/35 hover:shadow-[var(--shadow-xs)]">
+              <div className="group flex items-center gap-2.5 rounded-lg border border-border bg-muted/30 py-1.5 pl-3 pr-1.5 transition-all duration-150 hover:border-primary/30 hover:bg-muted/50 hover:shadow-[var(--shadow-xs)]">
                 <div className="text-right hidden sm:block">
                   <p className="text-[10.5px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
@@ -968,7 +973,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-success" : "bg-destructive")}
                     />
                     {user?.role === "admin" && (
-                      <span className="inline-flex items-center rounded-full border border-border/50 bg-background/60 px-1.5 py-0 text-[7px] font-medium uppercase tracking-[0.04em] leading-[1.2] text-muted-foreground/85">
+                      <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-1.5 py-0 text-[7px] font-medium uppercase tracking-[0.04em] leading-[1.2] text-muted-foreground">
                         admin
                       </span>
                     )}
@@ -998,7 +1003,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <span className="sr-only">Toggle menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[280px] border-r border-border/80 bg-sidebar">
+              <SheetContent side="left" className="p-0 w-[280px] border-r border-border bg-sidebar">
                 <SidebarContent
                   location={location}
                   handleSecretClick={handleSecretClick}
@@ -1029,7 +1034,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               onClick={openChatAssistant}
               className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-success/25"
             />
-            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
+            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
               <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
             </div>
@@ -1100,15 +1105,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/15 bg-background/90 backdrop-blur-sm px-5 py-2.5 transition-[background-color,border-color] duration-200">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] text-muted-foreground/65">
+          <footer className="workspace-footer flex-shrink-0 border-t border-border bg-background/95 backdrop-blur-sm px-5 py-2.5 transition-[background-color,border-color] duration-200">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-2.5 font-medium">
-                <span className="text-foreground/50">&copy; {new Date().getFullYear()} CareAssurance</span>
+                <span className="text-foreground/60">&copy; {new Date().getFullYear()} CareAssurance</span>
                 <span className="hidden sm:inline text-border">&middot;</span>
-                <span className="hidden sm:inline text-muted-foreground/50 text-[10px]">Precision tools for high-trust care teams</span>
+                <span className="hidden sm:inline text-muted-foreground text-[10px]">Precision tools for high-trust care teams</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/60 font-medium tabular-nums">
+                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground font-medium tabular-nums">
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>

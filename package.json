@@ -19,6 +19,7 @@
     "start:api": "NODE_ENV=production AI_ENABLED=${AI_ENABLED:-true} node dist/index.cjs",
     "start:worker": "NODE_ENV=production node dist/worker.cjs",
     "start": "npm run start:api",
+    "seed": "tsx server/seed.ts",
     "test": "npm run test:server && npm run test:client",
     "test:server": "node --import tsx --test --test-force-exit server/__tests__/*.test.ts",
     "test:server:emar": "node --import tsx --test --test-force-exit server/__tests__/emarComplianceParity.test.ts",

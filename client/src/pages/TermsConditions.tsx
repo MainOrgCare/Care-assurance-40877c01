@@ -377,9 +377,9 @@ export default function TermsConditions() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">15. Consequences of Violation</h3>
-              <div className="rounded-lg p-4 mb-4 bg-slate-50/90 dark:bg-slate-800/90 border border-border">
+              <div className="rounded-lg p-4 mb-4 bg-muted/50 border border-border">
                 <p className="font-medium mb-2 text-foreground">If these Terms are breached</p>
-                <p className="text-sm text-slate-700 dark:text-slate-300">
+                <p className="text-sm text-muted-foreground">
                   Serious breaches (for example, misuse of data, unauthorised copying, or security risks) may result in suspension and, where needed, appropriate legal remedies. Our aim is to resolve issues proportionately while protecting service users, data subjects, and the platform.
                 </p>
               </div>

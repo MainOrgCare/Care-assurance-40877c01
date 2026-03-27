@@ -19,7 +19,7 @@ import {
 
 // ── Model helpers ──────────────────────────────────────────────────
 const getLowCostModel = () => "gpt-4.1-mini";
-const getAccurateModel = () => getPreferredModel();
+const getAccurateModel = () => getLowCostModel(); // temporarily low cost config
 
 // ── JSON parsing helpers ───────────────────────────────────────────
 

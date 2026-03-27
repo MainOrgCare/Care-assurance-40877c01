@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check, CheckCheck, AlertTriangle, FileText, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -210,8 +211,14 @@ export default function NotificationCenter() {
               <span className="text-xs mt-0.5">No unread notifications</span>
             </div>
           ) : (
-            visibleAlerts.map((alert) => (
-              <div
+            <AnimatePresence initial={false}>
+            {visibleAlerts.map((alert) => (
+              <motion.div
+                layout
+                initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 key={alert.id}
                 className="group flex items-start gap-2.5 px-3 py-2.5 border-b border-border/30 last:border-b-0 hover:bg-muted/30 transition-colors"
               >
@@ -250,8 +257,9 @@ export default function NotificationCenter() {
                     <Check className="h-3.5 w-3.5" />
                   )}
                 </button>
-              </div>
-            ))
+              </motion.div>
+            ))}
+          </AnimatePresence>
           )}
         </div>
 

@@ -1914,9 +1914,9 @@ export default function RosteringStudioUnified({
               {conflictsCount > 0 ? (
                 <AlertTriangle className="h-3 w-3 text-destructive" />
               ) : (
-                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                <CheckCircle2 className="h-3 w-3 text-success" />
               )}
-              <span className={`font-semibold ${conflictsCount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+              <span className={`font-semibold ${conflictsCount > 0 ? "text-destructive" : "text-success"}`}>
                 {conflictsCount}
               </span>
               <span className="text-muted-foreground">Conflicts</span>
@@ -2586,7 +2586,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-costs flex items-center gap-2 px-3 py-2">
-                        <Calculator className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <Calculator className="h-4 w-4 text-success" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Cost Analysis</span>
                       </div>
                       <ScrollArea className="rstd-scroll-area flex-1 min-h-0">

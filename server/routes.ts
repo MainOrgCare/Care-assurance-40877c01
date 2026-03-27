@@ -2593,8 +2593,8 @@ const normalizePrnProtocol = (rawProtocol: any, medicationName: string) => {
 };
 
 const getLowCostModel = () => "gpt-4.1-mini";
-const getAccurateModel = () => getPreferredModel();
-const getRiskAssessmentModel = () => getPreferredModel();
+const getAccurateModel = () => getLowCostModel(); // temporarily low cost
+const getRiskAssessmentModel = () => getLowCostModel(); // temporarily low cost
 const getRiskAssessmentRecommendationModel = () => getLowCostModel();
 const getRiskAssessmentGenerationModel = () => getLowCostModel();
 
@@ -4706,7 +4706,8 @@ export async function registerRoutes(
     }
     console.warn("[Auth] SESSION_SECRET not set — using random ephemeral secret for development. Sessions will not persist across restarts.");
   }
-  const sessionSecret = process.env.SESSION_SECRET || require("node:crypto").randomBytes(32).toString("hex");
+  const crypto = await import("node:crypto");
+  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 
   // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {
@@ -17451,7 +17452,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
       const readiness = await getAIProviderReadiness();
       return res.json({
         provider: readiness.provider,
-        model: getPreferredModel(),
+        model: getLowCostModel(), // temporarily low cost mode override
         localLLMModel: getLocalLLMModel(),
         aiEnabled,
         requireLiveWebForLocal: getRequireLiveWebForLocal(),
@@ -20032,7 +20033,7 @@ I have also sent that reminder to your Messages inbox.`
       const completion = await executeSecureChatCompletion({
         endpoint: "/api/ai/chat",
         feature: "chat-assistant",
-        model: getPreferredModel(),
+        model: getLowCostModel(), // temporarily low cost mode override
         userContext: aiUserContext,
         vault: chatPIIVault,
         messages: [
@@ -20072,7 +20073,7 @@ I have also sent that reminder to your Messages inbox.`
             const followUp = await executeSecureChatCompletion({
               endpoint: "/api/ai/chat",
               feature: "chat-assistant",
-              model: getPreferredModel(),
+              model: getLowCostModel(), // temporarily low cost mode override
               userContext: aiUserContext,
               vault: chatPIIVault,
               messages: [

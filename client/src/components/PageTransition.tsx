@@ -7,21 +7,23 @@ interface PageTransitionProps {
 }
 
 const pageVariants = {
-  initial: { opacity: 1, y: 4 },
+  initial: { opacity: 0, scale: 0.98, y: 15 },
   enter: {
     opacity: 1,
+    scale: 1,
     y: 0,
     transition: {
-      duration: 0.18,
-      ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
+      duration: 0.35,
+      ease: [0.16, 1, 0.3, 1] as const, // Custom fast spring-like ease
     },
   },
   exit: {
-    opacity: 1,
-    y: -3,
+    opacity: 0,
+    scale: 0.98,
+    y: -10,
     transition: {
-      duration: 0.12,
-      ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
+      duration: 0.2,
+      ease: [0.7, 0, 0.84, 0] as const,
     },
   },
 };
