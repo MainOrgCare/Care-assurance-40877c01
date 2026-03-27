@@ -498,7 +498,7 @@ export default function Settings() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Account Type</span>
-                <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-amber-500/30 text-amber-600" : "border-success/30 text-success")}>
+                <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-warning/30 text-warning" : "border-success/30 text-success")}>
                   {user?.isDemo ? "Demo" : "Production"}
                 </Badge>
               </div>
