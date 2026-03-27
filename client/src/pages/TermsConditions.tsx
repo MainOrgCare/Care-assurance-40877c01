@@ -2,8 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, AlertTriangle, Shield } from "lucide-react";
 import { Link } from "wouter";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 export default function TermsConditions() {
+  usePageTitle("Terms and Conditions");
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto">

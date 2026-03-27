@@ -184,7 +184,7 @@ export const ChatTriggerButton = React.memo(function ChatTriggerButton({ onClick
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground text-sm font-medium transition-colors"
       aria-label="Get help"
     >
       <HelpCircle className="h-4 w-4" />
@@ -536,7 +536,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
           : "top-0 right-0 w-full sm:w-[430px] h-full"
       )}
     >
-      <div className="relative flex items-center justify-between px-3.5 py-3 bg-emerald-600 text-white">
+      <div className="relative flex items-center justify-between px-3.5 py-3 bg-secondary text-secondary-foreground">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
         <div className="flex items-center gap-2.5 min-w-0">
           <ComplieeAvatar size="md" animate={isLoading} />
@@ -611,9 +611,9 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 className={cn(
                   "rounded-xl border px-3 py-2.5 text-xs flex items-start justify-between gap-2",
                   assistantAvailable
-                    ? "border-emerald-300/60 bg-emerald-50 text-emerald-800"
+                    ? "border-success/25 bg-success/[0.06] text-success-foreground"
                     : limitedMode
-                      ? "border-amber-300/60 bg-amber-50 text-amber-900"
+                      ? "border-warning/25 bg-warning/[0.06] text-foreground"
                       : "border-destructive/30 bg-destructive/10 text-destructive"
                 )}
               >
@@ -690,7 +690,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                   className={cn(
                     "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-[var(--shadow-xs)]",
                     message.role === "user"
-                      ? "bg-emerald-500 text-white rounded-br-md border border-emerald-400/60 shadow-emerald-700/25"
+                      ? "bg-secondary text-secondary-foreground rounded-br-md border border-secondary/40 shadow-secondary/20"
                       : "bg-background/95 border border-border/70 rounded-bl-md shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)]"
                   )}
                 >
@@ -755,15 +755,15 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 <div className="bg-background border border-border/70 shadow-[var(--shadow-xs)] rounded-2xl rounded-bl-md px-3.5 py-3">
                   <div className="flex gap-1.5">
                     <span
-                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      className="h-2 w-2 bg-secondary-foreground/80 rounded-full animate-bounce"
                       style={{ animationDelay: "0ms" }}
                     />
                     <span
-                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      className="h-2 w-2 bg-secondary-foreground/80 rounded-full animate-bounce"
                       style={{ animationDelay: "120ms" }}
                     />
                     <span
-                      className="h-2 w-2 bg-emerald-400 rounded-full animate-bounce"
+                      className="h-2 w-2 bg-secondary-foreground/80 rounded-full animate-bounce"
                       style={{ animationDelay: "240ms" }}
                     />
                   </div>
@@ -792,7 +792,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 dir="ltr"
                 className={cn(
                   "flex-1 resize-none bg-muted/55 border border-border/80 rounded-xl px-3.5 py-2.5 text-sm text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
-                  "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50",
+                  "focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary/40",
                   "min-h-[42px] max-h-[140px] placeholder:text-muted-foreground overflow-y-auto"
                 )}
                 disabled={isLoading || availabilityLoading || !canSendMessages}
@@ -808,7 +808,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 }
                 size="icon"
                 aria-label="Send message"
-                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-emerald-500 hover:bg-emerald-600 shadow-[0_12px_24px_-14px_rgba(5,150,105,0.75)]"
+                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-secondary hover:bg-secondary/90 shadow-[0_12px_24px_-14px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)]"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download, RefreshCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { useDataExport } from "@/hooks/useDataExport";
@@ -41,9 +42,33 @@ export default function Compliance() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
-        <p className="text-sm text-muted-foreground">Loading compliance data&hellip;</p>
+      <div className="page-shell page-shell-compact">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-9 w-9 rounded-lg" />
+              </CardHeader>
+              <CardContent className="pt-0.5">
+                <Skeleton className="h-8 w-16 mt-1" />
+                <Skeleton className="h-3 w-28 mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 2 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3 border-b border-border/30">
+                <Skeleton className="h-4 w-36" />
+              </CardHeader>
+              <CardContent className="pt-4">
+                <Skeleton className="h-[250px] w-full rounded-lg" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }

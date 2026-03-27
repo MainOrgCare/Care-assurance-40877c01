@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +28,7 @@ const formatTimestamp = (timestamp: number) =>
 export default function ServiceUserUpload() {
   const { uploadFile, serviceUserData, removeAdditionalDocument, setAdditionalNotes } = useTemporaryData();
   const { toast } = useToast();
+  usePageTitle("Secure Intake Portal");
   const [dragOver, setDragOver] = useState<string | null>(null);
   const initialAssessmentInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -92,11 +94,11 @@ export default function ServiceUserUpload() {
             <CardTitle className="flex items-center gap-2.5 text-base">
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
                 serviceUserData.socialWork 
-                  ? 'bg-emerald-500/15' 
+                  ? 'bg-success/12' 
                   : 'bg-blue-500/10'
               }`}>
                 {serviceUserData.socialWork 
-                  ? <Check className="h-4 w-4 text-emerald-500" /> 
+                  ? <Check className="h-4 w-4 text-success" /> 
                   : <FileText className="h-4 w-4 text-blue-400" />
                 }
               </div>
@@ -108,10 +110,10 @@ export default function ServiceUserUpload() {
              {serviceUserData.socialWork ? (
                <div className="text-sm w-full">
                  <div className="flex items-center justify-center gap-2 mb-2">
-                   <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                     <File className="h-4 w-4 text-emerald-500" />
+                   <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center">
+                     <File className="h-4 w-4 text-success" />
                    </div>
-                   <span className={`font-medium truncate max-w-[150px] ${serviceUserData.socialWork.parseError ? "text-rose-400" : "text-emerald-400"}`}>
+                   <span className={`font-medium truncate max-w-[150px] ${serviceUserData.socialWork.parseError ? "text-destructive" : "text-success"}`}>
                      {serviceUserData.socialWork.name}
                    </span>
                  </div>
@@ -120,9 +122,9 @@ export default function ServiceUserUpload() {
                      <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                    </div>
                  ) : serviceUserData.socialWork.parseError ? (
-                   <p className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">{serviceUserData.socialWork.parseError}</p>
+                   <p className="text-xs text-destructive bg-destructive/8 py-1.5 px-3 rounded-full mx-auto w-fit">{serviceUserData.socialWork.parseError}</p>
                  ) : (
-                   <p className="text-[11px] text-emerald-500/70">Ready for processing</p>
+                   <p className="text-[11px] text-success/70">Ready for processing</p>
                  )}
                </div>
              ) : (
@@ -160,11 +162,11 @@ export default function ServiceUserUpload() {
             <CardTitle className="flex items-center gap-2.5 text-base">
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
                 serviceUserData.initialAssessment 
-                  ? 'bg-emerald-500/15' 
+                  ? 'bg-success/12' 
                   : 'bg-violet-500/10'
               }`}>
                 {serviceUserData.initialAssessment 
-                  ? <Check className="h-4 w-4 text-emerald-500" /> 
+                  ? <Check className="h-4 w-4 text-success" /> 
                   : <Shield className="h-4 w-4 text-violet-400" />
                 }
               </div>
@@ -185,10 +187,10 @@ export default function ServiceUserUpload() {
              {serviceUserData.initialAssessment ? (
                <div className="text-sm w-full">
                  <div className="flex items-center justify-center gap-2 mb-2">
-                   <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                     <File className="h-4 w-4 text-emerald-500" />
+                   <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center">
+                     <File className="h-4 w-4 text-success" />
                    </div>
-                   <span className={`font-medium truncate max-w-[150px] ${serviceUserData.initialAssessment.parseError ? "text-rose-400" : "text-emerald-400"}`}>
+                   <span className={`font-medium truncate max-w-[150px] ${serviceUserData.initialAssessment.parseError ? "text-destructive" : "text-success"}`}>
                      {serviceUserData.initialAssessment.name}
                    </span>
                  </div>
@@ -197,9 +199,9 @@ export default function ServiceUserUpload() {
                      <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                    </div>
                  ) : serviceUserData.initialAssessment.parseError ? (
-                   <p className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">{serviceUserData.initialAssessment.parseError}</p>
+                   <p className="text-xs text-destructive bg-destructive/8 py-1.5 px-3 rounded-full mx-auto w-fit">{serviceUserData.initialAssessment.parseError}</p>
                  ) : (
-                   <p className="text-[11px] text-emerald-500/70">Ready for processing</p>
+                   <p className="text-[11px] text-success/70">Ready for processing</p>
                  )}
                  <div className="mt-3 space-y-1 text-[11px] text-muted-foreground/70">
                    <div className="flex items-center justify-between">
@@ -272,11 +274,11 @@ export default function ServiceUserUpload() {
             <CardTitle className="flex items-center gap-2.5 text-base">
               <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
                 serviceUserData.carePlan 
-                  ? 'bg-emerald-500/15' 
+                  ? 'bg-success/12' 
                   : 'bg-amber-500/10'
               }`}>
                 {serviceUserData.carePlan 
-                  ? <Check className="h-4 w-4 text-emerald-500" /> 
+                  ? <Check className="h-4 w-4 text-success" /> 
                   : <AlertCircle className="h-4 w-4 text-amber-400" />
                 }
               </div>
@@ -288,10 +290,10 @@ export default function ServiceUserUpload() {
              {serviceUserData.carePlan ? (
                <div className="text-sm w-full">
                  <div className="flex items-center justify-center gap-2 mb-2">
-                   <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                     <File className="h-4 w-4 text-emerald-500" />
+                   <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center">
+                     <File className="h-4 w-4 text-success" />
                    </div>
-                   <span className={`font-medium truncate max-w-[150px] ${serviceUserData.carePlan.parseError ? "text-rose-400" : "text-emerald-400"}`}>
+                   <span className={`font-medium truncate max-w-[150px] ${serviceUserData.carePlan.parseError ? "text-destructive" : "text-success"}`}>
                      {serviceUserData.carePlan.name}
                    </span>
                  </div>
@@ -300,9 +302,9 @@ export default function ServiceUserUpload() {
                      <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                    </div>
                  ) : serviceUserData.carePlan.parseError ? (
-                   <p className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">{serviceUserData.carePlan.parseError}</p>
+                   <p className="text-xs text-destructive bg-destructive/8 py-1.5 px-3 rounded-full mx-auto w-fit">{serviceUserData.carePlan.parseError}</p>
                  ) : (
-                   <p className="text-[11px] text-emerald-500/70">Ready for processing</p>
+                   <p className="text-[11px] text-success/70">Ready for processing</p>
                  )}
                </div>
              ) : (
@@ -340,11 +342,11 @@ export default function ServiceUserUpload() {
             <CardTitle className="flex items-center gap-2.5 text-base">
               <div
                 className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
-                  serviceUserData.movingHandling ? "bg-emerald-500/15" : "bg-sky-500/10"
+                  serviceUserData.movingHandling ? "bg-success/12" : "bg-primary/10"
                 }`}
               >
                 {serviceUserData.movingHandling ? (
-                  <Check className="h-4 w-4 text-emerald-500" />
+                  <Check className="h-4 w-4 text-success" />
                 ) : (
                   <Upload className="h-4 w-4 text-sky-400" />
                 )}
@@ -359,12 +361,12 @@ export default function ServiceUserUpload() {
             {serviceUserData.movingHandling ? (
               <div className="text-sm w-full">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <File className="h-4 w-4 text-emerald-500" />
+                  <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center">
+                    <File className="h-4 w-4 text-success" />
                   </div>
                   <span
                     className={`font-medium truncate max-w-[150px] ${
-                      serviceUserData.movingHandling.parseError ? "text-rose-400" : "text-emerald-400"
+                      serviceUserData.movingHandling.parseError ? "text-destructive" : "text-success"
                     }`}
                   >
                     {serviceUserData.movingHandling.name}
@@ -375,11 +377,11 @@ export default function ServiceUserUpload() {
                     <Loader2 className="h-3 w-3 animate-spin" /> Parsing document...
                   </div>
                 ) : serviceUserData.movingHandling.parseError ? (
-                  <p className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-3 rounded-full mx-auto w-fit">
+                  <p className="text-xs text-destructive bg-destructive/8 py-1.5 px-3 rounded-full mx-auto w-fit">
                     {serviceUserData.movingHandling.parseError}
                   </p>
                 ) : (
-                  <p className="text-[11px] text-emerald-500/70">Ready for processing</p>
+                  <p className="text-[11px] text-success/70">Ready for processing</p>
                 )}
               </div>
             ) : (
@@ -458,15 +460,15 @@ export default function ServiceUserUpload() {
                 {(serviceUserData.additionalDocuments || []).map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/40 px-2 py-2">
                     <div className="min-w-0">
-                      <p className={`truncate text-[11px] ${doc.parseError ? "text-rose-400" : "text-foreground/80"}`}>
+                      <p className={`truncate text-[11px] ${doc.parseError ? "text-destructive" : "text-foreground/80"}`}>
                         {doc.name}
                       </p>
                       {doc.isParsing ? (
                         <span className="text-[10px] text-blue-400">Parsing...</span>
                       ) : doc.parseError ? (
-                        <span className="text-[10px] text-rose-400">{doc.parseError}</span>
+                        <span className="text-[10px] text-destructive">{doc.parseError}</span>
                       ) : (
-                        <span className="text-[10px] text-emerald-500/70">Ready</span>
+                        <span className="text-[10px] text-success/70">Ready</span>
                       )}
                     </div>
                     <Button

@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, ChevronRight, Search, Users, FileText, Loader2, Download, AlertCircle, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronRight, Search, Users, FileText, Download, AlertCircle, RefreshCw } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -164,9 +165,15 @@ export default function CarersList() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Loading care workers...
+            <div className="divide-y divide-border/30">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-24 ml-4" />
+                  <Skeleton className="h-5 w-16 rounded-full ml-auto" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              ))}
             </div>
           ) : filteredWorkersWithDiscrepancies.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -292,9 +299,14 @@ export default function CarersList() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Loading care workers...
+            <div className="divide-y divide-border/30">
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-24 ml-4" />
+                  <Skeleton className="h-5 w-20 rounded-full ml-auto" />
+                </div>
+              ))}
             </div>
           ) : filteredAllWorkers.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
