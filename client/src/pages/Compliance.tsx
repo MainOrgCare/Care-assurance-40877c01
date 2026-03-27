@@ -161,8 +161,8 @@ export default function Compliance() {
         <Card data-testid="stat-warnings">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
             <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Warnings</CardTitle>
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-yellow-500/10 shadow-[var(--shadow-xs)]">
-              <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-warning/10 shadow-[var(--shadow-xs)]">
+              <AlertTriangle className="h-4 w-4 text-warning" />
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
@@ -314,12 +314,12 @@ export default function Compliance() {
                         </Badge>
                       )}
                       {warningCount > 0 && (
-                        <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
+                        <Badge variant="warning" className="gap-1">
                           {warningCount} warnings
                         </Badge>
                       )}
                       {discrepancyCount === 0 && warningCount === 0 && (
-                        <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
+                        <Badge variant="success" className="gap-1">
                           <CheckCircle className="h-3 w-3" />
                           Clean
                         </Badge>

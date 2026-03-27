@@ -266,7 +266,7 @@ function PolicyAcknowledgement() {
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
               <p className="text-xs font-medium text-muted-foreground">Acknowledged</p>
-              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold text-green-600">{stats.acknowledged}</p>}
+              {isLoading ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-2xl font-bold text-success">{stats.acknowledged}</p>}
             </CardContent>
           </Card>
           <Card>
@@ -353,7 +353,7 @@ function PolicyAcknowledgement() {
                         <TableCell className="text-xs text-muted-foreground">v{policy.version}</TableCell>
                         <TableCell>
                           {isAcked ? (
-                            <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-[10px]">
+                            <Badge className="gap-1 bg-success/10 text-success border border-success/20 text-[10px]">
                               <CheckCircle2 size={10} /> Acknowledged
                             </Badge>
                           ) : (

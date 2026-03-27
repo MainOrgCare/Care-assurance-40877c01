@@ -196,13 +196,13 @@ export default function Performance() {
 
   const getComplianceColor = (pct: number) => {
     if (pct >= 90) return "text-success";
-    if (pct >= 70) return "text-amber-500";
+    if (pct >= 70) return "text-warning";
     return "text-destructive";
   };
 
   const getComplianceBarColor = (pct: number) => {
     if (pct >= 90) return "bg-success";
-    if (pct >= 70) return "bg-amber-500";
+    if (pct >= 70) return "bg-warning";
     return "bg-destructive";
   };
 
@@ -270,7 +270,7 @@ export default function Performance() {
             </Card>
             <Card className="col-span-1">
               <CardContent className="p-3.5 text-center">
-                <p className={cn("text-2xl font-bold tracking-tight tabular-nums", stats.avgCompliance >= 90 ? "text-success" : stats.avgCompliance >= 70 ? "text-amber-500" : "text-destructive")}>
+                <p className={cn("text-2xl font-bold tracking-tight tabular-nums", stats.avgCompliance >= 90 ? "text-success" : stats.avgCompliance >= 70 ? "text-warning" : "text-destructive")}>
                   {stats.avgCompliance}%
                 </p>
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Avg Compliance</p>
@@ -296,8 +296,8 @@ export default function Performance() {
             </Card>
             <Card className="col-span-1">
               <CardContent className="p-3.5 text-center">
-                <p className="text-2xl font-bold tracking-tight text-amber-500 tabular-nums">{stats.atRisk}</p>
-                <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest mt-0.5">At Risk</p>
+                <p className="text-2xl font-bold tracking-tight text-warning tabular-nums">{stats.atRisk}</p>
+                <p className="text-[9px] font-bold text-warning uppercase tracking-widest mt-0.5">At Risk</p>
               </CardContent>
             </Card>
             <Card className="col-span-1">
@@ -329,7 +329,7 @@ export default function Performance() {
                       {stats.compliant > 0 && stats.compliant}
                     </div>
                     <div
-                      className="h-full bg-amber-500 transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
+                      className="h-full bg-warning transition-all duration-700 flex items-center justify-center text-white text-[10px] font-bold"
                       style={{ width: `${(stats.atRisk / stats.total) * 100}%`, minWidth: stats.atRisk > 0 ? '2rem' : '0' }}
                     >
                       {stats.atRisk > 0 && stats.atRisk}
@@ -349,7 +349,7 @@ export default function Performance() {
                   <span className="text-xs text-muted-foreground">Compliant</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-warning" />
                   <span className="text-xs text-muted-foreground">At Risk (1-2 issues)</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -442,7 +442,7 @@ export default function Performance() {
                           <div className={cn(
                             "h-8 w-8 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0",
                             risk === "compliant" ? "bg-success/10 text-success" :
-                            risk === "at-risk" ? "bg-amber-500/10 text-amber-600" :
+                            risk === "at-risk" ? "bg-warning/10 text-warning" :
                             "bg-destructive/10 text-destructive"
                           )}>
                             {worker.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
@@ -475,7 +475,7 @@ export default function Performance() {
                           {risk !== "compliant" && (
                             <Badge variant="outline" className={cn(
                               "text-[9px] font-bold tracking-wider px-1.5 py-0",
-                              risk === "at-risk" ? "border-amber-500/30 text-amber-600" : "border-destructive/30 text-destructive"
+                              risk === "at-risk" ? "border-warning/30 text-warning" : "border-destructive/30 text-destructive"
                             )}>
                               {risk === "at-risk" ? "RISK" : "CRITICAL"}
                             </Badge>
@@ -497,8 +497,8 @@ export default function Performance() {
             <Card className="overflow-hidden">
               <CardHeader className="border-b border-border/30 pb-4">
                 <CardTitle className="flex items-center gap-3">
-                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-amber-500/8">
-                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-warning/8">
+                    <Trophy className="h-3.5 w-3.5 text-warning" />
                   </div>
                   Top Performers
                 </CardTitle>
@@ -594,7 +594,7 @@ export default function Performance() {
                   <div className={cn(
                     "h-10 w-10 rounded-xl flex items-center justify-center text-sm font-bold",
                     getRiskLevel(selectedWorker) === "compliant" ? "bg-success/10 text-success" :
-                    getRiskLevel(selectedWorker) === "at-risk" ? "bg-amber-500/10 text-amber-600" :
+                    getRiskLevel(selectedWorker) === "at-risk" ? "bg-warning/10 text-warning" :
                     "bg-destructive/10 text-destructive"
                   )}>
                     {selectedWorker.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
