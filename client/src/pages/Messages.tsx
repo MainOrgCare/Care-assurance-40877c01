@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -128,6 +129,7 @@ export default function Messages() {
         setSelectedMessage(prev => prev ? { ...prev, isRead: true } : prev);
       } catch (error) {
         console.error("Failed to mark message as read:", error);
+        toast({ title: "Warning", description: "Could not mark message as read", variant: "destructive" });
       }
     }
   };
@@ -239,7 +241,7 @@ export default function Messages() {
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">To *</label>
                   <Select value={composeForm.recipientId} onValueChange={(v) => setComposeForm({ ...composeForm, recipientId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select recipient..." /></SelectTrigger>
+                    <SelectTrigger aria-label="Select recipient"><SelectValue placeholder="Select recipient..." /></SelectTrigger>
                     <SelectContent>
                       {availableRecipients.map((u: UserForRecipient) => (
                         <SelectItem key={u.id} value={u.id}>
@@ -285,18 +287,31 @@ export default function Messages() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim() || composing}
-                  className="gap-1.5"
-                >
-                  {composing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={(!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim()) && !composing ? 0 : -1}>
+                        <Button
+                          onClick={handleSendMessage}
+                          disabled={!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim() || composing}
+                          className="gap-1.5"
+                        >
+                          {composing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          Send
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {(!composeForm.recipientId || !composeForm.subject.trim() || !composeForm.message.trim()) && !composing && (
+                      <TooltipContent>
+                        <p>Please fill in all required fields (To, Subject, Message)</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" size="sm" onClick={fetchMessages} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={fetchMessages} disabled={loading} aria-label="Refresh messages">
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>

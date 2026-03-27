@@ -2,10 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download } from "lucide-react";
+import { Loader2, FileText, AlertTriangle, CheckCircle, Clock, BarChart3, Download, RefreshCw } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { useDataExport } from "@/hooks/useDataExport";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AuditResults {
   discrepancies?: { length: number }[];
@@ -25,7 +26,7 @@ interface Audit {
 }
 
 export default function Compliance() {
-  const { data: audits, isLoading, error } = useQuery<Audit[]>({
+  const { data: audits, isLoading, error, refetch, isRefetching } = useQuery<Audit[]>({
     queryKey: queryKeys.audits.all(),
     queryFn: async () => {
       const res = await fetch("/api/audits", { credentials: "include" });
@@ -52,6 +53,10 @@ export default function Compliance() {
           <CardContent className="pt-6 flex flex-col items-center gap-3">
             <AlertTriangle className="h-8 w-8 text-destructive/50" />
             <p className="text-sm font-medium text-destructive">Failed to load compliance data. Please try again.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2">
+              {isRefetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Retry
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -87,28 +92,41 @@ export default function Compliance() {
           <h2 className="page-title">Compliance Overview</h2>
           <p className="page-subtitle max-w-lg">View audit history, discrepancies, and compliance metrics across all service users.</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={auditList.length === 0}
-          onClick={() =>
-            exportCSV(
-              auditList as unknown as Record<string, unknown>[],
-              [
-                { header: "Service User", accessor: "serviceUserName" },
-                { header: "Auditor", accessor: "auditor" },
-                { header: "Audit Type", accessor: "auditType" },
-                { header: "Period Start", accessor: "periodStart" },
-                { header: "Period End", accessor: "periodEnd" },
-                { header: "Created At", accessor: "createdAt" },
-              ],
-              `compliance-report-${new Date().toISOString().slice(0, 10)}`,
-            )
-          }
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Export Report
-        </Button>
+        <TooltipProvider>
+          <UITooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={auditList.length === 0 ? 0 : -1}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={auditList.length === 0}
+                  onClick={() =>
+                    exportCSV(
+                      auditList as unknown as Record<string, unknown>[],
+                      [
+                        { header: "Service User", accessor: "serviceUserName" },
+                        { header: "Auditor", accessor: "auditor" },
+                        { header: "Audit Type", accessor: "auditType" },
+                        { header: "Period Start", accessor: "periodStart" },
+                        { header: "Period End", accessor: "periodEnd" },
+                        { header: "Created At", accessor: "createdAt" },
+                      ],
+                      `compliance-report-${new Date().toISOString().slice(0, 10)}`,
+                    )
+                  }
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Report
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {auditList.length === 0 && (
+              <TooltipContent>
+                <p>No audit data to export yet</p>
+              </TooltipContent>
+            )}
+          </UITooltip>
+        </TooltipProvider>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -9,6 +9,7 @@ import { Terminal, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsR
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDataExport } from "@/hooks/useDataExport";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SystemLogEntry {
   id: string;
@@ -120,11 +121,24 @@ export default function SystemLogs() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportLogs} disabled={logs.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button variant="outline" onClick={fetchLogs} disabled={loading}>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={logs.length === 0 ? 0 : -1}>
+                  <Button variant="outline" size="sm" onClick={handleExportLogs} disabled={logs.length === 0}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {logs.length === 0 && (
+                <TooltipContent>
+                  <p>No log entries to export</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          <Button variant="outline" onClick={fetchLogs} disabled={loading} aria-label="Refresh system logs">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>

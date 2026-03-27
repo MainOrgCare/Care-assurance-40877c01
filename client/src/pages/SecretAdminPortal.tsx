@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 
 interface AdminAlert {
@@ -1283,38 +1284,51 @@ const AICostSection = memo(function AICostSection() {
                   <SelectItem value="other">Other providers</SelectItem>
                 </SelectContent>
               </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={filteredLogs.length === 0}
-                onClick={() => {
-                  const headers = ["Timestamp", "User", "Feature", "Provider", "Model", "Input Tokens", "Output Tokens", "Total Tokens", "Cost (micro $)", "Duration (ms)"];
-                  const rows = filteredLogs.map(log => [
-                    new Date(log.createdAt).toISOString(),
-                    log.username || "System",
-                    log.featureName,
-                    log.provider || "unknown",
-                    log.model,
-                    log.inputTokens,
-                    log.outputTokens,
-                    log.totalTokens,
-                    log.costMicroDollars,
-                    log.durationMs ?? "",
-                  ]);
-                  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `ai-usage-${new Date().toISOString().slice(0, 10)}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <Download size={14} />
-                Export CSV
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={filteredLogs.length === 0 ? 0 : -1}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={filteredLogs.length === 0}
+                        onClick={() => {
+                          const headers = ["Timestamp", "User", "Feature", "Provider", "Model", "Input Tokens", "Output Tokens", "Total Tokens", "Cost (micro $)", "Duration (ms)"];
+                          const rows = filteredLogs.map(log => [
+                            new Date(log.createdAt).toISOString(),
+                            log.username || "System",
+                            log.featureName,
+                            log.provider || "unknown",
+                            log.model,
+                            log.inputTokens,
+                            log.outputTokens,
+                            log.totalTokens,
+                            log.costMicroDollars,
+                            log.durationMs ?? "",
+                          ]);
+                          const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `ai-usage-${new Date().toISOString().slice(0, 10)}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                      >
+                        <Download size={14} />
+                        Export CSV
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {filteredLogs.length === 0 && (
+                    <TooltipContent>
+                      <p>No AI usage logs to export</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </CardHeader>

@@ -283,11 +283,11 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-compliance-score">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ? "100%" : "-"}
+                {isLoading ? <Skeleton className="h-7 w-14" /> : stats?.auditsCompleted ? "100%" : "-"}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                 <span className="inline-block h-1 w-1 rounded-full bg-success" />
-                {stats?.auditsCompleted ? "Based on completed audits" : "No data yet"}
+                {isLoading ? <Skeleton className="h-3 w-28 inline-block" /> : stats?.auditsCompleted ? "Based on completed audits" : "No data yet"}
               </p>
             </CardContent>
           </Card>
@@ -303,7 +303,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-audits-completed">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.auditsCompleted ?? 0}
+                {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.auditsCompleted ?? 0}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
@@ -323,10 +323,10 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className={cn("text-2xl font-bold tracking-tight tabular-nums", stats?.activeAlerts ? "text-destructive" : "text-foreground")} data-testid="text-active-alerts">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.activeAlerts ?? 0}
+                {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.activeAlerts ?? 0}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {stats?.activeAlerts ? "Attention required" : "All clear"}
+                {isLoading ? <Skeleton className="h-3 w-20 inline-block" /> : stats?.activeAlerts ? "Attention required" : "All clear"}
               </p>
             </CardContent>
           </Card>
@@ -342,7 +342,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-plans-updated">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.plansUpdated ?? 0}
+                {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.plansUpdated ?? 0}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">Recently synchronized</p>
             </CardContent>
@@ -359,7 +359,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits-widget">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
+                {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.medicationAudits ?? 0}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
@@ -376,7 +376,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-care-plan-reviews-widget">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
+                {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.carePlanReviews ?? 0}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
@@ -393,7 +393,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-0.5">
               <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments-widget">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
+                {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.riskAssessments ?? 0}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">Last 24 hours</p>
             </CardContent>
@@ -696,19 +696,19 @@ export default function Dashboard() {
                     <div className="space-y-1 pl-2.5 border-l-2 border-blue-500/20">
                        <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Medication Audits</p>
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits">
-                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.medicationAudits ?? 0}
+                         {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.medicationAudits ?? 0}
                        </p>
                     </div>
                     <div className="space-y-1 pl-2.5 border-l-2 border-indigo-500/20">
                        <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Care Plan Reviews</p>
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-care-plan-reviews">
-                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.carePlanReviews ?? 0}
+                         {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.carePlanReviews ?? 0}
                        </p>
                     </div>
                     <div className="space-y-1 pl-2.5 border-l-2 border-amber-500/20">
                        <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Risk Assessments</p>
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-risk-assessments">
-                         {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : stats?.riskAssessments ?? 0}
+                         {isLoading ? <Skeleton className="h-7 w-10" /> : stats?.riskAssessments ?? 0}
                        </p>
                     </div>
                  </div>
@@ -731,8 +731,16 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="px-3">
                 {isLoading ? (
-                  <div className="flex items-center justify-center h-48">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex items-start gap-4 p-3 rounded-lg border border-border/40">
+                        <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3 w-40" />
+                          <Skeleton className="h-2.5 w-56" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : recentAlerts.length > 0 ? (
                   <div className="space-y-2 overflow-y-auto max-h-[280px] pr-1">

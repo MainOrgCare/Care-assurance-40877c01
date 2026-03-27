@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDataExport } from "@/hooks/useDataExport";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CareWorkerDiscrepancy {
   date: string;
@@ -81,26 +82,39 @@ export default function CarersList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={careWorkers.length === 0}
-            onClick={() =>
-              exportCSV(
-                careWorkers as unknown as Record<string, unknown>[],
-                [
-                  { header: "Name", accessor: "name" },
-                  { header: "Audit Count", accessor: "auditCount" },
-                  { header: "Discrepancy Count", accessor: "discrepancyCount" },
-                  { header: "Last Seen", accessor: "lastSeen" },
-                ],
-                `care-workers-${new Date().toISOString().slice(0, 10)}`,
-              )
-            }
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={careWorkers.length === 0 ? 0 : -1}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={careWorkers.length === 0}
+                    onClick={() =>
+                      exportCSV(
+                        careWorkers as unknown as Record<string, unknown>[],
+                        [
+                          { header: "Name", accessor: "name" },
+                          { header: "Audit Count", accessor: "auditCount" },
+                          { header: "Discrepancy Count", accessor: "discrepancyCount" },
+                          { header: "Last Seen", accessor: "lastSeen" },
+                        ],
+                        `care-workers-${new Date().toISOString().slice(0, 10)}`,
+                      )
+                    }
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {careWorkers.length === 0 && (
+                <TooltipContent>
+                  <p>No care worker data to export yet</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           <div className="relative w-full md:w-[300px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <Input 
