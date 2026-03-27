@@ -983,7 +983,7 @@ class PIIVault {
     );
     
     // === PHASE 4: Labeled PII fields ===
-    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)['']s\b/g, (match, name) => {
+    scrubbed = scrubbed.replace(/\b([A-Z][a-z]+)'s\b/g, (match, name) => {
       if (isClinicalOrMedicalTerm(name)) return match;
       if (COMMON_ENGLISH_WORDS.has(name.toLowerCase())) return match;
       return `${this.store(name, 'NAME')}'s`;
@@ -992,7 +992,7 @@ class PIIVault {
     // Full name patterns (First Last or First Middle Last) — same line only
     // [ \t]+ prevents spanning newlines (which would incorrectly merge two lines)
     scrubbed = scrubbed.replace(
-      /\b([A-Z][a-z]+)[ \t]+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+)(?:[ \t]+((?:O['']|Mc|Mac)?[A-Za-z][a-z]+))?\b/g,
+      /\b([A-Z][a-z]+)[ \t]+((?:O'|Mc|Mac)?[A-Za-z][a-z]+)(?:[ \t]+((?:O'|Mc|Mac)?[A-Za-z][a-z]+))?\b/g,
       (match, first, second, third) => {
         const phrase = match.toLowerCase();
         if (CARE_PHRASE_WHITELIST.has(phrase)) return match;
