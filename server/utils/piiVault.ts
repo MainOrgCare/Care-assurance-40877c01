@@ -129,6 +129,7 @@ export const PII_PATTERNS = {
     /\b(?:The\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:House|Cottage|Lodge|Bungalow|Flat|Apartment|Villa|Manor)\b/gi,
 
   // Partial address fragments: "5 michaelgate, byker"
+  // Second word requires {3,} (min 4 total chars) to reject short words like "one" as false positives
   partialAddress: /\b\d{1,5}\s+[A-Za-z][A-Za-z'`-]{2,}(?:,\s*[A-Za-z][A-Za-z'`-]{3,})\b/g,
 
   // Case identifiers: "CASE-2-4150"
