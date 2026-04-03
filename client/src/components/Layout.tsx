@@ -695,7 +695,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "workspace-content-shell w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 lg:pt-5 pb-4 sm:pb-5 lg:pb-6",
+    isFullBleed ? "px-0 py-0" : "px-2.5 sm:px-4 lg:px-6 pt-3 sm:pt-4 lg:pt-5 pb-4 sm:pb-5 lg:pb-6",
     isSingleScreenRoute && "h-full"
   );
   const contentInnerClass = cn(
@@ -865,7 +865,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span className="sr-only">Toggle menu</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="p-0 w-[280px] border-r border-border bg-sidebar">
+                <SheetContent side="left" className="w-[min(20rem,calc(100vw-1rem))] border-r border-border bg-sidebar p-0">
                   <SidebarContent
                     location={location}
                     handleSecretClick={handleSecretClick}
@@ -890,7 +890,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
 
-              <div className="hidden lg:flex items-center gap-3 min-w-0 ml-1">
+              <div className="hidden min-[480px]:flex items-center gap-3 min-w-0 ml-1">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-primary/45">{pageMeta.section}</p>
                   <h2 className="text-[0.875rem] font-semibold tracking-[-0.012em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
@@ -1003,7 +1003,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <span className="sr-only">Toggle menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[280px] border-r border-border bg-sidebar">
+              <SheetContent side="left" className="w-[min(20rem,calc(100vw-1rem))] border-r border-border bg-sidebar p-0">
                 <SidebarContent
                   location={location}
                   handleSecretClick={handleSecretClick}

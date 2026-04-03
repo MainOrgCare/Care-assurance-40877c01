@@ -117,8 +117,8 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     label: "Care Plan",
     description: "Generate AI-powered care plans",
     href: "/service-users/upload",
-    panelTone: "bg-sky-500/[0.03] border-sky-500/20",
-    iconTone: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
+    panelTone: "bg-secondary/[0.03] border-secondary/20",
+    iconTone: "bg-secondary/12 text-secondary",
   },
   {
     icon: Shield,
@@ -598,7 +598,7 @@ export default function Dashboard() {
                   <h3 className="font-semibold text-[13px] mb-0.5 group-hover:text-primary transition-colors duration-150 text-foreground tracking-[-0.01em]">{action.label}</h3>
                   <p className="text-[11px] leading-relaxed text-muted-foreground/65">{action.description}</p>
                   
-                  <div className="flex items-center gap-1 mt-3 text-[10px] font-semibold text-primary/60 opacity-0 group-hover:opacity-100 translate-x-0 group-hover:translate-x-0.5 transition-all duration-200">
+                  <div className="mt-3 flex items-center gap-1 text-[10px] font-semibold text-primary/60 opacity-100 transition-all duration-200 sm:opacity-0 sm:group-hover:translate-x-0.5 sm:group-hover:opacity-100">
                     <span>Open</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
@@ -640,7 +640,7 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
                   {[1, 2, 3, 4].map(i => (
                     <div key={i} className="space-y-2 pl-2.5 border-l-2 border-border/20">
                       <Skeleton className="h-2.5 w-20" />
@@ -697,7 +697,7 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                 <div className="grid grid-cols-2 gap-6">
+                 <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
                     <div className="space-y-1 pl-2.5 border-l-2 border-primary/25">
                        <p className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/70">Medication Audits</p>
                        <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums" data-testid="text-medication-audits">
@@ -880,7 +880,7 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="pt-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-4 gap-4">
             {(() => {
               const totalWork = (stats?.auditsCompleted ?? 0) + (stats?.carePlanReviews ?? 0) + (stats?.riskAssessments ?? 0) + (stats?.medicationAudits ?? 0);
               const summaryItems = [

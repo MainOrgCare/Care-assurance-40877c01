@@ -166,6 +166,11 @@
     position: relative;
     z-index: 1;
   }
+  @media (max-width: 767px) {
+    body {
+      background-attachment: scroll;
+    }
+  }
   img, svg, video, canvas {
     display: block;
   }
