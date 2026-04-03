@@ -114,12 +114,18 @@ export default function Compliance() {
 
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="compliance-page">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h2 className="page-title">Compliance Overview</h2>
-          <p className="page-subtitle max-w-lg">View audit history, discrepancies, and compliance metrics across all service users.</p>
+      <div className="page-header">
+        <div className="page-header-copy">
+          <div className="page-header-icon">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div className="page-header-copy-body">
+            <h2 className="page-title">Compliance Overview</h2>
+            <p className="page-subtitle max-w-lg">View audit history, discrepancies, and compliance metrics across all service users.</p>
+          </div>
         </div>
         <TooltipProvider>
+          <div className="page-header-actions">
           <UITooltip>
             <TooltipTrigger asChild>
               <span tabIndex={auditList.length === 0 ? 0 : -1}>
@@ -153,6 +159,7 @@ export default function Compliance() {
               </TooltipContent>
             )}
           </UITooltip>
+          </div>
         </TooltipProvider>
       </div>
 
