@@ -5,6 +5,7 @@ import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { formControlClassName } from "./form-control-styles"
 
 const Select = SelectPrimitive.Root
 
@@ -19,7 +20,8 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between whitespace-nowrap rounded-xl border border-input/90 bg-card/92 px-3.5 py-2 text-[0.875rem] text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.28)] ring-offset-background data-[placeholder]:text-muted-foreground/70 focus:border-primary/45 focus:outline-none focus:ring-[3px] focus:ring-primary/12 focus:ring-offset-0 hover:border-primary/24 hover:bg-card disabled:cursor-not-allowed disabled:opacity-40 [&>span]:line-clamp-1",
+      formControlClassName,
+      "flex h-10 items-center justify-between whitespace-nowrap px-3.5 py-2 ring-offset-background data-[placeholder]:text-muted-foreground/70 [&>span]:line-clamp-1",
       className
     )}
     {...props}

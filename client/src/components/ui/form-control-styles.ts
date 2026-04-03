@@ -1,0 +1,2 @@
+export const formControlClassName =
+  "w-full rounded-xl border border-input/90 bg-card/92 text-[0.875rem] text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.28)] transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-muted-foreground/70 focus-visible:border-primary/45 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/12 focus-visible:ring-offset-0 focus-visible:bg-card hover:border-primary/24 hover:bg-card disabled:cursor-not-allowed disabled:opacity-40";
