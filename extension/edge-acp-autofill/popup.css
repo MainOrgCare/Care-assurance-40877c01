@@ -19,8 +19,8 @@
   --shadow-lg: 0 6px 12px -3px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
   --radius: 8px;
   --radius-sm: 6px;
-  --popup-width: 450px;
-  --popup-height: 600px;
+  --popup-width: min(450px, 100vw);
+  --popup-height: min(600px, 100vh);
   --header-height: 76px;
   --tab-height: 45px;
   --footer-height: 44px;
@@ -35,6 +35,9 @@
 html, body {
   width: var(--popup-width);
   height: var(--popup-height);
+  min-width: 300px;
+  max-width: 100vw;
+  max-height: 100vh;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -49,6 +52,8 @@ html, body {
 .popup-container {
   width: var(--popup-width);
   height: var(--popup-height);
+  max-width: 100vw;
+  max-height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -69,6 +74,10 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.header-content > :nth-child(2) {
+  min-width: 0;
 }
 
 .header-icon {
@@ -159,14 +168,14 @@ html, body {
 
 /* ===== CONTENT AREA (with tabs) ===== */
 .popup-content {
-  /* Calculate exact height: total - header - tabs - footer */
-  height: calc(var(--popup-height) - var(--header-height) - var(--tab-height) - var(--footer-height));
-  max-height: calc(var(--popup-height) - var(--header-height) - var(--tab-height) - var(--footer-height));
+  height: auto;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px;
   display: block;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .popup-content > * {
@@ -1023,6 +1032,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 11px;
@@ -1253,6 +1263,67 @@ html, body {
 
 .action-buttons .btn {
   flex: 1;
+}
+
+@media (max-width: 420px) {
+  .popup-header {
+    height: auto;
+    padding: 14px;
+  }
+
+  .header-content {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .connection-badge {
+    margin-left: 0;
+  }
+
+  .tab-btn {
+    gap: 4px;
+    padding: 10px 8px;
+    font-size: 11px;
+  }
+
+  .popup-content {
+    padding: 12px;
+  }
+
+  .document-type-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row,
+  .options-row,
+  .action-buttons,
+  .action-row,
+  .toolbar-actions,
+  .runtime-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-actions .btn-sm,
+  .action-row .btn,
+  .action-buttons .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .header-title {
+    font-size: 15px;
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+  }
+
+  .tab-btn svg {
+    display: none;
+  }
 }
 
 .btn-sm {

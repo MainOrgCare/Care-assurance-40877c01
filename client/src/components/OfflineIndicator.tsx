@@ -52,7 +52,7 @@ export function OfflineIndicator() {
   return (
     <div
       className={cn(
-        "fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-normal shadow-[var(--shadow-strong)] backdrop-blur-sm transition-all duration-300",
+        "fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-[100] flex w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-normal shadow-[var(--shadow-strong)] backdrop-blur-sm transition-all duration-300 sm:w-auto",
         isOffline
           ? "border border-destructive/30 bg-destructive/8 text-destructive"
           : "border border-success/30 bg-success/8 text-success"
