@@ -1251,7 +1251,7 @@ export default function RiskAssessment() {
   if (isAnyParsing()) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-in fade-in duration-500">
-        <Loader2 size={48} className="text-blue-500 animate-spin" />
+        <Loader2 size={48} className="text-primary animate-spin" />
         <div className="max-w-md space-y-2">
           <h2 className="text-2xl font-semibold text-foreground">Processing Documents</h2>
           <p className="text-muted-foreground">
@@ -1292,7 +1292,7 @@ export default function RiskAssessment() {
                   {serviceUserData.socialWork.parseError ? (
                     <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                   )}
                   <span className="text-muted-foreground">{serviceUserData.socialWork.name}</span>
                   {serviceUserData.socialWork.parseError && (
@@ -1305,7 +1305,7 @@ export default function RiskAssessment() {
                   {serviceUserData.initialAssessment.parseError ? (
                     <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                   )}
                   <span className="text-muted-foreground">{serviceUserData.initialAssessment.name}</span>
                   {serviceUserData.initialAssessment.parseError && (
@@ -1318,7 +1318,7 @@ export default function RiskAssessment() {
                   {serviceUserData.carePlan.parseError ? (
                     <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                   )}
                   <span className="text-muted-foreground">{serviceUserData.carePlan.name}</span>
                   {serviceUserData.carePlan.parseError && (
@@ -1641,7 +1641,7 @@ export default function RiskAssessment() {
                       key={assessment.name}
                       className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
                         selectedAssessments.has(assessment.name)
-                          ? "bg-blue-500/10 border-blue-500/30"
+                          ? "bg-primary/10 border-primary/30"
                           : "bg-muted border-border hover:border-muted-foreground/30"
                       }`}
                     >
@@ -1722,7 +1722,7 @@ export default function RiskAssessment() {
   if (step === "generate") {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-in fade-in duration-500">
-        <Loader2 size={48} className="text-blue-500 animate-spin" />
+        <Loader2 size={48} className="text-primary animate-spin" />
         <div className="max-w-md space-y-2">
           <h2 className="text-2xl font-semibold text-foreground">Generating Risk Assessments</h2>
           <p className="text-muted-foreground">

@@ -117,7 +117,7 @@ const CopyButton = memo(function CopyButton({ text, label }: { text: string; lab
 
   return (
     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
-      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+      {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
     </Button>
   );
 });
@@ -1620,7 +1620,7 @@ export default function PlanEnhancer() {
                   </div>
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 pb-2 border-b border-border">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <div className="w-3 h-3 rounded-full bg-success" />
                       <h4 className="font-semibold text-foreground">Enhanced Output</h4>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
@@ -1645,7 +1645,7 @@ export default function PlanEnhancer() {
                             ))}
                           </div>
                         )}
-                        <p className="text-xs text-blue-400 italic mt-4">
+                        <p className="text-xs text-primary italic mt-4">
                           See full enhanced content in the sections below
                         </p>
                       </div>

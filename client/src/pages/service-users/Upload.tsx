@@ -329,7 +329,7 @@ export default function ServiceUserUpload() {
               ? "border-success/40 bg-success/5 shadow-glow"
               : dragOver === "movingHandling"
                 ? "border-secondary/50 bg-secondary/5 border-dashed border-2 scale-[1.03]"
-                : "border-dashed border-2 border-border/60 hover:border-sky-500/40 hover:bg-muted/30"
+                : "border-dashed border-2 border-border/60 hover:border-primary/40 hover:bg-muted/30"
           )}
           onDrop={(e) => handleDrop("movingHandling", e)}
           onDragOver={(e) => handleDragOver("movingHandling", e)}

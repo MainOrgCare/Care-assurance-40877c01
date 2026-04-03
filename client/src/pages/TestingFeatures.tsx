@@ -5129,7 +5129,7 @@ export default function TestingFeatures() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_55%)]" />
           <CardHeader className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
                 <Copy className="h-5 w-5" />
               </div>
               <div>
@@ -5494,7 +5494,7 @@ export default function TestingFeatures() {
               value={summary.totalEmpty.toLocaleString()}
             />
             <MetricCard
-              icon={<Clock4 className="h-4 w-4 text-sky-500" />}
+              icon={<Clock4 className="h-4 w-4 text-secondary" />}
               label="Schedule Drift Alerts"
               value={summary.scheduleAlerts.toLocaleString()}
               helper="Same carer moved >2h"

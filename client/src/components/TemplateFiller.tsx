@@ -198,7 +198,7 @@ export function TemplateFiller({
                   placeholder={p.hint}
                   value={values[p.placeholder] || ""}
                   onChange={(e) => updateValue(p.placeholder, e.target.value)}
-                  className={values[p.placeholder]?.trim() ? "border-green-300 dark:border-green-700" : ""}
+                  className={values[p.placeholder]?.trim() ? "border-success/40" : ""}
                 />
                 <p className="text-xs text-muted-foreground">{p.hint}</p>
               </div>
