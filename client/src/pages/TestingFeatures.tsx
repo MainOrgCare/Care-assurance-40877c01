@@ -5471,19 +5471,19 @@ export default function TestingFeatures() {
               helper={`${summary.totalPrimary.toLocaleString()} unique slots`}
             />
             <MetricCard
-              icon={<Users className="h-4 w-4 text-slate-600" />}
+              icon={<Users className="h-4 w-4 text-muted-foreground" />}
               label="Duplicate Slot Rows"
               value={summary.duplicateCount.toLocaleString()}
               helper="Same user/date/time — ignored"
             />
             <MetricCard
-              icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
+              icon={<CheckCircle2 className="h-4 w-4 text-success" />}
               label="Clean Rows"
               value={summary.clean.toLocaleString()}
               helper="No warnings detected"
             />
             <MetricCard
-              icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
+              icon={<AlertCircle className="h-4 w-4 text-warning" />}
               label="Needs Attention"
               value={summary.attention.toLocaleString()}
               helper="Contains missing or risky values"
@@ -5724,7 +5724,7 @@ export default function TestingFeatures() {
           <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.14),transparent_55%)]" />
             <CardHeader className="relative z-10 flex flex-row items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
                 <Zap className="h-5 w-5" />
               </div>
               <div>
@@ -7970,9 +7970,9 @@ function QualityDimensionCard({
   const tone: InsightTone = score >= 70 ? "default" : score >= 55 ? "warning" : "destructive";
   const gradeColor =
     grade === "A" ? "text-success" :
-    grade === "B" ? "text-sky-600 dark:text-sky-400" :
+    grade === "B" ? "text-primary" :
     grade === "C" ? "text-warning" :
-    grade === "D" ? "text-orange-600 dark:text-orange-400" :
+    grade === "D" ? "text-warning" :
     "text-destructive";
 
   return (
