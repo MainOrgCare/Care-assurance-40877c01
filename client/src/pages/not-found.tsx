@@ -22,7 +22,7 @@ export default function NotFound() {
             </div>
             <div className="space-y-2.5">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-destructive/60">Error 404</p>
-              <h1 className="text-[1.5rem] font-heading font-bold text-foreground tracking-[-0.02em]">Page not found</h1>
+              <h1 className="text-2xl font-heading font-bold text-foreground tracking-[-0.02em]">Page not found</h1>
               <p className="text-[13px] text-muted-foreground leading-relaxed max-w-xs mx-auto">
                 The page you were looking for does not exist or has been moved.
               </p>
