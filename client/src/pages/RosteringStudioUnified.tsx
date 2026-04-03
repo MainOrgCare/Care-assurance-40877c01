@@ -2294,9 +2294,9 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-map flex items-center gap-2 px-3 py-2">
-                        <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <MapIcon className="h-4 w-4 text-primary" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Map</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-primary/10 text-primary border-primary/20">
                           {routeEntriesSorted.length}
                         </Badge>
                       </div>
@@ -2324,9 +2324,9 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-call-times flex items-center gap-2 px-3 py-2">
-                        <Clock className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <Clock className="h-4 w-4 text-secondary" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Call Times</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-secondary/10 text-secondary border-secondary/20">
                           {callTimesForEditor.length}
                         </Badge>
                       </div>
@@ -2402,7 +2402,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-workload flex items-center gap-2 px-3 py-2">
-                        <BarChart3 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <BarChart3 className="h-4 w-4 text-success" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Workload</span>
                       </div>
                       <div className="rstd-scroll-native flex-1 min-h-0 p-0.5">
@@ -2436,7 +2436,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-optimization flex items-center gap-2 px-3 py-2">
-                        <Sliders className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                        <Sliders className="h-4 w-4 text-warning" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Optimization</span>
                       </div>
                       <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
@@ -2499,7 +2499,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-ai flex items-center gap-2 px-3 py-2">
-                        <Brain className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                        <Brain className="h-4 w-4 text-primary" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">AI Schedule Analysis</span>
                       </div>
                       <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
@@ -2550,7 +2550,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-comparison flex items-center gap-2 px-3 py-2">
-                        <GitCompare className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                        <GitCompare className="h-4 w-4 text-secondary" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Schedule Comparison</span>
                       </div>
                       <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
@@ -2621,7 +2621,7 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-templates flex items-center gap-2 px-3 py-2">
-                        <BookTemplate className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                        <BookTemplate className="h-4 w-4 text-destructive" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Template Library</span>
                       </div>
                       <ScrollArea className="rstd-scroll-area flex-1 min-h-0">

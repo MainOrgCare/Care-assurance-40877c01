@@ -43,8 +43,8 @@ const conflictConfig: Record<ConflictType, { icon: typeof AlertTriangle; color: 
   },
   "time-critical": {
     icon: AlertTriangle,
-    color: "text-orange-600 dark:text-orange-400",
-    bgColor: "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/50",
+    color: "text-warning",
+    bgColor: "bg-warning/8 border-warning/20",
   },
   workload: {
     icon: Users,

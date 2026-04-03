@@ -97,7 +97,7 @@ const CopyButton = memo(function CopyButton({ text, label }: { text: string; lab
 
   return (
     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} aria-label={label ? `Copy ${label}` : 'Copy to clipboard'} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
-      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+      {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
     </Button>
   );
 });
@@ -761,10 +761,10 @@ The AI will automatically extract:
                                     <span className="px-2 py-1 bg-warning/15 text-warning border border-warning/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Note</span>
                                   )}
                                   {disc.actions.meeting === "phone" && (
-                                    <span className="px-2 py-1 bg-blue-500/15 text-blue-400 border border-blue-400/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Phone</span>
+                                    <span className="px-2 py-1 bg-primary/15 text-primary border border-primary/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Phone</span>
                                   )}
                                   {disc.actions.meeting === "in_person" && (
-                                    <span className="px-2 py-1 bg-purple-500/15 text-purple-400 border border-purple-400/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">1-to-1</span>
+                                    <span className="px-2 py-1 bg-primary/15 text-primary border border-primary/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">1-to-1</span>
                                   )}
                                   {disc.actions.referToManager && (
                                     <span className="px-2 py-1 bg-destructive/15 text-destructive border border-destructive/20 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-sm">Manager</span>

@@ -211,7 +211,7 @@ const SidebarContent = memo(function SidebarContent({
               <h1 className="font-heading text-[15px] leading-none tracking-[-0.03em]">
                 <span className="font-bold text-sidebar-foreground">Care</span><span className="font-medium text-sidebar-foreground/58">Assurance</span>
               </h1>
-              <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/42">Operations Platform</span>
+              <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/42">Compliance Platform</span>
             </div>
             )}
           </div>

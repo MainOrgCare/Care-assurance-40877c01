@@ -50,7 +50,7 @@
 .homepage-theme .home-header.is-scrolled {
   background: color-mix(in oklab, var(--color-card) 86%, transparent);
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 65%, transparent);
-  box-shadow: 0 20px 40px -34px rgba(15, 23, 42, 0.55);
+  box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.35);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
@@ -138,29 +138,28 @@
   border: 1px solid color-mix(in oklab, var(--color-border) 74%, white);
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white) 0%, color-mix(in oklab, var(--color-card) 92%, transparent) 100%);
-  border-radius: 24px;
-  box-shadow: var(--shadow-medium);
+  border-radius: 20px;
+  box-shadow: var(--shadow-soft);
   transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
 .homepage-theme .home-card:hover {
   border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  box-shadow: var(--shadow-strong);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-1px);
 }
 
 .homepage-theme .home-card-soft {
   border: 1px solid color-mix(in oklab, var(--color-border) 72%, white);
   background: color-mix(in oklab, var(--color-card) 84%, transparent);
-  border-radius: 18px;
-  box-shadow: var(--shadow-sm);
+  border-radius: 16px;
+  box-shadow: var(--shadow-xs);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .homepage-theme .home-card-soft:hover {
   border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-  box-shadow: var(--shadow-soft);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .homepage-theme .home-pill {
@@ -352,9 +351,9 @@
 }
 
 .homepage-theme .home-workflow-card:hover {
-  box-shadow: var(--shadow-medium);
+  box-shadow: var(--shadow-soft);
   border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 @media (min-width: 768px) {

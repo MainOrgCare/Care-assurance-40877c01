@@ -122,12 +122,12 @@ export default function PrivacyPolicy() {
 
             <section>
               <h3 className="text-lg font-semibold text-foreground">6. Volatile Processing and Retention</h3>
-              <div className="rounded-lg p-4 mb-4 bg-teal-500/10 border border-teal-500/20">
+              <div className="rounded-lg p-4 mb-4 bg-secondary/10 border border-secondary/20">
                 <div className="flex items-start gap-3">
-                  <Clock className="h-5 w-5 flex-shrink-0 mt-0.5 text-teal-500" />
+                  <Clock className="h-5 w-5 flex-shrink-0 mt-0.5 text-secondary" />
                   <div>
-                    <p className="font-medium mb-2 text-teal-600">30-minute deletion model</p>
-                    <p className="text-sm text-teal-800 dark:text-teal-300">
+                    <p className="font-medium mb-2 text-secondary">30-minute deletion model</p>
+                    <p className="text-sm text-foreground">
                       Uploaded document content is designed to be processed temporarily and automatically cleared after inactivity. Operational details may vary depending on deployment configuration.
                     </p>
                   </div>
@@ -185,7 +185,7 @@ export default function PrivacyPolicy() {
                 If you are a user acting for a Controller organisation, requests about the content of care documents should normally be directed to your organisation.
               </p>
               <p className="mt-4 text-muted-foreground">
-                You can complain to the ICO: <a href="https://ico.org.uk" className="hover:underline text-teal-500">ico.org.uk</a>
+                You can complain to the ICO: <a href="https://ico.org.uk" className="hover:underline text-secondary">ico.org.uk</a>
               </p>
             </section>
 
@@ -363,7 +363,7 @@ export default function PrivacyPolicy() {
                 <strong>Note:</strong> These data protection rights are separate from Lewis Barron's right to terminate access to the Software. Termination of access does not affect your ability to exercise your data protection rights regarding any personal data that has been collected.
               </p>
               <p className="mt-4 text-muted-foreground">
-                <strong>Right to Complain:</strong> You have the right to lodge a complaint with the Information Commissioner's Office (ICO) if you believe your data protection rights have been violated. ICO contact: <a href="https://ico.org.uk" className="hover:underline text-teal-500">ico.org.uk</a>
+                <strong>Right to Complain:</strong> You have the right to lodge a complaint with the Information Commissioner's Office (ICO) if you believe your data protection rights have been violated. ICO contact: <a href="https://ico.org.uk" className="hover:underline text-secondary">ico.org.uk</a>
               </p>
             </section>
 
@@ -399,7 +399,7 @@ export default function PrivacyPolicy() {
                   <Lock className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
                   <div>
                     <p className="font-medium mb-2 text-primary">ORIGINAL WORK AND WAIVER OF CLAIMS</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                    <p className="text-sm text-muted-foreground">
                       The name "CareAssurance," the CareAssurance logo, all related names, logos, designs, user interface designs, visual elements, and all associated branding elements are the original creative works of Lewis Barron, independently conceived and created. All rights in and to these elements are exclusively reserved.
                     </p>
                   </div>

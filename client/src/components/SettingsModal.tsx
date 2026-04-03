@@ -68,10 +68,10 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { id: "light", label: "Light", icon: "☀️", color: "bg-white border-gray-200" },
-                { id: "dark", label: "Dark", icon: "🌙", color: "bg-slate-900 border-slate-700" },
-                { id: "midnight", label: "Midnight", icon: "🌌", color: "bg-blue-950 border-blue-900" },
-                { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-cyan-950 border-cyan-900" }
+                { id: "light", label: "Light", icon: "☀️", color: "bg-card border-border" },
+                { id: "dark", label: "Dark", icon: "🌙", color: "bg-foreground border-foreground/80" },
+                { id: "midnight", label: "Midnight", icon: "🌌", color: "bg-primary border-primary/80" },
+                { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-secondary border-secondary/80" }
               ].map((t) => (
                 <motion.div
                   key={t.id}

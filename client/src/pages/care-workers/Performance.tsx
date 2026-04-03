@@ -393,8 +393,8 @@ export default function Performance() {
             <CardHeader className="border-b border-border/30 pb-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <CardTitle className="flex items-center gap-3 text-sm">
-                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-teal-500/8">
-                    <Users className="h-3.5 w-3.5 text-teal-500" />
+                  <div className="h-7 w-7 rounded-md flex items-center justify-center bg-secondary/8">
+                    <Users className="h-3.5 w-3.5 text-secondary" />
                   </div>
                   Staff Roster ({filteredAndSortedWorkers.length})
                 </CardTitle>

@@ -150,7 +150,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                       <div>Regular: {formatCurrency(totals.regularPay)}</div>
-                      <div className="text-orange-600">Overtime: {formatCurrency(totals.overtimePay)}</div>
+                      <div className="text-warning">Overtime: {formatCurrency(totals.overtimePay)}</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -210,7 +210,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-orange-500" />
+                        <div className="h-3 w-3 rounded-full bg-warning" />
                         <span className="text-sm">Overtime Pay</span>
                       </div>
                       <div className="text-right">
@@ -237,10 +237,10 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
               </Card>
 
               {totals.overtimeHours > 0 && (
-                <Card className="border-orange-500">
+                <Card className="border-warning">
                   <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-orange-600" />
+                      <Clock className="h-4 w-4 text-warning" />
                       Overtime Alert
                     </CardTitle>
                   </CardHeader>
@@ -277,7 +277,7 @@ export default function CostAnalysisDashboard({ workers }: CostAnalysisProp) {
                         <TableCell className="text-right">{formatHours(worker.regularHours)}</TableCell>
                         <TableCell className="text-right">
                           {worker.overtimeHours > 0 ? (
-                            <span className="text-orange-600 font-semibold">
+                            <span className="text-warning font-semibold">
                               {formatHours(worker.overtimeHours)}
                             </span>
                           ) : (

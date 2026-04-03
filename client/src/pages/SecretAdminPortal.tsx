@@ -467,8 +467,8 @@ const AIAdminLog = memo(function AIAdminLog() {
   const providerRetryBadgeClass = (provider: string): string => {
     const normalized = (provider || "unknown").toLowerCase();
     if (normalized === "openai") return "border-success/30 bg-success/10 text-success";
-    if (normalized === "local") return "border-sky-500/35 bg-sky-500/10 text-sky-700";
-    if (normalized === "github") return "border-violet-500/35 bg-violet-500/10 text-violet-700";
+    if (normalized === "local") return "border-secondary/35 bg-secondary/10 text-secondary";
+    if (normalized === "github") return "border-primary/35 bg-primary/10 text-primary";
     return "border-border/60 bg-muted/30 text-muted-foreground";
   };
 
@@ -1011,12 +1011,12 @@ const AICostSection = memo(function AICostSection() {
 
   const featureColors: Record<string, string> = {
     "emar_metadata": "bg-primary/10 text-primary",
-    "emar_entries": "bg-indigo-500/10 text-indigo-500",
-    "emar_pass": "bg-purple-500/10 text-purple-500",
+    "emar_entries": "bg-primary/10 text-primary",
+    "emar_pass": "bg-primary/10 text-primary",
     "drug_interactions": "bg-destructive/10 text-destructive",
     "care_plan": "bg-success/10 text-success",
     "risk_assessment": "bg-warning/100/10 text-warning",
-    "plan_enhancer": "bg-cyan-500/10 text-cyan-500",
+    "plan_enhancer": "bg-secondary/10 text-secondary",
   };
 
   const getFeatureColor = (feature: string): string => {
@@ -1111,11 +1111,11 @@ const AICostSection = memo(function AICostSection() {
         <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <TrendingUp size={14} className="text-purple-600" /> Features Used
+              <TrendingUp size={14} className="text-primary" /> Features Used
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-violet-600">{stats ? Object.keys(stats.byFeature).length : 0}</div>
+            <div className="text-2xl font-semibold text-primary">{stats ? Object.keys(stats.byFeature).length : 0}</div>
             <p className="text-xs text-muted-foreground">Unique AI features</p>
           </CardContent>
         </Card>
@@ -1137,7 +1137,7 @@ const AICostSection = memo(function AICostSection() {
         <Card className="border-border/60 bg-background/70 shadow-soft">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Cpu size={14} className="text-sky-500" /> Cost Efficiency
+              <Cpu size={14} className="text-secondary" /> Cost Efficiency
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1666,7 +1666,7 @@ const AIProviderSection = memo(function AIProviderSection() {
     <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
       <CardHeader className="border-b border-border/30 bg-muted/30">
         <CardTitle className="flex items-center gap-2 text-foreground text-base">
-          <Cpu size={18} className="text-purple-400" />
+          <Cpu size={18} className="text-primary" />
           AI Configuration
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm">
@@ -1711,7 +1711,7 @@ const AIProviderSection = memo(function AIProviderSection() {
                     ? "bg-success/10 text-success"
                     : hasOpenAIKey
                       ? "bg-muted/50 text-muted-foreground"
-                      : "bg-yellow-100 text-yellow-600"
+                      : "bg-warning/10 text-warning"
                 }`}
               >
                 {!hasOpenAIKey ? "Key Missing" : selectedProvider === "openai" ? "Active" : "Available"}
@@ -1724,17 +1724,17 @@ const AIProviderSection = memo(function AIProviderSection() {
               disabled={updating || !hasPATKey}
               className={`p-4 rounded-lg border-2 text-left transition-all ${
                 selectedProvider === "github" 
-                  ? "border-purple-500/50 bg-purple-50" 
+                  ? "border-primary/50 bg-primary/5" 
                   : hasPATKey 
-                    ? "border-border/40 bg-muted/30 hover:border-purple-300" 
+                    ? "border-border/40 bg-muted/30 hover:border-primary/40" 
                     : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasPATKey ? "bg-purple-500/20" : "bg-muted/50"
+                  hasPATKey ? "bg-primary/20" : "bg-muted/50"
                 }`}>
-                  <Cpu size={20} className={hasPATKey ? "text-purple-400" : "text-muted-foreground/60"} />
+                  <Cpu size={20} className={hasPATKey ? "text-primary" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">GitHub AI</div>
@@ -1747,10 +1747,10 @@ const AIProviderSection = memo(function AIProviderSection() {
                 variant="secondary"
                 className={`mt-2 ${
                   selectedProvider === "github"
-                    ? "bg-purple-500/20 text-purple-600"
+                    ? "bg-primary/20 text-primary"
                     : hasPATKey
                       ? "bg-muted/50 text-muted-foreground"
-                      : "bg-yellow-100 text-yellow-600"
+                      : "bg-warning/10 text-warning"
                 }`}
               >
                 {!hasPATKey ? "Key Missing" : selectedProvider === "github" ? "Active" : "Available"}
@@ -1763,17 +1763,17 @@ const AIProviderSection = memo(function AIProviderSection() {
               disabled={updating || !hasLocalLLM}
               className={`p-4 rounded-lg border-2 text-left transition-all ${
                 selectedProvider === "local" 
-                  ? "border-sky-500/50 bg-sky-50" 
+                  ? "border-secondary/50 bg-secondary/5" 
                   : hasLocalLLM 
-                    ? "border-border/40 bg-muted/30 hover:border-sky-300" 
+                    ? "border-border/40 bg-muted/30 hover:border-secondary/40" 
                     : "border-border/40 bg-muted/40 opacity-60 cursor-not-allowed"
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  hasLocalLLM ? "bg-sky-500/20" : "bg-muted/50"
+                  hasLocalLLM ? "bg-secondary/20" : "bg-muted/50"
                 }`}>
-                  <Server size={20} className={hasLocalLLM ? "text-sky-400" : "text-muted-foreground/60"} />
+                  <Server size={20} className={hasLocalLLM ? "text-secondary" : "text-muted-foreground/60"} />
                 </div>
                 <div>
                   <div className="font-medium text-foreground">Local ({localLLMModel.split("/").pop() || localLLMModel})</div>
@@ -1787,17 +1787,17 @@ const AIProviderSection = memo(function AIProviderSection() {
                   variant="secondary"
                   className={`${
                     selectedProvider === "local"
-                      ? "bg-sky-500/20 text-sky-600"
+                      ? "bg-secondary/20 text-secondary"
                       : hasLocalLLM
                         ? "bg-muted/50 text-muted-foreground"
-                        : "bg-yellow-100 text-yellow-600"
+                        : "bg-warning/10 text-warning"
                   }`}
                 >
                   {!hasLocalLLM ? "Offline" : selectedProvider === "local" ? "Active" : "Available"}
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={requireLiveWebForLocal ? "border-sky-500/35 bg-sky-500/10 text-sky-700" : "border-border/60 bg-muted/40 text-muted-foreground"}
+                  className={requireLiveWebForLocal ? "border-secondary/35 bg-secondary/10 text-secondary" : "border-border/60 bg-muted/40 text-muted-foreground"}
                 >
                   {requireLiveWebForLocal ? "Web Policy: Enforced" : "Web Policy: Permissive"}
                 </Badge>
@@ -1871,12 +1871,12 @@ const AIProviderSection = memo(function AIProviderSection() {
           </div>
           
           {selectedProvider === "local" && (
-            <div className="mt-3 p-3 bg-sky-500/10 rounded-lg border border-sky-500/20">
+            <div className="mt-3 p-3 bg-secondary/10 rounded-lg border border-secondary/20">
               <div className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Local LLM ({localLLMModel.split("/").pop() || localLLMModel})</span> - All data stays on your servers. No external API calls. $0 cost.
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-sky-500/30 bg-background/70 p-3">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-secondary/30 bg-background/70 p-3">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-foreground">Require live web/BNF access</span>
                   <span className="text-[11px] text-muted-foreground">
@@ -1945,11 +1945,11 @@ const AIProviderSection = memo(function AIProviderSection() {
 
         <div className="border-t border-border/30 pt-6">
           <h4 className="text-sm font-medium text-foreground mb-3">AI Model Strategy</h4>
-          <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+          <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
             <div className="font-medium text-foreground mb-2">Optimized Tiered Approach</div>
             <div className="text-xs text-muted-foreground space-y-2">
               <div className="flex items-start gap-2">
-                <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 shrink-0">{selectedModel}</Badge>
+                <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 shrink-0">{selectedModel}</Badge>
                 <span>Core EMAR extraction (accuracy critical)</span>
               </div>
               <div className="flex items-start gap-2">
@@ -2423,7 +2423,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                     <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse" />
                     <div>
                       <span className="font-medium text-foreground">{user.username}</span>
-                      <Badge variant="outline" className={`ml-2 text-xs ${user.role === "admin" ? "border-indigo-500/50 text-indigo-300" : "border-border text-foreground"}`}>
+                      <Badge variant="outline" className={`ml-2 text-xs ${user.role === "admin" ? "border-primary/50 text-primary" : "border-border text-foreground"}`}>
                         {user.role}
                       </Badge>
                     </div>
@@ -3140,7 +3140,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Archive size={14} className="text-gray-500" /> View
+              <Archive size={14} className="text-muted-foreground" /> View
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -3163,7 +3163,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2 text-foreground text-base">
-                <Mail size={18} className="text-teal-400" />
+                <Mail size={18} className="text-secondary" />
                 Contact Form Messages
               </CardTitle>
               <CardDescription className="text-muted-foreground text-sm">
@@ -3221,7 +3221,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
                       </div>
                       <a
                         href={`mailto:${msg.email}`}
-                        className="text-sm text-teal-400 hover:underline"
+                        className="text-sm text-secondary hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.email}
@@ -3275,7 +3275,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Email</Label>
-                  <a href={`mailto:${selectedMessage.email}`} className="font-medium text-teal-400 hover:underline flex items-center gap-1">
+                  <a href={`mailto:${selectedMessage.email}`} className="font-medium text-secondary hover:underline flex items-center gap-1">
                     {selectedMessage.email}
                     <ExternalLink size={12} />
                   </a>
@@ -3767,7 +3767,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Server size={14} className="text-sky-500" /> Runtime Uptime
+              <Server size={14} className="text-secondary" /> Runtime Uptime
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -3783,7 +3783,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium uppercase tracking-wider flex items-center gap-2 text-muted-foreground">
-              <Cpu size={14} className="text-purple-600" /> Memory (RSS)
+              <Cpu size={14} className="text-primary" /> Memory (RSS)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -3858,7 +3858,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
           <div className="rounded-lg border p-4 space-y-4 border-border bg-muted/50">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <CalendarClock size={16} className="text-sky-500" />
+                <CalendarClock size={16} className="text-secondary" />
                 <p className="text-sm font-semibold text-foreground">Scheduled Maintenance Window</p>
               </div>
               <div className="flex items-center gap-2">
@@ -4742,8 +4742,8 @@ export default function SecretAdminPortal() {
                 <Terminal size={80} className="text-muted-foreground" />
               </div>
               <div className="relative z-10 w-full">
-                <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-purple-500/8">
-                  <Terminal size={18} className="text-purple-500" />
+                <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-primary/8">
+                  <Terminal size={18} className="text-primary" />
                 </div>
                 <h3 className="text-[0.8125rem] font-semibold mb-1 text-foreground">System Log</h3>
                 <p className="text-xs text-muted-foreground">View audit completion records.</p>
@@ -5187,7 +5187,7 @@ export default function SecretAdminPortal() {
                           </TableCell>
                           <TableCell className="text-muted-foreground hidden sm:table-cell" data-testid={`text-jobtitle-${u.id}`}>{u.jobTitle || "-"}</TableCell>
                           <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className={u.role === "admin" ? "border-indigo-500/50 text-indigo-300" : "border-border text-foreground"} data-testid={`badge-role-${u.id}`}>
+                            <Badge variant="outline" className={u.role === "admin" ? "border-primary/50 text-primary" : "border-border text-foreground"} data-testid={`badge-role-${u.id}`}>
                               {u.role}
                             </Badge>
                           </TableCell>
@@ -5247,7 +5247,7 @@ export default function SecretAdminPortal() {
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                className="h-7 w-7 p-0 text-orange-400 hover:text-orange-300 hover:bg-orange-950/30"
+                                className="h-7 w-7 p-0 text-warning hover:text-warning/80 hover:bg-warning/10"
                                 onClick={() => handleDisconnectSession(u.id, u.username)}
                                 title="Disconnect user session"
                                 aria-label="Disconnect user session"
@@ -5593,7 +5593,7 @@ export default function SecretAdminPortal() {
         <DialogContent className="bg-card border-border max-w-4xl max-h-[80vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-foreground flex items-center gap-2">
-              <Terminal size={20} className="text-purple-400" /> System Log
+              <Terminal size={20} className="text-primary" /> System Log
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Audit completion records showing EMAR and Visit audits with service user initials only.

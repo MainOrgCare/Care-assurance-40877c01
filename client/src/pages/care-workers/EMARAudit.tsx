@@ -403,7 +403,7 @@ const CopyButton = memo(function CopyButton({ text, label }: { text: string; lab
 
   return (
     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} aria-label={label ? `Copy ${label}` : 'Copy to clipboard'} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
-      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+      {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
     </Button>
   );
 });
@@ -3659,7 +3659,7 @@ ${generatedProtocol.additionalComments}`;
                       size="sm"
                       variant="default"
                       onClick={applyAllCorrections}
-                      className="gap-1.5 bg-teal-600 hover:bg-teal-700"
+                      className="gap-1.5 bg-secondary hover:bg-secondary/90"
                       data-testid="button-apply-corrections"
                     >
                       <Save size={14} />
@@ -4374,15 +4374,15 @@ ${generatedProtocol.additionalComments}`;
           </Card>
 
           {result.officeClosedEntries && result.officeClosedEntries.length > 0 && (
-            <Card className="app-surface  overflow-hidden border-blue-500/20" data-testid="card-office-closed-entries">
-              <CardHeader className="bg-blue-500/5 flex flex-row items-center justify-between border-b border-border/40 py-6">
+            <Card className="app-surface  overflow-hidden border-primary/20" data-testid="card-office-closed-entries">
+              <CardHeader className="bg-primary/5 flex flex-row items-center justify-between border-b border-border/40 py-6">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500 shadow-sm">
+                  <div className="h-9 w-9 rounded-xl bg-primary/20 flex items-center justify-center text-primary shadow-sm">
                     <Users className="h-5 w-5" />
                   </div>
                   <div>
                     <CardTitle className="text-lg">Office Staff Entries</CardTitle>
-                    <CardDescription className="font-semibold text-blue-600/80 uppercase tracking-tighter text-xs">
+                    <CardDescription className="font-semibold text-primary/80 uppercase tracking-tighter text-xs">
                       {result.officeClosedEntries.length} manual {result.officeClosedEntries.length === 1 ? 'entry' : 'entries'}
                     </CardDescription>
                   </div>
@@ -4421,11 +4421,11 @@ ${generatedProtocol.additionalComments}`;
                           <TableCell className="text-xs font-medium text-muted-foreground" data-testid={`cell-date-${idx}`}>{entry.date}</TableCell>
                           <TableCell className="text-xs font-medium text-muted-foreground" data-testid={`cell-timeslot-${idx}`}>{entry.timeSlot}</TableCell>
                           <TableCell data-testid={`cell-code-${idx}`}>
-                            <Badge className="bg-blue-500/15 text-blue-500 border-blue-500/20 rounded-lg font-black text-[10px]">
+                            <Badge className="bg-primary/15 text-primary border-primary/20 rounded-lg font-black text-[10px]">
                               {entry.code}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-blue-500 font-black text-[10px] uppercase tracking-tighter" data-testid={`cell-closedby-${idx}`}>{entry.closedByStaff || 'OFFICE'}</TableCell>
+                          <TableCell className="text-primary font-black text-[10px] uppercase tracking-tighter" data-testid={`cell-closedby-${idx}`}>{entry.closedByStaff || 'OFFICE'}</TableCell>
                           <TableCell className="text-muted-foreground text-xs font-medium text-right" data-testid={`cell-closedtime-${idx}`}>{entry.closedTime || '-'}</TableCell>
                         </TableRow>
                       ))}
@@ -4438,14 +4438,14 @@ ${generatedProtocol.additionalComments}`;
                     <div key={idx} className="rounded-xl border border-border/40 bg-muted/10 p-4 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-semibold text-sm leading-tight">{getMedicationDisplayName(entry.medication)}</span>
-                        <Badge className="bg-blue-500/15 text-blue-500 border-blue-500/20 rounded-lg font-black text-[10px] shrink-0">
+                        <Badge className="bg-primary/15 text-primary border-primary/20 rounded-lg font-black text-[10px] shrink-0">
                           {entry.code}
                         </Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                         <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{entry.date}</span></div>
                         <div><span className="text-muted-foreground">Time:</span> <span className="font-medium">{entry.timeSlot}</span></div>
-                        <div><span className="text-muted-foreground">Staff:</span> <span className="font-bold text-blue-500 uppercase tracking-tighter">{entry.closedByStaff || 'OFFICE'}</span></div>
+                        <div><span className="text-muted-foreground">Staff:</span> <span className="font-bold text-primary uppercase tracking-tighter">{entry.closedByStaff || 'OFFICE'}</span></div>
                         <div><span className="text-muted-foreground">Logged:</span> <span className="font-medium">{entry.closedTime || '-'}</span></div>
                       </div>
                     </div>

@@ -99,8 +99,8 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-success";
     if (score >= 75) return "text-primary";
-    if (score >= 60) return "text-yellow-600";
-    if (score >= 40) return "text-orange-600";
+    if (score >= 60) return "text-warning";
+    if (score >= 40) return "text-warning";
     return "text-destructive";
   };
 
@@ -117,7 +117,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
       case "positive":
         return <CheckCircle2 className="h-5 w-5 text-success" />;
       case "warning":
-        return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
+        return <AlertTriangle className="h-5 w-5 text-warning" />;
       case "critical":
         return <AlertTriangle className="h-5 w-5 text-destructive" />;
       default:
@@ -127,8 +127,8 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
 
   const getBurnoutRiskColor = (risk: number) => {
     if (risk >= 70) return "bg-destructive/100";
-    if (risk >= 50) return "bg-orange-500";
-    if (risk >= 30) return "bg-yellow-500";
+    if (risk >= 50) return "bg-warning";
+    if (risk >= 30) return "bg-warning";
     return "bg-success/100";
   };
 
@@ -139,7 +139,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-purple-600" />
+                <Brain className="h-5 w-5 text-primary" />
                 AI Schedule Analysis
               </CardTitle>
               <CardDescription>
@@ -208,7 +208,7 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-yellow-600">⚠ Warning:</span>
+                          <span className="text-warning">⚠ Warning:</span>
                           <span className="font-semibold">
                             {analysis.insights.filter(i => i.type === "warning").length}
                           </span>

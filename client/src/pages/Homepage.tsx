@@ -139,7 +139,7 @@ const OVERVIEW_BULLETS = [
 const NAV_SECTIONS = [
   { id: "platform", label: "Platform" },
   { id: "compliance", label: "Compliance" },
-  { id: "roi", label: "Savings" },
+  { id: "roi", label: "Efficiency" },
   { id: "contact", label: "Contact" },
 ] as const;
 
@@ -495,14 +495,15 @@ export default function Homepage() {
         <section className="home-section home-hero-section px-4 pt-8 pb-16 sm:pt-12 sm:pb-20">
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
-              <span className="home-eyebrow">Operational Assurance for UK Care Providers</span>
+              <span className="home-eyebrow">Compliance &amp; Assurance for UK Care Providers</span>
               <h1 className="home-text-heading mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.08] tracking-[-0.03em]">
-                Corporate-grade assurance for compliance, audits, and care operations.
+                Compliance assurance and operational intelligence for domiciliary care.
               </h1>
               <p className="home-text-body mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-[1.7]">
-                CareAssurance gives regulated care teams a disciplined workspace for EMAR audits,
-                care plans, visit reviews, and evidence-led oversight. Bring operational risk,
-                documentation, and assurance reporting into one credible system.
+                CareAssurance provides a structured workspace for EMAR audits,
+                care plan documentation, visit reconciliation, and evidence-led oversight.
+                Consolidate operational risk, records, and assurance reporting into one
+                governed system.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:justify-center lg:justify-start">
                 <Button className="home-cta w-full sm:w-auto" size="lg" onClick={() => setLoginOpen(true)}>
@@ -569,11 +570,11 @@ export default function Homepage() {
             <motion.div {...reveal()}>
               <span className="home-eyebrow">Platform overview</span>
               <h2 className="home-text-heading mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
-                A unified operating environment for assurance, auditing, and care review.
+                A unified environment for assurance, audit, and care record review.
               </h2>
               <p className="home-text-body mt-4 text-base leading-relaxed">
-                 Replace fragmented spreadsheets and disconnected reviews with a structured,
-                 auditable workflow. CareAssurance brings evidence, commentary, and follow-up
+                 Replace fragmented spreadsheets and disconnected review processes with a structured,
+                 auditable workflow. CareAssurance consolidates evidence, commentary, and corrective
                  actions into one controlled environment.
               </p>
               <div className="mt-6 space-y-3">
@@ -628,11 +629,11 @@ export default function Homepage() {
             <motion.div {...reveal()} className="text-center">
               <p className="home-eyebrow text-white/85">Compliance foundations</p>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
-                Evidence you can stand behind.
+                Governance you can stand behind.
               </h2>
               <p className="mt-4 max-w-2xl mx-auto leading-relaxed">
-                 Built for regulated care environments with governance controls, audit trails,
-                 and reporting standards that support management confidence.
+                 Designed for regulated care environments with governance controls, audit trails,
+                 and reporting standards that underpin management assurance.
               </p>
             </motion.div>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
@@ -656,13 +657,13 @@ export default function Homepage() {
         <section className="home-section px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
-              <span className="home-eyebrow">Platform highlights</span>
+              <span className="home-eyebrow">Platform capabilities</span>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                Every workflow your compliance team needs.
+                Comprehensive tools for compliance and care oversight.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                 Designed for UK care operations, from medication assurance to workforce oversight
-                 and inspection readiness.
+                 Purposefully designed for UK domiciliary care operations, from medication
+                 assurance to workforce oversight and inspection readiness.
               </p>
             </motion.div>
             <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -687,11 +688,11 @@ export default function Homepage() {
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">How it works</span>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                Three steps to audit-ready compliance.
+                Three steps to structured compliance.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                 Start with your existing records and move to a structured review workflow without
-                 adding operational friction.
+                 Start with your existing records and transition to a structured review workflow
+                 without adding operational friction.
               </p>
             </motion.div>
             <div className="mt-12 grid gap-8 md:grid-cols-3 home-workflow-grid">
@@ -718,13 +719,13 @@ export default function Homepage() {
         <section id="roi" className="home-section px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
-              <span className="home-eyebrow">Savings estimator</span>
+              <span className="home-eyebrow">Efficiency analysis</span>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                Model time savings in minutes.
+                Quantify operational time savings.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                 Model the operational time returned when assurance work is standardised and
-                 documentation is accelerated.
+                 Model the operational hours returned when assurance work is standardised and
+                 care documentation is accelerated.
               </p>
             </motion.div>
 
@@ -812,10 +813,10 @@ export default function Homepage() {
                 <div>
                   <span className="home-eyebrow">Contact</span>
                   <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                    Speak with the CareAssurance team.
+                    Arrange a consultation with our team.
                   </h2>
                   <p className="mt-4 text-base leading-relaxed home-text-soft">
-                     Share your compliance priorities and we will respond with a focused walkthrough
+                     Share your compliance priorities and we will provide a focused walkthrough
                      tailored to your organisation.
                   </p>
                   <div className="mt-6 space-y-3 text-sm home-text-body">

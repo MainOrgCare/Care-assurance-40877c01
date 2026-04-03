@@ -81,11 +81,11 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
   });
 
   const getScoreColor = (score: number) => {
-    if (score >= 40) return "text-success dark:text-green-400";
-    if (score >= 10) return "text-primary dark:text-blue-400";
+    if (score >= 40) return "text-success";
+    if (score >= 10) return "text-primary";
     if (score >= -9) return "text-muted-foreground";
-    if (score >= -39) return "text-orange-600 dark:text-orange-400";
-    return "text-destructive dark:text-destructive";
+    if (score >= -39) return "text-warning";
+    return "text-destructive";
   };
 
   const getScoreIcon = (score: number) => {
@@ -97,7 +97,7 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
   const getDeltaDisplay = (delta: number, suffix: string = "") => {
     if (delta === 0) return <span className="text-muted-foreground">—</span>;
     const sign = delta > 0 ? "+" : "";
-    const color = delta > 0 ? "text-destructive dark:text-destructive" : "text-success dark:text-green-400";
+    const color = delta > 0 ? "text-destructive" : "text-success";
     return <span className={`font-semibold ${color}`}>{sign}{delta}{suffix}</span>;
   };
 
