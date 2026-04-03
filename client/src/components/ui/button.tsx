@@ -26,9 +26,9 @@ const buttonVariants = cva(
           "border border-primary bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_92%,white)_0%,color-mix(in_oklab,var(--color-secondary)_26%,var(--color-primary))_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_18px_30px_-20px_rgba(15,23,42,0.45)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_22px_32px_-22px_rgba(15,23,42,0.5)] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.14),var(--shadow-sm)]",
       },
       size: {
-        default: "h-10 px-4.5",
+        default: "h-10 px-[1.125rem]",
         sm: "h-8 rounded-lg px-3 text-xs font-semibold",
-        lg: "h-11 rounded-xl px-5.5 text-[0.9375rem]",
+        lg: "h-11 rounded-xl px-[1.375rem] text-[0.9375rem]",
         xl: "h-12 rounded-xl px-6 text-[1rem]",
         icon: "h-10 w-10",
         "icon-sm": "h-8 w-8",

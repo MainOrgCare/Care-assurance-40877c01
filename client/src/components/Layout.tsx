@@ -211,7 +211,7 @@ const SidebarContent = memo(function SidebarContent({
               <h1 className="font-heading text-[15px] leading-none tracking-[-0.03em]">
                 <span className="font-bold text-sidebar-foreground">Care</span><span className="font-medium text-sidebar-foreground/58">Assurance</span>
               </h1>
-              <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/42">Compliance Platform</span>
+              <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/42">Operations Platform</span>
             </div>
             )}
           </div>
@@ -436,7 +436,7 @@ const SidebarContent = memo(function SidebarContent({
         </Link>
         <button
           className={cn(
-            "w-full flex items-center gap-3 rounded-xl text-[0.82rem] font-medium transition-all duration-150 text-destructive hover:text-destructive hover:bg-destructive/10",
+            "w-full flex items-center gap-3 rounded-xl text-[0.82rem] font-medium transition-all duration-150 text-destructive hover:bg-destructive/10",
             isCollapsed ? "justify-center px-2.5 py-2.75 gap-0" : "px-3.5 py-2.5"
           )}
           onClick={logout}
