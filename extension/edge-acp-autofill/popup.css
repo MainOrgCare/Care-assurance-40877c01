@@ -168,14 +168,14 @@ html, body {
 
 /* ===== CONTENT AREA (with tabs) ===== */
 .popup-content {
-  /* Calculate exact height: total - header - tabs - footer */
-  height: calc(var(--popup-height) - var(--header-height) - var(--tab-height) - var(--footer-height));
-  max-height: calc(var(--popup-height) - var(--header-height) - var(--tab-height) - var(--footer-height));
+  height: auto;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px;
   display: block;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .popup-content > * {
@@ -1266,10 +1266,6 @@ html, body {
 }
 
 @media (max-width: 420px) {
-  :root {
-    --header-height: 96px;
-  }
-
   .popup-header {
     height: auto;
     padding: 14px;

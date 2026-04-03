@@ -10,7 +10,7 @@ const Table = React.forwardRef<
     <div className="w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       <table
         ref={ref}
-        className={cn("min-w-full caption-bottom text-[0.8125rem] border-collapse", className)}
+        className={cn("w-full caption-bottom text-[0.8125rem] border-collapse", className)}
         {...props}
       />
     </div>
