@@ -28,8 +28,8 @@ const CORE_FEATURES = [
     highlights: ["Discrepancy detection", "PRN protocol generation", "Refusal tracking", "Dose verification"],
     timeSaving: "45 min → 60 sec",
     costPence: 4,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
+    color: "text-primary",
+    bgColor: "bg-primary/10",
   },
   {
     icon: FileCheck,
@@ -39,8 +39,8 @@ const CORE_FEATURES = [
     highlights: ["First-person perspective", "Personalised content", "Risk-aware planning", "Structured format"],
     timeSaving: "90 min → 45 sec",
     costPence: 5,
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
+    color: "text-success",
+    bgColor: "bg-success/10",
   },
   {
     icon: Sparkles,
@@ -50,8 +50,8 @@ const CORE_FEATURES = [
     highlights: ["11 care sections", "Detailed guidance", "Staff instructions", "Outcome tracking"],
     timeSaving: "2 hr → 90 sec",
     costPence: 9,
-    color: "text-purple-500",
-    bgColor: "bg-purple-500/10",
+    color: "text-secondary",
+    bgColor: "bg-secondary/10",
   },
   {
     icon: AlertTriangle,
@@ -62,7 +62,7 @@ const CORE_FEATURES = [
     timeSaving: "3 hr → 45 sec",
     costPence: 4,
     color: "text-warning",
-    bgColor: "bg-warning/100/10",
+    bgColor: "bg-warning/10",
   },
   {
     icon: MapPin,
@@ -72,8 +72,8 @@ const CORE_FEATURES = [
     highlights: ["Time verification", "Duration tracking", "Schedule comparison", "Gap detection"],
     timeSaving: "30 min → 20 sec",
     costPence: 1,
-    color: "text-rose-500",
-    bgColor: "bg-rose-500/10",
+    color: "text-destructive",
+    bgColor: "bg-destructive/10",
   },
 ];
 
@@ -189,18 +189,21 @@ export default function ROICalculator() {
   return (
     <div className="page-shell max-w-7xl mx-auto" data-testid="features-benefits-page">
       {/* Hero Header */}
-      <div className="text-center space-y-6 py-8">
-        <Badge variant="secondary" className="gap-1 mb-4">
-          <Brain className="h-3 w-3" />
-          AI-Powered Care Administration
-        </Badge>
-        <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight text-foreground" data-testid="page-title">
-          Less Paperwork.<br />
-          <span className="text-muted-foreground">More Care.</span>
-        </h1>
-        <p className="text-lg max-w-2xl mx-auto text-muted-foreground" data-testid="page-subtitle">
-          CareAssurance handles the administrative burden so your team can focus on what matters most: providing exceptional care to those who need it.
-        </p>
+      <div className="page-header page-header-centered py-8">
+        <div className="page-header-copy">
+          <div className="page-header-icon">
+            <Brain className="h-5 w-5" />
+          </div>
+          <div className="page-header-copy-body">
+            <div className="page-kicker">AI-Powered Care Administration</div>
+            <h1 className="page-title" data-testid="page-title">
+              Less Paperwork. <span className="text-muted-foreground">More Care.</span>
+            </h1>
+            <p className="page-subtitle max-w-2xl" data-testid="page-subtitle">
+              CareAssurance handles the administrative burden so your team can focus on what matters most: providing exceptional care to those who need it.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Impact Metrics */}

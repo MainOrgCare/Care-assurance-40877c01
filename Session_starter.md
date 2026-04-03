@@ -40,7 +40,7 @@
 
 ## 🎯 Current State
 
-**Build Status:** ✅ `npm run quality` succeeded on 2026-04-03 after mobile/layout and extension popup polish updates.  
+**Build Status:** ✅ `npm run quality` succeeded on 2026-04-03 after the corporate redesign follow-up pass for shared page headers and semantic colour cleanup on prominent pages.  
 **Runtime Shape:** Dev server runs API + Vite HMR; production build includes client + server + worker split deployment on Render.  
 **AI Enhancement:** Feature-toggled AI stack with cache/rules-first/lite-mode/provider/model controls.
 **Validation Status:** ✅ Full quality gate currently verified: `npm run test`, `npm run check`, and `npm run build` all passed via `npm run quality` on 2026-04-03.
@@ -91,6 +91,8 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-03 | ✅ Continued the corporate UI refinement pass by adding shared page-header utilities in `client/src/index.css`, standardizing prominent route headers in `client/src/pages/{Compliance,ROICalculator,SystemLogs}.tsx`, and replacing remaining hardcoded ROI palette classes with semantic token-based styling. Revalidated with `npm run check`, `npm run build`, and `npm run quality`. |
+| 2026-04-03 | ✅ Applied a broader corporate visual redesign across the frontend: refined global design tokens and shared UI primitives (`client/src/index.css`, `client/src/components/ui/{button,card,input,textarea,select}.tsx`), upgraded the authenticated shell and navigation framing (`client/src/components/Layout.tsx`), realigned homepage messaging and structure (`client/src/pages/Homepage.tsx` + `homepage-theme.css`), and brought Rostering Studio back onto the same palette and typography system (`client/src/pages/rostering-studio-redesign.css`). Revalidated with `npm run check`, `npm run build`, and `npm run quality`. |
 | 2026-04-03 | ✅ Improved phone responsiveness and extension polish across shared UI surfaces: made shared table containers touch-scroll friendly (`client/src/components/ui/table.tsx`), tightened mobile shell/header spacing in `client/src/components/Layout.tsx`, added safe-area-aware connectivity toasts in `client/src/components/OfflineIndicator.tsx`, improved narrow-phone Dashboard grids and semantic quick-action colors in `client/src/pages/Dashboard.tsx`, disabled fixed background attachment on mobile in `client/src/index.css`, and made the Edge extension popup responsive with synced visible version text in `extension/edge-acp-autofill/popup.css` + `popup.html`. |
 | 2026-03-18 | ✅ Fixed name leaks in legacy placeholder sanitizer path (`scrubPII`) in `server/routes.ts` by adding an unconditional final standalone-name sweep and strengthening proper-name detection (`looksLikeProperName`) with abbreviation/whitelist guards, so plain names cannot remain alongside `[SERVICE_USER]`/other redaction placeholders. |
 | 2026-03-18 | ✅ Enhanced PII scrubber to catch additional quasi-identifiers and biographical leaks: added patterns for initials without dots (MS, KB), sibling count references (One of 7 siblings), family member death patterns (Daughter died at age 27), improved location detection (Well known in North Shields), sexual orientation terms, and "Raised" context for names. Updated both `server/utils/piiVault.ts` and route-local `PIIVault` in `server/routes.ts` with synchronized improvements. Enhanced narrative quasi-identifier scoring to weight location/sibling patterns higher. Added comprehensive regression tests in `server/__tests__/piiVaultRiskScrub.test.ts` covering all user-reported leak patterns. |

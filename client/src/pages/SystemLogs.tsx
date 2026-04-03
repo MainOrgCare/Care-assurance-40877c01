@@ -109,21 +109,19 @@ export default function SystemLogs() {
 
   return (
     <div className="page-shell space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center shrink-0">
-            <Terminal className="h-5 w-5 text-primary" />
+      <div className="page-header">
+        <div className="page-header-copy">
+          <div className="page-header-icon">
+            <Terminal className="h-5 w-5" />
           </div>
-          <div>
-            <h2 className="page-title text-2xl sm:text-3xl">
-              System Logs
-            </h2>
-            <p className="page-subtitle mt-1">
+          <div className="page-header-copy-body">
+            <h2 className="page-title">System Logs</h2>
+            <p className="page-subtitle">
               Full system activity log. Filter by action, target, or status.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="page-header-actions">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

@@ -5,34 +5,34 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-[0.8125rem] font-medium leading-none tracking-[0.004em] transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 select-none active:scale-[0.98]",
+  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-[0.875rem] font-semibold leading-none tracking-[-0.01em] transition-[background-color,border-color,box-shadow,transform,color] duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/18 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 select-none active:scale-[0.985]",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.1),var(--shadow-xs)] hover:bg-primary/90 active:bg-primary/85 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]",
+          "border border-primary bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-18px_color-mix(in_oklab,var(--color-primary)_75%,transparent)] hover:bg-primary/92 hover:border-primary active:bg-primary/88 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.12),var(--shadow-xs)]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.1),var(--shadow-xs)] hover:bg-destructive/90 active:bg-destructive/85 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]",
+          "border border-destructive bg-destructive text-destructive-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-18px_color-mix(in_oklab,var(--color-destructive)_75%,transparent)] hover:bg-destructive/92 active:bg-destructive/88",
         outline:
-          "border border-border/70 bg-card text-foreground shadow-[var(--shadow-xs)] hover:border-primary/30 hover:bg-accent/70 hover:text-foreground",
+          "border border-border/80 bg-card/96 text-foreground shadow-[var(--shadow-xs)] hover:border-primary/28 hover:bg-accent/72 hover:text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.1),var(--shadow-xs)] hover:bg-secondary/90 active:bg-secondary/85",
+          "border border-secondary bg-secondary text-secondary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-18px_color-mix(in_oklab,var(--color-secondary)_72%,transparent)] hover:bg-secondary/92 active:bg-secondary/88",
         ghost:
-          "bg-transparent text-foreground/70 hover:bg-muted/60 hover:text-foreground",
+          "bg-transparent text-foreground/72 hover:bg-muted/68 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline font-medium",
         success:
-          "bg-success text-success-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.1),var(--shadow-xs)] hover:bg-success/90 active:bg-success/85",
+          "border border-success bg-success text-success-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-18px_color-mix(in_oklab,var(--color-success)_75%,transparent)] hover:bg-success/92 active:bg-success/88",
         premium:
-          "bg-primary text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_4px_12px_-4px_rgba(15,23,42,0.18),0_2px_6px_-2px_rgba(15,23,42,0.08)] hover:bg-primary/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_-8px_rgba(15,23,42,0.22)] active:bg-primary/85",
+          "border border-primary bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_92%,white)_0%,color-mix(in_oklab,var(--color-secondary)_26%,var(--color-primary))_100%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_18px_30px_-20px_rgba(15,23,42,0.45)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_22px_32px_-22px_rgba(15,23,42,0.5)] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.14),var(--shadow-sm)]",
       },
       size: {
-        default: "h-9 px-4",
-        sm: "h-8 rounded-md px-3 text-xs font-medium",
-        lg: "h-10 rounded-lg px-5 text-sm",
-        xl: "h-11 rounded-lg px-6 text-[0.9375rem] font-semibold",
-        icon: "h-9 w-9",
-        "icon-sm": "h-7 w-7",
-        "icon-lg": "h-10 w-10",
+        default: "h-10 px-[1.125rem]",
+        sm: "h-8 rounded-lg px-3 text-xs font-semibold",
+        lg: "h-11 rounded-xl px-[1.375rem] text-[0.9375rem]",
+        xl: "h-12 rounded-xl px-6 text-[1rem]",
+        icon: "h-10 w-10",
+        "icon-sm": "h-8 w-8",
+        "icon-lg": "h-11 w-11",
       },
     },
     defaultVariants: {

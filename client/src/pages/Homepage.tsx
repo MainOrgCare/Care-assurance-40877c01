@@ -492,17 +492,17 @@ export default function Homepage() {
       </header>
 
       <main className="relative z-10">
-        <section className="px-4 pt-8 pb-16 sm:pt-12 sm:pb-20">
+        <section className="home-section home-hero-section px-4 pt-8 pb-16 sm:pt-12 sm:pb-20">
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
-              <span className="home-eyebrow">Operational Assurance for UK Care</span>
+              <span className="home-eyebrow">Operational Assurance for UK Care Providers</span>
               <h1 className="home-text-heading mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.08] tracking-[-0.03em]">
-                Compliance reporting that feels calm, clear, and prepared.
+                Corporate-grade assurance for compliance, audits, and care operations.
               </h1>
               <p className="home-text-body mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-[1.7]">
-                CareAssurance streamlines EMAR audits, care plans, and visit reviews into one
-                structured workspace. Detect risks earlier, document decisions faster, and walk
-                into inspections with confidence.
+                CareAssurance gives regulated care teams a disciplined workspace for EMAR audits,
+                care plans, visit reviews, and evidence-led oversight. Bring operational risk,
+                documentation, and assurance reporting into one credible system.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:justify-center lg:justify-start">
                 <Button className="home-cta w-full sm:w-auto" size="lg" onClick={() => setLoginOpen(true)}>
@@ -564,16 +564,17 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="platform" className="px-4 py-12 sm:py-16">
+        <section id="platform" className="home-section px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[0.95fr_1.05fr] items-center">
             <motion.div {...reveal()}>
               <span className="home-eyebrow">Platform overview</span>
               <h2 className="home-text-heading mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
-                One workspace for audits, plans, and care delivery checks.
+                A unified operating environment for assurance, auditing, and care review.
               </h2>
               <p className="home-text-body mt-4 text-base leading-relaxed">
-                Replace scattered spreadsheets with a structured flow for every document.
-                CareAssurance unifies analysis, notes, and follow-up actions so teams can move fast.
+                 Replace fragmented spreadsheets and disconnected reviews with a structured,
+                 auditable workflow. CareAssurance brings evidence, commentary, and follow-up
+                 actions into one controlled environment.
               </p>
               <div className="mt-6 space-y-3">
                 {OVERVIEW_BULLETS.map((bullet) => (
@@ -630,7 +631,8 @@ export default function Homepage() {
                 Evidence you can stand behind.
               </h2>
               <p className="mt-4 max-w-2xl mx-auto leading-relaxed">
-                Built for regulated care environments with clear governance controls and consistent reporting.
+                 Built for regulated care environments with governance controls, audit trails,
+                 and reporting standards that support management confidence.
               </p>
             </motion.div>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
@@ -651,7 +653,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="px-4 py-12 sm:py-16">
+        <section className="home-section px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Platform highlights</span>
@@ -659,7 +661,8 @@ export default function Homepage() {
                 Every workflow your compliance team needs.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                Designed for UK care operations, from medication audits to staff performance monitoring.
+                 Designed for UK care operations, from medication assurance to workforce oversight
+                 and inspection readiness.
               </p>
             </motion.div>
             <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -679,7 +682,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="px-4 py-12 sm:py-16 home-section-surface">
+        <section className="home-section home-section-muted px-4 py-12 sm:py-16 home-section-surface">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">How it works</span>
@@ -687,7 +690,8 @@ export default function Homepage() {
                 Three steps to audit-ready compliance.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                No complex setup. Upload your existing documents and get actionable insights within minutes.
+                 Start with your existing records and move to a structured review workflow without
+                 adding operational friction.
               </p>
             </motion.div>
             <div className="mt-12 grid gap-8 md:grid-cols-3 home-workflow-grid">
@@ -711,7 +715,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="roi" className="px-4 py-12 sm:py-16">
+        <section id="roi" className="home-section px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Savings estimator</span>
@@ -719,7 +723,8 @@ export default function Homepage() {
                 Model time savings in minutes.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                Estimate the annual hours recovered when audits and plans are streamlined.
+                 Model the operational time returned when assurance work is standardised and
+                 documentation is accelerated.
               </p>
             </motion.div>
 
@@ -800,7 +805,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section id="contact" className="px-4 pb-16 sm:pb-20">
+        <section id="contact" className="home-section px-4 pb-16 sm:pb-20">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="home-card p-6 sm:p-8">
               <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
@@ -810,12 +815,13 @@ export default function Homepage() {
                     Speak with the CareAssurance team.
                   </h2>
                   <p className="mt-4 text-base leading-relaxed home-text-soft">
-                    Share your compliance priorities and we will respond with a tailored walkthrough.
+                     Share your compliance priorities and we will respond with a focused walkthrough
+                     tailored to your organisation.
                   </p>
                   <div className="mt-6 space-y-3 text-sm home-text-body">
                     <div className="flex items-center gap-3">
                       <Mail className="h-4 w-4 text-primary" />
-                      Private response within 1 business day.
+                       Response from our team within 1 business day.
                     </div>
                     <div className="flex items-center gap-3">
                       <MessageSquare className="h-4 w-4 text-primary" />
@@ -823,7 +829,7 @@ export default function Homepage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Building2 className="h-4 w-4 text-primary" />
-                      UK-based support for care facilities.
+                       UK-based support for domiciliary and community care organisations.
                     </div>
                   </div>
                 </div>
