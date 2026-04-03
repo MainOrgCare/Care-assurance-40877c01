@@ -2324,9 +2324,9 @@ export default function RosteringStudioUnified({
                     >
                     <div className="h-full min-w-0 min-h-0 border-r flex flex-col">
                       <div className="rstd-panel-head rstd-panel-head-call-times flex items-center gap-2 px-3 py-2">
-                        <Clock className="h-4 w-4 text-primary" />
+                        <Clock className="h-4 w-4 text-secondary" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Call Times</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-primary/10 text-primary border-primary/20">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-secondary/10 text-secondary border-secondary/20">
                           {callTimesForEditor.length}
                         </Badge>
                       </div>
