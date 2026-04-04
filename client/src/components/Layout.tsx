@@ -1120,6 +1120,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {user.role}
                   </span>
                 )}
+                <span className="hidden lg:inline-flex text-[10px] font-medium text-muted-foreground/60">v1.0</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground font-medium tabular-nums">

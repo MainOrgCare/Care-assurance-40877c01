@@ -913,8 +913,8 @@ export default function Dashboard() {
         <Card className="">
           <CardContent className="flex flex-col items-center justify-center py-14">
             <Settings className="h-10 w-10 text-muted-foreground/50 mb-4" />
-            <p className="text-lg font-semibold text-foreground mb-1">Dashboard Empty</p>
-            <p className="text-sm text-muted-foreground mb-6 text-center max-w-xs">Add widgets to customize your dashboard view.</p>
+            <p className="text-lg font-semibold text-foreground mb-1">Your Dashboard is Ready</p>
+            <p className="text-sm text-muted-foreground mb-6 text-center max-w-xs">Select widgets to build your personalized compliance overview. Drag to reorder.</p>
             <Button variant="outline" onClick={() => setSettingsOpen(true)} className="font-medium">
               <Settings className="h-4 w-4 mr-2" />
               Configure Dashboard
@@ -984,7 +984,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/30">
             <p className="text-[10px] text-muted-foreground/70">
-              Last refreshed {data ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} &middot; Auto-refresh every 2 min
+              Last refreshed {data ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} &middot; Auto-refresh every 2 min &middot; System {isError ? 'degraded' : 'healthy'}
             </p>
             <div className="flex items-center gap-2">
               {user?.role === 'admin' && (
