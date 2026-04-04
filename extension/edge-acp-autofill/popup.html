@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Care Assurance - ACP Autofill</title>
+    <title>CareAssurance - ACP Autofill</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
           </div>
           <div>
-            <h1 class="header-title">Care Assurance</h1>
+            <h1 class="header-title">CareAssurance</h1>
             <p class="header-subtitle">ACP Autofill v0.3.5</p>
           </div>
           <div id="connection-badge" class="connection-badge disconnected">
@@ -50,13 +50,33 @@
           <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss">✕</button>
         </div>
 
+        <section class="workspace-summary card">
+          <div class="card-content summary-grid">
+            <div class="summary-item">
+              <span class="summary-label">Service users</span>
+              <strong class="summary-title">Care plans &amp; risks</strong>
+              <span class="summary-detail">Open records and move straight into ACP-ready workflows.</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Carers</span>
+              <strong class="summary-title">Care worker-aware autofill</strong>
+              <span class="summary-detail">Use guided settings and verification to support carer-related fields.</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Extension + site</span>
+              <strong class="summary-title">One connected workspace</strong>
+              <span class="summary-detail">Upload, review, and autofill with the same CareAssurance flow.</span>
+            </div>
+          </div>
+        </section>
+
         <!-- ========== TAB 1: CONNECT ========== -->
         <div id="tab-content-connect" class="tab-content active">
           
           <section class="card">
             <div class="card-header">
               <h2 class="card-title">Connection</h2>
-              <p class="card-description">Connect to fetch service users and assessments</p>
+              <p class="card-description">Connect to fetch service users, assessment payloads, and extension-ready records</p>
             </div>
             <div class="card-content">
               <div id="connect-status" class="status-box">
@@ -80,6 +100,7 @@
           <section id="search-section" class="card" hidden>
             <div class="card-header">
               <h2 class="card-title">Service Users</h2>
+              <p class="card-description">Search for the right record before loading care plans or risk assessments</p>
             </div>
             <div class="card-content">
               <input id="service-user-search" type="text" class="form-input" placeholder="Search by name..." />
@@ -90,6 +111,7 @@
           <section id="selected-user-section" class="card" hidden>
             <div class="card-header">
               <h2 class="card-title">Selected User</h2>
+              <p class="card-description">Review service user context, then choose the record you want to bring into the extension</p>
             </div>
             <div class="card-content">
               <div id="selected-user-info" class="selected-user-info"></div>
@@ -195,6 +217,7 @@
           <section id="selection-section" class="card" hidden>
             <div class="card-header">
               <h2 class="card-title">Select Assessments</h2>
+              <p class="card-description">Choose the sections you want to generate and review before filling ACP</p>
               <div class="toolbar-actions">
                 <button id="select-all-btn" class="btn-sm">All</button>
                 <button id="clear-selection-btn" class="btn-sm">None</button>
@@ -211,6 +234,7 @@
           <section class="card">
             <div class="card-header">
               <h2 class="card-title">ACP Settings</h2>
+              <p class="card-description">Tune the workflow for service user records and care worker-related field completion</p>
             </div>
             <div class="card-content">
               <div class="form-row">

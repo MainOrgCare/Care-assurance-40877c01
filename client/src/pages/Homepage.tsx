@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -109,6 +110,24 @@ const CERTIFICATIONS = [
   },
 ] as const;
 
+const EXTENSION_FEATURES = [
+  {
+    icon: Users,
+    title: "Service user records",
+    description: "Search service users and bring care plans or risk assessments straight into the extension workflow.",
+  },
+  {
+    icon: ClipboardList,
+    title: "Care worker-aware autofill",
+    description: "Support carers and field teams with guided settings, verification prompts, and cleaner ACP completion.",
+  },
+  {
+    icon: FileText,
+    title: "Upload before action",
+    description: "Upload supporting documents, review AI summaries, and move into structured assessment work from one place.",
+  },
+] as const;
+
 const WORKFLOW_STEPS = [
   {
     step: "01",
@@ -182,6 +201,7 @@ const calculateROI = (users: number) => {
 };
 
 export default function Homepage() {
+  usePageTitle("Homepage");
   const [serviceUsers, setServiceUsers] = useState(20);
   const prefersReducedMotion = useReducedMotion();
 
@@ -398,7 +418,7 @@ export default function Homepage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 overflow-hidden border border-border/70 bg-card p-0 shadow-[var(--shadow-strong)]" align="end">
+              <PopoverContent className="w-[min(22rem,calc(100vw-2rem))] overflow-hidden border border-border/70 bg-card p-0 shadow-[var(--shadow-strong)]" align="end">
                 <div className="p-4 border-b border-border/70">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-primary">
@@ -407,6 +427,16 @@ export default function Homepage() {
                     <div>
                       <h3 className="font-semibold font-heading text-foreground">Welcome Back</h3>
                       <p className="text-xs text-muted-foreground">Sign in to your account</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-xl border border-border/60 bg-muted/35 px-3 py-2">
+                      <p className="text-[11px] font-semibold text-foreground">Secure access</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Role-based workspace for audits, service users, and carers.</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-muted/35 px-3 py-2">
+                      <p className="text-[11px] font-semibold text-foreground">Phone ready</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Responsive sign-in and quick access from smaller screens.</p>
                     </div>
                   </div>
                 </div>
@@ -486,6 +516,18 @@ export default function Homepage() {
                   {section.label}
                 </button>
               ))}
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button className="home-cta w-full" onClick={openLoginFromCTA}>
+                  Login
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="home-outline w-full" onClick={() => {
+                  setMobileMenuOpen(false);
+                  scrollToSection("contact");
+                }}>
+                  Contact team
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -716,6 +758,33 @@ export default function Homepage() {
           </div>
         </section>
 
+        <section className="home-section px-4 py-12 sm:py-16">
+          <div className="max-w-6xl mx-auto">
+            <motion.div {...reveal()} className="text-center">
+              <span className="home-eyebrow">Extension workflow</span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
+                Keep the browser extension aligned with the platform.
+              </h2>
+              <p className="mt-4 text-base max-w-3xl mx-auto leading-relaxed home-text-soft">
+                The CareAssurance extension is designed to mirror key website workflows so teams can move between service users,
+                carers, uploaded records, and guided autofill with a consistent experience.
+              </p>
+            </motion.div>
+
+            <div className="mt-10 grid gap-5 md:grid-cols-3">
+              {EXTENSION_FEATURES.map((feature) => (
+                <motion.div key={feature.title} {...reveal(0.08)} className="home-card p-6">
+                  <div className="h-10 w-10 rounded-xl flex items-center justify-center home-icon-chip">
+                    <feature.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold home-text-heading">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed home-text-body">{feature.description}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="roi" className="home-section px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
@@ -940,8 +1009,9 @@ export default function Homepage() {
       </main>
 
       <footer className="relative z-10 border-t border-border/60">
-        <div className="max-w-6xl mx-auto px-4 py-10 flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 py-10 grid gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr] text-sm">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-4.5 w-4.5" />
             </div>
@@ -950,20 +1020,58 @@ export default function Homepage() {
               <span className="ml-2 home-text-soft text-[13px]">careassurance.uk</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-6 home-text-soft text-[13px]">
-            <button
-              type="button"
-              className="bg-transparent p-0 font-semibold hover:text-foreground transition-colors"
-              onClick={() => scrollToSection("contact")}
-            >
-              Contact
-            </button>
-            <Link href="/terms" className="font-semibold hover:text-foreground transition-colors">
-              Terms & Conditions
-            </Link>
-            <Link href="/privacy" className="font-semibold hover:text-foreground transition-colors">
-              Privacy Policy
-            </Link>
+            <p className="max-w-md home-text-soft leading-relaxed">
+              Professional compliance operations for domiciliary care teams, with consistent workflows across the website and extension.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="home-pill">Service users</span>
+              <span className="home-pill">Carers</span>
+              <span className="home-pill">Extension ready</span>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary/55">Explore</p>
+            <div className="mt-3 flex flex-col gap-3 home-text-soft text-[13px]">
+              <button
+                type="button"
+                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
+                onClick={() => scrollToSection("platform")}
+              >
+                Platform overview
+              </button>
+              <button
+                type="button"
+                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
+                onClick={() => scrollToSection("roi")}
+              >
+                Efficiency model
+              </button>
+              <button
+                type="button"
+                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
+                onClick={() => scrollToSection("contact")}
+              >
+                Contact
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary/55">Policies</p>
+            <div className="mt-3 flex flex-col gap-3 home-text-soft text-[13px]">
+              <Link href="/terms" className="font-semibold hover:text-foreground transition-colors">
+                Terms & Conditions
+              </Link>
+              <Link href="/privacy" className="font-semibold hover:text-foreground transition-colors">
+                Privacy Policy
+              </Link>
+              <button
+                type="button"
+                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
+                onClick={openLoginFromCTA}
+              >
+                Login to platform
+              </button>
+            </div>
           </div>
         </div>
       </footer>

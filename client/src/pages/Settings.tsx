@@ -96,6 +96,8 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const workspaceProfile = compactMode ? "Compact" : "Comfortable";
+  const securityStatus = user?.isDemo ? "Demo access" : "Protected";
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) {
@@ -131,7 +133,7 @@ export default function Settings() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="page-shell page-shell-compact max-w-3xl mx-auto">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="page-shell page-shell-compact max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-8">
         <Button
           variant="ghost"
@@ -149,6 +151,51 @@ export default function Settings() {
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle max-w-md">Manage security, display preferences, and notifications.</p>
         </div>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <Card className="app-surface border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Workspace profile</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{theme.charAt(0).toUpperCase() + theme.slice(1)} theme</p>
+                <p className="mt-1 text-xs text-muted-foreground">Font size {fontSize} • {workspaceProfile} layout</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl border border-primary/15 bg-primary/10 flex items-center justify-center text-primary">
+                <SwatchBook className="h-4 w-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="app-surface border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Security posture</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{securityStatus}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Password policy enforced for {user?.username || "your"} account.</p>
+              </div>
+              <div className={cn("h-10 w-10 rounded-xl border flex items-center justify-center", user?.isDemo ? "border-warning/20 bg-warning/10 text-warning" : "border-success/20 bg-success/10 text-success")}>
+                <Shield className="h-4 w-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="app-surface border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Productivity</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{autoExpandSections ? "Guided navigation" : "Manual navigation"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Copy confirmations {showCopyConfirmation ? "enabled" : "muted"} for faster day-to-day use.</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl border border-secondary/20 bg-secondary/10 flex items-center justify-center text-secondary">
+                <LayoutIcon className="h-4 w-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="app-surface">

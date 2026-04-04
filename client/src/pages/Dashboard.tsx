@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, ChevronDown, Sparkles, Download, type LucideIcon } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, ChevronDown, Sparkles, Download, LayoutDashboard, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -251,6 +251,39 @@ export default function Dashboard() {
 
   const stats = data?.stats;
   const recentAlerts: AdminAlert[] = data?.recentAlerts ?? [];
+  const operationsSummary = useMemo(
+    () => [
+      {
+        label: "Workspace mode",
+        value: user?.isDemo ? "Demo" : "Live",
+        description: user?.isDemo ? "Sample records for walkthroughs" : "Operational workspace for daily assurance",
+        icon: CheckCircle2,
+        accentClass: user?.isDemo ? "bg-warning/10 text-warning border-warning/20" : "bg-success/10 text-success border-success/20",
+      },
+      {
+        label: "Priority queue",
+        value: `${recentAlerts.length}`,
+        description: recentAlerts.length > 0 ? "Compliance items require follow-up" : "No active issues highlighted right now",
+        icon: AlertCircle,
+        accentClass: recentAlerts.length > 0 ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-success/10 text-success border-success/20",
+      },
+      {
+        label: "Assurance throughput",
+        value: `${(stats?.medicationAudits ?? 0) + (stats?.carePlanReviews ?? 0) + (stats?.riskAssessments ?? 0)}`,
+        description: "Medication, care planning, and risk workflows in the current window",
+        icon: ClipboardList,
+        accentClass: "bg-primary/10 text-primary border-primary/20",
+      },
+      {
+        label: "Configured widgets",
+        value: `${activeWidgets.length}`,
+        description: "Dashboard layout tailored to your admin workflow",
+        icon: LayoutDashboard,
+        accentClass: "bg-secondary/10 text-secondary border-secondary/20",
+      },
+    ],
+    [activeWidgets.length, recentAlerts.length, stats?.carePlanReviews, stats?.medicationAudits, stats?.riskAssessments, user?.isDemo],
+  );
 
   const formatTimeAgo = useCallback((dateStr: string) => {
     const date = new Date(dateStr);
@@ -549,6 +582,25 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 animate-slide-up stagger-2">
+        {operationsSummary.map((item) => (
+          <Card key={item.label} className="overflow-hidden border-border/60 bg-card/92">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">{item.label}</p>
+                  <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{item.value}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+                </div>
+                <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl border", item.accentClass)}>
+                  <item.icon className="h-4 w-4" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       {/* Error Banner */}
       {isError && (
         <Card className=" bg-destructive/5 border-destructive/20 animate-fade-in">
@@ -575,7 +627,7 @@ export default function Dashboard() {
       )}
 
       {/* Quick Actions */}
-      <div className="space-y-3.5 animate-slide-up stagger-2">
+      <div className="space-y-3.5 animate-slide-up stagger-3">
         <div className="flex items-center gap-2.5 px-0.5">
           <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-warning/10 border border-warning/15 shadow-[var(--shadow-xs)]">
             <Zap className="h-3.5 w-3.5 text-warning" />
@@ -613,7 +665,7 @@ export default function Dashboard() {
       {isLoading && !stats ? (
         <>
           {/* Skeleton stat cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-4">
             {[1, 2, 3, 4].map(i => (
               <Card key={i}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
@@ -628,7 +680,7 @@ export default function Dashboard() {
             ))}
           </div>
           {/* Skeleton large panels */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-5">
             <Card className=" lg:col-span-4">
               <CardHeader className="border-b border-border/30 pb-3 mb-3">
                 <div className="flex items-center gap-2">
@@ -676,13 +728,13 @@ export default function Dashboard() {
       ) : (
       <>
       {smallWidgets.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-3">
+         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-slide-up stagger-4">
           {smallWidgets.map(widgetId => renderSmallWidget(widgetId))}
         </div>
       )}
 
       {largeWidgets.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-4">
+         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-slide-up stagger-5">
           {largeWidgets.includes("compliance_data") && (
             <Card className={cn("", largeWidgets.includes("recent_alerts") ? "lg:col-span-4" : "lg:col-span-7")} data-testid="widget-compliance-data">
               <CardHeader className="border-b border-border/30 pb-3 mb-3">
