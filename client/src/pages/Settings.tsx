@@ -174,7 +174,7 @@ export default function Settings() {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Security posture</p>
                 <p className="mt-2 text-lg font-semibold text-foreground">{securityStatus}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Password policy enforced for {user?.username || "your"} account.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Password policy is enforced for {user?.username || "your"} account.</p>
               </div>
               <div className={cn("h-10 w-10 rounded-xl border flex items-center justify-center", user?.isDemo ? "border-warning/20 bg-warning/10 text-warning" : "border-success/20 bg-success/10 text-success")}>
                 <Shield className="h-4 w-4" />

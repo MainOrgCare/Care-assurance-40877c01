@@ -114,6 +114,11 @@
   backdrop-filter: blur(14px);
 }
 
+.homepage-theme .home-login-popover {
+  --home-login-popover-inline-offset: 2rem;
+  width: min(22rem, calc(100vw - var(--home-login-popover-inline-offset)));
+}
+
 .homepage-theme .home-mobile-link {
   display: block;
   width: 100%;

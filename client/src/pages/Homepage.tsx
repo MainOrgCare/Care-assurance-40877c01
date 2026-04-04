@@ -418,7 +418,7 @@ export default function Homepage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[min(22rem,calc(100vw-2rem))] overflow-hidden border border-border/70 bg-card p-0 shadow-[var(--shadow-strong)]" align="end">
+              <PopoverContent className="home-login-popover overflow-hidden border border-border/70 bg-card p-0 shadow-[var(--shadow-strong)]" align="end">
                 <div className="p-4 border-b border-border/70">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-primary">

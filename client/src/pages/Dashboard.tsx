@@ -6,7 +6,33 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, CheckCircle2, FileText, Activity, RefreshCw, Loader2, Settings, GripVertical, Pill, ClipboardList, Shield, Users, ArrowRight, Upload, Brain, TrendingUp, Clock, Zap, Play, Info, ChevronDown, Sparkles, Download, LayoutDashboard, type LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Activity,
+  RefreshCw,
+  Loader2,
+  Settings,
+  GripVertical,
+  Pill,
+  ClipboardList,
+  Shield,
+  Users,
+  ArrowRight,
+  Upload,
+  Brain,
+  TrendingUp,
+  Clock,
+  Zap,
+  Play,
+  Info,
+  ChevronDown,
+  Sparkles,
+  Download,
+  LayoutDashboard,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
