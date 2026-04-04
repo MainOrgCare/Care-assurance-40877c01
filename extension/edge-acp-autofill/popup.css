@@ -1,14 +1,14 @@
 :root {
   /* Colors matching Care Assurance website */
-  --color-primary: hsl(215, 50%, 35%);
+  --color-primary: hsl(214, 62%, 28%);
   --color-primary-foreground: hsl(0, 0%, 100%);
-  --color-secondary: hsl(215, 12%, 55%);
+  --color-secondary: hsl(172, 40%, 28%);
   --color-background: hsl(210, 15%, 97%);
   --color-foreground: hsl(222, 47%, 11%);
   --color-card: hsl(0, 0%, 100%);
   --color-muted: hsl(210, 15%, 95%);
   --color-muted-foreground: hsl(215, 15%, 42%);
-  --color-border: hsl(214, 25%, 89%);
+  --color-border: hsl(214, 20%, 86%);
   --color-success: hsl(142, 60%, 36%);
   --color-success-light: hsl(142, 60%, 96%);
   --color-warning: hsl(38, 92%, 50%);
@@ -17,7 +17,7 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
   --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
   --shadow-lg: 0 6px 12px -3px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --radius: 8px;
+  --radius: 14px;
   --radius-sm: 6px;
   --popup-width: min(450px, 100vw);
   --popup-height: min(600px, 100vh);
@@ -41,7 +41,7 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Manrope", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--color-foreground);
   background: var(--color-background);
   line-height: 1.5;
@@ -63,11 +63,14 @@ html, body {
 /* ===== HEADER ===== */
 .popup-header {
   height: var(--header-height);
-  background: linear-gradient(135deg, hsl(215, 55%, 30%) 0%, hsl(215, 50%, 42%) 100%);
+  background:
+    radial-gradient(140px 72px at 100% 0%, rgba(255, 255, 255, 0.16), transparent 70%),
+    linear-gradient(135deg, color-mix(in hsl, var(--color-primary) 92%, black) 0%, color-mix(in hsl, var(--color-secondary) 32%, var(--color-primary)) 100%);
   color: var(--color-primary-foreground);
   padding: 16px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex: 0 0 auto;
+  box-shadow: var(--shadow-lg);
 }
 
 .header-content {
@@ -209,7 +212,7 @@ html, body {
   background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -240,6 +243,46 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.workspace-summary {
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--color-card) 96%, white), color-mix(in hsl, var(--color-card) 90%, var(--color-muted)));
+}
+
+.summary-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid color-mix(in hsl, var(--color-border) 92%, white);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in hsl, var(--color-muted) 56%, white);
+  padding: 12px;
+}
+
+.summary-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in hsl, var(--color-primary) 68%, white);
+}
+
+.summary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.summary-detail {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-muted-foreground);
 }
 
 /* ===== ALERTS ===== */
@@ -1027,6 +1070,41 @@ html, body {
   margin: 0;
 }
 
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.footer-divider {
+  color: var(--color-muted-foreground);
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ===== CONNECTION BADGE ===== */
 .connection-badge {
   display: inline-flex;
@@ -1263,6 +1341,12 @@ html, body {
 
 .action-buttons .btn {
   flex: 1;
+}
+
+@media (min-width: 420px) {
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 420px) {

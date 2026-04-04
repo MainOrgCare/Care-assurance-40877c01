@@ -4234,10 +4234,15 @@ export default function SecretAdminPortal() {
   const [extensionInfo, setExtensionInfo] = useState<ExtensionPackageInfo | null>(null);
   const [extensionInfoLoading, setExtensionInfoLoading] = useState(false);
   const [extensionInfoRefreshing, setExtensionInfoRefreshing] = useState(false);
+  const [opsHealth, setOpsHealth] = useState<OpsHealthSnapshot | null>(null);
 
   useEffect(() => {
     setMounted(true);
     fetchAdminAlerts();
+    fetch("/api/admin/ops-health", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setOpsHealth(d); })
+      .catch(() => {});
   }, []);
 
   const fetchAuditCompletionLogs = async () => {
@@ -4793,6 +4798,54 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="overview" className="space-y-6">
               
+              {/* Admin Quick Metrics */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-border/60 bg-background/70 p-4 shadow-soft">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-6 w-6 rounded-md bg-primary/8 flex items-center justify-center">
+                      <Activity className="h-3 w-3 text-primary" />
+                    </div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">System Uptime</p>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">
+                    {opsHealth ? `${Math.floor(opsHealth.runtime.uptimeSeconds / 3600)}h ${Math.floor((opsHealth.runtime.uptimeSeconds % 3600) / 60)}m` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/70 p-4 shadow-soft">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-6 w-6 rounded-md bg-secondary/8 flex items-center justify-center">
+                      <Server className="h-3 w-3 text-secondary" />
+                    </div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Memory Usage</p>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">
+                    {opsHealth ? `${opsHealth.memory.heapUsedMb.toFixed(0)} MB` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/70 p-4 shadow-soft">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-6 w-6 rounded-md bg-warning/8 flex items-center justify-center">
+                      <AlertTriangle className="h-3 w-3 text-warning" />
+                    </div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Unread Alerts</p>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">
+                    {opsHealth ? String(opsHealth.alerts.unreadAdminAlerts + opsHealth.alerts.unreadContactMessages) : '—'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/70 p-4 shadow-soft">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-6 w-6 rounded-md bg-success/8 flex items-center justify-center">
+                      <Shield className="h-3 w-3 text-success" />
+                    </div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Blocked IPs</p>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">
+                    {opsHealth ? String(opsHealth.security.blockedIps) : '—'}
+                  </p>
+                </div>
+              </div>
+
               {/* Private Alert Section */}
               {adminAlerts.length > 0 && (
                 <Card className="bg-warning/20 border-warning/30 backdrop-blur-sm">

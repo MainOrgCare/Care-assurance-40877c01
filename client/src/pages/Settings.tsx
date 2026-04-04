@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
 import { useAuth } from "@/context/AuthContext";
-import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Settings as SettingsIcon } from "lucide-react";
+import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Settings as SettingsIcon, Eye, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +96,8 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const workspaceProfile = compactMode ? "Compact" : "Comfortable";
+  const securityStatus = user?.isDemo ? "Demo access" : "Protected";
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) {
@@ -131,7 +133,7 @@ export default function Settings() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="page-shell page-shell-compact max-w-3xl mx-auto">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="page-shell page-shell-compact max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-8">
         <Button
           variant="ghost"
@@ -149,6 +151,51 @@ export default function Settings() {
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle max-w-md">Manage security, display preferences, and notifications.</p>
         </div>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <Card className="app-surface border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Workspace profile</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{theme.charAt(0).toUpperCase() + theme.slice(1)} theme</p>
+                <p className="mt-1 text-xs text-muted-foreground">Font size {fontSize} • {workspaceProfile} layout</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl border border-primary/15 bg-primary/10 flex items-center justify-center text-primary">
+                <SwatchBook className="h-4 w-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="app-surface border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Security posture</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{securityStatus}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Password policy is enforced for {user?.username || "your"} account.</p>
+              </div>
+              <div className={cn("h-10 w-10 rounded-xl border flex items-center justify-center", user?.isDemo ? "border-warning/20 bg-warning/10 text-warning" : "border-success/20 bg-success/10 text-success")}>
+                <Shield className="h-4 w-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="app-surface border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Productivity</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{autoExpandSections ? "Guided navigation" : "Manual navigation"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Copy confirmations {showCopyConfirmation ? "enabled" : "muted"} for faster day-to-day use.</p>
+              </div>
+              <div className="h-10 w-10 rounded-xl border border-secondary/20 bg-secondary/10 flex items-center justify-center text-secondary">
+                <LayoutIcon className="h-4 w-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="app-surface">
@@ -370,6 +417,57 @@ export default function Settings() {
 
           <section className="space-y-4">
             <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Accessibility</h3>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
+                <div>
+                  <Label htmlFor="reduced-motion" className="cursor-pointer text-sm font-medium text-foreground">Reduce Motion</Label>
+                  <p className="text-xs text-muted-foreground/70">Disable animations and transitions</p>
+                </div>
+                <Switch
+                  id="reduced-motion"
+                  checked={typeof window !== 'undefined' && document.documentElement.classList.contains('reduce-motion')}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      document.documentElement.classList.add('reduce-motion');
+                      localStorage.setItem('reduce-motion', 'true');
+                    } else {
+                      document.documentElement.classList.remove('reduce-motion');
+                      localStorage.removeItem('reduce-motion');
+                    }
+                  }}
+                  data-testid="switch-reduced-motion"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
+                <div>
+                  <Label htmlFor="high-contrast" className="cursor-pointer text-sm font-medium text-foreground">High Contrast Text</Label>
+                  <p className="text-xs text-muted-foreground/70">Increase text contrast for readability</p>
+                </div>
+                <Switch
+                  id="high-contrast"
+                  checked={typeof window !== 'undefined' && document.documentElement.classList.contains('high-contrast')}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      document.documentElement.classList.add('high-contrast');
+                      localStorage.setItem('high-contrast', 'true');
+                    } else {
+                      document.documentElement.classList.remove('high-contrast');
+                      localStorage.removeItem('high-contrast');
+                    }
+                  }}
+                  data-testid="switch-high-contrast"
+                />
+              </div>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
               <Download className="h-4 w-4 text-primary/70" />
               <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Data Export</h3>
             </div>
@@ -508,6 +606,31 @@ export default function Settings() {
                 <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-warning/30 text-warning" : "border-success/30 text-success")}>
                   {user?.isDemo ? "Demo" : "Production"}
                 </Badge>
+              </div>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-primary/70" />
+              <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">About CareAssurance</h3>
+            </div>
+            <div className="rounded-lg border border-border/40 bg-muted/15 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Application</span>
+                <Badge variant="outline" className="font-semibold">CareAssurance Platform</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Environment</span>
+                <Badge variant="outline" className={cn("font-semibold", user?.isDemo ? "border-warning/30 text-warning" : "border-success/30 text-success")}>
+                  {user?.isDemo ? "Demo" : "Production"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Support</span>
+                <span className="text-xs text-muted-foreground">admin@careassurance.uk</span>
               </div>
             </div>
           </section>

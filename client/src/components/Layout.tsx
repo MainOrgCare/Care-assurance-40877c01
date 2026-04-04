@@ -1107,10 +1107,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {!isSingleScreenRoute && (
           <footer className="workspace-footer flex-shrink-0 border-t border-border bg-background/95 backdrop-blur-sm px-5 py-2.5 transition-[background-color,border-color] duration-200">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-2.5 font-medium">
+              <div className="flex flex-wrap items-center justify-center gap-2.5 font-medium">
                 <span className="text-foreground/60">&copy; {new Date().getFullYear()} CareAssurance</span>
                 <span className="hidden sm:inline text-border">&middot;</span>
                 <span className="hidden sm:inline text-muted-foreground text-[10px]">Precision tools for high-trust care teams</span>
+                <span className="hidden md:inline text-border">&middot;</span>
+                <span className="inline-flex items-center rounded-full border border-border/70 bg-card px-2 py-0.5 text-[10px] font-semibold text-foreground/70">
+                  {pageMeta.section}
+                </span>
+                {user?.role && (
+                  <span className="inline-flex items-center rounded-full border border-border/70 bg-card px-2 py-0.5 text-[10px] font-semibold capitalize text-foreground/70">
+                    {user.role}
+                  </span>
+                )}
+                <span className="hidden lg:inline-flex text-[10px] font-medium text-muted-foreground/60">v1.0</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground font-medium tabular-nums">
