@@ -539,7 +539,43 @@
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* Removed heavy glow animations for performance */
+/* ── Compli-ee animations ─────────────────────────────── */
+
+@keyframes compliee-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes compliee-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-secondary); }
+  50% { box-shadow: 0 0 16px 4px color-mix(in oklab, var(--color-secondary) 35%, transparent); }
+}
+
+@keyframes compliee-sparkle {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  50% { transform: scale(1) rotate(180deg); opacity: 1; }
+  100% { transform: scale(0) rotate(360deg); opacity: 0; }
+}
+
+@keyframes compliee-wave-ring {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes compliee-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes compliee-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.compliee-float { animation: compliee-float 3s ease-in-out infinite; }
+.compliee-glow { animation: compliee-glow-pulse 2.5s ease-in-out infinite; }
+.compliee-breathe { animation: compliee-breathe 4s ease-in-out infinite; }
 
 /* Theme-specific body backgrounds */
 .theme-dark body,
