@@ -110,7 +110,7 @@
   --surface-grid: linear-gradient(90deg, hsl(214 16% 90% / 0.48) 1px, transparent 1px),
     linear-gradient(180deg, hsl(214 16% 90% / 0.48) 1px, transparent 1px);
   --surface-grid-size: 128px 128px;
-  --content-max-width: 1280px;
+  --content-max-width: 1360px;
 
   /* Z-index scale */
   --z-base: 1;
@@ -136,7 +136,7 @@
     text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    scroll-behavior: auto;
+    scroll-behavior: smooth;
   }
   * {
     @apply border-border;
@@ -236,6 +236,18 @@
     font: inherit;
     letter-spacing: inherit;
   }
+  /* Enhanced focus-visible ring for accessibility */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 0;
+  }
   th {
     font-family: var(--font-heading);
     font-weight: 600;
@@ -293,14 +305,14 @@
   }
   .glass-card:hover,
   .glass-card-interactive:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-    box-shadow: var(--shadow-sm);
+    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
+    box-shadow: var(--shadow-medium);
   }
   .glass-card-interactive {
     cursor: pointer;
   }
   .glass-card-interactive:hover {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
   }
 
   /* Corporate pill badges - refined */
@@ -390,14 +402,14 @@
     border-radius: 1rem;
     border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
     background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white), var(--color-card));
-    padding: 1.35rem;
+    padding: 1.5rem;
     box-shadow: var(--shadow-soft);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .stat-card:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-    box-shadow: var(--shadow-sm);
-    transform: translateY(-1px);
+    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
   }
   .stat-card-value {
     font-family: var(--font-heading);
@@ -1097,14 +1109,14 @@ html.theme-light body {
     font-size: 0.625rem;
   }
   .page-title { font-size: 1.5rem; }
-  .page-subtitle { font-size: 0.85rem; }
+  .page-subtitle { font-size: 0.875rem; line-height: 1.6; }
 
   /* Ensure adequate touch targets on mobile */
   button,
   [role="button"],
   a {
-    min-height: 36px;
-    min-width: 36px;
+    min-height: 40px;
+    min-width: 40px;
   }
   /* Exclude inline/link buttons and icon-only from min-width */
   a:not([role="button"]),
