@@ -78,7 +78,6 @@ function AcknowledgeDialog({
   onAcknowledged: () => void;
 }) {
   const { toast } = useToast();
-  usePageTitle("Policies");
   const [signatureName, setSignatureName] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
@@ -206,6 +205,7 @@ function ViewAcksDialog({
 }
 
 function PolicyAcknowledgement() {
+  usePageTitle("Policies");
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
@@ -248,7 +248,7 @@ function PolicyAcknowledgement() {
   const isLoading = loadingPolicies || loadingAcks;
 
   return (
-    <>
+    <div className="page-shell page-shell-compact">
       <div className="space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -411,7 +411,7 @@ function PolicyAcknowledgement() {
           onClose={() => setViewAcksDialog(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 

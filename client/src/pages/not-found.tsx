@@ -1,16 +1,12 @@
-import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Home, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 export default function NotFound() {
   const [location] = useLocation();
-
-  useEffect(() => {
-    document.title = "Page Not Found — CareAssurance";
-    return () => { document.title = "CareAssurance"; };
-  }, []);
+  usePageTitle("Page Not Found");
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center px-6 py-12 bg-background">

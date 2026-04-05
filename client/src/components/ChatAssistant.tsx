@@ -155,26 +155,35 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
   };
 
   return (
-    <div
+    <motion.div
       className={cn(
         sizeClasses[size],
         "relative rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg border border-primary/20",
-        animate && "animate-pulse"
       )}
       title="Compli-ee - Your Compliance Assistant"
+      animate={animate ? {
+        scale: [1, 1.05, 1],
+        boxShadow: [
+          "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
+          "0 0 12px 3px color-mix(in oklab, var(--color-primary) 25%, transparent)",
+          "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
+        ],
+      } : {}}
+      transition={animate ? { repeat: Infinity, duration: 1.5, ease: "easeInOut" } : {}}
     >
       <motion.svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 64 80"
-        className={cn("w-full h-full p-1 overflow-visible drop-shadow-sm", animate && "animate-bounce")}
+        className={cn("w-full h-full p-1 overflow-visible drop-shadow-sm")}
         initial="rest"
         whileHover="hover"
-        animate="rest"
+        animate={animate ? "thinking" : "rest"}
       >
         <motion.g 
           className="origin-[32px_30px]"
           variants={{
             rest: { rotate: 0 },
+            thinking: { rotate: [-3, 3, -3], transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" } },
             hover: { rotate: [0, -10, 10, -5, 5, 0], transition: { duration: 0.8 } }
           }}
         >
@@ -189,10 +198,30 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
           {/* Eyes */}
           <circle cx="21" cy="34" r="10" fill="white"/>
           <circle cx="43" cy="34" r="10" fill="white"/>
-          <circle cx="24" cy="35" r="6" fill="#1e1e1e"/>
-          <circle cx="46" cy="35" r="6" fill="#1e1e1e"/>
-          <circle cx="27" cy="32" r="3" fill="white"/>
-          <circle cx="49" cy="32" r="3" fill="white"/>
+          <motion.circle
+            cx="24" cy="35" r="6" fill="#1e1e1e"
+            variants={{
+              rest: {},
+              thinking: { x: [0, 1.5, -1, 0], y: [-0.5, 0.5, -0.5], transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
+              hover: {},
+            }}
+          />
+          <motion.circle
+            cx="46" cy="35" r="6" fill="#1e1e1e"
+            variants={{
+              rest: {},
+              thinking: { x: [0, 1.5, -1, 0], y: [-0.5, 0.5, -0.5], transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
+              hover: {},
+            }}
+          />
+          <motion.circle cx="27" cy="32" r="3" fill="white"
+            animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+          />
+          <motion.circle cx="49" cy="32" r="3" fill="white"
+            animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.3 }}
+          />
 
           {/* Smile */}
           <path d="M24 46 Q32 52 40 46" stroke="#ec4899" strokeWidth="3" fill="none" strokeLinecap="round"/>
@@ -200,7 +229,7 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
           <rect x="52" y="36" width="6" height="4" rx="2" fill="#f43f5e" opacity="0.6"/>
         </motion.g>
       </motion.svg>
-    </div>
+    </motion.div>
   );
 });
 
@@ -554,33 +583,72 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ x: "100%", opacity: 0.5 }}
+          initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "100%", opacity: 0 }}
-          transition={{ type: "spring", damping: 30, stiffness: 300, mass: 1 }}
+          transition={{ type: "spring", damping: 28, stiffness: 280, mass: 0.9 }}
           className={cn(
-            "fixed z-50 transition-all duration-250 bg-background border-l border-border shadow-[var(--shadow-strong)] overflow-hidden flex flex-col",
+            "fixed z-50 bg-background border-l border-border shadow-[var(--shadow-strong)] overflow-hidden flex flex-col",
             /* framer-motion handles entrance/exit */
             isMinimized
               ? "bottom-4 right-4 w-[300px] h-14 rounded-xl"
               : "top-0 right-0 w-full sm:w-[430px] h-full"
           )}
         >
-      <div className="relative flex items-center justify-between px-3.5 py-3 bg-primary text-primary-foreground">
+      {/* ── Header with animated gradient ────────────────────── */}
+      <motion.div
+        className="relative flex items-center justify-between px-3.5 py-3 bg-primary text-primary-foreground overflow-hidden"
+        initial={false}
+        animate={isMinimized ? { borderRadius: "0.75rem" } : { borderRadius: "0" }}
+        transition={{ duration: 0.3 }}
+      >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/70" />
+        {/* Animated shimmer overlay on header */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.4) 50%, transparent 60%)",
+            backgroundSize: "250% 100%",
+          }}
+          animate={{ backgroundPosition: ["250% 0", "-250% 0"] }}
+          transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+        />
         <div className="flex items-center gap-2.5 min-w-0">
           <ComplieeAvatar size="md" animate={isLoading} />
           <div className="min-w-0">
             <h3 className="font-semibold text-sm leading-tight">Compli-ee</h3>
-            <p className="text-[11px] text-white/85 truncate">
-              {availabilityLoading
-                ? "Checking availability..."
-                : assistantAvailable
-                  ? "Ready to help"
-                  : limitedMode
-                    ? "Limited guidance mode"
-                    : "Currently unavailable"}
-            </p>
+            <div className="flex items-center gap-1.5">
+              {/* Animated status dot */}
+              <motion.div
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  availabilityLoading
+                    ? "bg-white/50"
+                    : assistantAvailable
+                      ? "bg-emerald-300"
+                      : limitedMode
+                        ? "bg-amber-300"
+                        : "bg-red-300"
+                )}
+                animate={
+                  availabilityLoading
+                    ? { scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }
+                    : assistantAvailable
+                      ? { scale: [1, 1.2, 1] }
+                      : {}
+                }
+                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              />
+              <p className="text-[11px] text-white/85 truncate">
+                {availabilityLoading
+                  ? "Checking availability..."
+                  : assistantAvailable
+                    ? "Ready to help"
+                    : limitedMode
+                      ? "Limited guidance mode"
+                      : "Currently unavailable"}
+              </p>
+            </div>
           </div>
         </div>
           <div className="flex items-center gap-1">
@@ -631,13 +699,17 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             <X className="h-4 w-4" />
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {!isMinimized && (
         <>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-muted/45 via-muted/20 to-background/35">
             {statusMessage && (
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: -8, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -8, height: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 className={cn(
                   "rounded-xl border px-3 py-2.5 text-xs flex items-start justify-between gap-2",
                   assistantAvailable
@@ -660,25 +732,40 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", availabilityLoading && "animate-spin")} />
                 </Button>
-              </div>
+              </motion.div>
             )}
 
             {!hasUserPrompt && canSendMessages && !availabilityLoading && (
-              <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+              <motion.div
+                className="rounded-xl border border-border/70 bg-background/80 p-3"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+              >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-2">
                   {assistantAvailable ? "Try one of these" : "Limited mode prompts"}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <button
+                  {QUICK_PROMPTS.map((prompt, index) => (
+                    <motion.button
                       key={prompt}
                       type="button"
                       onClick={() => void sendMessage(prompt)}
+                      initial={{ opacity: 0, scale: 0.9, y: 6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{
+                        delay: 0.3 + index * 0.08,
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 20,
+                      }}
+                      whileHover={{ scale: 1.04, y: -1 }}
+                      whileTap={{ scale: 0.96 }}
                       className="rounded-full border border-border bg-muted/50 hover:bg-muted text-xs px-3 py-1.5 text-foreground transition-colors"
                       disabled={isLoading}
                     >
                       {prompt}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
                 <div className="mt-3 border-t border-border/60 pt-3">
@@ -686,47 +773,69 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                     Open workspace
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {WORKSPACE_SHORTCUTS.map((shortcut) => (
-                      <button
+                    {WORKSPACE_SHORTCUTS.map((shortcut, index) => (
+                      <motion.button
                         key={shortcut.path}
                         type="button"
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          delay: 0.5 + index * 0.06,
+                          type: "spring",
+                          stiffness: 300,
+                          damping: 22,
+                        }}
+                        whileHover={{ scale: 1.04, y: -1 }}
+                        whileTap={{ scale: 0.96 }}
                         className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors"
                         onClick={() => openWorkspace(shortcut.path)}
                       >
                         {shortcut.label}
                         <ArrowUpRight className="h-3 w-3" />
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             <AnimatePresence initial={false}>
-            {messages.map((message) => (
+            {messages.map((message, index) => (
               <motion.div
                 layout
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                initial={{ opacity: 0, y: 14, scale: 0.92 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 320,
+                  damping: 24,
+                  delay: index === messages.length - 1 ? 0.05 : 0,
+                }}
                 key={message.id}
                 className={cn(
-                  "flex gap-2.5",
+                  "group/msg flex gap-2.5",
                   message.role === "user" ? "justify-end" : "justify-start"
                 )}
               >
                 {message.role === "assistant" && (
-                  <div className="flex-shrink-0 mt-0.5">
+                  <motion.div
+                    className="flex-shrink-0 mt-0.5"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
+                  >
                     <ComplieeAvatar size="sm" />
-                  </div>
+                  </motion.div>
                 )}
 
-                <div
+                <motion.div
+                  whileHover={{ y: -1 }}
+                  transition={{ duration: 0.15 }}
                   className={cn(
-                    "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-[var(--shadow-xs)]",
+                    "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-[var(--shadow-xs)] transition-shadow duration-200",
                     message.role === "user"
-                      ? "bg-secondary text-secondary-foreground rounded-br-md border border-secondary/40 shadow-secondary/20"
-                      : "bg-background/95 border border-border/70 rounded-bl-md shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)]"
+                      ? "bg-secondary text-secondary-foreground rounded-br-md border border-secondary/40 shadow-secondary/20 hover:shadow-[0_8px_20px_-10px_color-mix(in_oklab,var(--color-secondary)_30%,transparent)]"
+                      : "bg-background/95 border border-border/70 rounded-bl-md shadow-[0_8px_20px_-14px_rgba(15,23,42,0.35)] hover:shadow-[0_12px_28px_-14px_rgba(15,23,42,0.45)]"
                   )}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -750,7 +859,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                   <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
 
                   {message.role === "assistant" && (
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2 flex justify-end opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200">
                       <Button
                         type="button"
                         variant="ghost"
@@ -760,7 +869,13 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                       >
                         {copiedMessageId === message.id ? (
                           <>
-                            <Check className="h-3 w-3 mr-1" />
+                            <motion.span
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                            </motion.span>
                             Copied
                           </>
                         ) : (
@@ -772,7 +887,7 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                       </Button>
                     </div>
                   )}
-                </div>
+                </motion.div>
 
                 {message.role === "user" && (
                   <div className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -785,30 +900,35 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
 
                         {isLoading && (
               <motion.div 
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                initial={{ opacity: 0, y: 14, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 300, damping: 22 }}
                 className="flex gap-2.5 justify-start"
               >
-                <div className="flex-shrink-0 mt-0.5">
+                <motion.div
+                  className="flex-shrink-0 mt-0.5"
+                  animate={{ scale: [1, 1.08, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                >
                   <ComplieeAvatar size="sm" animate />
-                </div>
+                </motion.div>
                 <div className="bg-background border border-border/70 shadow-[var(--shadow-xs)] rounded-2xl rounded-bl-md px-4 py-3 flex items-center h-[38px]">
                   <div className="flex gap-1.5 items-center justify-center">
                     <motion.div
-                      className="h-2 w-2 bg-primary/60 rounded-full"
-                      animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0 }}
+                      className="h-2 w-2 bg-primary/70 rounded-full"
+                      animate={{ y: [0, -5, 0], scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0 }}
                     />
                     <motion.div
-                      className="h-2 w-2 bg-primary/60 rounded-full"
-                      animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+                      className="h-2 w-2 bg-primary/70 rounded-full"
+                      animate={{ y: [0, -5, 0], scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
                     />
                     <motion.div
-                      className="h-2 w-2 bg-primary/60 rounded-full"
-                      animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                      className="h-2 w-2 bg-primary/70 rounded-full"
+                      animate={{ y: [0, -5, 0], scale: [1, 1.2, 1], opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
                     />
                   </div>
                 </div>
@@ -818,7 +938,12 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-border/80 bg-background/95">
+          <motion.div
+            className="p-3 border-t border-border/80 bg-background/95"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.3 }}
+          >
             <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
@@ -837,36 +962,50 @@ export default function ChatAssistant({ isOpen, onClose }: ChatAssistantProps) {
                 className={cn(
                   "flex-1 resize-none bg-muted/55 border border-border/80 rounded-xl px-3.5 py-2.5 text-sm text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
                   "focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:border-secondary/40",
-                  "min-h-[42px] max-h-[140px] placeholder:text-muted-foreground overflow-y-auto"
+                  "min-h-[42px] max-h-[140px] placeholder:text-muted-foreground overflow-y-auto transition-shadow duration-200"
                 )}
                 disabled={isLoading || availabilityLoading || !canSendMessages}
               />
 
-              <Button
-                onClick={() => void sendMessage()}
-                disabled={
-                  !inputValue.trim() ||
-                  isLoading ||
-                  availabilityLoading ||
-                  !canSendMessages
-                }
-                size="icon"
-                aria-label="Send message"
-                className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-secondary hover:bg-secondary/90 shadow-[0_12px_24px_-14px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)]"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
+              <motion.div whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }}>
+                <Button
+                  onClick={() => void sendMessage()}
+                  disabled={
+                    !inputValue.trim() ||
+                    isLoading ||
+                    availabilityLoading ||
+                    !canSendMessages
+                  }
+                  size="icon"
+                  aria-label="Send message"
+                  className="h-[42px] w-[42px] rounded-xl flex-shrink-0 bg-secondary hover:bg-secondary/90 shadow-[0_12px_24px_-14px_color-mix(in_oklab,var(--color-secondary)_40%,transparent)] transition-shadow duration-200 hover:shadow-[0_16px_32px_-14px_color-mix(in_oklab,var(--color-secondary)_50%,transparent)]"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <motion.div
+                      animate={inputValue.trim() ? { x: [0, 2, 0] } : {}}
+                      transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
+                    >
+                      <Send className="h-4 w-4" />
+                    </motion.div>
+                  )}
+                </Button>
+              </motion.div>
             </div>
 
             <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
               <span>Enter to send, Shift+Enter for newline</span>
-              <span>{inputValue.trim().length} chars</span>
+              <motion.span
+                key={inputValue.trim().length}
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              >
+                {inputValue.trim().length} chars
+              </motion.span>
             </div>
-          </div>
+          </motion.div>
         </>
       )}
         </motion.div>
