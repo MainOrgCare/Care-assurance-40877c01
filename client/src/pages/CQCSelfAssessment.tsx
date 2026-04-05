@@ -234,7 +234,7 @@ function CQCSelfAssessment() {
   }, [assessment, domainScores, answeredQuestions, totalQuestions, completionPct, toast]);
 
   return (
-      <div className="space-y-6">
+      <div className="page-shell page-shell-compact">
         {/* Overview header */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <Card className="md:col-span-2">

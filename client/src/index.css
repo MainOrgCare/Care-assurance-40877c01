@@ -909,6 +909,50 @@ html.theme-light body {
     scrollbar-gutter: stable both-edges;
   }
 
+  /* ── Section divider ── */
+  .section-divider {
+    height: 1px;
+    margin-block: 1.5rem;
+    background: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-border) 60%, transparent),
+      color-mix(in oklab, var(--color-border) 30%, transparent),
+      transparent
+    );
+  }
+
+  /* ── Empty state container ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3rem 1.5rem;
+    text-align: center;
+  }
+  .empty-state-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 3rem;
+    width: 3rem;
+    border-radius: 0.75rem;
+    background: color-mix(in oklab, var(--color-muted) 50%, transparent);
+    color: var(--color-muted-foreground);
+  }
+  .empty-state-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-foreground);
+  }
+  .empty-state-description {
+    font-size: 0.8125rem;
+    color: var(--color-muted-foreground);
+    max-width: 28rem;
+    line-height: 1.55;
+  }
+
   /* Metric highlight treatment */
   .metric-value {
     font-family: var(--font-heading);
