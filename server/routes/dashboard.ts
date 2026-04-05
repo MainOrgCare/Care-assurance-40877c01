@@ -9,6 +9,14 @@
 import type { Express, RequestHandler } from "express";
 import { storage } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
+import { createLogger } from "../utils/logger";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiInternalError,
+} from "../utils/apiResponse";
+
+const log = createLogger("dashboard");
 
 export interface DashboardRouteDeps {
   requireAuth: RequestHandler;
@@ -24,9 +32,10 @@ export function registerDashboardRoutes(
     try {
       const stats = await storage.getDashboardStats24h();
       const recentAlerts = await storage.getRecentAlerts24h();
-      return res.json({ stats, recentAlerts });
+      return apiSuccess(res, { stats, recentAlerts });
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get dashboard stats") });
+      log.error("Failed to get dashboard stats", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to get dashboard stats"));
     }
   });
 
@@ -80,9 +89,10 @@ export function registerDashboardRoutes(
       // Sort by timestamp descending
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      return res.json(activities.slice(0, limit));
+      return apiSuccess(res, activities.slice(0, limit));
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load activities") });
+      log.error("Failed to load activities", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load activities"));
     }
   });
 
@@ -90,9 +100,10 @@ export function registerDashboardRoutes(
   app.get("/api/dashboard/widgets", requireAuth, async (req: any, res) => {
     try {
       const widgets = await storage.getDashboardWidgets(req.user.id);
-      return res.json({ widgets: widgets || null });
+      return apiSuccess(res, { widgets: widgets || null });
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load widget preferences") });
+      log.error("Failed to load widget preferences", { userId: req.user.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load widget preferences"));
     }
   });
 
@@ -101,12 +112,13 @@ export function registerDashboardRoutes(
     try {
       const { widgets } = req.body;
       if (!Array.isArray(widgets)) {
-        return res.status(400).json({ message: "widgets must be an array" });
+        return apiBadRequest(res, "widgets must be an array");
       }
       await storage.updateDashboardWidgets(req.user.id, widgets);
-      return res.json({ message: "Dashboard preferences saved", widgets });
+      return apiSuccess(res, { widgets }, { message: "Dashboard preferences saved" });
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save widget preferences") });
+      log.error("Failed to save widget preferences", { userId: req.user.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to save widget preferences"));
     }
   });
 }
