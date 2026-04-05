@@ -159,10 +159,16 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
       className={cn(
         sizeClasses[size],
         "relative rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg border border-primary/20",
-        animate && "compliee-glow"
       )}
       title="Compli-ee - Your Compliance Assistant"
-      animate={animate ? { scale: [1, 1.05, 1] } : {}}
+      animate={animate ? {
+        scale: [1, 1.05, 1],
+        boxShadow: [
+          "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
+          "0 0 12px 3px color-mix(in oklab, var(--color-primary) 25%, transparent)",
+          "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
+        ],
+      } : {}}
       transition={animate ? { repeat: Infinity, duration: 1.5, ease: "easeInOut" } : {}}
     >
       <motion.svg
