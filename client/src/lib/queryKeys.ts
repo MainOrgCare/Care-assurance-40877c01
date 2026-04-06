@@ -31,7 +31,7 @@ export const queryKeys = {
   },
 
   policies: {
-    all: () => ["/api/policies"] as const,
+    all: () => ["/api/policy-documents"] as const,
     acknowledgements: () => ["/api/policy-acknowledgements"] as const,
   },
 

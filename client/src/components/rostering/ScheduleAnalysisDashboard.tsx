@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sparkles, TrendingUp, AlertTriangle, CheckCircle2, Brain, Users, Clock, Target, Loader2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
+import { normalizeApiPayload } from "@/lib/queryClient";
 
 interface ScheduleAnalysisProps {
   workbookId: string;
@@ -69,6 +70,122 @@ interface AnalysisResult {
   };
 }
 
+const toFiniteNumber = (value: unknown, fallback: number = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const normalizeAnalysisResult = (payload: unknown): AnalysisResult => {
+  const raw = normalizeApiPayload<Record<string, unknown>>(payload);
+
+  const rawInsights = Array.isArray(raw?.insights) ? raw.insights : [];
+  const insights: AnalysisResult["insights"] = rawInsights.map((entry) => {
+    const item = (entry as Record<string, unknown>) ?? {};
+    const type = item.type;
+    const category = item.category;
+    const impact = item.impact;
+
+    return {
+      type: type === "positive" || type === "warning" || type === "critical" ? type : "warning",
+      category:
+        category === "workload" ||
+        category === "efficiency" ||
+        category === "quality" ||
+        category === "compliance"
+          ? category
+          : "quality",
+      title: typeof item.title === "string" && item.title.trim().length > 0 ? item.title : "Untitled insight",
+      description:
+        typeof item.description === "string" && item.description.trim().length > 0
+          ? item.description
+          : "No description provided.",
+      impact: impact === "high" || impact === "medium" || impact === "low" ? impact : "medium",
+    };
+  });
+
+  const rawRecommendations = Array.isArray(raw?.recommendations) ? raw.recommendations : [];
+  const recommendations: AnalysisResult["recommendations"] = rawRecommendations.map((entry) => {
+    const item = (entry as Record<string, unknown>) ?? {};
+    const affectedWorkers = Array.isArray(item.affectedWorkers)
+      ? item.affectedWorkers
+          .map((w) => (typeof w === "string" ? w : ""))
+          .filter((w) => w.trim().length > 0)
+      : [];
+
+    return {
+      priority: toFiniteNumber(item.priority, 0),
+      action: typeof item.action === "string" && item.action.trim().length > 0 ? item.action : "Review schedule",
+      expectedBenefit:
+        typeof item.expectedBenefit === "string" && item.expectedBenefit.trim().length > 0
+          ? item.expectedBenefit
+          : "Potential schedule improvement.",
+      affectedWorkers,
+    };
+  });
+
+  const rawPredictive = (raw?.predictive as Record<string, unknown> | undefined) ?? {};
+
+  const rawBurnoutRisk = Array.isArray(rawPredictive.burnoutRisk) ? rawPredictive.burnoutRisk : [];
+  const burnoutRisk: AnalysisResult["predictive"]["burnoutRisk"] = rawBurnoutRisk.map((entry, idx) => {
+    const item = (entry as Record<string, unknown>) ?? {};
+    const factors = Array.isArray(item.factors)
+      ? item.factors
+          .map((factor) => (typeof factor === "string" ? factor : ""))
+          .filter((factor) => factor.trim().length > 0)
+      : [];
+
+    return {
+      workerName:
+        typeof item.workerName === "string" && item.workerName.trim().length > 0
+          ? item.workerName
+          : `Worker ${idx + 1}`,
+      riskScore: Math.max(0, Math.min(100, toFiniteNumber(item.riskScore, 0))),
+      factors,
+    };
+  });
+
+  const rawBottlenecks = Array.isArray(rawPredictive.bottlenecks) ? rawPredictive.bottlenecks : [];
+  const bottlenecks: AnalysisResult["predictive"]["bottlenecks"] = rawBottlenecks.map((entry, idx) => {
+    const item = (entry as Record<string, unknown>) ?? {};
+    return {
+      timeWindow:
+        typeof item.timeWindow === "string" && item.timeWindow.trim().length > 0
+          ? item.timeWindow
+          : `Window ${idx + 1}`,
+      description:
+        typeof item.description === "string" && item.description.trim().length > 0
+          ? item.description
+          : "Potential bottleneck detected.",
+      affectedCalls: Math.max(0, toFiniteNumber(item.affectedCalls, 0)),
+    };
+  });
+
+  const rawOptimizationPotential =
+    (rawPredictive.optimizationPotential as Record<string, unknown> | undefined) ?? {};
+
+  return {
+    overallScore: Math.max(0, Math.min(100, toFiniteNumber(raw?.overallScore, 0))),
+    insights,
+    recommendations,
+    predictive: {
+      burnoutRisk,
+      bottlenecks,
+      optimizationPotential: {
+        travelTimeReduction: Math.max(0, toFiniteNumber(rawOptimizationPotential.travelTimeReduction, 0)),
+        workloadBalanceImprovement: Math.max(
+          0,
+          toFiniteNumber(rawOptimizationPotential.workloadBalanceImprovement, 0),
+        ),
+        conflictElimination: Math.max(0, toFiniteNumber(rawOptimizationPotential.conflictElimination, 0)),
+      },
+    },
+  };
+};
+
 export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
 
@@ -89,10 +206,10 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
         }),
       });
       if (!response.ok) throw new Error("Analysis failed");
-      return response.json();
+      return response.json() as Promise<unknown>;
     },
-    onSuccess: (data: AnalysisResult) => {
-      setAnalysis(data);
+    onSuccess: (data: unknown) => {
+      setAnalysis(normalizeAnalysisResult(data));
     },
   });
 
