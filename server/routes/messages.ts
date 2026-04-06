@@ -11,6 +11,16 @@
 import type { Express, RequestHandler } from "express";
 import { storage } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
+import { createLogger } from "../utils/logger";
+import {
+  apiSuccess,
+  apiNotFound,
+  apiForbidden,
+  apiBadRequest,
+  apiInternalError,
+} from "../utils/apiResponse";
+
+const log = createLogger("messages");
 
 export interface MessageRouteDeps {
   requireAuth: RequestHandler;
@@ -25,10 +35,10 @@ export function registerMessageRoutes(
     try {
       const includeArchived = req.query.includeArchived === "true";
       const messages = await storage.getUserMessages(req.user.id, includeArchived);
-      return res.json(messages);
+      return apiSuccess(res, messages);
     } catch (error: unknown) {
-      console.error("[Messages] Failed to fetch messages:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch messages" });
+      log.error("Failed to fetch messages", { userId: req.user.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to fetch messages");
     }
   });
 
@@ -38,10 +48,10 @@ export function registerMessageRoutes(
       const count = await storage.getUnreadUserMessageCount(req.user.id);
       // Short-lived client cache — this endpoint is polled frequently
       res.set("Cache-Control", "private, max-age=60");
-      return res.json({ count });
+      return apiSuccess(res, { count });
     } catch (error: unknown) {
-      console.error("[Messages] Failed to get unread count:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to get unread count" });
+      log.error("Failed to get unread count", { userId: req.user.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to get unread count");
     }
   });
 
@@ -50,16 +60,16 @@ export function registerMessageRoutes(
     try {
       const message = await storage.getUserMessage(req.params.id);
       if (!message) {
-        return res.status(404).json({ message: "Message not found" });
+        return apiNotFound(res, "Message not found");
       }
       // Verify recipient is current user
       if (message.recipientId !== req.user.id) {
-        return res.status(403).json({ message: "Access denied" });
+        return apiForbidden(res, "Access denied");
       }
-      return res.json(message);
+      return apiSuccess(res, message);
     } catch (error: unknown) {
-      console.error("[Messages] Failed to fetch message:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to fetch message" });
+      log.error("Failed to fetch message", { messageId: req.params.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to fetch message");
     }
   });
 
@@ -68,16 +78,16 @@ export function registerMessageRoutes(
     try {
       const message = await storage.getUserMessage(req.params.id);
       if (!message) {
-        return res.status(404).json({ message: "Message not found" });
+        return apiNotFound(res, "Message not found");
       }
       if (message.recipientId !== req.user.id) {
-        return res.status(403).json({ message: "Access denied" });
+        return apiForbidden(res, "Access denied");
       }
       const updated = await storage.markUserMessageRead(req.params.id);
-      return res.json(updated);
+      return apiSuccess(res, updated);
     } catch (error: unknown) {
-      console.error("[Messages] Failed to mark message as read:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to update message" });
+      log.error("Failed to mark message as read", { messageId: req.params.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to update message");
     }
   });
 
@@ -86,16 +96,16 @@ export function registerMessageRoutes(
     try {
       const message = await storage.getUserMessage(req.params.id);
       if (!message) {
-        return res.status(404).json({ message: "Message not found" });
+        return apiNotFound(res, "Message not found");
       }
       if (message.recipientId !== req.user.id) {
-        return res.status(403).json({ message: "Access denied" });
+        return apiForbidden(res, "Access denied");
       }
       const updated = await storage.archiveUserMessage(req.params.id);
-      return res.json(updated);
+      return apiSuccess(res, updated);
     } catch (error: unknown) {
-      console.error("[Messages] Failed to archive message:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to archive message" });
+      log.error("Failed to archive message", { messageId: req.params.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to archive message");
     }
   });
 
@@ -104,16 +114,16 @@ export function registerMessageRoutes(
     try {
       const message = await storage.getUserMessage(req.params.id);
       if (!message) {
-        return res.status(404).json({ message: "Message not found" });
+        return apiNotFound(res, "Message not found");
       }
       if (message.recipientId !== req.user.id) {
-        return res.status(403).json({ message: "Access denied" });
+        return apiForbidden(res, "Access denied");
       }
       await storage.deleteUserMessage(req.params.id);
-      return res.json({ success: true });
+      return apiSuccess(res, { success: true });
     } catch (error: unknown) {
-      console.error("[Messages] Failed to delete message:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to delete message" });
+      log.error("Failed to delete message", { messageId: req.params.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to delete message");
     }
   });
 
@@ -123,13 +133,13 @@ export function registerMessageRoutes(
       const { recipientId, subject, message, priority } = req.body;
 
       if (!recipientId || !subject || !message) {
-        return res.status(400).json({ message: "recipientId, subject, and message are required" });
+        return apiBadRequest(res, "recipientId, subject, and message are required");
       }
 
       // Verify recipient exists
       const recipient = await storage.getUser(recipientId);
       if (!recipient) {
-        return res.status(404).json({ message: "Recipient not found" });
+        return apiNotFound(res, "Recipient not found");
       }
 
       // Always derive senderName from session user to prevent impersonation
@@ -146,13 +156,15 @@ export function registerMessageRoutes(
         priority: priority || "normal",
       });
 
-      console.log(
-        `[Messages] Message sent from ${req.user.username} to user ${recipientId}: "${subject}"`,
-      );
-      return res.json(newMessage);
+      log.info("Message sent", {
+        from: req.user.username,
+        to: recipientId,
+        subject: subject.slice(0, 50),
+      });
+      return apiSuccess(res, newMessage);
     } catch (error: unknown) {
-      console.error("[Messages] Failed to send message:", safeErrorMessage(error));
-      return res.status(500).json({ message: "Failed to send message" });
+      log.error("Failed to send message", { error: safeErrorMessage(error) });
+      return apiInternalError(res, "Failed to send message");
     }
   });
 }

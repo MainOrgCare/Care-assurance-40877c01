@@ -12,6 +12,16 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
 import { insertCareWorkerSchema, insertDiscrepancySchema } from "@shared/schema";
+import { createLogger } from "../utils/logger";
+import {
+  apiSuccess,
+  apiCreated,
+  apiNotFound,
+  apiBadRequest,
+  apiInternalError,
+} from "../utils/apiResponse";
+
+const log = createLogger("care-workers");
 
 export interface CareWorkerRouteDeps {
   requireAuth: RequestHandler;
@@ -29,9 +39,10 @@ export function registerCareWorkerRoutes(
   app.get("/api/care-workers", requireAuth, async (req, res) => {
     try {
       const workers = await storage.getAllCareWorkers();
-      return res.json(workers);
+      return apiSuccess(res, workers);
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care workers") });
+      log.error("Failed to load care workers", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load care workers"));
     }
   });
 
@@ -40,12 +51,14 @@ export function registerCareWorkerRoutes(
     try {
       const validatedData = insertCareWorkerSchema.parse(req.body);
       const worker = await storage.createCareWorker(validatedData);
-      return res.status(201).json(worker);
+      log.info("Care worker created", { workerId: worker.id, name: worker.name });
+      return apiCreated(res, worker);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return apiBadRequest(res, "Validation error", { errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message })) });
       }
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create care worker") });
+      log.error("Failed to create care worker", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to create care worker"));
     }
   });
 
@@ -54,14 +67,15 @@ export function registerCareWorkerRoutes(
     try {
       const worker = await storage.getCareWorker(req.params.id);
       if (!worker) {
-        return res.status(404).json({ message: "Care worker not found" });
+        return apiNotFound(res, "Care worker not found");
       }
 
       const discrepancies = await storage.getDiscrepanciesByCareWorker(req.params.id);
 
-      return res.json({ ...worker, discrepancies });
+      return apiSuccess(res, { ...worker, discrepancies });
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker") });
+      log.error("Failed to load care worker", { workerId: req.params.id, error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load care worker"));
     }
   });
 
@@ -71,9 +85,10 @@ export function registerCareWorkerRoutes(
   app.get("/api/discrepancies", requireAuth, async (req, res) => {
     try {
       const discrepancies = await storage.getAllDiscrepancies();
-      return res.json(discrepancies);
+      return apiSuccess(res, discrepancies);
     } catch (error: unknown) {
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load discrepancies") });
+      log.error("Failed to load discrepancies", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load discrepancies"));
     }
   });
 
@@ -100,15 +115,17 @@ export function registerCareWorkerRoutes(
             discrepancyCount: count,
             isRead: false,
           });
+          log.warn("Admin alert triggered", { workerId: worker.id, type: validatedData.type, count });
         }
       }
 
-      return res.status(201).json(discrepancy);
+      return apiCreated(res, discrepancy);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return apiBadRequest(res, "Validation error", { errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message })) });
       }
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create discrepancy") });
+      log.error("Failed to create discrepancy", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to create discrepancy"));
     }
   });
 }
