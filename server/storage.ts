@@ -172,6 +172,15 @@ export interface AiUsageFilterOptions {
   providers: string[];
 }
 
+export interface RosteringDataStats {
+  serviceUsersCount: number;
+  careWorkersCount: number;
+  serviceOrdersCount: number;
+  templateAssignmentsCount: number;
+  pendingRecommendationsCount: number;
+  workbookUploadsCount: number;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -394,12 +403,14 @@ export interface IStorage {
   getWorkbookUpload(id: string): Promise<WorkbookUpload | undefined>;
   getWorkbookUploadByHash(fileHash: string): Promise<WorkbookUpload | undefined>;
   getAllWorkbookUploads(): Promise<WorkbookUpload[]>;
+  getRosteringDataStats(): Promise<RosteringDataStats>;
   updateWorkbookUploadStatus(id: string, status: string, error?: string): Promise<WorkbookUpload | undefined>;
   deleteWorkbookUpload(id: string): Promise<void>;
 
   // Analyzed Service Users
   upsertAnalyzedServiceUser(serviceUser: InsertAnalyzedServiceUser): Promise<AnalyzedServiceUser>;
   getAnalyzedServiceUser(serviceUserKey: string): Promise<AnalyzedServiceUser | undefined>;
+  getAnalyzedServiceUsersByKeys(serviceUserKeys: string[]): Promise<AnalyzedServiceUser[]>;
   getAllAnalyzedServiceUsers(): Promise<AnalyzedServiceUser[]>;
   deleteAnalyzedServiceUser(id: string): Promise<void>;
   cleanupExpiredServiceUsers(): Promise<number>;
@@ -423,6 +434,7 @@ export interface IStorage {
   getTemplateAssignmentsByWorker(workerKey: string): Promise<TemplateAssignment[]>;
   getTemplateAssignmentsByServiceUser(serviceUserKey: string): Promise<TemplateAssignment[]>;
   getTemplateAssignmentsForDay(templateWeek: string, templateDay: string): Promise<TemplateAssignment[]>;
+  getTemplateAssignmentsByDateRange(startDate?: string | null, endDate?: string | null, serviceUserKeys?: string[]): Promise<TemplateAssignment[]>;
   getAllTemplateAssignments(): Promise<TemplateAssignment[]>;
   deleteTemplateAssignmentsForSlot(serviceUserKey: string, callTypeLabel: string, templateWeek: string, templateDay: string): Promise<number>;
   deleteTemplateAssignment(id: string): Promise<void>;
@@ -433,7 +445,7 @@ export interface IStorage {
   getAllAnalyzedCalls(): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByWorker(workerKey: string): Promise<AnalyzedCall[]>;
-  getAnalyzedCallsByDateRange(startDate: string, endDate: string): Promise<AnalyzedCall[]>;
+  getAnalyzedCallsByDateRange(startDate?: string | null, endDate?: string | null): Promise<AnalyzedCall[]>;
   deleteAnalyzedCall(id: string): Promise<void>;
   cleanupExpiredCalls(): Promise<number>;
 
@@ -2129,6 +2141,36 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(workbookUploads.createdAt));
   }
 
+  async getRosteringDataStats(): Promise<RosteringDataStats> {
+    const [
+      serviceUsersResult,
+      careWorkersResult,
+      serviceOrdersResult,
+      templateAssignmentsResult,
+      pendingRecommendationsResult,
+      workbookUploadsResult,
+    ] = await Promise.all([
+      this.db.select({ count: sql<number>`count(*)` }).from(analyzedServiceUsers),
+      this.db.select({ count: sql<number>`count(*)` }).from(analyzedCareWorkers),
+      this.db.select({ count: sql<number>`count(*)` }).from(serviceOrders),
+      this.db.select({ count: sql<number>`count(*)` }).from(templateAssignments),
+      this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(callRecommendations)
+        .where(eq(callRecommendations.isApplied, false)),
+      this.db.select({ count: sql<number>`count(*)` }).from(workbookUploads),
+    ]);
+
+    return {
+      serviceUsersCount: Number(serviceUsersResult[0]?.count ?? 0),
+      careWorkersCount: Number(careWorkersResult[0]?.count ?? 0),
+      serviceOrdersCount: Number(serviceOrdersResult[0]?.count ?? 0),
+      templateAssignmentsCount: Number(templateAssignmentsResult[0]?.count ?? 0),
+      pendingRecommendationsCount: Number(pendingRecommendationsResult[0]?.count ?? 0),
+      workbookUploadsCount: Number(workbookUploadsResult[0]?.count ?? 0),
+    };
+  }
+
   async updateWorkbookUploadStatus(id: string, status: string, error?: string): Promise<WorkbookUpload | undefined> {
     const updates: any = { processingStatus: status };
     if (status === 'complete') {
@@ -2183,6 +2225,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(analyzedServiceUsers.serviceUserKey, serviceUserKey))
       .limit(1);
     return result;
+  }
+
+  async getAnalyzedServiceUsersByKeys(serviceUserKeys: string[]): Promise<AnalyzedServiceUser[]> {
+    const uniqueServiceUserKeys = Array.from(new Set(serviceUserKeys.filter(Boolean)));
+    if (uniqueServiceUserKeys.length === 0) {
+      return [];
+    }
+
+    return await this.db
+      .select()
+      .from(analyzedServiceUsers)
+      .where(inArray(analyzedServiceUsers.serviceUserKey, uniqueServiceUserKeys))
+      .orderBy(analyzedServiceUsers.serviceUserName);
   }
 
   async getAllAnalyzedServiceUsers(): Promise<AnalyzedServiceUser[]> {
@@ -2381,6 +2436,39 @@ export class DatabaseStorage implements IStorage {
       .orderBy(templateAssignments.workerName, templateAssignments.serviceUserName);
   }
 
+  async getTemplateAssignmentsByDateRange(
+    startDate?: string | null,
+    endDate?: string | null,
+    serviceUserKeys: string[] = []
+  ): Promise<TemplateAssignment[]> {
+    const uniqueServiceUserKeys = Array.from(new Set(serviceUserKeys.filter(Boolean)));
+    const conditions = [] as Array<ReturnType<typeof sql>>;
+
+    if (startDate) {
+      conditions.push(sql`${templateAssignments.sourceDateKey} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${templateAssignments.sourceDateKey} <= ${endDate}`);
+    }
+    if (uniqueServiceUserKeys.length > 0) {
+      conditions.push(inArray(templateAssignments.serviceUserKey, uniqueServiceUserKeys));
+    }
+
+    if (conditions.length === 0) {
+      return await this.db
+        .select()
+        .from(templateAssignments)
+        .orderBy(templateAssignments.workerName, templateAssignments.templateWeek, templateAssignments.templateDay);
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+    return await this.db
+      .select()
+      .from(templateAssignments)
+      .where(whereClause)
+      .orderBy(templateAssignments.workerName, templateAssignments.templateWeek, templateAssignments.templateDay);
+  }
+
   async getAllTemplateAssignments(): Promise<TemplateAssignment[]> {
     return await this.db
       .select()
@@ -2464,17 +2552,29 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(analyzedCalls.callDate));
   }
 
-  async getAnalyzedCallsByDateRange(startDate: string, endDate: string): Promise<AnalyzedCall[]> {
+  async getAnalyzedCallsByDateRange(startDate?: string | null, endDate?: string | null): Promise<AnalyzedCall[]> {
+    const conditions = [] as Array<ReturnType<typeof sql>>;
+
+    if (startDate) {
+      conditions.push(sql`${analyzedCalls.callDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${analyzedCalls.callDate} <= ${endDate}`);
+    }
+
+    if (conditions.length === 0) {
+      return await this.db
+        .select()
+        .from(analyzedCalls)
+        .orderBy(desc(analyzedCalls.callDate), analyzedCalls.serviceUserName);
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
     return await this.db
       .select()
       .from(analyzedCalls)
-      .where(
-        and(
-          sql`${analyzedCalls.callDate} >= ${startDate}`,
-          sql`${analyzedCalls.callDate} <= ${endDate}`
-        )
-      )
-      .orderBy(analyzedCalls.callDate, analyzedCalls.serviceUserName);
+      .where(whereClause)
+      .orderBy(desc(analyzedCalls.callDate), analyzedCalls.serviceUserName);
   }
 
   async deleteAnalyzedCall(id: string): Promise<void> {

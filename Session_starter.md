@@ -67,6 +67,7 @@
 - `server/routes.ts` contains a local `PIIVault` implementation; helper integrations should use structural typing for vault compatibility instead of concrete class coupling.
 - `server/utils/secureAiPipeline.ts` now supports both text-only and multimodal user content (scrubs text parts in multipart payloads).
 - Route-level direct `createChatCompletionWithLogging` calls have been eliminated in favor of secure helper wrappers; service-level text extraction paths were also migrated.
+- Production OOM on the rostering admin surface was traced to full-table materialization in `GET /api/admin/rostering/data-stats` and workbook-detail loaders; safe route behavior requires count-only stats queries plus date-window/service-user-scoped reads when reconstructing workbook views.
 
 **Performance Insights:**
 
@@ -91,6 +92,7 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-06 | ✅ Reduced production memory pressure on rostering admin APIs by replacing full-row stats loading with `COUNT(*)` queries in `server/storage.ts`/`server/routes.ts`, and by refactoring both workbook-detail routes to rebuild workbook responses from date-scoped analyzed-call queries plus service-user-scoped profile/template lookups instead of scanning all extracted calls/service users/template assignments in memory. |
 | 2026-04-04 | ✅ Delivered a focused professional-polish pass across the homepage, authenticated shell, dashboard, settings, and Edge extension popup: added an extension workflow section and richer footer/login/mobile CTAs on `client/src/pages/Homepage.tsx`, added executive overview cards on `client/src/pages/Dashboard.tsx`, added settings summary cards on `client/src/pages/Settings.tsx`, surfaced section/role badges in `client/src/components/Layout.tsx` footer, and aligned extension branding/layout in `extension/edge-acp-autofill/{popup.html,popup.css}`. Manually verified homepage/dashboard/settings in a demo-enabled dev run and revalidated with `npm run quality`. |
 | 2026-04-03 | ✅ Continued the corporate UI refinement pass by adding shared page-header utilities in `client/src/index.css`, standardizing prominent route headers in `client/src/pages/{Compliance,ROICalculator,SystemLogs}.tsx`, and replacing remaining hardcoded ROI palette classes with semantic token-based styling. Revalidated with `npm run check`, `npm run build`, and `npm run quality`. |
 | 2026-04-03 | ✅ Applied a broader corporate visual redesign across the frontend: refined global design tokens and shared UI primitives (`client/src/index.css`, `client/src/components/ui/{button,card,input,textarea,select}.tsx`), upgraded the authenticated shell and navigation framing (`client/src/components/Layout.tsx`), realigned homepage messaging and structure (`client/src/pages/Homepage.tsx` + `homepage-theme.css`), and brought Rostering Studio back onto the same palette and typography system (`client/src/pages/rostering-studio-redesign.css`). Revalidated with `npm run check`, `npm run build`, and `npm run quality`. |
