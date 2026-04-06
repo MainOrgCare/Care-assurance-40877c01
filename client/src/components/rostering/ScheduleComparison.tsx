@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GitCompare, TrendingUp, TrendingDown, Minus, Loader2, ArrowRight } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
+import { normalizeApiPayload } from "@/lib/queryClient";
 
 interface WorkerStats {
   name: string;
@@ -57,6 +58,79 @@ interface ComparisonResult {
   recommendation: string;
 }
 
+const toFiniteNumber = (value: unknown, fallback: number = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const normalizeComparisonResult = (
+  payload: unknown,
+  props: ScheduleComparisonProps
+): ComparisonResult => {
+  const raw = normalizeApiPayload<Record<string, unknown>>(payload);
+
+  const rawMetrics = (raw?.metrics as Record<string, unknown> | undefined) ?? {};
+  const rawWorkloadBalance =
+    (rawMetrics.workloadBalance as Record<string, unknown> | undefined) ?? {};
+
+  const beforeWorkload = toFiniteNumber(rawWorkloadBalance.before, 0);
+  const afterWorkload = toFiniteNumber(rawWorkloadBalance.after, 0);
+  const fallbackConflictChange = props.afterSchedule.conflicts - props.beforeSchedule.conflicts;
+  const fallbackTravelGapChange = props.afterSchedule.travelGaps - props.beforeSchedule.travelGaps;
+  const fallbackWorkloadImprovement = beforeWorkload - afterWorkload;
+
+  const normalizedWorkerImpact = Array.isArray(raw?.workerImpact)
+    ? raw.workerImpact.map((entry, idx) => {
+        const item = (entry as Record<string, unknown>) ?? {};
+        const impact = item.impact;
+        const safeImpact: "positive" | "neutral" | "negative" =
+          impact === "positive" || impact === "neutral" || impact === "negative"
+            ? impact
+            : "neutral";
+
+        return {
+          workerName:
+            typeof item.workerName === "string" && item.workerName.trim().length > 0
+              ? item.workerName
+              : `Worker ${idx + 1}`,
+          callsDelta: toFiniteNumber(item.callsDelta, 0),
+          minutesDelta: toFiniteNumber(item.minutesDelta, 0),
+          impact: safeImpact,
+          note:
+            typeof item.note === "string" && item.note.trim().length > 0
+              ? item.note
+              : "No additional notes provided.",
+        };
+      })
+    : [];
+
+  return {
+    improvementScore: toFiniteNumber(raw?.improvementScore, 0),
+    summary:
+      typeof raw?.summary === "string" && raw.summary.trim().length > 0
+        ? raw.summary
+        : "Comparison generated.",
+    metrics: {
+      conflictChange: toFiniteNumber(rawMetrics.conflictChange, fallbackConflictChange),
+      travelGapChange: toFiniteNumber(rawMetrics.travelGapChange, fallbackTravelGapChange),
+      workloadBalance: {
+        before: beforeWorkload,
+        after: afterWorkload,
+        improvement: toFiniteNumber(rawWorkloadBalance.improvement, fallbackWorkloadImprovement),
+      },
+    },
+    workerImpact: normalizedWorkerImpact,
+    recommendation:
+      typeof raw?.recommendation === "string" && raw.recommendation.trim().length > 0
+        ? raw.recommendation
+        : "Review the metrics and adjust manually where needed.",
+  };
+};
+
 export default function ScheduleComparison(props: ScheduleComparisonProps) {
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
 
@@ -73,10 +147,10 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
         }),
       });
       if (!response.ok) throw new Error("Comparison failed");
-      return response.json();
+      return response.json() as Promise<unknown>;
     },
-    onSuccess: (data: ComparisonResult) => {
-      setComparison(data);
+    onSuccess: (data: unknown) => {
+      setComparison(normalizeComparisonResult(data, props));
     },
   });
 

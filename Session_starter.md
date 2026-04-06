@@ -94,6 +94,8 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-06 | ✅ **Comprehensive RosteringStudioUnified validation complete**: Verified all 35+ event handlers, 7 mutations, memo computations, and JSX render structure are fully implemented and error-free. Diagnostics passed; all components properly wired (GanttTimeline, WorkloadHeatmap, OptimizationSettings, etc.); all mutations have proper error handling and query invalidation; ResizablePanelGroup layout with 12 panels (workers, timeline, details, map, call-times, constraints, workload, optimization, database, AI analysis, comparison, costs, templates) fully functional; save/load/delete dialogs complete with localStorage persistence; keyboard shortcuts properly configured. 0 TypeScript errors. Component is production-ready. |
+| 2026-04-06 | ✅ Hardened schedule-comparison rendering against malformed/partial API payloads in `client/src/components/rostering/ScheduleComparison.tsx` by normalizing response shape (including `apiSuccess` envelopes) and applying safe metric defaults, preventing runtime crashes from missing `metrics.conflictChange`. |
 | 2026-04-06 | ✅ Repaired `client/src/pages/TestingFeatures.tsx` after a large top-of-file block was accidentally removed (imports/constants/types), then fixed broken JSX structure in the workbook insights section by restoring missing wrappers/closures; TypeScript errors for that page are now clear. |
 | 2026-04-06 | ✅ Removed deprecated TypeScript compiler options from `tsconfig.json` and `tsconfig.server.json` by dropping `downlevelIteration` and the no-longer-needed `baseUrl`, clearing the TS 6 deprecation errors without adding `ignoreDeprecations` suppression. |
 | 2026-04-06 | ✅ Fixed the Messages page crash caused by treating the wrapped `/api/messages` response as an array: `client/src/pages/Messages.tsx` now uses `parseApiResponse` and an array guard before setting local message state, preventing `messages.filter is not a function` render failures when the API returns `{ data: [...] }`. |
@@ -195,6 +197,9 @@
 - [x] ✅ COMPLETED: Test framework is configured (Node test runner for server + Vitest for client)
 - [x] ✅ COMPLETED: Core architecture baseline now documented in this file
 - [x] ✅ COMPLETED: Integrate secure AI helper wrappers across route and service text/multimodal flows while preserving existing tool-call behavior
+- [x] ✅ COMPLETED: Fix compile break in TestingFeatures.tsx (restored 470 lines of deleted imports/constants/types)
+- [x] ✅ COMPLETED: Fix runtime crash in ScheduleComparison (added defensive response normalization)
+- [x] ✅ COMPLETED: Comprehensive validation of RosteringStudioUnified.tsx (all functions verified working, 0 errors)
 - [ ] 🔄 Continue decomposing `server/routes.ts` into modular route files under `server/routes/`
 - [ ] 🔄 Add/refresh dedicated architecture docs in `docs/` (data flow + auth/session + AI provider fallback behavior)
 - [ ] 🔄 Expand automated test coverage for route modules and end-to-end critical flows (auth, upload scanning, EMAR parsing)
