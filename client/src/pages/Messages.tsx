@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, parseApiResponse } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 
@@ -105,8 +105,8 @@ export default function Messages() {
       if (!res.ok) {
         throw new Error(`Failed to fetch messages: ${res.status}`);
       }
-      const data = await res.json();
-      setMessages(data);
+      const data = await parseApiResponse<Message[]>(res);
+      setMessages(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch messages:", error);
       toast({ title: "Error", description: "Failed to load messages", variant: "destructive" });

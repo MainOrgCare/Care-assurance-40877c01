@@ -68,6 +68,7 @@
 - `server/utils/secureAiPipeline.ts` now supports both text-only and multimodal user content (scrubs text parts in multipart payloads).
 - Route-level direct `createChatCompletionWithLogging` calls have been eliminated in favor of secure helper wrappers; service-level text extraction paths were also migrated.
 - Production OOM on the rostering admin surface was traced to full-table materialization in `GET /api/admin/rostering/data-stats` and workbook-detail loaders; safe route behavior requires count-only stats queries plus date-window/service-user-scoped reads when reconstructing workbook views.
+- Message routes return the standard `apiSuccess` envelope, so client code that uses manual `fetch` must unwrap responses with `parseApiResponse` or `normalizeApiPayload` instead of assigning raw `res.json()` into array state.
 
 **Performance Insights:**
 
@@ -92,6 +93,7 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-06 | ✅ Fixed the Messages page crash caused by treating the wrapped `/api/messages` response as an array: `client/src/pages/Messages.tsx` now uses `parseApiResponse` and an array guard before setting local message state, preventing `messages.filter is not a function` render failures when the API returns `{ data: [...] }`. |
 | 2026-04-06 | ✅ Reduced production memory pressure on rostering admin APIs by replacing full-row stats loading with `COUNT(*)` queries in `server/storage.ts`/`server/routes.ts`, and by refactoring both workbook-detail routes to rebuild workbook responses from date-scoped analyzed-call queries plus service-user-scoped profile/template lookups instead of scanning all extracted calls/service users/template assignments in memory. |
 | 2026-04-04 | ✅ Delivered a focused professional-polish pass across the homepage, authenticated shell, dashboard, settings, and Edge extension popup: added an extension workflow section and richer footer/login/mobile CTAs on `client/src/pages/Homepage.tsx`, added executive overview cards on `client/src/pages/Dashboard.tsx`, added settings summary cards on `client/src/pages/Settings.tsx`, surfaced section/role badges in `client/src/components/Layout.tsx` footer, and aligned extension branding/layout in `extension/edge-acp-autofill/{popup.html,popup.css}`. Manually verified homepage/dashboard/settings in a demo-enabled dev run and revalidated with `npm run quality`. |
 | 2026-04-03 | ✅ Continued the corporate UI refinement pass by adding shared page-header utilities in `client/src/index.css`, standardizing prominent route headers in `client/src/pages/{Compliance,ROICalculator,SystemLogs}.tsx`, and replacing remaining hardcoded ROI palette classes with semantic token-based styling. Revalidated with `npm run check`, `npm run build`, and `npm run quality`. |
