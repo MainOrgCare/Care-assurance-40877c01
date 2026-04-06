@@ -15,7 +15,7 @@ interface WorkerStats {
 }
 
 interface ScheduleComparisonProps {
-  workbookId: number;
+  workbookId: string;
   beforeSchedule: {
     workers: WorkerStats[];
     conflicts: number;

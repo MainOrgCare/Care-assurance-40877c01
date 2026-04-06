@@ -29,7 +29,8 @@
     "check": "tsc",
     "quality": "npm run test && npm run check && npm run build",
     "audit:prod": "npm audit --omit=dev",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "extension":"npm run bump:extension && npm run package:extension"
   },
   "engines": {
     "node": ">=20.0.0",

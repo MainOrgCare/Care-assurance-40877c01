@@ -18490,7 +18490,10 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
     }
   });
 
-  const buildWorkbookUploadDetails = async (upload: WorkbookUpload) => {
+  const buildWorkbookUploadDetails = async (
+    upload: WorkbookUpload,
+    { includeWorkerRows = false }: { includeWorkerRows?: boolean } = {}
+  ) => {
     const calls = await storage.getAnalyzedCallsByDateRange(upload.dateRangeStart, upload.dateRangeEnd);
 
     if (calls.length === 0) {
@@ -18569,16 +18572,15 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
         key: workerKey,
         workerName,
         workerNameNormalized: workerName.toLowerCase().replace(/\s+/g, " "),
-        rows: [],
-        callRows: [],
+        ...(includeWorkerRows ? { rows: [], callRows: [] } : {}),
         shiftBars: [],
         shiftBarsCount: 0,
         isAdminStaff: false,
         usesTemplateAssignments: false,
-        uniqueServiceUsers: 0,
-        uniqueDays: 0,
+        uniqueServiceUsers: new Set<string>(),
+        uniqueDays: new Set<string>(),
         callGroups: [],
-        missingRequirementTimes: 0,
+        callGroupMap: new Map<string, any>(),
       };
 
       const requirementStart =
@@ -18590,64 +18592,11 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
         call.plannedDurationMinutes ??
         call.actualDurationMinutes ??
         null;
-
-      const row = {
-        rowNumber: ++rowCounter,
-        status: "clean",
-        data: {},
-        emptyFields: [],
-        numericWarnings: [],
-        textWarnings: [],
-        issues: [],
-        scheduleDeltaMinutes: null,
-        durationMatchPercent: null,
-        scheduleFlag: false,
-        durationFlag: false,
-        durationOverrunFlag: false,
-        workersMatch: null,
-        plannedWorker: workerName,
-        actualWorker: workerName,
-        templateWorker: workerName,
-        payrollRunDescription: null,
-        serviceTypeDescription: null,
-        isAdminStaffRow: false,
-        isShiftBar: false,
-        serviceDutyClassType: null,
-        isExcludedServiceDutyClass: false,
-        isAdhocCall: false,
-        isTimeCritical: call.isTimeCritical,
-        plannedTimeLabel: null,
-        actualTimeLabel: null,
-        plannedDurationMinutes: call.plannedDurationMinutes ?? null,
-        actualDurationMinutes: call.actualDurationMinutes ?? null,
-        plannedTimeMinutes: call.plannedStartMinutes ?? null,
-        actualTimeMinutes: call.actualStartMinutes ?? null,
-        serviceRequirementTimeMinutes: call.serviceRequirementStartMinutes ?? null,
-        serviceRequirementTimeLabel: null,
-        plannedDateLabel: call.callDate,
-        plannedDateKey: call.callDate,
-        serviceUserName: call.serviceUserName,
-        serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
-        serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
-        serviceLocationBranch: serviceUserProfile?.serviceLocationBranch ?? call.serviceLocationBranch ?? null,
-        serviceLocationType: serviceUserProfile?.serviceLocationType ?? call.serviceLocationType ?? null,
-        templateWeek: call.templateWeek,
-        templateDay: call.templateDay,
-        normalizedServiceUserKey: call.serviceUserKey,
-        isDuplicateSlotRow: false,
-        excludeFromMetrics: false,
-        callTypeLabel: call.callTypeLabel,
-        serviceRequirementEndTimeMinutes: serviceRequirementEndMinutes,
-        serviceRequirementEndTimeLabel: null,
-        plannedEndTimeMinutes: plannedEndMinutes,
-        actualEndTimeMinutes: actualEndMinutes,
-      };
-
-      roster.rows.push(row);
-      roster.callRows.push(row);
+      if (call.serviceUserKey) roster.uniqueServiceUsers.add(call.serviceUserKey);
+      if (call.callDate) roster.uniqueDays.add(call.callDate);
 
       const groupKey = `${call.serviceUserKey}_${call.callTypeKey}_${call.timeBand}`;
-      let group = roster.callGroups.find((existingGroup: any) => existingGroup.key === groupKey);
+      let group = roster.callGroupMap.get(groupKey);
       if (!group) {
         group = {
           key: groupKey,
@@ -18670,12 +18619,14 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
           doubleUpWeekdayKeys: new Set<string>(),
           templatedRows: 0,
           isTimeCritical: Boolean(call.isTimeCritical),
-          rows: [],
+          uniqueDayKeys: new Set<string>(),
+          ...(includeWorkerRows ? { rows: [] } : {}),
         };
         roster.callGroups.push(group);
+        roster.callGroupMap.set(groupKey, group);
       }
 
-      group.rows.push(row);
+      if (call.callDate) group.uniqueDayKeys.add(call.callDate);
       group.totalCalls += 1;
       if (call.isTimeCritical) group.isTimeCritical = true;
       const templateKey = `${call.templateWeek}|${call.templateDay}`;
@@ -18690,30 +18641,101 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
         doubleUpSlots[groupKey] = [workerName];
       }
 
+      if (includeWorkerRows) {
+        const row = {
+          rowNumber: ++rowCounter,
+          status: "clean",
+          data: {},
+          emptyFields: [],
+          numericWarnings: [],
+          textWarnings: [],
+          issues: [],
+          scheduleDeltaMinutes: null,
+          durationMatchPercent: null,
+          scheduleFlag: false,
+          durationFlag: false,
+          durationOverrunFlag: false,
+          workersMatch: null,
+          plannedWorker: workerName,
+          actualWorker: workerName,
+          templateWorker: workerName,
+          payrollRunDescription: null,
+          serviceTypeDescription: null,
+          isAdminStaffRow: false,
+          isShiftBar: false,
+          serviceDutyClassType: null,
+          isExcludedServiceDutyClass: false,
+          isAdhocCall: false,
+          isTimeCritical: call.isTimeCritical,
+          plannedTimeLabel: null,
+          actualTimeLabel: null,
+          plannedDurationMinutes: call.plannedDurationMinutes ?? null,
+          actualDurationMinutes: call.actualDurationMinutes ?? null,
+          plannedTimeMinutes: call.plannedStartMinutes ?? null,
+          actualTimeMinutes: call.actualStartMinutes ?? null,
+          serviceRequirementTimeMinutes: call.serviceRequirementStartMinutes ?? null,
+          serviceRequirementTimeLabel: null,
+          plannedDateLabel: call.callDate,
+          plannedDateKey: call.callDate,
+          serviceUserName: call.serviceUserName,
+          serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+          serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+          serviceLocationBranch: serviceUserProfile?.serviceLocationBranch ?? call.serviceLocationBranch ?? null,
+          serviceLocationType: serviceUserProfile?.serviceLocationType ?? call.serviceLocationType ?? null,
+          templateWeek: call.templateWeek,
+          templateDay: call.templateDay,
+          normalizedServiceUserKey: call.serviceUserKey,
+          isDuplicateSlotRow: false,
+          excludeFromMetrics: false,
+          callTypeLabel: call.callTypeLabel,
+          serviceRequirementEndTimeMinutes: serviceRequirementEndMinutes,
+          serviceRequirementEndTimeLabel: null,
+          plannedEndTimeMinutes: plannedEndMinutes,
+          actualEndTimeMinutes: actualEndMinutes,
+        };
+
+        roster.rows.push(row);
+        roster.callRows.push(row);
+        group.rows.push(row);
+      }
+
       rosterMap.set(workerKey, roster);
     }
 
     const careWorkerRosters = Array.from(rosterMap.values()).map((roster) => {
-      const serviceUsers = new Set<string>();
-      const days = new Set<string>();
-      let missingRequirementTimes = 0;
-      roster.callGroups.forEach((group: any) => {
-        if (group.normalizedServiceUserKey) serviceUsers.add(group.normalizedServiceUserKey);
-        group.rows.forEach((row: any) => {
-          if (row.plannedDateKey) days.add(row.plannedDateKey);
-        });
-        if (group.requirementStartMinutes === null) missingRequirementTimes += 1;
-        group.uniqueDays = new Set(group.rows.map((row: any) => row.plannedDateKey).filter(Boolean)).size;
-        group.templatedWeekdayKeys = Array.from(group.templatedWeekdayKeys);
-        group.doubleUpWeekdayKeys = Array.from(group.doubleUpWeekdayKeys);
+      const callGroups = roster.callGroups.map((group: any) => {
+        const serializedGroup = {
+          ...group,
+          uniqueDays: group.uniqueDayKeys.size,
+          templatedWeekdayKeys: Array.from(group.templatedWeekdayKeys),
+          doubleUpWeekdayKeys: Array.from(group.doubleUpWeekdayKeys),
+        };
+        delete serializedGroup.uniqueDayKeys;
+        return serializedGroup;
       });
+      const callRowsCount = callGroups.reduce(
+        (sum: number, group: any) => sum + (group.totalCalls ?? 0),
+        0
+      );
+      const missingRequirementTimes = callGroups.reduce(
+        (sum: number, group: any) => sum + (group.requirementStartMinutes === null ? 1 : 0),
+        0
+      );
       return {
-        ...roster,
-        uniqueServiceUsers: serviceUsers.size,
-        uniqueDays: days.size,
+        key: roster.key,
+        workerName: roster.workerName,
+        workerNameNormalized: roster.workerNameNormalized,
+        ...(includeWorkerRows ? { rows: roster.rows, callRows: roster.callRows } : {}),
+        rowCount: includeWorkerRows ? roster.rows.length : callRowsCount,
+        callRowsCount,
+        shiftBars: roster.shiftBars,
+        shiftBarsCount: roster.shiftBarsCount,
+        isAdminStaff: roster.isAdminStaff,
+        usesTemplateAssignments: roster.usesTemplateAssignments,
+        uniqueServiceUsers: roster.uniqueServiceUsers.size,
+        uniqueDays: roster.uniqueDays.size,
         missingRequirementTimes,
-        rowCount: roster.rows.length,
-        callRowsCount: roster.callRows.length,
+        callGroups,
       };
     });
 
@@ -18767,7 +18789,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
         return res.status(404).json({ message: "Workbook not found" });
       }
 
-      return res.json(await buildWorkbookUploadDetails(upload));
+      return res.json(await buildWorkbookUploadDetails(upload, { includeWorkerRows: true }));
     } catch (error: any) {
       console.error("[TestingFeatures] Failed to fetch upload:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook details") });

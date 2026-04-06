@@ -7,8 +7,7 @@
     "outDir": "./dist",
     "allowImportingTsExtensions": false,
     "target": "ES2022",
-    "lib": ["ES2022"],
-    "downlevelIteration": true
+    "lib": ["ES2022"]
   },
   "include": ["server/**/*", "shared/**/*"],
   "exclude": ["node_modules", "client", "dist", "**/*.test.ts"]

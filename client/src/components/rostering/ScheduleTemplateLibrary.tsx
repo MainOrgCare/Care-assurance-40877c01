@@ -48,7 +48,7 @@ interface ScheduleTemplate {
 interface ScheduleTemplateLibraryProps {
   currentWeekDay: string;
   currentWeekNumber: string;
-  workbookId: number;
+  workbookId: string;
   currentScheduleState: Record<string, unknown>;
   onLoadTemplate: (state: Record<string, unknown>) => void;
 }

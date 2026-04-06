@@ -9,7 +9,7 @@ import { Sparkles, TrendingUp, AlertTriangle, CheckCircle2, Brain, Users, Clock,
 import { useMutation } from "@tanstack/react-query";
 
 interface ScheduleAnalysisProps {
-  workbookId: number;
+  workbookId: string;
   workers: Array<{
     key: string;
     name: string;

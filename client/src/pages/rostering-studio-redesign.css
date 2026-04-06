@@ -137,8 +137,7 @@
 .rstd-topbar,
 .rstd-stats,
 .rstd-dock {
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .rstd-panel {

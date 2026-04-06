@@ -13,6 +13,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, parseApiResponse } from "@/lib/queryClient";
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -578,6 +579,13 @@ export default function RosteringStudioUnified({
     return workbooksList.find((wb: WorkbookSummary) => wb.id === activeWorkbookId)?.name || "Workbook";
   }, [activeWorkbookId, workbooksList]);
 
+  const requireActiveWorkbookId = useCallback(() => {
+    if (!activeWorkbookId) {
+      throw new Error("Select a workbook first.");
+    }
+    return activeWorkbookId;
+  }, [activeWorkbookId]);
+
   const { data: workbookData, isLoading: workbookLoading } = useQuery<WorkbookFull>({
     queryKey: ["/api/admin/rostering/workbook-uploads", activeWorkbookId],
     enabled: !!activeWorkbookId,
@@ -924,13 +932,9 @@ export default function RosteringStudioUnified({
   // ===== MUTATIONS =====
   const saveCallTimeMutation = useMutation({
     mutationFn: async (callTime: RecommendedCallTime) => {
-      const res = await fetch("/api/rostering/call-times", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(callTime),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json() as Promise<RecommendedCallTime>;
+      const workbookId = requireActiveWorkbookId();
+      const res = await apiRequest("POST", `/api/admin/rostering/workbooks/${workbookId}/call-times`, callTime);
+      return parseApiResponse<RecommendedCallTime>(res);
     },
     onSuccess: () => {
       if (activeWorkbookId) {
@@ -940,12 +944,14 @@ export default function RosteringStudioUnified({
       }
       toast({ title: "Call time saved" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save call time", description: error.message, variant: "destructive" });
+    },
   });
 
   const deleteCallTimeMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/rostering/call-times/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      await apiRequest("DELETE", `/api/admin/rostering/call-times/${id}`);
     },
     onSuccess: () => {
       if (activeWorkbookId) {
@@ -955,17 +961,16 @@ export default function RosteringStudioUnified({
       }
       toast({ title: "Call time deleted" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete call time", description: error.message, variant: "destructive" });
+    },
   });
 
   const saveConstraintMutation = useMutation({
     mutationFn: async (constraint: WorkerConstraintUI) => {
-      const res = await fetch("/api/rostering/worker-constraints", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(constraint),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json() as Promise<WorkerConstraintUI>;
+      const workbookId = requireActiveWorkbookId();
+      const res = await apiRequest("POST", `/api/admin/rostering/workbooks/${workbookId}/worker-constraints`, constraint);
+      return parseApiResponse<WorkerConstraintUI>(res);
     },
     onSuccess: () => {
       if (activeWorkbookId) {
@@ -975,12 +980,14 @@ export default function RosteringStudioUnified({
       }
       toast({ title: "Constraint saved" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save constraint", description: error.message, variant: "destructive" });
+    },
   });
 
   const deleteConstraintMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/rostering/worker-constraints/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      await apiRequest("DELETE", `/api/admin/rostering/worker-constraints/${id}`);
     },
     onSuccess: () => {
       if (activeWorkbookId) {
@@ -990,23 +997,22 @@ export default function RosteringStudioUnified({
       }
       toast({ title: "Constraint deleted" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete constraint", description: error.message, variant: "destructive" });
+    },
   });
 
   const saveRosterStateMutation = useMutation({
     mutationFn: async (data: { name: string; description?: string }) => {
-      const res = await fetch("/api/rostering/saved-states", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          templateWeek: selectedTemplateWeek,
-          templateDay: selectedTemplateDay,
-          timeOverrides: rosterState.present.timeOverrides,
-          laneOverrides: rosterState.present.laneOverrides,
-        }),
+      const workbookId = requireActiveWorkbookId();
+      const res = await apiRequest("POST", `/api/admin/rostering/workbooks/${workbookId}/saved-states`, {
+        ...data,
+        templateWeek: selectedTemplateWeek,
+        templateDay: selectedTemplateDay,
+        timeOverrides: rosterState.present.timeOverrides,
+        laneOverrides: rosterState.present.laneOverrides,
       });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json() as Promise<SavedRosterStateSummary>;
+      return parseApiResponse<SavedRosterStateSummary>(res);
     },
     onSuccess: () => {
       if (activeWorkbookId) {
@@ -1016,13 +1022,18 @@ export default function RosteringStudioUnified({
       }
       toast({ title: "Schedule saved" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save schedule", description: error.message, variant: "destructive" });
+    },
   });
 
   const loadRosterStateMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/rostering/saved-states/${id}`);
-      if (!res.ok) throw new Error("Failed to load");
-      return res.json() as Promise<SavedRosterStateSummary>;
+      const state = savedStates.find((entry: SavedRosterStateSummary) => entry.id === id);
+      if (!state) {
+        throw new Error("Saved schedule not found.");
+      }
+      return state;
     },
     onSuccess: (data: SavedRosterStateSummary) => {
       dispatchRoster({
@@ -1032,12 +1043,14 @@ export default function RosteringStudioUnified({
       });
       toast({ title: "Schedule loaded" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Failed to load schedule", description: error.message, variant: "destructive" });
+    },
   });
 
   const deleteRosterStateMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/rostering/saved-states/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      await apiRequest("DELETE", `/api/admin/rostering/saved-states/${id}`);
     },
     onSuccess: () => {
       if (activeWorkbookId) {
@@ -1046,6 +1059,9 @@ export default function RosteringStudioUnified({
         });
       }
       toast({ title: "Schedule deleted" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete schedule", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1492,13 +1508,13 @@ export default function RosteringStudioUnified({
         <div className="space-y-2 text-center">
           <p className="rstd-loading-text">No roster data loaded</p>
           <p className="text-xs text-muted-foreground">
-            Upload a workbook in Testing Features to unlock the full rostering workspace.
+            Upload workbook data in Testing Features, then return here to plan and optimize the roster.
           </p>
         </div>
         <Button asChild size="sm" className="gap-2">
           <Link href="/testing-features">
             <ArrowLeft className="h-4 w-4" />
-            Go to Testing Features
+            Open Workbook Uploads
           </Link>
         </Button>
       </div>
@@ -1511,8 +1527,8 @@ export default function RosteringStudioUnified({
       {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
       <div className="rostering-studio-redesign flex h-full min-h-0 flex-col overflow-hidden">
         {/* TOP MENU BAR */}
-        <div className="rstd-topbar flex h-14 items-center justify-between px-4 flex-shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="rstd-topbar flex min-h-14 flex-wrap items-start gap-3 px-3 py-2 flex-shrink-0">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <div className="rstd-brand">
               <span className="rstd-brand-mark">RS</span>
               <div className="rstd-brand-copy">
@@ -1520,12 +1536,12 @@ export default function RosteringStudioUnified({
                 <p className="rstd-brand-subtitle">Operational Command Deck</p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-[10px] px-2">
+            <Badge variant="secondary" className="max-w-[16rem] truncate text-[10px] px-2">
               {activeWorkbookLabel}
             </Badge>
             {!embedded && (
               <Button variant="ghost" size="sm" asChild className="mr-1 h-7 w-7 p-0">
-                <Link href="/testing-features">
+                <Link href="/dashboard">
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
               </Button>
@@ -1849,7 +1865,7 @@ export default function RosteringStudioUnified({
           </div>
 
           {/* Quick date selector in menu bar */}
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1 sm:ml-auto">
             <Button
               variant="ghost"
               size="icon"
@@ -1888,8 +1904,8 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="rstd-stats flex items-center justify-between px-4 py-2 text-[11px] flex-shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="rstd-stats flex flex-wrap items-start justify-between gap-2 px-3 py-2 text-[11px] flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="rstd-stat-chip">
               <Users className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="font-semibold">{totalWorkersCount}</span>
@@ -1927,7 +1943,7 @@ export default function RosteringStudioUnified({
               <span className="text-muted-foreground">2-ups</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {hasRosterChanges && (
               <Badge variant="outline" className="text-[10px]">
                 Unsaved changes
@@ -1940,7 +1956,7 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* PANEL DOCK - quick toggles so every tool is reachable without hunting menus */}
-        <div className="rstd-dock flex h-10 items-center gap-1 px-2 text-[11px] flex-shrink-0 overflow-x-auto">
+        <div className="rstd-dock flex min-h-10 flex-wrap items-center gap-1 px-2 py-1.5 text-[11px] flex-shrink-0">
           {(
             [
               { key: "workers", label: "Workers", icon: Users },
@@ -2507,7 +2523,7 @@ export default function RosteringStudioUnified({
                           {activeWorkbookId && (
                             <Suspense fallback={<PanelLoading label="AI analysis" />}>
                               <ScheduleAnalysisDashboardLazy
-                                workbookId={parseInt(activeWorkbookId)}
+                                workbookId={activeWorkbookId}
                                 workers={workerSummaries.map(ws => ({
                                   key: ws.key,
                                   name: ws.workerName,
@@ -2558,7 +2574,7 @@ export default function RosteringStudioUnified({
                           {activeWorkbookId && (
                             <Suspense fallback={<PanelLoading label="comparison" />}>
                               <ScheduleComparisonLazy
-                                workbookId={parseInt(activeWorkbookId)}
+                                workbookId={activeWorkbookId}
                                 beforeSchedule={savedComparisonData.before}
                                 afterSchedule={savedComparisonData.after}
                                 changes={savedComparisonData.changes}
@@ -2629,7 +2645,7 @@ export default function RosteringStudioUnified({
                           {activeWorkbookId && (
                             <Suspense fallback={<PanelLoading label="templates" />}>
                               <ScheduleTemplateLibraryLazy
-                                workbookId={parseInt(activeWorkbookId)}
+                                workbookId={activeWorkbookId}
                                 currentWeekDay={selectedTemplateDay}
                                 currentWeekNumber={selectedTemplateWeek}
                                 currentScheduleState={{
