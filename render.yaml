@@ -24,6 +24,8 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=512
       - key: NODE_ENV
         value: production
       - key: ENABLE_CANONICAL_REDIRECT
@@ -78,6 +80,8 @@ services:
       mountPath: /data
       sizeGB: 1
     envVars:
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=512
       - key: NODE_ENV
         value: development
       - key: ENABLE_CANONICAL_REDIRECT

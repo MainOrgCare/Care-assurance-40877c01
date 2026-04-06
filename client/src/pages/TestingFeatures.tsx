@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type * as React from "react";
+import * as React from "react";
 import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -4775,7 +4775,7 @@ export default function TestingFeatures() {
   const insightsNavDisabled = analysisResults.length === 0;
   const studioNavDisabled = careWorkerRosters.length === 0;
   const stacksNavDisabled = serviceUserStacks.length === 0;
-  const showRosteringStudio = careWorkerRosters.length > 0;
+  const showRosteringStudio = false;
 
   return (
     <div className="page-shell max-w-7xl mx-auto space-y-10 relative pb-6">
@@ -5406,13 +5406,11 @@ export default function TestingFeatures() {
                 )}
                 <p>Flagged rows: {summary.attention.toLocaleString()}</p>
                 <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </AccordionContent>
-            </AccordionItem>
-          )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Accordion type="multiple" className="w-full">
 
           {showRosteringStudio && careWorkerRosters.length > 0 && (
             <AccordionItem
@@ -7258,7 +7256,8 @@ export default function TestingFeatures() {
             </AccordionItem>
           )}
         </Accordion>
-      )}
+
+        </div>
 
       </section>
 

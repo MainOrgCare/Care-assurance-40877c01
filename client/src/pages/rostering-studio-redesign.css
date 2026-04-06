@@ -137,7 +137,8 @@
 .rstd-topbar,
 .rstd-stats,
 .rstd-dock {
-  overflow: hidden;
+  overflow: visible;
+  row-gap: 0.55rem;
 }
 
 .rstd-panel {
@@ -203,6 +204,12 @@
   .rostering-studio-redesign {
     padding: 0.45rem;
     gap: 0.45rem;
+  }
+
+  .rstd-topbar,
+  .rstd-stats,
+  .rstd-dock {
+    border-radius: 0.95rem;
   }
 
   .rstd-brand-subtitle {

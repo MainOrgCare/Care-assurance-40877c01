@@ -181,6 +181,31 @@ export interface RosteringDataStats {
   workbookUploadsCount: number;
 }
 
+export interface WorkbookAnalyzedCallSummary {
+  serviceUserKey: string;
+  serviceUserName: string;
+  workerKey: string;
+  workerName: string;
+  callTypeLabel: string;
+  callTypeKey: string;
+  timeBand: string;
+  callDate: string;
+  templateWeek: string;
+  templateDay: string;
+  isTemplated: boolean;
+  isDoubleUp: boolean;
+  isTimeCritical: boolean;
+  serviceRequirementStartMinutes: number | null;
+  serviceRequirementEndMinutes: number | null;
+  plannedStartMinutes: number | null;
+  actualStartMinutes: number | null;
+  actualEndMinutes: number | null;
+  plannedDurationMinutes: number | null;
+  actualDurationMinutes: number | null;
+  serviceLocationBranch: string | null;
+  serviceLocationType: string | null;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -443,6 +468,7 @@ export interface IStorage {
   // Analyzed Calls
   bulkInsertAnalyzedCalls(calls: InsertAnalyzedCall[]): Promise<number>;
   getAllAnalyzedCalls(): Promise<AnalyzedCall[]>;
+  getWorkbookAnalyzedCallsByDateRange(startDate?: string | null, endDate?: string | null): Promise<WorkbookAnalyzedCallSummary[]>;
   getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByWorker(workerKey: string): Promise<AnalyzedCall[]>;
   getAnalyzedCallsByDateRange(startDate?: string | null, endDate?: string | null): Promise<AnalyzedCall[]>;
@@ -2534,6 +2560,56 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(analyzedCalls)
       .orderBy(desc(analyzedCalls.callDate));
+  }
+
+  async getWorkbookAnalyzedCallsByDateRange(
+    startDate?: string | null,
+    endDate?: string | null
+  ): Promise<WorkbookAnalyzedCallSummary[]> {
+    const conditions = [] as Array<ReturnType<typeof sql>>;
+
+    if (startDate) {
+      conditions.push(sql`${analyzedCalls.callDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${analyzedCalls.callDate} <= ${endDate}`);
+    }
+
+    const baseQuery = this.db
+      .select({
+        serviceUserKey: analyzedCalls.serviceUserKey,
+        serviceUserName: analyzedCalls.serviceUserName,
+        workerKey: analyzedCalls.workerKey,
+        workerName: analyzedCalls.workerName,
+        callTypeLabel: analyzedCalls.callTypeLabel,
+        callTypeKey: analyzedCalls.callTypeKey,
+        timeBand: analyzedCalls.timeBand,
+        callDate: analyzedCalls.callDate,
+        templateWeek: analyzedCalls.templateWeek,
+        templateDay: analyzedCalls.templateDay,
+        isTemplated: analyzedCalls.isTemplated,
+        isDoubleUp: analyzedCalls.isDoubleUp,
+        isTimeCritical: analyzedCalls.isTimeCritical,
+        serviceRequirementStartMinutes: analyzedCalls.serviceRequirementStartMinutes,
+        serviceRequirementEndMinutes: analyzedCalls.serviceRequirementEndMinutes,
+        plannedStartMinutes: analyzedCalls.plannedStartMinutes,
+        actualStartMinutes: analyzedCalls.actualStartMinutes,
+        actualEndMinutes: analyzedCalls.actualEndMinutes,
+        plannedDurationMinutes: analyzedCalls.plannedDurationMinutes,
+        actualDurationMinutes: analyzedCalls.actualDurationMinutes,
+        serviceLocationBranch: analyzedCalls.serviceLocationBranch,
+        serviceLocationType: analyzedCalls.serviceLocationType,
+      })
+      .from(analyzedCalls);
+
+    if (conditions.length === 0) {
+      return await baseQuery.orderBy(desc(analyzedCalls.callDate), analyzedCalls.serviceUserName);
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+    return await baseQuery
+      .where(whereClause)
+      .orderBy(desc(analyzedCalls.callDate), analyzedCalls.serviceUserName);
   }
 
   async getAnalyzedCallsByServiceUser(serviceUserKey: string): Promise<AnalyzedCall[]> {

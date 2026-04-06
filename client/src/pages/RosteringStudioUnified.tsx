@@ -236,7 +236,7 @@ interface WorkerCallGroup {
   doubleUpWeekdayKeys: Set<string>;
   templatedRows: number;
   isTimeCritical: boolean;
-  rows: RowAnalysis[];
+  rows?: RowAnalysis[];
 }
 
 interface ShiftBar {
@@ -288,13 +288,13 @@ interface WorkbookFull {
   id: string;
   name: string;
   fileName: string;
-  sourceHash: string;
+  sourceHash?: string;
   totalRows: number;
   careWorkerCount: number;
   serviceUserCount: number;
   callGroupCount: number;
-  rowAnalysis: RowAnalysis[];
-  callGroups: WorkerCallGroup[];
+  rowAnalysis?: RowAnalysis[];
+  callGroups?: WorkerCallGroup[];
   careWorkerRosters: CareWorkerRoster[];
   doubleUpSlots: Record<string, string[]>;
   createdBy: string | null;
@@ -1524,8 +1524,9 @@ export default function RosteringStudioUnified({
   // ===== RENDER =====
   return (
     <TooltipProvider>
-      {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
-      <div className="rostering-studio-redesign flex h-full min-h-0 flex-col overflow-hidden">
+      <div className={embedded ? "flex h-full min-h-0 flex-1 flex-col" : "page-shell max-w-none"}>
+        {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
+        <div className={`rostering-studio-redesign flex ${embedded ? "h-full min-h-0" : "min-h-[72vh] flex-1"} flex-col overflow-hidden`}>
         {/* TOP MENU BAR */}
         <div className="rstd-topbar flex min-h-14 flex-wrap items-start gap-3 px-3 py-2 flex-shrink-0">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -1865,7 +1866,7 @@ export default function RosteringStudioUnified({
           </div>
 
           {/* Quick date selector in menu bar */}
-          <div className="flex flex-wrap items-center justify-end gap-1 sm:ml-auto">
+          <div className="flex w-full flex-wrap items-center justify-start gap-1 sm:ml-auto sm:w-auto sm:justify-end">
             <Button
               variant="ghost"
               size="icon"
@@ -1956,7 +1957,7 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* PANEL DOCK - quick toggles so every tool is reachable without hunting menus */}
-        <div className="rstd-dock flex min-h-10 flex-wrap items-center gap-1 px-2 py-1.5 text-[11px] flex-shrink-0">
+        <div className="rstd-dock flex min-h-10 flex-wrap items-start gap-1.5 px-2 py-1.5 text-[11px] flex-shrink-0">
           {(
             [
               { key: "workers", label: "Workers", icon: Users },
@@ -1995,7 +1996,7 @@ export default function RosteringStudioUnified({
               </Button>
             );
           })}
-          <div className="ml-auto flex items-center gap-1 shrink-0">
+          <div className="flex w-full items-center gap-1 shrink-0 sm:ml-auto sm:w-auto sm:justify-end">
             <Button
               type="button"
               size="sm"
@@ -2948,6 +2949,7 @@ export default function RosteringStudioUnified({
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
     </TooltipProvider>
   );

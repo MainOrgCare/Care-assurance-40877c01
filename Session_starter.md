@@ -94,6 +94,7 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-06 | ✅ Repaired `client/src/pages/TestingFeatures.tsx` after a large top-of-file block was accidentally removed (imports/constants/types), then fixed broken JSX structure in the workbook insights section by restoring missing wrappers/closures; TypeScript errors for that page are now clear. |
 | 2026-04-06 | ✅ Removed deprecated TypeScript compiler options from `tsconfig.json` and `tsconfig.server.json` by dropping `downlevelIteration` and the no-longer-needed `baseUrl`, clearing the TS 6 deprecation errors without adding `ignoreDeprecations` suppression. |
 | 2026-04-06 | ✅ Fixed the Messages page crash caused by treating the wrapped `/api/messages` response as an array: `client/src/pages/Messages.tsx` now uses `parseApiResponse` and an array guard before setting local message state, preventing `messages.filter is not a function` render failures when the API returns `{ data: [...] }`. |
 | 2026-04-06 | ✅ Reduced production memory pressure on rostering admin APIs by replacing full-row stats loading with `COUNT(*)` queries in `server/storage.ts`/`server/routes.ts`, and by refactoring both workbook-detail routes to rebuild workbook responses from date-scoped analyzed-call queries plus service-user-scoped profile/template lookups instead of scanning all extracted calls/service users/template assignments in memory. |

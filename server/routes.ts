@@ -18494,7 +18494,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
     upload: WorkbookUpload,
     { includeWorkerRows = false }: { includeWorkerRows?: boolean } = {}
   ) => {
-    const calls = await storage.getAnalyzedCallsByDateRange(upload.dateRangeStart, upload.dateRangeEnd);
+    const calls = await storage.getWorkbookAnalyzedCallsByDateRange(upload.dateRangeStart, upload.dateRangeEnd);
 
     if (calls.length === 0) {
       return {
