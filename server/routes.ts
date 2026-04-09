@@ -16936,7 +16936,7 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
         systemPrompt,
         temperature: 0,
         seed: 42,
-        maxCompletionTokens: currentProvider === "github" ? 8000 : 64000,
+        maxCompletionTokens: currentProvider === "github" ? 8000 : 32000,
         responseFormat: { type: "json_object" },
         useCache: false,
       });
