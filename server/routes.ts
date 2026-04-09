@@ -14665,8 +14665,23 @@ Remember: Extract information ONLY from service user documents above. Templates 
         initials: normalizeInitials(parsed?.serviceUser?.initials),
       };
       if (allowSensitiveView) {
-        const fullName = normalizeFullName(parsed?.serviceUser?.fullName);
-        if (fullName) serviceUser.fullName = fullName;
+        // Try AI-extracted name first, then fall back to regex extraction from original (unscrubbed) documents
+        const aiFull = normalizeFullName(parsed?.serviceUser?.fullName);
+        const fullName = aiFull || normalizeFullName(extractServiceUserFullName(documentContent));
+        if (fullName) {
+          serviceUser.fullName = fullName;
+          // Derive initials from name if AI couldn't extract them
+          if (serviceUser.initials === "N.N.") {
+            serviceUser.initials = normalizeInitials(fullName);
+          }
+        }
+      }
+      // Fallback: if initials are still N.N., try extracting name from raw documents for initials only
+      if (serviceUser.initials === "N.N.") {
+        const extractedName = extractServiceUserFullName(documentContent);
+        if (extractedName) {
+          serviceUser.initials = normalizeInitials(extractedName);
+        }
       }
 
       const result = {
