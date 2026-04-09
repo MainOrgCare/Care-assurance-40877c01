@@ -17236,11 +17236,37 @@ Return ONLY valid JSON matching the exact schema. Begin now.`,
       piiVault.clear(); // Clear vault on error too
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (progressInterval) clearInterval(progressInterval);
+
+      // Classify the error to give users actionable info without leaking internals
+      const msg = error?.message || "";
+      const status = error?.status || error?.response?.status;
+      let userMessage = "AI enhancement failed";
+
+      if (error?.code === "GITHUB_QUOTA_EXCEEDED" || status === 429 || msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota")) {
+        userMessage = "AI provider rate limit exceeded. Please wait 1-2 minutes and try again.";
+      } else if (error?.code === "GITHUB_PERMISSION_DENIED" || (status === 401 && msg.toLowerCase().includes("permission"))) {
+        userMessage = "AI provider permission denied. The API token may need additional scopes — contact an administrator.";
+      } else if (error?.code === "GITHUB_AUTH_FAILED" || status === 401 || status === 403) {
+        userMessage = "AI provider authentication failed. The API key may be invalid or expired — contact an administrator.";
+      } else if (msg.includes("timed out") || msg.includes("timeout") || msg.includes("ETIMEDOUT") || msg.includes("ECONNABORTED")) {
+        userMessage = "AI request timed out. The documents may be too large — try with fewer or shorter documents.";
+      } else if (msg.includes("AI disabled") || msg.includes("security policy")) {
+        userMessage = "AI features are currently disabled by security policy. Contact an administrator.";
+      } else if (msg.includes("PII detected")) {
+        userMessage = "Content security check failed. Please try again or contact an administrator.";
+      } else if (msg.includes("not configured") || msg.includes("API key")) {
+        userMessage = "AI provider is not configured. Contact an administrator to set up the API key.";
+      } else if (status >= 500 || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND")) {
+        userMessage = "AI service is temporarily unavailable. Please try again in a few minutes.";
+      } else if (msg.includes("did not contain content") || msg.includes("empty response")) {
+        userMessage = "AI returned an empty response. The service may be overloaded — please try again.";
+      }
+
       if (res.headersSent) {
-        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI enhancement failed") })}\n\n`);
+        res.write(`event: error\ndata: ${JSON.stringify({ message: userMessage })}\n\n`);
         return res.end();
       }
-      return res.status(500).json({ message: safeErrorMessage(error, "AI enhancement failed") });
+      return res.status(500).json({ message: userMessage });
     }
   });
 
