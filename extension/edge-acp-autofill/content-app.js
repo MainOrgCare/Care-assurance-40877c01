@@ -184,18 +184,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Notify background that we're ready to proxy requests (retry if service worker isn't up yet)
 const notifyReady = (attempt = 0) => {
+  try { if (!chrome.runtime?.id) return; } catch { return; }
   chrome.runtime.sendMessage({ 
     type: 'CA_CONTENT_SCRIPT_READY', 
     origin: window.location.origin 
   }).then(() => {
     console.log("[CA Extension Content] Ready notification sent successfully");
   }).catch((err) => {
+    const msg = err?.message || "";
+    if (msg.includes("context invalidated") || msg.includes("Extension context")) return;
     if (attempt < 3) {
       const delay = 500 * (attempt + 1);
-      console.log(`[CA Extension Content] Ready notification retry ${attempt + 1} in ${delay}ms:`, err?.message);
+      console.log(`[CA Extension Content] Ready notification retry ${attempt + 1} in ${delay}ms:`, msg);
       setTimeout(() => notifyReady(attempt + 1), delay);
     } else {
-      console.warn("[CA Extension Content] Ready notification failed after retries:", err?.message);
+      console.warn("[CA Extension Content] Ready notification failed after retries:", msg);
     }
   });
 };
@@ -250,8 +253,26 @@ window.addEventListener("message", (event) => {
   // DEBUG: Show normalized payload being sent to storage
   console.log("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
   
+  // Check if extension context is still valid before attempting to send
+  const isContextInvalidated = () => {
+    try {
+      return !chrome.runtime?.id;
+    } catch { return true; }
+  };
+
+  if (isContextInvalidated()) {
+    console.warn("[CA Extension Content] Extension context invalidated — page refresh required.");
+    sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
+    return;
+  }
+
   // Retry wrapper — MV3 service workers may be asleep when first message arrives
   const sendWithRetry = (attempt = 0) => {
+    // Stop retrying if extension was reloaded/updated mid-retry
+    if (isContextInvalidated()) {
+      sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
+      return;
+    }
     try {
       chrome.runtime.sendMessage(
         { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },
@@ -259,8 +280,12 @@ window.addEventListener("message", (event) => {
           if (chrome.runtime.lastError) {
             const errMsg = chrome.runtime.lastError.message || "";
             console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} failed:`, errMsg);
+            // "Extension context invalidated" is unrecoverable — don't retry
+            if (errMsg.includes("context invalidated") || errMsg.includes("Extension context")) {
+              sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
+              return;
+            }
             if (attempt < 2) {
-              // Service worker may be waking up — retry after a short delay
               setTimeout(() => sendWithRetry(attempt + 1), attempt === 0 ? 500 : 1200);
               return;
             }
@@ -275,7 +300,12 @@ window.addEventListener("message", (event) => {
         }
       );
     } catch (e) {
-      console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} threw:`, e?.message);
+      const msg = e?.message || "";
+      console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} threw:`, msg);
+      if (msg.includes("context invalidated") || msg.includes("Extension context")) {
+        sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
+        return;
+      }
       if (attempt < 2) {
         setTimeout(() => sendWithRetry(attempt + 1), attempt === 0 ? 500 : 1200);
         return;
