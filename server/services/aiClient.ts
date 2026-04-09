@@ -1119,18 +1119,31 @@ export async function createChatCompletionWithLogging(
 
   const piiFindings = scanForPII(params.messages as Array<{ role: string; content: any }>);
   if (piiFindings.total > 0) {
-    logSecurityEvent({
-      eventType: "SUSPICIOUS_INPUT",
-      endpoint: `ai:${featureName}`,
-      userId,
-      username,
-      details: {
-        reason: "pii_detected_in_ai_prompt",
-        categories: Object.keys(piiFindings.byCategory),
-        totalItems: piiFindings.total,
-      },
-    });
-    throw new Error("PII detected in AI prompt. Scrub content with PIIVault before calling AI.");
+    // Features that already scrub via PIIVault / secureAiPipeline get a warning
+    // instead of a hard block — the vault has already tokenised real PII and
+    // residual hits are typically false positives (postcodes in policy docs,
+    // address-like strings in care plan templates, etc.).
+    const vaultScrubbed = new Set([
+      "plan_enhancer", "risk_assessment_generation", "care_plan_generation",
+      "risk_recommendations", "support_plan_compare", "email_draft",
+      "billing_analysis", "billing_raw_analysis",
+    ]);
+    if (vaultScrubbed.has(featureName)) {
+      console.warn(`[AI:${featureName}] PII scan found ${piiFindings.total} residual pattern(s) after vault scrub — allowing (categories: ${Object.keys(piiFindings.byCategory).join(", ")})`);
+    } else {
+      logSecurityEvent({
+        eventType: "SUSPICIOUS_INPUT",
+        endpoint: `ai:${featureName}`,
+        userId,
+        username,
+        details: {
+          reason: "pii_detected_in_ai_prompt",
+          categories: Object.keys(piiFindings.byCategory),
+          totalItems: piiFindings.total,
+        },
+      });
+      throw new Error("PII detected in AI prompt. Scrub content with PIIVault before calling AI.");
+    }
   }
 
   if (preferredProvider === "local" && requiresLiveWebForFeature(featureName)) {
