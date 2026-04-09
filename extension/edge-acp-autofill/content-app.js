@@ -250,24 +250,38 @@ window.addEventListener("message", (event) => {
   // DEBUG: Show normalized payload being sent to storage
   console.log("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
   
-  try {
-    chrome.runtime.sendMessage(
-      { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn("[CA Extension Content] Port disconnected:", chrome.runtime.lastError.message);
-          sendAck(requestId, false, "Extension background service restarting — please try again.");
-          return;
+  // Retry wrapper — MV3 service workers may be asleep when first message arrives
+  const sendWithRetry = (attempt = 0) => {
+    try {
+      chrome.runtime.sendMessage(
+        { type: STORE_PAYLOAD_TYPE, payload: normalizedPayload },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            const errMsg = chrome.runtime.lastError.message || "";
+            console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} failed:`, errMsg);
+            if (attempt < 2) {
+              // Service worker may be waking up — retry after a short delay
+              setTimeout(() => sendWithRetry(attempt + 1), attempt === 0 ? 500 : 1200);
+              return;
+            }
+            sendAck(requestId, false, "Extension background service unavailable — please try again.");
+            return;
+          }
+          if (!response?.ok) {
+            sendAck(requestId, false, response?.error || "Failed to store payload.");
+            return;
+          }
+          sendAck(requestId, true);
         }
-        if (!response?.ok) {
-          sendAck(requestId, false, response?.error || "Failed to store payload.");
-          return;
-        }
-        sendAck(requestId, true);
+      );
+    } catch (e) {
+      console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} threw:`, e?.message);
+      if (attempt < 2) {
+        setTimeout(() => sendWithRetry(attempt + 1), attempt === 0 ? 500 : 1200);
+        return;
       }
-    );
-  } catch (e) {
-    console.warn("[CA Extension Content] sendMessage failed (disconnected port):", e?.message);
-    sendAck(requestId, false, "Extension background service restarting — please try again.");
-  }
+      sendAck(requestId, false, "Extension background service unavailable — please try again.");
+    }
+  };
+  sendWithRetry();
 });

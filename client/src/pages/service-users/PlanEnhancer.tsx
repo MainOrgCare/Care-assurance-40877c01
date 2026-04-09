@@ -1060,12 +1060,6 @@ export default function PlanEnhancer() {
         date: new Date().toISOString().split("T")[0],
       };
 
-      // Try to send to extension via postMessage (for cross-origin communication)
-      window.postMessage({
-        type: "CA_EXTENSION_STORE_PAYLOAD",
-        payload,
-      }, "*");
-
       // Count fields that will need verification
       const countMissingFields = (obj: any): number => {
         if (!obj) return 0;
@@ -1092,13 +1086,50 @@ export default function PlanEnhancer() {
       };
 
       const pendingFields = countMissingFields(payload.initialAssessmentData);
-      
-      toast({
-        title: "Sent to Extension",
-        description: pendingFields > 0 
-          ? `Plan data ready. ${pendingFields} field(s) will need verification.`
-          : "Plan data is ready. Open the extension on the form to autofill.",
+
+      // Send to extension with ACK detection (same pattern as RiskAssessment)
+      const requestId = `pe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const response = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
+        let handler: ((event: MessageEvent) => void) | null = null;
+        const timeoutId = window.setTimeout(() => {
+          if (handler) window.removeEventListener("message", handler);
+          reject(new Error("Edge extension not detected. Please ensure the CareAssurance extension is installed and the page has been refreshed."));
+        }, 1500);
+
+        handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
+          if (event.data.requestId !== requestId) return;
+          window.clearTimeout(timeoutId);
+          window.removeEventListener("message", handler!);
+          resolve({ ok: Boolean(event.data.ok), error: event.data.error });
+        };
+
+        window.addEventListener("message", handler);
+        window.postMessage(
+          {
+            type: "CA_EXTENSION_STORE_PAYLOAD",
+            requestId,
+            payload,
+          },
+          window.location.origin
+        );
       });
+
+      if (response.ok) {
+        toast({
+          title: "Sent to Extension",
+          description: pendingFields > 0 
+            ? `Plan data ready. ${pendingFields} field(s) will need verification.`
+            : "Plan data is ready. Open the extension on the form to autofill.",
+        });
+      } else {
+        toast({
+          title: "Extension error",
+          description: response.error || "Failed to send to extension.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Export Failed",

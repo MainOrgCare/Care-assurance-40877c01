@@ -719,21 +719,12 @@ const run = async () => {
   await uploadSignature();
   await wait(1000);
 
-  const shouldAutoSubmit = caAcpAutoSubmit !== false;
-  if (shouldAutoSubmit) {
-    const submitted = clickSubmit();
-    if (!submitted) {
-      logAction("Submit button not found. Please submit manually.");
-      return;
-    }
-    logAction("Submitted. Waiting for confirmation page to advance.");
-    return;
-  }
-
-  attachManualSubmitListener(() => {
+  const advanceOrFinish = () => {
     if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
+      logAction(`Assessment ${caAcpQueueState.currentIndex + 1}/${caAcpQueueState.total} complete. Advancing to next.`);
       notifyStepComplete();
     } else {
+      logAction(`All ${caAcpQueueState.total} assessment(s) complete.`);
       chrome.storage.local.set({
         [STORAGE_KEYS.queueState]: null,
         [STORAGE_KEYS.payload]: null,
@@ -742,7 +733,25 @@ const run = async () => {
         [STORAGE_KEYS.signatureBatchId]: null,
       });
     }
-  });
+  };
+
+  const shouldAutoSubmit = caAcpAutoSubmit !== false;
+  if (shouldAutoSubmit) {
+    const submitted = clickSubmit();
+    if (!submitted) {
+      logAction("Submit button not found. Please submit manually.");
+      attachManualSubmitListener(advanceOrFinish);
+      return;
+    }
+    logAction("Submitted. Waiting for page response...");
+    // After auto-submit, wait for the page to process then advance
+    // Mobizio may navigate or show a success message on the same page
+    await wait(2000);
+    advanceOrFinish();
+    return;
+  }
+
+  attachManualSubmitListener(advanceOrFinish);
 };
 
 run();

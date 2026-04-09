@@ -1266,3 +1266,50 @@ async function refreshSignatureStatus() {
   
   setInterval(refreshPayloadStatus, 3000);
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE STORAGE LISTENER — Detect autofill progress/completion in real-time
+// ═══════════════════════════════════════════════════════════════════════════
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") return;
+
+  // Queue state changed — update progress display
+  if (changes[STORAGE_KEYS.queueState]) {
+    const newState = changes[STORAGE_KEYS.queueState].newValue;
+    if (!newState) {
+      // Queue cleared — autofill finished
+      if (progressStatus) progressStatus.textContent = "Autofill complete!";
+      showSuccess("Autofill complete!");
+      refreshPayloadStatus();
+    } else if (typeof newState.currentIndex === "number" && typeof newState.total === "number") {
+      if (progressStatus) {
+        progressStatus.textContent = `Filling ${newState.currentIndex + 1} of ${newState.total}...`;
+      }
+    }
+  }
+
+  // Payload cleared — update payload status
+  if (changes[STORAGE_KEYS.payload]) {
+    refreshPayloadStatus();
+  }
+
+  // Logs updated — refresh log display
+  if (changes[STORAGE_KEYS.logs]) {
+    const logs = changes[STORAGE_KEYS.logs].newValue;
+    if (Array.isArray(logs) && logs.length > 0) {
+      const logArea = document.getElementById("log-area");
+      if (logArea) {
+        logArea.textContent = logs.slice(-50).join("\n");
+        logArea.scrollTop = logArea.scrollHeight;
+      }
+    }
+  }
+
+  // Error updated — show error
+  if (changes[STORAGE_KEYS.lastError]) {
+    const err = changes[STORAGE_KEYS.lastError].newValue;
+    if (err) {
+      showError(typeof err === "string" ? err : err.message || "Unknown error");
+    }
+  }
+});
