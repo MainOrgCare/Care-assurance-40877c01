@@ -629,6 +629,19 @@ documentFilesInput?.addEventListener("change", (e) => {
   if (analyzeButton) analyzeButton.disabled = selectedFilesList.length === 0;
 });
 
+clearUploadsBtn?.addEventListener("click", async () => {
+  selectedFilesList = [];
+  currentAnalysisResults = null;
+  displayFileList();
+  if (analyzeButton) analyzeButton.disabled = true;
+  if (uploadedDocsSection) uploadedDocsSection.hidden = true;
+  if (uploadedDocsList) uploadedDocsList.innerHTML = "";
+  if (documentFilesInput) documentFilesInput.value = "";
+  if (uploadNotesInput) uploadNotesInput.value = "";
+  if (analysisStatus) analysisStatus.textContent = "";
+  await setStorage({ [STORAGE_KEYS.uploadedDocuments]: null });
+});
+
 function displayFileList() {
   if (!fileListContainer) return;
   if (selectedFilesList.length === 0) { fileListContainer.innerHTML = ""; return; }
@@ -660,15 +673,31 @@ analyzeButton?.addEventListener("click", async () => {
     // Read files and analyze via background script
     const docType = document.querySelector('input[name="document-type"]:checked')?.value || "otherDocuments";
     let content = "";
+    const skippedFiles = [];
     
     for (const file of selectedFilesList) {
       if (file.type.startsWith("text/") || file.name.endsWith(".txt")) {
         content += `\n\n=== ${file.name} ===\n` + await file.text();
+      } else {
+        skippedFiles.push(file.name);
       }
+    }
+    
+    if (skippedFiles.length > 0 && !content.trim()) {
+      throw new Error(
+        `Cannot read ${skippedFiles.join(", ")} directly. Please upload text (.txt) files, or paste the document content into the notes field below.`
+      );
+    }
+    if (skippedFiles.length > 0) {
+      console.warn(`[CA Extension] Skipped non-text files: ${skippedFiles.join(", ")}`);
     }
     
     if (uploadNotesInput?.value) {
       content += `\n\n=== Additional Notes ===\n${uploadNotesInput.value}`;
+    }
+
+    if (!content.trim()) {
+      throw new Error("No readable content found. Please upload text files or add notes.");
     }
 
     const response = await apiProxy(

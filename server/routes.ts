@@ -2428,6 +2428,18 @@ function normalizeFullName(value: unknown): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
   if (/information not found/i.test(trimmed)) return "";
+  // Reject placeholder/generic words that are not real names
+  const lower = trimmed.toLowerCase().replace(/\s+/g, " ");
+  const invalidNames = [
+    "name", "name name", "full name", "first name", "last name", "surname",
+    "unknown", "n/a", "n.a.", "tbc", "tbd", "not specified", "not provided",
+    "service user", "client", "resident", "patient", "person",
+    "enter name", "your name", "client name", "service user name",
+  ];
+  if (invalidNames.includes(lower)) return "";
+  // Also reject if every word in the name is the same generic word (e.g., "Name Name Name")
+  const words = lower.split(" ");
+  if (words.length > 0 && words.every(w => w === "name" || w === "unknown" || w === "n/a")) return "";
   return trimmed;
 }
 
@@ -2467,6 +2479,11 @@ const extractServiceUserFullName = (text: string): string => {
       fullName = fullName.split(/\s{2,}|\s{1}(?=Allerg(?:y|ies)|Allergy Status|DOB|Date of Birth|NHS|Case ID)/i)[0].trim();
       if (stopPattern.test(fullName)) continue;
       if (/\bcase\s*id\b/i.test(fullName)) continue;
+      // Reject generic/placeholder words extracted as names
+      const lowerName = fullName.toLowerCase().replace(/\s+/g, " ");
+      const genericWords = new Set(["name", "unknown", "n/a", "tbc", "tbd", "first", "last", "surname", "full", "client", "resident", "patient", "person", "service", "user", "enter"]);
+      const nameWords = lowerName.split(" ");
+      if (nameWords.every(w => genericWords.has(w))) continue;
       return fullName;
     }
   }
@@ -14228,13 +14245,13 @@ CRITICAL REMINDER:
 6. Keep place names and locations as written. Do not redact places.`;
 
       const serviceUserExtractionRules = allowSensitiveView
-        ? `- Service user full name if present in the documents (first and last name). Do not invent names.
+        ? `- Service user full name if present in the documents (first and last name). Do not invent names. Do NOT use placeholder words like "Name", "First Name", "Last Name", "Unknown" etc. - only use the actual person's real name or return "Information not found in documents".
 - Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")`
         : `- Service user initials ONLY (format: "F.O." - first letter of first name + "." + first letter of last name + ".")`;
 
       const serviceUserJsonSchema = allowSensitiveView
         ? `"serviceUser": {
-    "fullName": "Full name as written in documents or 'Information not found in documents'",
+    "fullName": "The person's actual real name as written in documents (NOT placeholder text like 'Name' or 'First Name Last Name') or 'Information not found in documents' if no real name found",
     "initials": "Initials in format F.O. (first initial + dot + last initial + dot) or 'N.N.' if not found"
   },`
         : `"serviceUser": {
@@ -16180,238 +16197,43 @@ ${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.versio
       // We'll use conservative 12000 to allow for system prompt overhead
       const MAX_INPUT_TOKENS = currentProvider === "github" ? 12000 : 90000; // OpenAI/Local have higher limits
       
-      const systemPromptBase = `You are an expert care plan writer for a UK care facility following CQC 2024 standards, NHS England Person-Centred Care Planning principles, and NICE guidelines.
+      const systemPromptBase = `You are an expert UK care plan writer (CQC 2024, NHS Person-Centred Care, NICE guidelines). Create a comprehensive, evidence-based care plan from the provided documents. Complete EVERY field - no empty or null values.
+
 ${policyContext}
 
-════════════════════════════════════════════════════════════════════════════════
-🎯 YOUR MISSION: Create a COMPREHENSIVE, EVIDENCE-BASED Care Plan from Available Documents
-════════════════════════════════════════════════════════════════════════════════
-
-You are creating a care plan that will guide care workers in delivering outstanding, individualized care. This document must use EVERY piece of available information to paint the most complete picture possible of the person - while NEVER fabricating details that aren't in the documents.
-
-YOUR PRIMARY GOAL: Maximise the number of completed fields using ONLY the provided documents. Complete every field possible. For fields where no information exists, use professional defaults and flag for verification.
-
-Analyze ALL uploaded documents with extreme thoroughness:
-- Existing Care Plans - extract every detail
-- Moving and Handling assessments - every limitation and requirement
-- Medical records and reports - every diagnosis and how it affects daily life
-- Risk assessments - every identified risk and mitigation
-- Additional documents and context notes - any personal details
-- Professional assessments - every recommendation
-- GP letters, hospital discharge summaries, specialist reports
-
-Use EVERY piece of information. If a document mentions a condition, explain what that condition is, how it manifests for THIS person (based on what's documented), and what care workers need to do differently because of it.
-
-CRITICAL: When documents are sparse, you must still complete ALL fields. Use cross-referencing, reasonable inference from documented facts, and professional defaults. Flag gaps with verificationQuestions. NEVER leave fields empty. NEVER invent details.
-
 ${privacyDirective}
-Keep place names, locations, and healthcare facility names as written. Do not redact places.
+Keep place names and facility names as written.
 
-════════════════════════════════════════════════════════════════════════════════
-⚖️ CARE WORKER SCOPE OF PRACTICE - ABSOLUTELY CRITICAL
-════════════════════════════════════════════════════════════════════════════════
+CARE WORKER SCOPE - This plan is for NON-CLINICAL care workers:
+- They CAN: personal care, medication prompting from dosette boxes, mobility assistance, meals, emotional support, light housework, OBSERVE and REPORT changes
+- They CANNOT: check vitals, assess wounds, administer injections, make clinical judgments
+- For clinical needs, state WHO is responsible (District Nurse, GP), WHEN they visit, WHAT carers should observe/report, and WHEN to call 999
+- WRONG: "Care workers should check my breathing" → RIGHT: "If I appear breathless, carers should call 999 immediately"
 
-This care plan MUST be actionable by CARE WORKERS (not nurses, not clinical staff).
-Care workers are NON-CLINICAL support staff. They are NOT medically trained.
+WRITING RULES:
+- ALL content in FIRST PERSON ("I", "my", "me"). Never "the service user" or "the client".
+- Use hyphens (-) not dashes. No Oxford commas.
+- Sound human, warm and practical - plain English, short-to-medium sentences, no bullet lists in narrative fields.
+- Be specific: equipment names, times, quantities, preferences.
+- For health conditions: explain what it is, how it affects my daily life, what care workers need to do, warning signs, who to contact.
+- NEVER fabricate names, dates, diagnoses, medications, or personal history not in documents.
+- Standard care implications for documented conditions ARE acceptable (e.g., "diabetes requires foot checks").
+- For missing information: "This information has not been provided in the documents supplied."
+- For categorical fields with no evidence: "Not specified in documents provided"
+- Cross-reference: if a condition appears anywhere, reference it in ALL related sections.
+- Add verificationQuestions for every significant gap.
+- Every narrative field should be detailed and thorough - use ALL available evidence from documents.
 
-🟢 CARE WORKERS CAN DO:
-- Personal care: washing, bathing, dressing, toileting, continence pad changes
-- Medication prompting or administration from pre-dispensed dosette boxes (if MAR trained)
-- Mobility assistance: helping transfers, walking with aids, positioning
-- Meal preparation and assistance with eating/drinking
-- Emotional support, companionship, conversation
-- Light housework, laundry, shopping
-- OBSERVE and REPORT changes (NOT assess or diagnose)
-- Document observations in care notes
-- Escort to appointments
-
-🔴 CARE WORKERS CANNOT DO (NEVER INCLUDE THESE AS CARE WORKER TASKS):
-- Check breathing, respiration rate, or lung function
-- Check pulse, heart rate, or blood pressure
-- Take or record vital signs (temperature, SpO2, pulse, BP)
-- Assess wounds, pressure sores, or skin integrity clinically
-- Apply sterile dressings or wound care requiring clinical technique
-- Catheter care, stoma care, or PEG feeding
-- Insulin injections or blood glucose monitoring
-- Change medication doses or make medication decisions
-- Diagnose conditions or symptoms
-- Provide physiotherapy or occupational therapy exercises (unless specifically trained and delegated)
-- Make clinical judgments about deterioration
-- Suction airways or manage oxygen equipment
-- Administer controlled drugs
-
-⚠️ CRITICAL REWORDING RULES:
-WRONG: "Care workers should check my breathing regularly"
-RIGHT: "If I appear to be struggling to breathe, wheezing, or unusually breathless, carers should call 999 immediately"
-
-WRONG: "Staff should monitor my blood pressure"
-RIGHT: "District Nurse visits weekly to check my blood pressure. If I feel dizzy or faint, carers should help me sit down and contact the GP surgery"
-
-WRONG: "Care workers should assess my wound"
-RIGHT: "District Nurse manages my leg dressing on Tuesdays and Fridays. Carers should OBSERVE and REPORT any redness, leaking, odour or pain to the District Nurse immediately"
-
-WRONG: "Check pulse and respiration"
-RIGHT: "If I become unresponsive, very pale, or am struggling to breathe, call 999 immediately"
-
-🔄 FOR CLINICAL NEEDS - STATE THE ESCALATION:
-- Who is responsible (District Nurse, GP, Specialist)
-- When they visit or how to contact them
-- What carers should OBSERVE and REPORT
-- When to call 999
-
-Always include: "If concerned about [specific sign], contact [GP/District Nurse/999] immediately"
-
-════════════════════════════════════════════════════════════════════════════════
-✍️ WRITING QUALITY STANDARDS - NON-NEGOTIABLE REQUIREMENTS
-════════════════════════════════════════════════════════════════════════════════
-
-📋 FORMATTING RULES:
-- Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
-- Never use Oxford commas: "apples, oranges and bananas" not "apples, oranges, and bananas"
-- ALL narrative content MUST be FIRST PERSON: "I", "my", "me" (never "the service user", "client", or "they")
-- Write in clear, flowing sentences that read naturally
-- Use specific details: equipment names, times, quantities, preferences
-- Include what matters to me, routines, triggers, sensory needs, communication style and how I want support delivered
-- NO PLACEHOLDERS MID-SENTENCE. Never write "I need [needs user input]" or "My condition [to be confirmed]"
-
-STYLE GUIDANCE - MATCH THE PROVIDED CASE-2 EXAMPLES:
-- Sound human, warm and practical. Write as if the assessor captured my voice naturally.
-- Use plain English with gentle, respectful phrasing. Avoid clinical or robotic wording.
-- Prefer short to medium sentences. Do not use bullet lists in narrative fields.
-- Keep the tone consistent with real assessments: factual, supportive and grounded.
-- If a field is routine or independent, state it clearly and naturally ("I manage this myself").
-- For risks, use "observe and report" language and clear escalation to GP/office/999.
-- Do not invent details beyond the documents. If missing, state what is needed.
-
-CONSISTENT PHRASING PATTERNS (USE THESE WHEN FITTING THE CONTEXT):
-- Independence: "I am fully independent with ... and do not require assistance at this time."
-- Support needed: "I require support with ... to help me remain safe and comfortable."
-- Preferences: "I prefer ..." / "I like ..." / "It helps me if ..."
-- Escalation: "If there are any concerns about ..., carers should report this to the office and seek advice from my GP."
-- Changes: "If this changes, I will inform the office so my care plan can be updated."
-
-DON'TS (MATCH THE EXAMPLES):
-- Do not use clinical commands like "monitor respiration" or "check vital signs".
-- Do not use medical jargon where plain English is available.
-- Do not over-formalize. Avoid legalistic phrasing unless it is already in the documents.
-
-📏 ADAPTIVE WORD COUNT - PROPORTIONAL TO AVAILABLE EVIDENCE:
-Detail level MUST match the depth of information available. ACCURACY ALWAYS OVERRIDES LENGTH.
-
-When documents provide RICH detail on a topic → write comprehensively:
-- **thisIsMe.whoAmI**: Up to 600 words if life story details are available
-- **myCarePlan.healthAndWellbeing**: Up to 800 words if multiple conditions are documented
-- **myCarePlan.personalCareNeeds**: Up to 600 words if care routines are documented
-- **myCarePlan.medicationRequirements**: Up to 500 words if medications are listed
-
-When documents provide LIMITED detail → write concisely and accurately:
-- State what IS known from the documents
-- State clearly what information is missing: "This information has not been provided in the documents supplied."
-- Add a verificationQuestion for the missing information
-- NEVER pad with invented details to reach a word count
-
-When documents provide NO detail on a topic → use a smart default:
-- For narrative fields: "This information has not been provided in the documents supplied. [Specific question about what is needed]."
-- For categorical fields (Yes/No, Good/Impaired, etc.): "Not specified in documents provided"
-- For risk levels: Infer from related available information, or default to "Medium" with explanation
-- Add a verificationQuestion requesting the specific missing information
-
-GOLDEN RULE: It is better to write 50 accurate words than 500 words containing a single fabricated detail.
-
-🚫 ZERO FABRICATION POLICY - ABSOLUTE & NON-NEGOTIABLE:
-NEVER invent, assume, or fabricate ANY of the following:
-- Medical diagnoses, conditions, symptoms, or prognoses not in documents
-- Medication names, dosages, frequencies, or side effects not in documents
-- Names of people (family, GPs, nurses, carers) not in documents
-- Dates, ages, timeframes, or durations not in documents
-- Personal history, childhood memories, work history, or life events not in documents
-- Specific preferences, routines, or habits not in documents
-- Equipment brands, models, or specifications not in documents
-- Addresses, locations, or facility names not in documents
-
-INSTEAD when information is absent:
-- State: "This has not been documented" or "Details to be confirmed at initial visit"
-- Use conditional phrasing: "If applicable..." or "Any concerns should be reported to the office"
-- Add a verificationQuestion to capture the missing information
-
-OTHER FORBIDDEN PATTERNS:
-- Generic phrases: "support is provided", "as needed", "appropriate care"
-- Vague terms: "various conditions", "some assistance", "occasional help"
-- Clinical distance: "the service user", "the client", "the individual"
-
-🔗 CROSS-REFERENCING INTELLIGENCE:
-Use information from ANY section to intelligently populate RELATED sections:
-- If mobility issues are documented → populate falls risk, equipment, fire evacuation, external access
-- If diabetes is documented → populate nutrition (dietary restrictions), medication, skin integrity, foot care
-- If cognitive issues are documented → populate capacity fields, medication difficulties, can be left alone, fire risk
-- If incontinence is mentioned → populate personal care needs, skin integrity, equipment
-- If hearing/vision issues are mentioned → populate communication fields, sensory impairment band, appliance safety
-- If a condition is mentioned ANYWHERE in the documents, reference it in ALL relevant sections
-
-📋 SMART DEFAULTS FOR CATEGORICAL/BINARY FIELDS:
-For Yes/No and categorical fields where information is NOT in documents, use these defaults:
-- Speech/Hearing/Eyesight: "Not assessed - to be confirmed at initial visit"
-- Incontinence fields: "Not specified in documents provided"
-- Capacity fields (understands/retains/weighs/communicates): "Assumed Yes unless indicated otherwise - to be confirmed"
-- Appliance safety fields: "Not assessed - to be confirmed at initial visit"
-- Fire safety fields: "To be confirmed at initial visit"
-- Section 11 bands: "No" unless evidence suggests otherwise
-- Equipment fitForPurpose: "Yes" if equipment is documented as in use
-- Can be left alone: "To be confirmed - assess at initial visit"
-- Prone to falls: Cross-reference mobility section; if mobility issues exist, flag as potential risk
-
-✅ QUALITY REQUIREMENTS - ACCURACY-FIRST STANDARDS:
-
-1. **100% EVIDENCE-BASED**: Every single statement MUST be traceable to document sources
-   ✓ "I was diagnosed with Type 2 diabetes in 2019 according to my GP records. I take Metformin 500mg twice daily with breakfast and dinner."
-   ✗ "I have diabetes" (too vague - expand with available details)
-   ✗ "I was diagnosed around five years ago" (invented timeframe - only use dates from documents)
-
-2. **ACCURACY OVER LENGTH**: 
-   - If documents provide rich detail → write comprehensively using ALL of it
-   - If documents provide sparse detail → write concisely using ONLY what is available
-   - NEVER pad sparse sections with invented biographical details, assumed routines, or generic filler
-   - A short, accurate section is ALWAYS better than a long, fabricated one
-
-3. **MEDICAL CONDITIONS - HOW THEY AFFECT ME** (only for conditions DOCUMENTED):
-   For EVERY health condition mentioned in the documents, explain:
-   - What the condition is (in simple terms)
-   - How it affects MY daily life specifically (if documented)
-   - What care workers need to do differently because of it
-   - Warning signs to watch for (standard clinical knowledge is acceptable here)
-   - Escalation: who to contact if concerned
-   
-   ✓ "I have osteoarthritis in both knees and my right hip. This means my joints are stiff and painful, especially in the morning and in cold weather. I find it very difficult to bend down - I cannot pick things up from the floor or put on my own socks. Walking is painful after about 10 minutes and I need to rest. My right hip gives me sharp pain if I twist. Care workers need to allow me extra time for transfers and never rush me. If my joints are particularly swollen or I have increased pain, this should be reported to my GP."
-   ✗ "I have arthritis in several joints" (too vague)
-   NOTE: Standard care implications for a documented condition (e.g., "diabetes requires foot checks") are acceptable general knowledge, NOT fabrication
-
-4. **DEEPLY PERSON-CENTRED**: This is MY life, MY voice, MY story
-   ✓ Use details FROM THE DOCUMENTS to write naturally in first person
-   ✗ Do NOT invent personal anecdotes, memories, or preferences not in documents
-
-5. **ACTIONABLE & SPECIFIC**: Care workers must know EXACTLY what to do
-   ✓ Use documented care routines and equipment to write specific instructions
-   ✗ Do NOT invent specific times, brand names, or techniques not in documents
-   ✓ When specifics are missing: "My exact routine should be confirmed at my initial visit. Key areas to discuss include..."
-
-════════════════════════════════════════════════════════════════════════════════
-📋 "THIS IS ME" MANDATORY FORMAT - LIFE STORY STRUCTURE
-════════════════════════════════════════════════════════════════════════════════
-
-The whoAmI section MUST begin exactly like this and follow this structure:
-
-"My name is [Full Name]. I was born in [Place] in [Year] and [brief early life context]..."
-
-Then continue with a flowing life story covering:
-1. CHILDHOOD: Where I grew up, family background, siblings, childhood memories
-2. EDUCATION & WORK: Schools, apprenticeships, career, jobs I had, what I was proud of
-3. FAMILY LIFE: Marriage(s), partner(s), children, grandchildren, significant relationships
-4. LIFE EVENTS: Key moments, achievements, challenges overcome, places lived
-5. LOSSES & BEREAVEMENTS: People I have lost and how this affects me
-6. WHAT DEFINES ME: My personality, values, faith/beliefs, what matters most
-7. WHY I NEED CARE: How my circumstances changed, how I feel about needing support
-
-This must read as a genuine life story, not a list. It should make care workers understand WHO I am as a person, not just my care needs.`;
+SECTION WRITING GUIDE - Write comprehensively for each:
+- thisIsMe.whoAmI: Flowing life story (aim 400-600 words). Start "My name is [Name]." Cover background, education, work, family, losses, personality, why I need care. Use EVERY biographical detail from documents.
+- thisIsMe.hobbiesInterests: Specific hobbies with frequencies, equipment, companions.
+- thisIsMe.whatMakesGoodDay: Very specific - routines, activities, people, food, environment I enjoy.
+- myCarePlan.healthAndWellbeing: For EACH condition: what it is, how it affects me daily, what care workers do, warning signs, who to contact. This should be the longest section (aim 600-800 words).
+- myCarePlan.personalCareNeeds: Full daily routine - morning wash, dressing, oral care, evening routine, continence. Step by step.
+- myCarePlan.medicationRequirements: Every medication with name, dose, time, purpose, difficulties.
+- myCarePlan.nutrition: Diet type, preferences, allergies, fluid intake, meal times, assistance needed.
+- myCarePlan.mobilityAndEquipment: Every piece of equipment, how I move, transfers, distance, stairs.
+- myCarePlan.capacityAndSafeguarding: Mental capacity, decision making, safeguarding concerns.`;
 
       // Calculate total estimated tokens with base system prompt
       const systemPromptTokens = estimateTokens(systemPromptBase);
@@ -16455,124 +16277,15 @@ This must read as a genuine life story, not a list. It should make care workers 
 
       const systemPrompt = systemPromptBase + `
 ${finalPolicyContext}
-📚 SECTION-BY-SECTION STYLE EXAMPLES - FOLLOW THE FORMAT, NOT THE CONTENT
-════════════════════════════════════════════════════════════════════════════════
 
-⚠️ CRITICAL: These examples show the WRITING STYLE and STRUCTURE to follow.
-DO NOT copy their content. DO NOT invent similar biographical details.
-Use ONLY information from the actual documents provided.
-If documents provide less detail than these examples, your output should be shorter but accurate.
+Return ONLY valid JSON matching this exact schema. For categorical fields use EXACTLY the allowed values shown.
 
-🟢 STYLE EXAMPLE "whoAmI" - shows the flowing life story FORMAT (use only documented facts):
-"My name is Harold Thompson. I was born in Manchester in 1945 and grew up in a terraced house on Oldham Street with my parents Albert and Doris and my three siblings - older brother Frank, younger sisters Betty and Jean. My father worked long hours in the cotton mills at Mather & Platt and my mother was a seamstress who took in work from the neighbours. We didn't have much money but we were a close family and I have fond memories of Sunday dinners when we'd all squeeze around the kitchen table.
-
-I left school at 15 as was common then and started apprenticing as an electrician at Bolton Electrical Services. I absolutely loved the work - there was something satisfying about solving problems and making things work safely. I qualified in 1964 and worked my way up to foreman over the years. I spent 45 years in electrical contracting, mainly industrial work at factories and mills around Greater Manchester. I was proud of never having an accident on my watch and training dozens of young apprentices over the years. I had to retire at 60 when my arthritis got too bad to climb ladders and work on my knees anymore. That was hard - my work meant everything to me.
-
-I married my late wife Margaret in 1967 at St Mary's Church in Oldham. We met at a dance at the Tower Ballroom in Blackpool where she caught my eye across the room. We had 48 wonderful years together and two children - our daughter Sarah who is now 54 and teaches primary school in Leeds, and our son Michael who is 51 and works in IT in London. Margaret passed away five years ago from breast cancer after a brave 18-month battle. Losing her was the hardest thing I've ever experienced and I still miss her every single day. Her photo is beside my bed and I say goodnight to her.
-
-After Margaret died I struggled on my own for two years but my health declined and I had several falls. Sarah was worried sick and eventually I agreed to move closer to her. I now live in a ground floor flat in Otley which Sarah helped me find. I was reluctant at first but it's been the right decision. My two grandchildren - Emma who is 16 and Jack who is 12 - visit every Sunday without fail which is absolutely the highlight of my week. Emma is sitting her GCSEs this year and I help her with maths when I can. Jack loves football and supports Manchester United like me.
-
-What's most important to me is maintaining my independence for as long as possible. I hate asking for help and prefer to do things myself even if it takes longer. I take great pride in keeping my flat tidy and presentable - Margaret would have been horrified if visitors found it messy. I've always been a practical, problem-solving sort of person and hate feeling like a burden.
-
-My Catholic faith remains very important to me. I was brought up Catholic, attended St Mary's every Sunday as a boy, and was an altar server. I find great comfort in my prayers, especially in the morning when I wake and at night before sleep. Father Patrick from the local parish visits me once a month for communion which I really appreciate. I have a small statue of Our Lady on my bedside table.
-
-Having care workers come into my home was difficult to accept at first. I'm a proud man and value my privacy. But I've come to appreciate the help now that I understand it helps me stay in my own home rather than going into residential care. What I need from my carers is patience - I don't like being rushed - and respect for my dignity. Please don't talk to me like I'm a child or assume I can't understand things. My body may be failing but my mind is still sharp."
-
-🟢 STYLE EXAMPLE "healthAndWellbeing" - shows condition-by-condition FORMAT (use only documented conditions):
-"I have several health conditions that together significantly affect my daily life and require careful management.
-
-TYPE 2 DIABETES: I was diagnosed with Type 2 diabetes 12 years ago following routine blood tests. Diabetes is a condition where my body doesn't use insulin properly so my blood sugar levels can become too high if not managed. This affects me daily because I have to be very careful about what I eat, particularly sugary foods and large portions of carbohydrates. I test my blood sugar every morning before breakfast using my Accu-Chek monitor - my target is 4-7 mmol/L before food. If it goes above 10 I feel tired and thirsty. If it drops below 4 I feel shaky, sweaty and confused - care workers should give me sugary drink or glucose tablets if this happens and stay with me. I take Metformin 500mg twice daily with breakfast and dinner to help control my sugar. I see the diabetes nurse at Green Lane Surgery every three months and have annual eye checks at Bradford Royal for diabetic retinopathy. The diabetes also means I'm at high risk of foot problems and poor wound healing, so any cuts, blisters or skin changes must be reported immediately to the district nurse. My feet are checked weekly by District Nurse Sarah Collins.
-
-OSTEOARTHRITIS: I have osteoarthritis affecting both hips, both knees and my hands. Arthritis means the cartilage in my joints has worn away causing bone to rub on bone. This causes me significant daily pain and stiffness. My right hip is the worst - the pain is often 7/10 and I'm on the waiting list for hip replacement surgery at Leeds General (18 months wait so far). The pain and stiffness is always worst first thing in the morning - it takes me 15-20 minutes to 'get going' and I shouldn't be rushed during this time. Cold weather makes it worse. The arthritis means I cannot: bend down to pick things up, put on my own socks or shoes, walk more than about 50 meters without resting, climb stairs more than once daily, grip small objects firmly. I take Naproxen 500mg twice daily with food which helps significantly - it must be taken with food to protect my stomach. On bad days I also take Paracetamol 1g up to four times daily but I try to limit this. I use heat pads on my hips which give relief. If pain becomes severe or joints look red and swollen, contact GP as this could indicate a flare-up requiring additional treatment.
-
-HEART DISEASE: I had a myocardial infarction (heart attack) eight years ago which terrified me and Margaret. I've since been told the heart attack was caused by coronary artery disease - narrowing of the arteries supplying my heart. Since then I take: Aspirin 75mg daily (blood thinner to prevent clots), Atorvastatin 40mg at night (cholesterol medication), Ramipril 5mg in morning (blood pressure and heart protection), GTN spray to use under tongue if I get chest pain (kept on kitchen windowsill). I have six-monthly check-ups with the cardiac rehabilitation nurse at Bradford Royal. My heart function is now stable at 45% ejection fraction which is moderate heart failure. My blood pressure runs around 135/80 which they're satisfied with. Warning signs to watch for: chest pain or pressure, unusual breathlessness, swollen ankles, extreme fatigue. If I have chest pain, give me GTN spray, sit me down, and if not improved in 5 minutes call 999.
-
-BENIGN PROSTATIC HYPERPLASIA (ENLARGED PROSTATE): This is common in older men and causes me to need the toilet frequently, especially at night. I typically wake 3-4 times per night to urinate which disturbs my sleep significantly. I often feel unrested during the day as a result. I sometimes have urgency - needing to go quickly - and occasionally dribbling. This is embarrassing to talk about. I wear TENA pads at night for security. I take Tamsulosin 400mcg at night which helps somewhat with the flow. The GP monitors this annually. If I develop complete inability to pass urine (retention), this is an emergency requiring hospital.
-
-HEARING LOSS: I have bilateral sensorineural hearing loss from years of working with loud machinery without ear protection (different times then). I wear Oticon behind-the-ear hearing aids in both ears - they're beige coloured with size 312 batteries. I need new batteries approximately weekly (I keep spares in my bedside drawer). Without my hearing aids I really struggle - I can only hear loud noises and cannot follow conversation at all. Even with aids I struggle if there's background noise or multiple people talking. Care workers should always face me when speaking, speak clearly (not shouting), and be patient if I ask them to repeat. The TV remote has subtitles that should be turned on.
-
-CATARACTS: I have cataracts in both eyes causing blurred, cloudy vision. I wear varifocal glasses constantly and cannot read anything without them. Even with glasses I cannot read small print such as medication labels or instruction leaflets - these need reading aloud to me. I've been referred to Bradford Royal for cataract surgery assessment. My vision is worse in bright light - I'm easily dazzled.
-
-SLEEP DISTURBANCE: Due to the prostate issues and general discomfort I get poor quality sleep, averaging only 4-5 hours per night. I feel tired during the day and sometimes doze in my chair after lunch. I don't take sleeping tablets as they made me confused."
-
-🟢 STYLE EXAMPLE "personalCareNeeds" - shows routine FORMAT (use only documented care needs):
-"I can manage some of my personal care independently but need regular support due to my arthritis and mobility limitations. Here is my complete daily routine:
-
-MORNING ROUTINE (7:30am-9:00am):
-I usually wake naturally around 7:30am. My joints are very stiff first thing and it takes me about 15 minutes before I feel able to move properly - please don't rush me during this time. I have a commode beside my bed (Invacare Aquatec) which I use first thing rather than walking to the bathroom immediately as I have urgency. I can use this independently but need it emptied and cleaned each visit.
-
-Once my joints have loosened I use my wheeled zimmer frame (Rollator) to walk to the bathroom - this is about 8 meters and takes me 2-3 minutes with the frame. I prefer to shave myself using my Braun electric razor - keeping well-groomed is important to my dignity. I keep the razor charging in the bathroom cabinet.
-
-I wash at the sink (strip wash) as I cannot get in or out of the bath safely and don't trust my balance in the shower even with the seat. Please fill the sink with warm water - I like it quite hot but please test with your elbow first. Lay out my flannel and my Imperial Leather soap (I've used this brand for 50 years). I can wash my own face, neck, upper chest and arms if you pass me the wrung-out flannel. I need help to wash: my back, underarms, lower body, legs and feet as I cannot bend or reach these areas due to hip arthritis.
-
-Please dry me very thoroughly, especially between my toes - this is essential because of my diabetes as any dampness can lead to fungal infections and ulcers. After drying, please apply Aveeno moisturising cream to my lower legs and feet as my skin is very dry (cream kept in bathroom cabinet).
-
-GETTING DRESSED:
-I can manage items for my upper body - I can put on a vest and shirt independently if buttons are already undone. However I cannot manage: putting on socks, trousers, or shoes due to being unable to bend at the hips.
-
-Please help me put on my compression stockings first - I wear Class 2 stockings for poor circulation in my legs. These must go on LEFT leg first (this leg is weaker and more swollen). Roll the stocking down first, place my foot in, then roll up slowly. Please check there are no wrinkles especially at the ankle and behind the knee - wrinkles cause pressure sores. The stockings should be removed at night.
-
-I prefer elasticated waist trousers (no buttons or zips to manage) and loose shirts. I have a long-handled shoe horn in my wardrobe which helps me get my slip-on shoes on. My clothes are laid out the night before.
-
-ORAL CARE:
-I have most of my own teeth but several are loose and my gums bleed easily. I brush twice daily using a soft Sensodyne toothbrush and Sensodyne toothpaste for sensitivity. I also wear a partial upper denture which I put in after brushing. At night the denture needs taking out, rinsed under the tap, and placed in a denture pot with water and a Steradent tablet. My dentures are marked with my initials.
-
-EVENING ROUTINE (9:00pm-10:00pm):
-I like to have a warm milky drink (Options hot chocolate) between 9 and 9:30pm. I then do my evening wash which is a simpler version of the morning - face, hands, underarms. I change into my pyjamas (need help with bottoms), use the toilet, put on a fresh TENA pad (stored in bathroom cupboard), take my evening medications, and am settled in bed by 10pm. I like to listen to Radio 4 for 20-30 minutes before sleeping. My bedside lamp should be left on its lowest setting initially.
-
-CONTINENCE:
-During the day my continence is generally good but I get urgency so respond quickly if I say I need the toilet. I wear TENA Level 2 pads at night only as I sometimes don't wake in time. I find this embarrassing to discuss but the pads give me peace of mind. Supplies delivered monthly by Continence Service."
-
-════════════════════════════════════════════════════════════════════════════════
-🎯 SECTION COMPLETION REQUIREMENTS - MAXIMISE OUTPUT FROM AVAILABLE DATA
-════════════════════════════════════════════════════════════════════════════════
-
-Generate content for EVERY SINGLE section and field. No exceptions. No blank fields.
-
-PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
-
-1. DIRECT EVIDENCE (highest priority):
-   → If information is clearly stated in documents, use it verbatim with context
-   → Include specific details: times, names, frequencies, amounts, equipment names
-   → Expand with care worker implications: what they need to do, watch for, escalate
-
-2. CROSS-REFERENCED EVIDENCE (second priority):
-   → If a fact appears in one section's documents, apply it to ALL relevant sections
-   → E.g., "uses zimmer frame" in mobility docs → also populate equipment section, falls risk, fire evacuation
-   → E.g., "diabetes" in medical docs → also populate nutrition (diet), medication, skin integrity, foot care
-   → E.g., "lives alone" → populate can be left alone, security, fire risk, social needs
-
-3. REASONABLE INFERENCE FROM EVIDENCE (third priority):
-   → If documents say "needs help with washing" → can reasonably infer personal care support band = "Yes"
-   → If documents say "uses walking frame" → can reasonably infer mobility = "With aid", weight bearing = "Partial"
-   → Mark with "Based on documented care needs..." to show the inference source
-   → ONLY infer from documented facts, never from assumptions
-
-4. PROFESSIONAL DEFAULT (fourth priority):
-   → For categorical fields with no evidence either way, use professional defaults:
-     - "Not specified in documents provided - to be confirmed at initial visit"
-     - "No concerns documented" (for risk fields where nothing negative is mentioned)
-   → For narrative fields: state what is missing and ask for it via verificationQuestion
-   → NEVER leave a field empty or null
-
-5. VERIFICATION QUESTIONS (always include when data gaps exist):
-   → Ask specific, actionable questions for EVERY major gap
-   → Good: "What time do you prefer to wake up in the morning?"
-   → Good: "Do you wear glasses or hearing aids?"
-   → Good: "Where is your key safe located and what is the code?"
-   → Bad: "Please provide more information"
-   → If everything is well-documented, return empty array: []
-   → Group related questions: "Regarding your morning routine: what time do you wake up, do you wash at the sink or shower, and do you have any preferences for water temperature?"
-
-════════════════════════════════════════════════════════════════════════════════
-📊 OUTPUT FORMAT - EXACT JSON STRUCTURE REQUIRED
-════════════════════════════════════════════════════════════════════════════════
 {
-  "verificationQuestions": ["Question about missing or uncertain details"],
+  "verificationQuestions": ["Specific question about missing info"],
   "thisIsMe": {
-    "whoAmI": "MUST start with 'My name is [Name]. I was born in [Place] in [Year]...' - full life story (MINIMUM 600 words)",
-    "hobbiesInterests": "Detailed hobbies and interests with specific examples (MINIMUM 300 words)",
-    "whatMakesGoodDay": "Very specific description of what makes a good day for me (MINIMUM 200 words)"
+    "whoAmI": "Life story starting 'My name is [Name].' - aim 400-600 words",
+    "hobbiesInterests": "Detailed hobbies and interests",
+    "whatMakesGoodDay": "Specific description of a good day"
   },
   "goalSetting": {
     "goals": [{"goal": "Goal", "howToAchieve": "How", "potentialBarriers": "Barriers", "timeFrame": "6 months"}],
@@ -16587,13 +16300,13 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
     "poaContact": "Contact details"
   },
   "myCarePlan": {
-    "capacityAndSafeguarding": "Comprehensive mental capacity assessment in first person (MINIMUM 400 words)",
-    "healthAndWellbeing": "EVERY health condition with explanation of how it affects me (MINIMUM 800 words)",
+    "capacityAndSafeguarding": "Mental capacity assessment in first person",
+    "healthAndWellbeing": "EVERY health condition: what it is, how it affects me, what care workers do, warning signs, who to contact",
     "triggerPoints": "Signs indicating health changes - be specific",
-    "medicationRequirements": "Every medication with dose, time, purpose, difficulties (MINIMUM 500 words)",
-    "nutrition": "Complete dietary profile with preferences and requirements (MINIMUM 400 words)",
-    "personalCareNeeds": "Complete minute-by-minute daily routine (MINIMUM 600 words)",
-    "mobilityAndEquipment": "Detailed mobility assessment with all equipment (MINIMUM 400 words)",
+    "medicationRequirements": "Every medication with name, dose, time, purpose, side effects, difficulties",
+    "nutrition": "Diet type, preferences, allergies, fluid intake, meal times, assistance needed",
+    "personalCareNeeds": "Full daily routine: morning wash, dressing, oral care, evening, continence",
+    "mobilityAndEquipment": "Every piece of equipment, how I move, transfers, distance, stairs",
     "houseworkAndSocial": "Housework support and social needs in detail",
     "financialArrangements": "Finance management details"
   },
@@ -16892,47 +16605,13 @@ PRIORITY STRATEGY FOR MAXIMUM COMPLETION:
         feature: "plan_enhancer",
         model: getRiskAssessmentGenerationModel(),
         userContext: aiUserContext,
-        inputText: `Analyze ALL documents with EXTREME thoroughness and generate a COMPREHENSIVE, EVIDENCE-BASED care plan.
+        inputText: `Generate a comprehensive care plan from these documents. Write detailed, thorough content for EVERY field - especially thisIsMe.whoAmI (full life story), healthAndWellbeing (every condition explained), and personalCareNeeds (full daily routine). Use ALL available evidence. Cross-reference conditions across sections.
 
-═══════════════════════════════════════════════════════
-DOCUMENTS TO ANALYZE - EXTRACT EVERY DETAIL
-═══════════════════════════════════════════════════════
+DOCUMENTS:
 
 ${finalContent}
 
-═══════════════════════════════════════════════════════
-YOUR CRITICAL REQUIREMENTS
-═══════════════════════════════════════════════════════
-
-1. Read EVERY document section with extreme attention to detail
-2. Extract EVERY piece of information - names, dates, conditions, medications, preferences
-3. Generate content PROPORTIONAL to available evidence - if documents are detailed, write comprehensively; if sparse, write concisely but accurately
-4. For EVERY health condition found in documents: explain what it is AND how it affects this person specifically
-5. Write in FIRST PERSON throughout ("I", "my", "me")
-6. Use SPECIFIC details FROM THE DOCUMENTS ONLY: exact times, equipment names, precise routines as documented
-7. NEVER invent details not in the documents - no fabricated names, dates, diagnoses, medications, or personal history
-8. For ANY field where information is missing from documents, write: "This information has not been provided in the documents supplied."
-9. For YES/NO categorical fields with no evidence: "Not specified in documents provided" or "To be confirmed at initial visit"
-
-CROSS-REFERENCING - MAXIMISE COMPLETION:
-- If diabetes is documented → also populate nutrition (diabetic diet), skin integrity (foot care), medication
-- If mobility issues are documented → also populate falls risk, equipment, fire evacuation, mobility aids
-- If cognitive issues are documented → also populate capacity fields, can be left alone, medication difficulties, fire risk
-- If a condition appears ANYWHERE in the documents, reference it in ALL related sections
-
-ADAPTIVE DETAIL LEVEL - ACCURACY OVER LENGTH:
-- Write AS MUCH as the documents support - but NEVER more
-- 50 accurate words > 500 words with fabrication
-- Complete EVERY field - no blanks, no nulls
-- Add verificationQuestions for EVERY significant gap in the documents
-
-EVIDENCE-BASED ONLY:
-- Only include information that appears in the documents
-- Never invent medical details, diagnoses, dates, or personal history
-- Standard care implications for documented conditions are acceptable (e.g., "diabetes requires foot checks")
-- If unsure, add to verificationQuestions
-
-Return ONLY valid JSON matching the exact schema. Begin now.`,
+Return ONLY valid JSON matching the schema.`,
         systemPrompt,
         temperature: 0,
         seed: 42,

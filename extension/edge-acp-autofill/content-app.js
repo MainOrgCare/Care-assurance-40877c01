@@ -182,15 +182,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
-// Notify popup that we're ready to proxy requests
-chrome.runtime.sendMessage({ 
-  type: 'CA_CONTENT_SCRIPT_READY', 
-  origin: window.location.origin 
-}).then(() => {
-  console.log("[CA Extension Content] Ready notification sent successfully");
-}).catch((err) => {
-  console.log("[CA Extension Content] Ready notification (no receiver):", err?.message);
-});
+// Notify background that we're ready to proxy requests (retry if service worker isn't up yet)
+const notifyReady = (attempt = 0) => {
+  chrome.runtime.sendMessage({ 
+    type: 'CA_CONTENT_SCRIPT_READY', 
+    origin: window.location.origin 
+  }).then(() => {
+    console.log("[CA Extension Content] Ready notification sent successfully");
+  }).catch((err) => {
+    if (attempt < 3) {
+      const delay = 500 * (attempt + 1);
+      console.log(`[CA Extension Content] Ready notification retry ${attempt + 1} in ${delay}ms:`, err?.message);
+      setTimeout(() => notifyReady(attempt + 1), delay);
+    } else {
+      console.warn("[CA Extension Content] Ready notification failed after retries:", err?.message);
+    }
+  });
+};
+notifyReady();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WEBPAGE MESSAGE HANDLING
