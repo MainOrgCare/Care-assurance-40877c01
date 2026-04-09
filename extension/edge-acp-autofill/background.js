@@ -449,24 +449,39 @@ const forwardProxyRequest = async (request, sendResponse) => {
       }));
       sendResponse(response);
     } catch (forwardError) {
-      console.error("[CA Extension] Error forwarding to content script:", forwardError);
+      console.warn("[CA Extension] Error forwarding to content script (will retry after inject):", forwardError?.message);
       await updateRuntimeMetrics((metrics) => ({
         ...metrics,
         proxyRetries: (metrics.proxyRetries || 0) + 1,
       }));
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId },
-          files: ["constants.js", "content-app.js"],
-        });
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const retryResponse = await chrome.tabs.sendMessage(tabId, {
-          type: API_PROXY_TYPE,
-          endpoint,
-          method,
-          body,
-          requestId,
-        });
+
+      // Retry up to 2 times with progressive delays after injecting scripts
+      let retryResponse = null;
+      let lastInjectError = null;
+      const retryDelays = [800, 1500];
+      for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ["constants.js", "content-app.js"],
+          });
+          await new Promise((resolve) => setTimeout(resolve, retryDelays[attempt]));
+          retryResponse = await chrome.tabs.sendMessage(tabId, {
+            type: API_PROXY_TYPE,
+            endpoint,
+            method,
+            body,
+            requestId,
+          });
+          // If we got a response, break out of retry loop
+          break;
+        } catch (injectError) {
+          lastInjectError = injectError;
+          console.warn(`[CA Extension] Retry ${attempt + 1} failed:`, injectError?.message);
+        }
+      }
+
+      if (retryResponse) {
         await updateRuntimeMetrics((metrics) => ({
           ...metrics,
           proxySuccesses: retryResponse?.ok ? (metrics.proxySuccesses || 0) + 1 : metrics.proxySuccesses || 0,
@@ -476,13 +491,13 @@ const forwardProxyRequest = async (request, sendResponse) => {
           lastErrorAt: retryResponse?.ok ? metrics.lastErrorAt : new Date().toISOString(),
         }));
         sendResponse(retryResponse);
-      } catch (injectError) {
-        console.error("[CA Extension] Failed to inject script:", injectError);
+      } else {
+        console.error("[CA Extension] All retry attempts failed:", lastInjectError?.message);
         await updateRuntimeMetrics((metrics) => ({
           ...metrics,
           proxyFailures: (metrics.proxyFailures || 0) + 1,
           lastProxyStatus: "inject-failed",
-          lastError: injectError?.message || "Script injection failed",
+          lastError: lastInjectError?.message || "Script injection failed",
           lastErrorAt: new Date().toISOString(),
         }));
         sendResponse({
