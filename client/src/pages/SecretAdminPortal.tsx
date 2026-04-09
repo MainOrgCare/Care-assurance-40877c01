@@ -3,7 +3,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, Send } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -4234,6 +4234,8 @@ export default function SecretAdminPortal() {
   const [extensionInfo, setExtensionInfo] = useState<ExtensionPackageInfo | null>(null);
   const [extensionInfoLoading, setExtensionInfoLoading] = useState(false);
   const [extensionInfoRefreshing, setExtensionInfoRefreshing] = useState(false);
+  const [extensionTestStatus, setExtensionTestStatus] = useState<"idle" | "testing" | "success" | "failed">("idle");
+  const [extensionTestMessage, setExtensionTestMessage] = useState("");
   const [opsHealth, setOpsHealth] = useState<OpsHealthSnapshot | null>(null);
 
   useEffect(() => {
@@ -4956,6 +4958,172 @@ export default function SecretAdminPortal() {
 
                   <p className="text-xs text-muted-foreground">
                     Use this ZIP in Edge via <strong>Extensions</strong> → <strong>Load unpacked</strong> or upload to Edge Add-ons.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Extension Connection Test */}
+              <Card data-testid="card-test-extension" className="border-border/60 bg-background/70 shadow-medium hover-elevate">
+                <CardHeader className="border-b border-border/30">
+                  <CardTitle className="flex items-center gap-3 text-[0.8125rem]">
+                    <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
+                      <Send className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    Extension Connection Test
+                  </CardTitle>
+                  <CardDescription>
+                    Test communication between this page and the Edge extension. The extension must be installed and this page must be open.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      data-testid="button-test-extension-connection"
+                      disabled={extensionTestStatus === "testing"}
+                      onClick={() => {
+                        setExtensionTestStatus("testing");
+                        setExtensionTestMessage("Sending test payload to extension...");
+                        const requestId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                        const testPayload = {
+                          formType: "acp" as const,
+                          assessments: [{
+                            name: "Extension Connection Test",
+                            risks: [{
+                              riskTitle: "Test Risk — connectivity check",
+                              howItsARisk: "This is a test payload sent from the admin panel.",
+                              controlMeasures: "No action needed — this was a connectivity test.",
+                              whoWillBeHarmed: "N/A",
+                              ratingAfterControls: "Low",
+                              initialRating: "Low",
+                            }],
+                            signedBy: "Admin Test",
+                            jobTitle: "System Administrator",
+                          }],
+                          serviceUserInitials: "T.E.",
+                          serviceUserDisplayName: "Test Extension",
+                        };
+
+                        let handler: ((event: MessageEvent) => void) | null = null;
+                        const timeoutId = window.setTimeout(() => {
+                          if (handler) window.removeEventListener("message", handler);
+                          setExtensionTestStatus("failed");
+                          setExtensionTestMessage("Extension not detected. Ensure the CareAssurance Edge extension is installed and this page has been refreshed after installation.");
+                        }, 3000);
+
+                        handler = (event: MessageEvent) => {
+                          if (event.source !== window) return;
+                          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
+                          if (event.data.requestId !== requestId) return;
+                          window.clearTimeout(timeoutId);
+                          window.removeEventListener("message", handler!);
+                          if (event.data.ok) {
+                            setExtensionTestStatus("success");
+                            setExtensionTestMessage("Extension connected and received the test payload. Data is stored and ready for autofill.");
+                          } else {
+                            setExtensionTestStatus("failed");
+                            setExtensionTestMessage(`Extension responded with error: ${event.data.error || "Unknown error"}`);
+                          }
+                        };
+
+                        window.addEventListener("message", handler);
+                        window.postMessage(
+                          { type: "CA_SEND_TO_ACP_EXTENSION", requestId, payload: testPayload },
+                          window.location.origin
+                        );
+                      }}
+                    >
+                      {extensionTestStatus === "testing" ? (
+                        <Loader2 size={14} className="mr-2 animate-spin" />
+                      ) : (
+                        <Send size={14} className="mr-2" />
+                      )}
+                      Test Send to Extension
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      data-testid="button-test-extension-store"
+                      disabled={extensionTestStatus === "testing"}
+                      onClick={() => {
+                        setExtensionTestStatus("testing");
+                        setExtensionTestMessage("Sending initialAssessment test payload...");
+                        const requestId = `test-ia-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                        const testPayload = {
+                          formType: "initialAssessment" as const,
+                          initialAssessmentData: {
+                            thisIsMe: { whoIAm: "Test service user — extension connectivity check" },
+                          },
+                          assessor: "Admin Test",
+                          date: new Date().toISOString().split("T")[0],
+                        };
+
+                        let handler: ((event: MessageEvent) => void) | null = null;
+                        const timeoutId = window.setTimeout(() => {
+                          if (handler) window.removeEventListener("message", handler);
+                          setExtensionTestStatus("failed");
+                          setExtensionTestMessage("Extension not detected for Initial Assessment payload. Ensure the extension is installed and refresh the page.");
+                        }, 3000);
+
+                        handler = (event: MessageEvent) => {
+                          if (event.source !== window) return;
+                          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
+                          if (event.data.requestId !== requestId) return;
+                          window.clearTimeout(timeoutId);
+                          window.removeEventListener("message", handler!);
+                          if (event.data.ok) {
+                            setExtensionTestStatus("success");
+                            setExtensionTestMessage("Extension connected and received the Initial Assessment test payload.");
+                          } else {
+                            setExtensionTestStatus("failed");
+                            setExtensionTestMessage(`Extension responded with error: ${event.data.error || "Unknown error"}`);
+                          }
+                        };
+
+                        window.addEventListener("message", handler);
+                        window.postMessage(
+                          { type: "CA_EXTENSION_STORE_PAYLOAD", requestId, payload: testPayload },
+                          window.location.origin
+                        );
+                      }}
+                    >
+                      {extensionTestStatus === "testing" ? (
+                        <Loader2 size={14} className="mr-2 animate-spin" />
+                      ) : (
+                        <Upload size={14} className="mr-2" />
+                      )}
+                      Test Plan Enhancer Send
+                    </Button>
+                    {extensionTestStatus !== "idle" && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setExtensionTestStatus("idle"); setExtensionTestMessage(""); }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  {extensionTestMessage && (
+                    <div className={`rounded-lg border p-3 text-sm ${
+                      extensionTestStatus === "success" 
+                        ? "border-success/30 bg-success/10 text-success" 
+                        : extensionTestStatus === "failed"
+                        ? "border-destructive/30 bg-destructive/10 text-destructive"
+                        : "border-border bg-muted/30 text-muted-foreground"
+                    }`}>
+                      <div className="flex items-start gap-2">
+                        {extensionTestStatus === "success" && <Check size={16} className="mt-0.5 shrink-0" />}
+                        {extensionTestStatus === "failed" && <X size={16} className="mt-0.5 shrink-0" />}
+                        {extensionTestStatus === "testing" && <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" />}
+                        <span>{extensionTestMessage}</span>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Tests send a dummy payload via <code>window.postMessage</code> and wait for the extension's ACK. A 3-second timeout indicates the extension is not installed or content script is not loaded.
                   </p>
                 </CardContent>
               </Card>
