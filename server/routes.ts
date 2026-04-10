@@ -14528,4 +14528,5347 @@ STEP 2: RECOMMEND RISK ASSESSMENTS (ONLY WITH STRONG DOCUMENTED EVIDENCE)
 POTENTIAL RISK AREAS TO CONSIDER (Recommend ONLY if documented evidence exists for THIS service user):
 
 IDENTITY & COMMUNICATION:
-Personal identity and emergency contact details, Communication needs, Language and interpreter needs, Hearing impairment, Vision impa
+Personal identity and emergency contact details, Communication needs, Language and interpreter needs, Hearing impairment, Vision impairment, Literacy support, Cognitive impairment, Capacity and decision making, Fluctuating capacity, Memory loss, Disorientation, Delirium risk, Dementia related risks, Learning disability support, Autism related needs
+
+MENTAL HEALTH & WELLBEING:
+Mental health and wellbeing, Depression indicators, Anxiety indicators, Sleep disturbance, Social isolation, Loneliness impact, Motivation and engagement, Self neglect indicators
+
+PERSONAL CARE & HYGIENE:
+Personal hygiene support, Bathing safety, Showering safety, Water temperature scald risk, Dressing and undressing, Grooming and shaving safety, Oral health and denture care, Menstrual care needs
+
+SKIN & TISSUE INTEGRITY:
+Skin integrity, Pressure ulcer risk, Skin tears risk, Wound care needs, Wound healing concerns
+
+INFECTION CONTROL:
+Infection risk, Hand hygiene facilities, PPE suitability for tasks, Waste disposal practice, Laundry handling, Cross contamination in kitchen, Outbreak management readiness, Vaccination status awareness
+
+NUTRITION & HYDRATION:
+Nutrition, Hydration, Food shopping access, Food preparation safety, Food hygiene and storage, Texture modified diets, Choking risk, Aspiration risk, Allergies and intolerances, Religious or cultural diets, Unplanned weight loss, Specialist nutrition support, Alcohol use impact
+
+MOBILITY & FALLS:
+Mobility, Falls history, Falls prevention plan, Transfer safety, Bed mobility, Chair and seating safety, Walking aids suitability, Wheelchair safety, Outdoor mobility, Fatigue related falls, Orthostatic hypotension, Dizziness or syncope, Footwear suitability, Orthotics and prosthetics
+
+CONTINENCE:
+Continence, Toileting access, Nocturia and night toileting, Urinary incontinence, Faecal incontinence, Constipation, Diarrhoea, Catheter care, Stoma care
+
+MEDICATION MANAGEMENT:
+Medication management, Time critical medications, PRN guidance, Controlled drugs security, Covert medication governance, Anticoagulant risks, Insulin administration, Inhaler and nebuliser use, Oxygen therapy safety, Swallowing tablets, Side effects monitoring, Antibiotic course adherence, MAR and recording accuracy
+
+LONG TERM CONDITIONS:
+Heart failure deterioration, COPD exacerbation, Asthma control, Diabetes control, Hypoglycaemia risk, Hyperglycaemia risk, Stroke recognition, Seizure management, Sepsis recognition, Pain management, Temperature and fever monitoring, Deconditioning risk, Post hospital discharge risks
+
+END OF LIFE:
+Palliative care needs, Advance wishes awareness, DNACPR and TEP awareness
+
+HOME ENVIRONMENT:
+Home layout, Lighting levels, Flooring and rugs, Clutter and hoarding, Furniture stability, Bed height and placement, Chair height and stability, Staircases and handrails, Grab rails and bathroom aids, Wet room or bath safety, Kitchen layout and reach, Air quality and ventilation, Temperature regulation in the home, Damp and mold exposure
+
+FIRE & ELECTRICAL SAFETY:
+Electrical safety, Gas safety, Carbon monoxide risk, Smoke alarm presence, Fire escape routes, Fire plan and drills, Cooking safety, Heaters and open flames, Flammable emollients near heat, Candle use, Smoking safety, Oxygen near ignition sources
+
+ACCESS & SECURITY:
+External access and steps, Garden paths and paving, Weather related access risks, Key safe access, Door and window security, Bogus caller risk, Neighbourhood safety, Visitor management in the home
+
+ANIMALS & ENVIRONMENT:
+Pets and animal hazards, Pest and vermin control
+
+SAFEGUARDING:
+Boundaries with informal carers, Financial exploitation risk, Domestic abuse indicators, Lone working visit safety for helpers
+
+⚠️ CRITICAL RULES FOR ASSESSMENT RECOMMENDATIONS:
+
+1. SELECT WISELY: Only recommend risks where THIS service user has STRONG documented evidence (not generic "everyone needs this")
+2. EVIDENCE REQUIRED: Each recommendation needs concrete documented facts (1+ specific quotes, more is better)
+3. BE SPECIFIC: Tie each risk to documented conditions, incidents, equipment, behaviors, or environmental factors
+4. COMPREHENSIVE COVERAGE: Recommend ALL assessments where strong documented evidence exists - no artificial limit on quantity
+5. NO MANDATORY FLAGS: "isMandatory": false for ALL assessments (CQC 2024 person-centred principle)
+6. IF INSUFFICIENT EVIDENCE → DO NOT RECOMMEND THE ASSESSMENT
+
+EXAMPLE OF STRONG EVIDENCE:
+✓ Falls Prevention: "Fell in bathroom Jan 2026 requiring A&E" + "Uses walking frame due to arthritis" + "Unsteady on stairs"
+✓ Diabetes Management: "Type 2 diabetes diagnosed 2020" + "Takes metformin 500mg twice daily" + "Blood sugar monitoring required"
+
+EXAMPLE OF WEAK EVIDENCE (DO NOT RECOMMEND):
+✗ Mobility: "May need support with walking" (too vague)
+✗ Nutrition: "Requires appropriate diet" (circular reasoning, no specifics)
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT (JSON ONLY)
+═══════════════════════════════════════════════════════════════════════════════
+
+Respond ONLY with valid JSON in this exact format:
+{
+  ${serviceUserJsonSchema}
+  "medicalConditions": ["List ALL conditions explicitly documented - NO assumptions"],
+  "careActivities": ["List ALL care activities we provide per documents - be thorough"],
+  "concerns": ["List ALL concerns or risks explicitly identified in documents"],
+  "equipment": ["List equipment mentioned: wheelchair, hoist, walking frame, etc."],
+  "communicationNeeds": ["List communication needs: hearing, vision, speech, language"],
+  "environmentalFactors": ["List home/environmental factors: stairs, pets, access, lone working"],
+  "recommendedAssessments": [
+    {
+      "name": "Assessment category name",
+      "isMandatory": false,
+      "reason": "FIRST PERSON explanation - why I need this assessment based on my documented needs. Start with 'I' or 'My'",
+      "evidence": "Specific, detailed summary citing concrete facts from documents (NOT generic phrases like 'requires assessment')",
+      "evidenceSnippets": [
+        "Direct quote 1 from documents showing specific risk/need",
+        "Direct quote 2 from documents with concrete details (include as many relevant quotes as found)",
+        "Include 1+ quotes - the more specific evidence the better"
+      ]
+    }
+  ],
+  "documentSummary": "Brief first-person summary of my overall profile based on ALL documents scanned - use 'I' and 'my'"
+}
+
+EVIDENCE QUALITY REQUIREMENTS - CRITICAL:
+
+✓ STRONG EVIDENCE (Include assessment):
+  - "Has fallen twice in the past month, once in bathroom" (specific incidents, dates, location)
+  - "Diagnosed with Type 2 diabetes, takes metformin 500mg twice daily" (diagnosis + medication)
+  - "Uses a zimmer frame but struggles on stairs due to arthritis" (equipment + limitation + reason)
+  - "Has a pressure sore on left heel, grade 2, being treated by district nurse" (specific location, stage, treatment)
+  - "Becomes confused and agitated in the evenings, diagnosed dementia 2023" (behavior + diagnosis + timeframe)
+  
+✗ WEAK/VAGUE EVIDENCE (Do NOT include):
+  - "May need mobility support" (too vague, no concrete evidence)
+  - "Has various health conditions" (too generic, no specifics)
+  - "Should be assessed for risks" (circular reasoning)
+  - "Requires appropriate care" (meaningless filler)
+  - "Mobility assessment needed" (stating need, not evidence)
+  - "Has some difficulty walking" (vague - how much? why? what equipment?)
+
+EVIDENCE DIVERSITY REQUIREMENT:
+Each assessment needs 2+ snippets showing DIFFERENT aspects:
+✓ GOOD (diverse): "Fell in bathroom in January 2026" + "Uses walking frame due to arthritis" (different aspects)
+✗ BAD (repetitive): "Has mobility issues" + "Requires mobility support" (same thing said twice)
+
+Each evidenceSnippets entry must be:
+- A direct quote or close paraphrase from documents
+- Contain SPECIFIC details (names, dates, numbers, equipment, conditions, incidents)
+- Show a DIFFERENT aspect/facet of the risk (not just repetition)
+- Not just state "needs assessment" - show WHY assessment is needed with concrete facts
+
+QUALITY CHECKLIST BEFORE RESPONDING:
+✓ Did I extract information ONLY from "Documents to analyze:" section (not templates)?
+✓ Does each recommended assessment have STRONG documented evidence?
+✓ Did I use FIRST PERSON ("I need", "My condition") in reason fields?
+✓ Did I set "isMandatory": false for ALL assessments?
+✓ Did I avoid recommending assessments without solid evidence?
+✓ Is this truly person-centred for THIS service user (CQC 2024 / NHS England Principle #1)?`;
+
+      sendProgress(20, "Scanning all documents with AI...", "ai_analysis");
+
+      // Simulated progress during AI call
+      let simulatedProgress = 20;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 75) {
+          simulatedProgress += 5;
+          const messages = [
+            "Scanning all uploaded documents...",
+            "Building service user profile...",
+            "Extracting medical conditions...",
+            "Identifying care needs and activities...",
+            "Matching profile to assessments...",
+            "Finalizing recommendations...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 20) / 10) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "ai_analysis");
+        }
+      }, 3000);
+
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/analyze-risks",
+        feature: "risk_analysis",
+        model: getRiskAssessmentRecommendationModel(),
+        userContext: aiUserContext,
+        inputText: `⚠️ CRITICAL INSTRUCTIONS ⚠️
+
+═══════════════════════════════════════════════════════════════════════════════
+REMINDER: NHS ENGLAND PRINCIPLE #1 - PERSON-CENTRED CARE
+═══════════════════════════════════════════════════════════════════════════════
+
+"Actively focus on the experience of people using services"
+
+→ BE THOROUGH: Find ALL risks SPECIFIC to THIS individual person documented in their files
+→ BE SPECIFIC: Each risk must be tied to CONCRETE EVIDENCE about THIS person (not generic)
+→ Recommend ONLY assessments supported by STRONG DOCUMENTED EVIDENCE about THIS service user
+→ DO NOT recommend generic/blanket assessments "just in case"
+→ COMPREHENSIVE: Assess ALL documented needs - omit only if evidence is genuinely insufficient
+→ DOCUMENT-DRIVEN: Every recommendation must cite specific facts from the documents
+
+═══════════════════════════════════════════════════════════════════════════════
+DOCUMENT SOURCE RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Template documents above = STRUCTURE REFERENCE ONLY
+   - They contain placeholder/example text (NOT real service user data)
+   - DO NOT extract medical conditions, risks or needs from templates
+   
+2. Documents below = REAL SERVICE USER DOCUMENTS
+   - Extract information ONLY from these documents
+   - Scan thoroughly to build complete profile
+   - Only recommend assessments with multiple supporting quotes
+
+═══════════════════════════════════════════════════════════════════════════════
+REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT FROM THESE ONLY)
+═══════════════════════════════════════════════════════════════════════════════
+
+${documentContentForAi}
+
+═══════════════════════════════════════════════════════════════════════════════
+END SERVICE USER DOCUMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+FINAL REMINDERS BEFORE YOU RESPOND:
+
+⚠️ BE THOROUGH IN FINDING ALL SPECIFIC RISKS TO THIS PERSON ⚠️
+
+Read through ALL documents carefully to identify EVERY potential risk that affects THIS specific individual.
+Look for conditions, medications, incidents, behaviors, equipment, environment factors that create risks.
+Don't default to blanket assessments - find the SPECIFIC documented risks for THIS person.
+
+1. COMPREHENSIVE & THOROUGH: Recommend ALL assessments with STRONG evidence where you've found SPECIFIC documented risks to THIS person
+   - Scan all documents carefully - don't miss documented risks
+   - Include ALL assessments backed by concrete evidence - there is NO cap on the number of assessments
+   
+2. PERSON-CENTRED & SPECIFIC: Every risk must be tied to CONCRETE EVIDENCE about THIS individual (CQC 2024)
+   - "Has diabetes requiring blood sugar monitoring twice daily" ✓ (specific to this person)
+   - "May have health needs" ✗ (generic, vague)
+   
+3. FIRST PERSON: Write all "reason" fields using "I" and "my"
+
+4. NO MANDATORY FLAGS: Set "isMandatory": false for ALL assessments
+
+5. EVIDENCE REQUIRED: Each assessment needs 1+ SPECIFIC direct quotes from documents above (more is better)
+   - Each quote must contain specific details (conditions, medications, incidents, equipment, dates)
+   
+6. NO SPECULATION: Do not assume or infer conditions not explicitly documented
+   - Only recommend based on what's written in the documents
+
+Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.`,
+        systemPrompt,
+        maxCompletionTokens: 16000,
+        temperature: 0,
+        seed: 42,
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
+
+      clearInterval(progressInterval);
+      sendProgress(80, "Processing results...", "processing");
+
+      // response.restoredText has pipeline vault tokens restored back to route handler tokens.
+      // Route handler tokens remain for piiVault.toPlaceholders() + client-side vault restore.
+      const restoredContent = response.restoredText || "";
+      const content = restoredContent;
+      const parsed = parseJsonFromContent(content);
+      if (!parsed) {
+        sendEvent('error', { message: "Failed to parse AI response" });
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
+      const normalizedRecommendations = Array.isArray(parsed?.recommendedAssessments)
+        ? parsed.recommendedAssessments
+            .filter((item: any) => item && typeof item?.name === "string" && item.name.trim())
+            .map((item: any) => ({
+              name: canonicalizeAssessmentName(item.name),
+              isMandatory: Boolean(item.isMandatory),
+              reason: typeof item?.reason === "string" ? item.reason.trim() : "",
+              evidence: typeof item?.evidence === "string" ? item.evidence.trim() : "",
+              evidenceSnippets: normalizeStringArray(item?.evidenceSnippets),
+            }))
+        : [];
+
+      const serviceUser: { initials: string; fullName?: string } = {
+        initials: normalizeInitials(parsed?.serviceUser?.initials),
+      };
+      if (allowSensitiveView) {
+        // Try AI-extracted name first (restore any PII tokens), then fall back to regex extraction from original (unscrubbed) documents
+        const aiFullRaw = typeof parsed?.serviceUser?.fullName === "string" ? piiVault.restoreString(parsed.serviceUser.fullName) : "";
+        const aiFull = normalizeFullName(aiFullRaw);
+        // Always try regex extraction from raw documents - use whichever gives the most complete name
+        const regexFull = normalizeFullName(extractServiceUserFullName(documentContent));
+        const fullName = (regexFull && regexFull.includes(" ") ? regexFull : aiFull) || regexFull || aiFull;
+        if (fullName) {
+          serviceUser.fullName = fullName;
+          // Derive initials from name if AI couldn't extract them
+          if (serviceUser.initials === "N.N.") {
+            serviceUser.initials = normalizeInitials(fullName);
+          }
+        }
+      }
+      // Fallback: if initials are still N.N., try extracting name from raw documents for initials only
+      if (serviceUser.initials === "N.N.") {
+        const extractedName = extractServiceUserFullName(documentContent);
+        if (extractedName) {
+          serviceUser.initials = normalizeInitials(extractedName);
+        }
+      }
+
+      const result = {
+        serviceUser,
+        medicalConditions: normalizeStringArray(parsed?.medicalConditions),
+        careActivities: normalizeStringArray(parsed?.careActivities),
+        concerns: normalizeStringArray(parsed?.concerns),
+        equipment: normalizeStringArray(parsed?.equipment),
+        communicationNeeds: normalizeStringArray(parsed?.communicationNeeds),
+        environmentalFactors: normalizeStringArray(parsed?.environmentalFactors),
+        recommendedAssessments: normalizedRecommendations,
+        documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary.trim() : "Information not found in documents",
+      };
+
+      console.log(`[Risks] AI initially returned ${normalizedRecommendations.length} assessments`);
+      console.log(`[Risks] Assessment names:`, normalizedRecommendations.map((a: any) => a.name));
+
+      result.documentSummary = toFirstPerson(result.documentSummary);
+      result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
+        ...assessment,
+        reason: typeof assessment?.reason === "string" ? toFirstPerson(assessment.reason) : assessment?.reason,
+      }));
+
+      // NOTE: Removed old keyword-based buildAssessmentRecommendations in favor of AI-only recommendations
+      // The AI now provides better evidence-backed, person-centred recommendations
+      
+      // CRITICAL FILTERING: Remove assessments without STRONG evidence
+      // NHS England Principle #1: Person-centred care - only recommend what's documented
+      const includedAssessmentNames: string[] = [];
+      
+      result.recommendedAssessments = result.recommendedAssessments.filter((assessment: any) => {
+        const assessmentName = assessment?.name || 'Unknown';
+        
+        // Must have evidence field
+        if (!assessment?.evidence || !assessment.evidence.trim()) {
+          console.log(`[Risks] ❌ ${assessmentName}: No evidence field`);
+          return false;
+        }
+        
+        // Must have meaningful evidence (not negated)
+        if (!isMeaningfulEvidence(assessment.evidence)) {
+          console.log(`[Risks] ❌ ${assessmentName}: Evidence not meaningful`);
+          return false;
+        }
+        
+        // Must have at least 1 evidence snippet
+        const snippets = normalizeStringArray(assessment?.evidenceSnippets || []).filter(isMeaningfulEvidence);
+        if (snippets.length < 1) {
+          console.log(`[Risks] ❌ ${assessmentName}: No meaningful evidence snippets`);
+          return false;
+        }
+        
+        // Score evidence quality (0-100)
+        const qualityScore = scoreEvidenceQuality(assessment.evidence, snippets);
+        const MINIMUM_QUALITY_SCORE = 35; // Allow assessments with reasonable evidence through
+        
+        if (qualityScore < MINIMUM_QUALITY_SCORE) {
+          console.log(`[Risks] ❌ ${assessmentName}: Quality score ${qualityScore}/100 (minimum ${MINIMUM_QUALITY_SCORE})`);
+          return false;
+        }
+        
+        // Must be relevant to service user profile
+        if (!isAssessmentRelevantServer(assessment, result)) {
+          console.log(`[Risks] ❌ ${assessmentName}: Not relevant to profile`);
+          return false;
+        }
+        
+        // Check for duplicates/similar assessments already included
+        if (isSimilarAssessment(assessmentName, includedAssessmentNames)) {
+          console.log(`[Risks] ❌ ${assessmentName}: Too similar to existing assessment`);
+          return false;
+        }
+        
+        // Check evidence diversity
+        if (snippets.length >= 2 && !hasEvidenceDiversity(snippets)) {
+          console.log(`[Risks] ⚠️  ${assessmentName}: Evidence lacks diversity (repetitive snippets)`);
+          // Don't reject, but log warning
+        }
+        
+        console.log(`[Risks] ✅ ${assessmentName}: ${snippets.length} snippets, quality ${qualityScore}/100`);
+        includedAssessmentNames.push(assessmentName);
+        return true;
+      });
+
+      // Clean up evidence snippets on remaining assessments
+      result.recommendedAssessments = result.recommendedAssessments.map((assessment: any) => ({
+        ...assessment,
+        evidenceSnippets: normalizeStringArray(assessment?.evidenceSnippets).filter(isMeaningfulEvidence),
+      }));
+
+      console.log(`[Risks] FINAL: Sending ${result.recommendedAssessments.length} assessments to user`);
+      console.log(`[Risks] Final assessment names:`, result.recommendedAssessments.map((a: any) => a.name));
+      
+      // Fallback: If AI filtering removed ALL assessments, use rule-based engine
+      // This should never return 0 assessments to the user
+      if (result.recommendedAssessments.length === 0) {
+        console.log(`[Risks] ⚠️ All AI assessments filtered out — falling back to rule-based engine`);
+        const fallbackResult = buildRuleBasedRiskAnalysisPayload(documentContentForAi, allowSensitiveView);
+        result.recommendedAssessments = fallbackResult.recommendedAssessments || [];
+        console.log(`[Risks] Rule-based fallback produced ${result.recommendedAssessments.length} assessments`);
+      }
+      
+      // Quality metrics summary
+      if (result.recommendedAssessments.length > 0) {
+        const avgSnippets = result.recommendedAssessments.reduce((sum: number, a: any) => 
+          sum + (a.evidenceSnippets?.length || 0), 0) / result.recommendedAssessments.length;
+        console.log(`[Risks] Quality metrics: ${result.recommendedAssessments.length} assessments, avg ${avgSnippets.toFixed(1)} snippets/assessment`);
+      }
+
+      // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+      // Output is GDPR-exempt as it contains no personal data
+      const templateResult = piiVault.toPlaceholders(result);
+      console.log(`[Risks] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
+      piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
+      const restoredRawResult = piiVault.restore(result);
+      const cleanTemplateResult = stripLeakedPiiTokens(templateResult);
+      const cleanRawResult = stripLeakedPiiTokens(restoredRawResult);
+      
+      // Always export vault for automatic client-side name restoration
+      // The client restores PII values locally without them being retransmitted
+      const vaultExport = piiVault.export();
+      const payload = {
+        ...cleanTemplateResult,
+        vaultExport,
+        // Include the raw result with tokens for client-side restoration
+        rawWithTokens: cleanRawResult,
+      };
+      console.log(`[Risks] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+      piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
+      
+      // Cache only the template result — NEVER cache vaultExport (contains real PII)
+      const cachePayload = { ...cleanTemplateResult };
+      setRiskAnalysisCache(cacheKey, cachePayload);
+      sendProgress(100, "Complete!", "complete");
+      sendEvent('result', payload);
+      
+      // Clear vault after use (security best practice)
+      piiVault.clear();
+      
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      return res.end();
+    } catch (error: any) {
+      console.error("Risk Analysis AI Error:", error);
+      piiVault.clear(); // Clear vault on error too
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (progressInterval) clearInterval(progressInterval);
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI analysis failed") })}\n\n`);
+        return res.end();
+      }
+      return res.status(500).json({ message: safeErrorMessage(error, "AI analysis failed") });
+    }
+  });
+
+  // Generate detailed risk assessment content
+  app.post("/api/ai/generate-risk-assessment", requireAuth, async (req: any, res) => {
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
+    
+    try {
+      const {
+        documentContent,
+        assessmentCategory,
+        serviceUserInitials,
+        performedBy,
+        performedByJobTitle,
+        allowSensitive,
+        assessmentEvidence,
+        analysisContext,
+      } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
+      
+      if (!documentContent || !assessmentCategory) {
+        return res.status(400).json({ message: "Document content and assessment category required" });
+      }
+
+      const safeServiceUserInitials = piiVault.scrubString(String(serviceUserInitials || "N.N."));
+      const safePerformedBy = piiVault.scrubString(String(performedBy || "Staff member"));
+
+      // Set up SSE for progress streaming with production-safe settings
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.flushHeaders();
+
+      // Heartbeat to keep connection alive during long AI processing
+      heartbeatInterval = setInterval(() => {
+        try {
+          res.write(`: heartbeat\n\n`);
+          if (typeof (res as any).flush === 'function') (res as any).flush();
+        } catch (e) {
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      }, 10000);
+
+      const sendEvent = (eventType: string, data: any) => {
+        try {
+          const padding = `: ${'x'.repeat(4096)}\n\n`;
+          const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+          res.write(padding + payload);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        } catch (e) {
+          console.error('[RiskGen SSE] Write error:', e);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      };
+      const sendProgress = (percent: number, status: string, stage: string) => {
+        console.log(`[RiskGen SSE] Progress: ${percent}% - ${status}`);
+        sendEvent('progress', { percent, status, stage });
+      };
+
+      sendProgress(10, "Analyzing documents...", "analyzing");
+
+      if (!isAIEnabled()) {
+        piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        sendProgress(35, "Generating rule-based risk assessment...", "rule_based");
+        const scrubbedDocumentContent = piiVault.scrub(documentContent);
+        const fallbackResult = buildRuleBasedRiskAssessmentPayload({
+          documentContent: scrubbedDocumentContent,
+          assessmentCategory,
+          serviceUserInitials: safeServiceUserInitials,
+          performedBy: safePerformedBy,
+          performedByJobTitle,
+        });
+        const templateResult = piiVault.toPlaceholders(fallbackResult);
+        // Always export vault for automatic name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: fallbackResult,
+        };
+        piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
+      const riskAssessmentPolicies = await storage.getPolicyDocumentsByCategory("risk_assessment");
+      const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
+      const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
+
+      let policyContext = "";
+      const allPolicies = [...riskAssessmentPolicies, ...initialAssessmentPolicies, ...scopeOfPracticePolicies];
+      if (allPolicies.length > 0) {
+        policyContext = `
+=== POLICY/TEMPLATE DOCUMENTS - FOR STRUCTURE REFERENCE ONLY ===
+
+⚠️ CRITICAL WARNING: The documents below are TEMPLATES/EXAMPLES containing PLACEHOLDER and EXAMPLE text.
+⚠️ DO NOT use ANY information from these templates as real service user data.
+⚠️ These templates show you the STRUCTURE and FORMAT to follow, but contain NO actual service user information.
+⚠️ Any risks, conditions, or care needs in these templates are EXAMPLES ONLY - IGNORE THEM.
+⚠️ ONLY use information from the "Documents to analyze:" section which contains REAL service user documents.
+
+${riskAssessmentPolicies.map(p => `--- RISK ASSESSMENT TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT TEMPLATE (STRUCTURE REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE (REFERENCE ONLY): ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+
+=== END POLICY/TEMPLATE DOCUMENTS ===
+
+CRITICAL REMINDER:
+- Templates above are for STRUCTURE/FORMAT reference only
+- DO NOT use any content from templates as service user information
+- ONLY extract information from the actual service user documents provided below
+
+`;
+      }
+
+      const privacyDirective = allowSensitiveView
+        ? "Privacy: Personal data in documents has been tokenized (e.g. {{PII_...}}). Keep these tokens in your output - they will be converted to readable placeholders like [Name], [NHS Number]. Never try to guess real values."
+        : "Privacy: Personal data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
+
+      const evidenceSnippets = Array.isArray(assessmentEvidence?.evidenceSnippets)
+        ? assessmentEvidence.evidenceSnippets.filter(isMeaningfulEvidence)
+        : [];
+      const evidenceSummary = typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "";
+      const assessmentKey = normalizeAssessmentKey(assessmentCategory);
+      const categoryEvidenceTerms = ASSESSMENT_EVIDENCE_TERMS[assessmentKey] || [];
+      const generationEvidenceFinder = buildDocumentEvidenceFinder(documentContent || "");
+      const documentEvidenceSnippets = generationEvidenceFinder.findAllSnippets(categoryEvidenceTerms, 12).filter(isMeaningfulEvidence);
+      const supportingEvidencePool = Array.from(new Set(
+        [
+          evidenceSummary,
+          ...evidenceSnippets,
+          ...documentEvidenceSnippets,
+        ]
+          .map((snippet) => typeof snippet === "string" ? snippet.replace(/\s+/g, " ").trim() : "")
+          .filter((snippet) => isMeaningfulEvidence(snippet))
+      )).slice(0, 16);
+      if (supportingEvidencePool.length === 0) {
+        const fallbackEvidence = truncateEvidence((documentContent || "").replace(/\s+/g, " ").trim(), 260);
+        if (isMeaningfulEvidence(fallbackEvidence)) {
+          supportingEvidencePool.push(fallbackEvidence);
+        }
+      }
+      const scrubbedSupportingEvidence = supportingEvidencePool.map((snippet) => piiVault.scrubString(snippet));
+      const evidencePack = scrubbedSupportingEvidence.join("\n- ");
+
+      const profileContext = analysisContext
+        ? JSON.stringify(
+            {
+              medicalConditions: normalizeStringArray(analysisContext.medicalConditions),
+              careActivities: normalizeStringArray(analysisContext.careActivities),
+              concerns: normalizeStringArray(analysisContext.concerns),
+              equipment: normalizeStringArray(analysisContext.equipment),
+              communicationNeeds: normalizeStringArray(analysisContext.communicationNeeds),
+              environmentalFactors: normalizeStringArray(analysisContext.environmentalFactors),
+              documentSummary:
+                typeof analysisContext.documentSummary === "string"
+                  ? analysisContext.documentSummary.trim()
+                  : undefined,
+            },
+            null,
+            2
+          )
+        : "";
+
+      const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed, comprehensive risk assessment for the specified category.
+${policyContext}
+
+FORMATTING RULES - MUST FOLLOW:
+- Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
+- Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
+
+⚠️ CRITICAL: DOCUMENT SOURCE SEPARATION ⚠️
+1. Template/policy documents above are for STRUCTURE REFERENCE ONLY - they contain example/placeholder text
+2. REAL service user information is ONLY in the "Documents to analyze:" section
+3. DO NOT extract risks, conditions, or care needs from templates - they are examples only
+4. DO NOT confuse template content with actual service user information
+5. Templates may contain example risks like "falls", "choking", etc. - these are PLACEHOLDERS, not real incidents
+
+FIRST PERSON WRITING:
+- Write EVERYTHING in first person as the service user speaking about themselves
+- Use "I", "me", "my", "myself" throughout ALL fields
+- Vary your sentence structure naturally - do not repeat the same opening phrases
+
+PERSON-CENTRED DETAIL REQUIREMENTS:
+- Each riskDefinition, howItsARisk and controlMeasures should be 2-4 sentences with rich, specific detail
+- Include impact on my daily life, triggers, early warning signs and what helps me feel safe
+- Describe how I prefer support to be delivered (pace, prompts, reassurance, environment)
+- Avoid vague phrases like "appropriate support" or "assist as needed"
+
+WHO WILL BE HARMED - BE ACCURATE:
+- Consider ALL people who could be affected, not just carers
+- Options include combinations of: Service User, Care Workers, Family Members, Health Professionals, Visitors, Other Service Users
+- Be specific - if multiple people could be harmed, list them (e.g., "Service User and Care Workers" or "Service User, Family Members and Visitors")
+- Think about who is actually present during care activities
+
+EVIDENCE-BASED PRACTICE - CRITICAL REQUIREMENTS:
+1. ONLY use information EXPLICITLY stated in the SERVICE USER documents provided (not from templates) - never invent, assume, or fabricate details
+2. Base ALL risk identifications on ACTUAL evidence from the SERVICE USER documents (conditions, incidents, concerns mentioned)
+3. Do NOT make up medical conditions, incidents, or risks that are not documented in the SERVICE USER documents
+4. Templates may mention example risks - IGNORE these and only use SERVICE USER document content
+5. If information is not in the SERVICE USER documents, DO NOT include it - leave it out entirely
+6. Control measures must be based on standard care practices relevant to the documented risks
+7. Risk ratings must reflect the ACTUAL severity based on what is documented, not hypothetical scenarios
+8. NEVER fabricate incidents, falls, behaviors, or medical events that are not mentioned in the SERVICE USER documents
+9. Use clinical reasoning based on documented facts from SERVICE USER documents, not speculation or template examples
+
+IMPORTANT RULES:
+1. Extract and synthesize ALL relevant information from the documents provided
+2. Write detailed, informative content - be thorough and comprehensive
+3. Use professional but clear language suitable for care documentation
+4. Follow CQC (Care Quality Commission) evidence-based standards
+5. Do NOT include any person names. Use role terms (my carer, my GP, my family member, my care team)
+6. Keep place names and locations as written. Do not redact places.
+7. If the documents contain questions, treat them as prompts and respond with statements. Do not output questions.
+8. Stay within a care worker's scope of practice. Do not diagnose, prescribe, change doses, or make clinical decisions.
+9. NEVER write phrases like "I'm not aware of", "information not found", "not mentioned in documents", or similar. Only write what IS known.
+10. If a field has limited information, write what is relevant from the documents - do not apologise or explain gaps.
+11. Every risk you identify MUST be traceable to specific evidence in the documents provided.
+12. Do not embellish or exaggerate - stick to the facts as documented.
+
+SERVICE USER DETAILS:
+- Service User Initials: ${safeServiceUserInitials}
+
+EVIDENCE PACK - USE THIS FIRST:
+${evidencePack ? `- ${evidencePack}` : "- No pre-extracted evidence pack provided. Use only the document content."}
+
+PROFILE CONTEXT (from analysis):
+${profileContext || "Not provided."}
+
+${privacyDirective}
+
+RISK ASSESSMENT CATEGORY: ${assessmentCategory}
+
+CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
+- A comprehensive risk assessment typically has MULTIPLE risks (usually 3-8 risks depending on the category)
+- For EACH distinct risk identified in this category, create a separate entry in the "risks" array
+- Think broadly about all the different ways this category could present risks for this service user
+- Examples: Falls Prevention might include risks from: dizziness/balance issues, environmental hazards, medication side effects, visual impairment, footwear, etc.
+- DO NOT combine multiple distinct risks into a single entry - separate them out
+
+For each risk identified in this category, provide detailed first-person content:
+- Risk definition (what is the risk - written in first person)
+- Initial risk rating (Low/Medium/High)
+- How it's a risk (detailed first-person explanation of the consequences)
+- Who will be harmed (be accurate - list all relevant people)
+- Control measures (comprehensive measures in first person)
+- Risk rating after controls (Low/Medium/High)
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "category": "${assessmentCategory}",
+  "serviceUserInitials": "${safeServiceUserInitials}",
+  "assessmentDate": "Today's date in DD/Mon/YYYY format",
+  "risks": [
+    {
+      "riskDefinition": "First person description with varied openings - not always 'I am at risk of'",
+      "initialRating": "Low/Medium/High",
+      "howItsARisk": "First person explanation with varied sentence structure - not always 'This affects me'",
+      "whoWillBeHarmed": "List ALL relevant people who could be harmed (e.g., 'Service User and Care Workers' or 'Service User, Family Members and Visitors')",
+      "controlMeasures": "First person detailed control measures",
+      "ratingAfterControls": "Low/Medium/High"
+    },
+    {
+      "riskDefinition": "Second distinct risk in first person",
+      "initialRating": "Low/Medium/High",
+      "howItsARisk": "Explanation of second risk",
+      "whoWillBeHarmed": "People affected by this risk",
+      "controlMeasures": "Control measures for this specific risk",
+      "ratingAfterControls": "Low/Medium/High"
+    }
+    // ... include ALL relevant risks for this category - typically 3-8 risks total
+  ],
+  "signedBy": "${safePerformedBy}",
+  "jobTitle": "${performedByJobTitle || 'Care Staff'}",
+  "additionalNotes": "Any relevant first-person observations (leave empty string if nothing additional to add)"
+}`;
+
+      // Pre-scrub content BEFORE AI call for accurate audit logging
+      const scrubbedDocumentContent = piiVault.scrub(documentContent);
+      const scrubbedEvidencePack = evidencePack;
+      const scrubbedProfileContext = profileContext ? piiVault.scrub(profileContext) : "";
+      
+      const vaultScrubStats = piiVault.getStats();
+      console.log(`[RiskAssessment] PII Vault: Scrubbed ${vaultScrubStats.total} sensitive items (including evidence pack)`);
+      piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+      
+      sendProgress(30, "Generating risk assessment...", "ai_generation");
+
+      // ════════════════════════════════════════════════════════════════════
+      // DEBUG: LOG COMPLETE AI INPUT - RISK ASSESSMENT
+      // ════════════════════════════════════════════════════════════════════
+      console.log('\n');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('📋 RISK ASSESSMENT AI INPUT - CONTENT SENT TO AI');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Assessment Category: ${assessmentCategory}`);
+      console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
+      console.log(`Service User: ${safeServiceUserInitials}`);
+      console.log(`Performed By: ${safePerformedBy} (${performedByJobTitle})`);
+      console.log('');
+      
+      const userContent = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+
+${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : ''}Documents to analyze:\n${scrubbedDocumentContent}${scrubbedEvidencePack ? `\n\nKey Evidence:\n- ${scrubbedEvidencePack}` : ''}`;
+      
+      console.log('📊 CONTENT STATS:');
+      console.log(`   Document Content Length: ${scrubbedDocumentContent.length.toLocaleString()} chars (scrubbed)`);
+      console.log(`   Evidence Pack Length: ${scrubbedEvidencePack.length.toLocaleString()} chars (scrubbed)`);
+      console.log(`   Total User Content: ${userContent.length.toLocaleString()} chars`);
+      console.log(`   Policy Context Length: ${policyContext.length.toLocaleString()} chars`);
+      console.log('');
+      
+      console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters, PII-scrubbed):');
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(scrubbedDocumentContent.substring(0, 2000));
+      if (scrubbedDocumentContent.length > 2000) {
+        console.log(`\n... [${(scrubbedDocumentContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      }
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log('');
+      
+      if (scrubbedEvidencePack) {
+        console.log('🔍 KEY EVIDENCE EXTRACTED (PII-scrubbed):');
+        console.log('─────────────────────────────────────────────────────────────────');
+        console.log(scrubbedEvidencePack.substring(0, 1000));
+        if (scrubbedEvidencePack.length > 1000) {
+          console.log(`\n... [${(scrubbedEvidencePack.length - 1000).toLocaleString()} more characters] ...\n`);
+        }
+        console.log('─────────────────────────────────────────────────────────────────');
+        console.log('');
+      }
+      
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('\n');
+
+      // Simulated progress during AI call
+      let simulatedProgress = 30;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 65) {
+          simulatedProgress += 5;
+          const messages = [
+            "Analyzing documented risks...",
+            "Building risk definitions...",
+            "Assessing control measures...",
+            "Calculating risk ratings...",
+            "Formatting assessment structure...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 30) / 7) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "ai_generation");
+        }
+      }, 3000);
+
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/generate-risk-assessment",
+        feature: "risk_assessment",
+        model: getRiskAssessmentGenerationModel(),
+        userContext: aiUserContext,
+        inputText: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+
+⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
+
+1. Identify and list ALL distinct risks within this category (typically 3-8 separate risks)
+2. ONLY use information EXPLICITLY stated in the SERVICE USER documents below (NOT from templates above)
+3. Templates above contain EXAMPLE text - IGNORE any risks, conditions, or care needs mentioned in templates
+4. DO NOT invent, fabricate, or assume any medical conditions, incidents, or risks not mentioned in the SERVICE USER documents
+5. Every risk must be evidence-based - traceable to specific information in the SERVICE USER documents below
+6. Do not make up falls, behaviors, medical events, or other incidents that are not documented in the SERVICE USER documents
+7. Write detailed, thorough content for each field based ONLY on documented facts from SERVICE USER documents
+
+Evidence pack for this category (use these facts first and ensure every risk maps to them or the SERVICE USER documents):
+${scrubbedEvidencePack ? `- ${scrubbedEvidencePack}` : "- No evidence pack provided."}
+
+=== REAL SERVICE USER DOCUMENTS TO ANALYZE (EXTRACT INFORMATION FROM THESE ONLY) ===
+
+${scrubbedDocumentContent}
+
+=== END SERVICE USER DOCUMENTS ===
+
+Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.`,
+        systemPrompt,
+        temperature: 0.2,
+        maxCompletionTokens: 12000,
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
+
+      if (progressInterval) clearInterval(progressInterval);
+      sendProgress(70, "Processing results...", "processing");
+
+      // response.restoredText has pipeline vault tokens restored back to route handler tokens.
+      // Route handler tokens remain for piiVault.toPlaceholders() + client-side vault restore.
+      const restoredContent = response.restoredText || "";
+      const parsed = parseJsonFromContent(restoredContent);
+      if (parsed) {
+        let result = parsed;
+        
+        // Preserve fields that should NOT be scrubbed (they contain expected values)
+        const preservedFields = {
+          assessmentDate: formatRiskAssessmentDate(),
+          signedBy: normalizeSignedByName(result.signedBy || safePerformedBy || 'Staff member'),
+          jobTitle: result.jobTitle || performedByJobTitle || 'Care Staff',
+          category: result.category,
+        };
+        
+        // Apply PII scrubbing to the rest (risks, notes, etc.)
+        result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
+
+        // Helper to clean "not aware" type phrases from any string
+        const cleanNotAwarePhrases = (text: string): string => {
+          if (!text || typeof text !== "string") return text;
+          const patterns = [
+            /I'?m not aware[^.]*\.?\s*/gi,
+            /information not found[^.]*\.?\s*/gi,
+            /not mentioned in[^.]*documents[^.]*\.?\s*/gi,
+            /no additional information[^.]*\.?\s*/gi,
+            /based on the documents provided[^.]*\.?\s*/gi,
+            /I don'?t have[^.]*information[^.]*\.?\s*/gi,
+            /details were not[^.]*\.?\s*/gi,
+          ];
+          let cleaned = text;
+          for (const pattern of patterns) {
+            cleaned = cleaned.replace(pattern, "").trim();
+          }
+          return cleaned;
+        };
+
+        const evidenceHints: string[] = scrubbedSupportingEvidence
+          .map((line: string) => line.replace(/^[-•]\s*/, "").trim())
+          .filter(Boolean)
+          .slice(0, 16);
+        const pickEvidenceHint = (offset = 0): string => {
+          const hints = evidenceHints.filter((line: string) => line.length > 12);
+          if (hints.length === 0) return "";
+          return hints[offset % hints.length];
+        };
+        const hasSpecificDetail = (value: string) =>
+          /\d|mg|ml|hour|minute|am|pm|wheelchair|hoist|frame|walker|oxygen|insulin|falls|seizure|pressure|catheter|stairs|dementia|diabetes|epilepsy|copd|asthma|stroke|arthritis|skin|wound|ulcer/i.test(value);
+        const improveField = (value: string, fallback: string, hintOffset = 0) => {
+          const trimmed = value?.trim() || "";
+          if (trimmed.length >= 40 && hasSpecificDetail(trimmed)) return trimmed;
+          const hint = pickEvidenceHint(hintOffset);
+          if (hint) {
+            return `${trimmed || fallback} ${toFirstPerson(hint)}`.trim();
+          }
+          return trimmed || fallback;
+        };
+        const ensureDetailed = (value: string, hintOffset = 0) => {
+          const sentenceCount = value.split(/[.!?]+/).filter((s) => s.trim().length > 10).length;
+          if (sentenceCount >= 2) return value;
+          const hint = pickEvidenceHint(hintOffset);
+          const extra = hint
+            ? ` ${toFirstPerson(hint)}.`
+            : " I prefer calm, clear support that follows my care plan and keeps me safe.";
+          return `${value.trim()}${extra}`.trim();
+        };
+
+        if (!Array.isArray(result.risks) || result.risks.length === 0) {
+          result.risks = [
+            {
+              riskDefinition: "I require support with this area of my care",
+              initialRating: "Medium",
+              howItsARisk: "Without appropriate support in this area, my health and wellbeing could be affected.",
+              whoWillBeHarmed: "Service user",
+              controlMeasures: "My care team will assess my needs in this area and provide appropriate support as outlined in my care plan.",
+              ratingAfterControls: "Low",
+            },
+          ];
+        }
+        
+        // Restore preserved fields (override any scrubbed values)
+        result.assessmentDate = preservedFields.assessmentDate;
+        result.signedBy = normalizeSignedByName(preservedFields.signedBy || "Staff member");
+        result.jobTitle = preservedFields.jobTitle;
+        result.category = preservedFields.category;
+
+        if (Array.isArray(result.risks)) {
+          result.risks = result.risks.map((risk: any, riskIdx: number) => {
+            const riskDefinition = typeof risk?.riskDefinition === "string"
+              ? cleanNotAwarePhrases(toFirstPerson(risk.riskDefinition))
+              : "";
+            const howItsARisk = typeof risk?.howItsARisk === "string"
+              ? cleanNotAwarePhrases(toFirstPerson(risk.howItsARisk))
+              : "";
+            const controlMeasures = typeof risk?.controlMeasures === "string"
+              ? cleanNotAwarePhrases(toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures)))
+              : "";
+            return {
+              ...risk,
+              initialRating: normalizeRiskRating(risk?.initialRating),
+              riskDefinition: ensureDetailed(improveField(riskDefinition, "I have a documented risk in this area of my care.", riskIdx * 3), riskIdx * 3 + 1),
+              howItsARisk: ensureDetailed(improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support.", riskIdx * 3 + 1), riskIdx * 3 + 2),
+              controlMeasures: ensureDetailed(improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk.", riskIdx * 3 + 2), riskIdx * 3 + 3),
+              whoWillBeHarmed: typeof risk?.whoWillBeHarmed === "string" && risk.whoWillBeHarmed.trim().length > 0
+                ? risk.whoWillBeHarmed.trim()
+                : "Service User and Care Workers",
+              ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
+            };
+          });
+        }
+
+        const riskQualityScores = Array.isArray(result.risks)
+          ? result.risks.map((risk: any) => {
+              const fields = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
+                .filter((val: string) => typeof val === "string")
+                .join(" ");
+              let score = 0;
+              if (fields.length > 120) score += 40;
+              if (hasSpecificDetail(fields)) score += 40;
+              if (fields.split(/\s+/).length > 40) score += 20;
+              return score;
+            })
+          : [];
+        const averageRiskScore = riskQualityScores.length
+          ? riskQualityScores.reduce((sum: number, score: number) => sum + score, 0) / riskQualityScores.length
+          : 0;
+
+        if (!result.risks || result.risks.length < 2 || averageRiskScore < 60) {
+          console.warn(`[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, avgScore=${averageRiskScore.toFixed(1)}). Using rule-based fallback.`);
+          const fallbackResult = buildRuleBasedRiskAssessmentPayload({
+            documentContent: scrubbedDocumentContent,
+            assessmentCategory,
+            serviceUserInitials: safeServiceUserInitials,
+            performedBy: safePerformedBy,
+            performedByJobTitle,
+          });
+          result = fallbackResult;
+          result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
+          result.assessmentDate = preservedFields.assessmentDate;
+          result.signedBy = normalizeSignedByName(preservedFields.signedBy || "Staff member");
+          result.jobTitle = preservedFields.jobTitle;
+          result.category = preservedFields.category;
+        }
+        if (typeof result.additionalNotes === "string") {
+          result.additionalNotes = cleanNotAwarePhrases(toFirstPerson(result.additionalNotes));
+          // If additionalNotes is now empty or just whitespace, set to empty string
+          if (!result.additionalNotes || result.additionalNotes.trim().length < 5) {
+            result.additionalNotes = "";
+          }
+        }
+        const mergedSupportingEvidence = normalizeStringArray([
+          ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
+          ...scrubbedSupportingEvidence,
+        ]).filter(isMeaningfulEvidence);
+        if (mergedSupportingEvidence.length > 0) {
+          result.supportingEvidence = mergedSupportingEvidence;
+        }
+        
+        // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+        // Output is GDPR-exempt as it contains no personal data
+        const templateResult = piiVault.toPlaceholders(result);
+        console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
+        const restoredRawResult = piiVault.restore(result);
+        const cleanTemplateResult = stripLeakedPiiTokens(templateResult);
+        const cleanRawResult = stripLeakedPiiTokens(restoredRawResult);
+        
+        // Always export vault for automatic client-side name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...cleanTemplateResult,
+          vaultExport,
+          rawWithTokens: cleanRawResult,
+        };
+        console.log(`[RiskAssessment] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        
+        // Clear vault after use (security best practice)
+        piiVault.clear();
+        
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      } else {
+        piiVault.clear(); // Clear vault on error too
+        sendEvent('error', { message: "Failed to parse AI response" });
+        if (progressInterval) clearInterval(progressInterval);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+    } catch (error: any) {
+      console.error("Risk Assessment Generation Error:", error);
+      piiVault.clear(); // Clear vault on error too
+      if (progressInterval) clearInterval(progressInterval);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI generation failed") })}\n\n`);
+        return res.end();
+      }
+      return res.status(500).json({ message: safeErrorMessage(error, "AI generation failed") });
+    }
+  });
+
+  // Generate detailed first-person care plan from uploaded documents - CHUNKED APPROACH
+  // Generates each section individually for faster feedback and better reliability
+  // Get service user call types from database
+  app.post("/api/service-user/call-types", requireAuth, async (req: any, res) => {
+    try {
+      const { serviceUserName } = req.body;
+      if (!serviceUserName || typeof serviceUserName !== "string") {
+        return res.status(400).json({ message: "Service user name required" });
+      }
+
+      // Search for service orders matching this service user (fuzzy match)
+      const allOrders = await storage.getAllServiceOrders();
+      const matchedOrders = allOrders.filter((order) => {
+        const orderName = (order.serviceUserName || "").toLowerCase().trim();
+        const searchName = serviceUserName.toLowerCase().trim();
+        // Match if names are similar (contains, starts with, or exact match)
+        return orderName.includes(searchName) || searchName.includes(orderName) || orderName === searchName;
+      });
+
+      if (matchedOrders.length === 0) {
+        return res.json({ callTypes: [], message: "No call types found for this service user" });
+      }
+
+      // Extract unique call types
+      const callTypes = Array.from(new Set(matchedOrders.map((o) => o.callTypeLabel)));
+      const serviceUserKey = matchedOrders[0]?.serviceUserKey;
+      
+      return res.json({ 
+        callTypes, 
+        serviceUserKey,
+        serviceUserName: matchedOrders[0]?.serviceUserName,
+        orders: matchedOrders.map(o => ({
+          callType: o.callTypeLabel,
+          timeBand: o.timeBand,
+          daysPerWeek: o.daysPerWeek,
+          duration: o.serviceRequirementMinutes,
+          carersRequired: o.carersRequired
+        }))
+      });
+    } catch (error: any) {
+      console.error("Get call types error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get call types") });
+    }
+  });
+
+  app.post("/api/ai/generate-care-plan", requireAuth, async (req: any, res) => {
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
+    
+    try {
+      const { documentContent, serviceUserInitials, allowSensitive, callType } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
+      
+      if (!documentContent) {
+        return res.status(400).json({ message: "Document content required" });
+      }
+
+      // Set up SSE for progress streaming
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.flushHeaders();
+
+      // Heartbeat every 5 seconds to keep connection alive
+      heartbeatInterval = setInterval(() => {
+        try {
+          res.write(`: heartbeat\n\n`);
+          if (typeof (res as any).flush === 'function') (res as any).flush();
+        } catch (e) {
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      }, 5000);
+
+      const sendEvent = (eventType: string, data: any) => {
+        try {
+          const padding = `: ${'x'.repeat(4096)}\n\n`;
+          const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+          res.write(padding + payload);
+          if (typeof (res as any).flush === 'function') (res as any).flush();
+        } catch (e) {
+          console.error('[CarePlan SSE] Write error:', e);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      };
+      
+      const sendProgress = (percent: number, status: string, stage: string) => {
+        console.log(`[CarePlan SSE] Progress: ${percent}% - ${status}`);
+        sendEvent('progress', { percent, status, stage });
+      };
+
+      sendProgress(5, "Loading policy documents...", "loading_policies");
+
+      const today = new Date().toLocaleDateString("en-GB");
+
+      // Fetch ALL policy documents for comprehensive care planning
+      const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
+      const taskListPolicies = await storage.getPolicyDocumentsByCategory("care_tasks");
+      const socialWorkerPolicies = await storage.getPolicyDocumentsByCategory("social_worker");
+      const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
+      const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
+      
+      // Build policy context
+      let policyContext = "";
+      const allPolicies = [...carePlanPolicies, ...taskListPolicies, ...socialWorkerPolicies, ...scopeOfPracticePolicies, ...initialAssessmentPolicies];
+      if (allPolicies.length > 0) {
+        policyContext = `
+=== POLICY DOCUMENTS - FOLLOW THESE EXACTLY ===
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT: ${p.name} ---\n${p.content}`).join('\n')}
+${carePlanPolicies.map(p => `--- CARE PLAN TEMPLATE: ${p.name} ---\n${p.content}`).join('\n')}
+${taskListPolicies.map(p => `--- APPROVED TASKS: ${p.name} ---\n${p.content}`).join('\n')}
+${socialWorkerPolicies.map(p => `--- SOCIAL WORKER TASKS: ${p.name} ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} ---\n${p.content}`).join('\n')}
+=== END POLICIES ===
+
+REQUIREMENTS:
+1. ONLY use tasks from approved lists above - do NOT invent new tasks.
+2. Social worker document states EXACT support - include ALL those tasks.
+3. Follow CQC (Care Quality Commission) standards.
+`;
+      }
+
+      // Define all 12 mandatory sections
+      const mandatorySections = [
+        { title: "WARNING - Safety Concerns & Risks", priority: "high", focus: "Safety warnings, fall risks, medical alerts, emergency procedures, things carers MUST know immediately" },
+        { title: "Introduction & My Life Story", priority: "medium", focus: "Personal history, family, interests, what makes me who I am, my background and preferences" },
+        { title: "My Well-being & Emotional Needs", priority: "medium", focus: "Mental health, emotional support needs, what makes me happy/sad, how I cope with change" },
+        { title: "Tasks Required by Social Workers", priority: "high", focus: "EXACT tasks from social worker document - all commissioned support activities" },
+        { title: "Personal Care", priority: "medium", focus: "Washing, bathing, dressing, grooming, oral care - my specific preferences and routines" },
+        { title: "Mobility & Transfers", priority: "medium", focus: "How I move, equipment needed (hoist, frame, wheelchair), transfer techniques, positioning" },
+        { title: "Nutrition & Hydration", priority: "medium", focus: "Diet requirements, food preferences, swallowing difficulties, meal preparation, fluid intake" },
+        { title: "Medication", priority: "high", focus: "Medication routine, reminders needed, storage, administration support, side effects to watch" },
+        { title: "Continence Care", priority: "medium", focus: "Continence needs, products used, toilet assistance, dignity considerations" },
+        { title: "Communication", priority: "medium", focus: "How I communicate, hearing/vision needs, language, how to engage with me effectively" },
+        { title: "Household Tasks", priority: "low", focus: "Cleaning, laundry, shopping, household maintenance support I need" },
+        { title: "Secure Property Before Leaving", priority: "high", focus: "Door locks, windows, appliances off, keys, alarm system - safety checklist before carers leave" },
+      ];
+
+      const privacyRules = allowSensitiveView
+        ? "- Personal data has been tokenized ({{PII_...}}). Keep tokens in output - they become [Name], [Date] etc."
+        : "- Personal data has been tokenized. Keep tokens in output for placeholder conversion.";
+
+      // Call type context for specific care plans
+      const callTypeLabel = callType || "General";
+      const callTypeContext = callType ? `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ CALL TYPE: ${callType} - DETAILED GUIDANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+This care plan is for ${callType} calls ONLY. Focus EXCLUSIVELY on tasks during ${callType} visits.
+
+${callType === 'Morning' ? `MORNING CALL FOCUS:
+✓ Waking up routine: how I like to be woken, time preferences
+✓ Personal care: washing, bathing/shower, oral care, skin care
+✓ Dressing: my clothing preferences, dignity, assistance level needed
+✓ Continence care: pad changes, toilet assistance
+✓ Breakfast: what I eat, dietary needs, assistance with eating/drinking
+✓ Morning medications: which meds, prompts vs. administration
+✓ Mobility: getting out of bed, transfers, equipment used
+✓ Safety: check environment, remove hazards` : ''}
+
+${callType === 'Lunch' ? `LUNCH CALL FOCUS:
+✓ Meal preparation: what I eat for lunch, preferences, dietary requirements
+✓ Eating assistance: level of support, utensils, positioning
+✓ Hydration: drinks offered, fluid intake monitoring
+✓ Lunchtime medications if applicable
+✓ Personal care: toileting, pad changes if needed
+✓ Repositioning: pressure relief, comfort, skin checks
+✓ Activities: social interaction, engagement during visit
+✓ Safety checks: environment, wellbeing, any concerns` : ''}
+
+${callType === 'Tea' ? `TEA CALL FOCUS:
+✓ Tea/snack preparation: preferences, dietary needs
+✓ Hydration: afternoon fluids, preferences
+✓ Evening medications if scheduled
+✓ Personal care: toileting, hygiene, pad changes if needed  
+✓ Light activities: conversation, TV, comfort
+✓ Repositioning: pressure relief if applicable
+✓ Check wellbeing: mood, pain, concerns
+✓ Prepare for evening: lighting, comfort, safety` : ''}
+
+${callType === 'Bed' ? `BEDTIME CALL FOCUS:
+✓ Night medications: which meds, timing, prompts
+✓ Personal care: evening wash, oral care, skincare routine
+✓ Continence care: pad changes, toileting
+✓ Undressing: night clothes, dignity, preferences
+✓ Bed transfers: safe transfer to bed, equipment, positioning
+✓ Comfort: pillows, covers, positioning for sleep
+✓ Night routine: anything that helps me sleep (music, TV, lights)
+✓ Safety: call bell within reach, room secure, night light
+✓ Secure property: all doors locked, windows closed, appliances off` : ''}
+
+${callType === 'Domestic' ? `DOMESTIC CALL FOCUS:
+✓ Cleaning: which rooms, specific tasks (hoover, dust, mop)
+✓ Laundry: washing, drying, ironing, putting away
+✓ Kitchen: dishes, surfaces, bin emptying
+✓ Shopping: list preparation, shopping assistance, putting away
+✓ Meal preparation: batch cooking, freezer meals
+✓ Bathroom: cleaning, restocking supplies
+✓ Bedroom: changing bed linen, tidying
+✓ General tidying: sorting, organizing
+✓ Note: Include ONLY domestic tasks - no personal care unless specifically documented` : ''}
+
+CRITICAL: Include ONLY the tasks relevant to ${callType} calls.
+Do NOT include tasks from other call types (e.g., don't mention breakfast in a Bed call).
+═══════════════════════════════════════════════════════════════════════════════
+` : "";
+
+      const baseSystemPrompt = `You are an expert care plan writer for UK care facilities following CQC 2024 standards.
+
+═══════════════════════════════════════════════════════════════════════════════
+CQC 2024 PERSON-CENTRED CARE PLANNING
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ Individual preferences must be met
+✓ Physical, mental, emotional and social needs
+✓ Build on strengths, prevent declines  
+✓ Quality of life: dignity, autonomy, meaningful activity
+✓ Person-centred: holistic support, not just tasks
+
+NHS ENGLAND CARE PLANNING PRINCIPLES:
+1. Person-centred: Focus on MY needs, preferences and goals
+2. Collaborative: Include information from family, professionals
+3. Specific & Detailed: Times, methods, preferences, equipment
+4. Outcome-focused: State what good care achieves for me
+5. Living document: Can be updated as my needs change
+
+${policyContext}${callTypeContext}
+WRITING QUALITY STANDARDS:
+
+✓ FIRST PERSON: Write as "I", "my", "me" (never "the service user" or "client")
+✓ SPECIFIC DETAIL: Include exact times, specific preferences, named equipment
+✓ ACTIONABLE: Carers must know EXACTLY what to do from reading this
+✓ STEP-BY-STEP: Describe routines in sequence (first this, then that)
+✓ COMPREHENSIVE: Cover ALL aspects relevant to this call type
+✓ PERSON-CENTRED DETAIL: Include what matters to me, preferences, triggers, sensory needs, communication style and how I want support delivered
+✓ DIGNIFIED: Maintain my dignity, privacy and respect throughout
+✓ SAFETY: Highlight any risks, equipment needs, medical considerations
+✓ READABLE: Use clear sentences (15-25 words average), avoid jargon
+✓ CONSISTENT: Use same terms throughout (don't switch between "walking frame" and "zimmer")
+
+FORMATTING RULES:
+- Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas
+- Never use Oxford commas (no comma before final "and" in a list)
+- Use British English spelling and terms
+${privacyRules}
+- Keep place names as written
+
+CARE WORKER SCOPE OF PRACTICE - CRITICAL:
+Care workers are NON-CLINICAL support staff. They CANNOT perform clinical assessments.
+
+🔴 NEVER ASK CARE WORKERS TO:
+- Check breathing, respiration, pulse, heart rate, or blood pressure
+- Take or record vital signs (temperature, SpO2, oxygen saturation)
+- Assess wounds, pressure areas, or skin integrity clinically
+- Apply sterile dressings or clinical wound care
+- Catheter care, stoma care, PEG feeding, insulin injections
+- Make clinical judgments or diagnose conditions
+- Manage oxygen equipment or suction airways
+
+🟢 CARE WORKERS CAN:
+- Observe and report changes (not assess)
+- Assist with personal care, mobility, meals, medication prompting
+- Call for help when concerned
+
+⚠️ REWORD CLINICAL OBSERVATIONS AS ESCALATION:
+WRONG: "check my breathing" or "monitor respiration"
+RIGHT: "If I appear unusually breathless or struggling to breathe, call 999 immediately"
+
+WRONG: "observe wound healing"
+RIGHT: "District Nurse manages my dressing. Report any redness, leaking, or odour to District Nurse"
+
+EXAMPLE QUALITY (Morning call - 250 words):
+"I like to wake up naturally around 8am - please knock gently and wait for my response before entering. I need support to sit up in bed using the bed rail on my right side. My morning routine starts with toileting - I can walk to the bathroom with my walking frame but need supervision for safety as I had a fall last year. I prefer a wash at the sink rather than a shower on morning calls. Please help me wash my upper body and back as I struggle to reach. I like the water warm but not too hot. After washing I need help drying thoroughly, especially between my toes as I have diabetes and poor circulation. For dressing I prefer comfortable loose clothing - my clothes are laid out in the wardrobe. I can manage my upper body but need full assistance with lower body dressing due to my hip arthritis. Please help me put on my compression stockings - left leg first as this is weaker. I take 3 medications at breakfast time which are in the dosette box in the kitchen. I need prompting but can take them myself with a glass of water. For breakfast I like porridge made with semi-skimmed milk and a mug of tea with one sugar. Please ensure I eat and drink as I sometimes forget. Before leaving please check I have my call pendant on and my mobile phone is within reach."
+
+✓ This example shows: specific times (8am), named equipment (walking frame, bed rail, dosette box), safety notes (fall last year), dignity maintained, clear preferences (porridge, warm water), step-by-step routine, medical conditions context (diabetes, arthritis)
+
+✗ BAD EXAMPLE - TOO VAGUE:
+"I need help in the morning. Staff should assist me with personal care and give me breakfast. I take medications. Please make sure I'm safe and comfortable."
+
+✗ Avoid vague phrases: "assist as needed", "provide support", "ensure comfort", "appropriate care" - be SPECIFIC
+
+OUTPUT FORMAT - Return ONLY valid JSON:
+{
+  "content": "Detailed first-person narrative (450+ words minimum) covering ALL aspects of care for this call type in one flowing paragraph"
+}`;
+
+      sendProgress(10, "Generating care plan...", "generating");
+
+      const toStringSafe = (value: unknown) =>
+        typeof value === "string" ? value : value == null ? "" : String(value);
+      const scrubText = (value: unknown) => sanitizeNarrativePII(toStringSafe(value));
+      const viewText = (value: unknown) => allowSensitiveView ? toStringSafe(value) : scrubText(value);
+
+      // Scrub PII using vault - original values stored locally for restoration
+      const documentContentForAi = piiVault.scrub(documentContent);
+      const vaultStats = piiVault.getStats();
+      console.log(`[CarePlan] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
+      piiVault.logAudit('SCRUB', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+
+      sendProgress(20, `Generating ${callTypeLabel} care plan...`, "generating");
+      console.log(`[CarePlan] Generating ${callTypeLabel} care plan`);
+
+      if (!isAIEnabled()) {
+        sendProgress(60, "Using secure rule-based care plan generator...", "rule_based");
+        const fallbackRaw = buildRuleBasedCarePlanPayload({
+          documentContent: documentContentForAi,
+          serviceUserInitials,
+          callType: callTypeLabel,
+        });
+        const templateContent = piiVault.toPlaceholders(fallbackRaw.content);
+        // Always export vault for automatic name restoration
+        const vaultExport = piiVault.export();
+        const result = {
+          ...fallbackRaw,
+          content: templateContent,
+          vaultExport,
+          rawWithTokens: fallbackRaw,
+        };
+        piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', result);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // DEBUG: LOG COMPLETE AI INPUT - CARE PLAN GENERATION
+      // ════════════════════════════════════════════════════════════════════
+      console.log('\n');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('📋 CARE PLAN AI INPUT - CONTENT SENT TO AI');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Call Type: ${callTypeLabel}`);
+      console.log(`Model: ${getAccurateModel()}`);
+      console.log(`Date: ${today}`);
+      console.log('');
+      
+      const carePlanUserContent = `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.\n\n═══════════════════════════════════════════════════════════════════════════════\nSERVICE USER DOCUMENTS\n═══════════════════════════════════════════════════════════════════════════════\n${documentContentForAi}`;
+      
+      console.log('📊 CONTENT STATS:');
+      console.log(`   Document Content Length: ${documentContentForAi.length.toLocaleString()} chars`);
+      console.log(`   Total User Content: ${carePlanUserContent.length.toLocaleString()} chars`);
+      console.log(`   Policy Context Length: ${policyContext.length.toLocaleString()} chars`);
+      console.log(`   Number of Mandatory Sections: ${mandatorySections.length}`);
+      console.log('');
+      
+      console.log('📄 DOCUMENT CONTENT PREVIEW (First 2000 characters):');
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(documentContentForAi.substring(0, 2000));
+      if (documentContentForAi.length > 2000) {
+        console.log(`\n... [${(documentContentForAi.length - 2000).toLocaleString()} more characters] ...\n`);
+      }
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log('');
+      
+      console.log('📋 MANDATORY SECTIONS TO GENERATE:');
+      mandatorySections.forEach((section, idx) => {
+        console.log(`   ${idx + 1}. ${section.title} (${section.priority} priority)`);
+      });
+      console.log('');
+      
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('\n');
+
+      // Simulated progress during AI call
+      let simulatedProgress = 20;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 75) {
+          simulatedProgress += 5;
+          const messages = [
+            `Analyzing documents for ${callTypeLabel} call...`,
+            "Building person-centred care content...",
+            "Extracting preferences and routines...",
+            "Ensuring safety considerations...",
+            "Formatting care plan structure...",
+            "Finalizing comprehensive plan...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 20) / 10) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "generating");
+        }
+      }, 3000);
+
+      try {
+        const response = await executeSecureTextCompletion({
+          endpoint: "/api/ai/generate-care-plan",
+          feature: "care_plan_calltype",
+          model: getAccurateModel(),
+          userContext: aiUserContext,
+          inputText: `Generate a comprehensive ${callTypeLabel} care plan following CQC 2024 person-centred standards.
+
+═══════════════════════════════════════════════════════════════════════════════
+SERVICE USER DOCUMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+${documentContentForAi}
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Read ALL the documents thoroughly
+2. Extract information relevant to ${callTypeLabel} calls ONLY
+3. Write in FIRST PERSON as if I am describing my own care needs
+4. Be SPECIFIC: times, preferences, equipment, step-by-step routines
+5. Include safety considerations and dignity throughout
+6. Minimum 450 words - comprehensive detail is essential
+7. Write as ONE flowing paragraph (not bullet points)
+
+QUALITY CHECKLIST:
+✓ Written in first person (I, my, me)?
+✓ Specific times and preferences included?
+✓ Equipment and assistance levels detailed?
+✓ Safety considerations mentioned?
+✓ Dignity and respect maintained?
+✓ Focused ONLY on ${callTypeLabel} tasks?
+✓ Actionable - carers know exactly what to do?
+✓ Minimum 450 words of comprehensive detail?
+
+Return ONLY valid JSON with content field.`,
+          systemPrompt: baseSystemPrompt,
+          temperature: 0.1,
+          maxCompletionTokens: 3000,
+          seed: 42,
+          responseFormat: { type: "json_object" },
+          useCache: false,
+        });
+
+        if (progressInterval) clearInterval(progressInterval);
+        const content = response.restoredText || "";
+        const parsed = parseJsonFromContent(content);
+        
+        if (!parsed || !parsed.content) {
+          sendEvent('error', { message: "Failed to generate care plan content" });
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          return res.end();
+        }
+
+        let enhancedContent = parsed.content || "";
+        const getContentStats = (text: string) => {
+          const words = text.split(/\s+/).filter(Boolean);
+          const sentences = text.split(/[.!?]+/).filter((s: string) => s.trim().length > 10);
+          return {
+            wordCount: words.length,
+            sentenceCount: sentences.length,
+            avgWordsPerSentence: sentences.length > 0 ? words.length / sentences.length : 0,
+          };
+        };
+
+        let { wordCount, sentenceCount, avgWordsPerSentence } = getContentStats(enhancedContent);
+        if (wordCount < 450) {
+          sendProgress(82, "Expanding with more person-centred detail...", "refining");
+          try {
+            const refineResponse = await executeSecureTextCompletion({
+              endpoint: "/api/ai/generate-care-plan",
+              feature: "care_plan_calltype_refine",
+              model: getAccurateModel(),
+              userContext: aiUserContext,
+              inputText: `Expand and enrich the care plan below to at least 450 words. Keep it in first person, include routines, preferences, what matters to me, communication style, emotional support needs, triggers, equipment and safety. Do NOT add facts beyond the documents. Keep it as one flowing paragraph.\n\nDOCUMENTS (REFERENCE ONLY, DO NOT QUOTE VERBATIM):\n${documentContentForAi}\n\nDRAFT CARE PLAN TO EXPAND:\n${enhancedContent}\n\nReturn ONLY valid JSON with content field.`,
+              systemPrompt: baseSystemPrompt,
+              temperature: 0.1,
+              maxCompletionTokens: 2400,
+              seed: 42,
+              responseFormat: { type: "json_object" },
+              useCache: false,
+            });
+
+            const refinedContent = refineResponse.restoredText || "";
+            const refinedParsed = parseJsonFromContent(refinedContent);
+            if (refinedParsed?.content && refinedParsed.content.length > enhancedContent.length) {
+              enhancedContent = refinedParsed.content;
+            }
+          } catch (refineError: any) {
+            console.warn("[CarePlan] Refinement pass failed:", refineError?.message || refineError);
+          }
+        }
+
+        ({ wordCount, sentenceCount, avgWordsPerSentence } = getContentStats(enhancedContent));
+        
+        // Comprehensive Quality Validation
+        
+        console.log(`[CarePlan] Generated ${wordCount} words, ${sentenceCount} sentences for ${callTypeLabel} plan`);
+        
+        // Length check
+        if (wordCount < 200) {
+          console.warn(`[CarePlan] ⚠️  Content too short (${wordCount} words, minimum 450 recommended)`);
+        } else if (wordCount < 350) {
+          console.log(`[CarePlan] ⚠️  Content adequate but could be more detailed (${wordCount} words)`);
+        } else {
+          console.log(`[CarePlan] ✅ Content length good (${wordCount} words)`);
+        }
+        
+        // Readability scoring (aim for 15-25 words per sentence for care plans)
+        if (avgWordsPerSentence > 35) {
+          console.warn(`[CarePlan] ⚠️  Sentences too long (avg ${avgWordsPerSentence.toFixed(1)} words) - may be hard to read`);
+        } else if (avgWordsPerSentence > 0 && avgWordsPerSentence < 10) {
+          console.warn(`[CarePlan] ⚠️  Sentences very short (avg ${avgWordsPerSentence.toFixed(1)} words) - may lack detail`);
+        } else if (avgWordsPerSentence > 0) {
+          console.log(`[CarePlan] ✅ Readability good (avg ${avgWordsPerSentence.toFixed(1)} words/sentence)`);
+        }
+        
+        // Safety keyword check
+        const contentLower = enhancedContent.toLowerCase();
+        const safetyTerms = ['safety', 'risk', 'danger', 'emergency', 'fall', 'choking', 'allergic'];
+        const hasSafetyContent = safetyTerms.some(term => contentLower.includes(term));
+        if (!hasSafetyContent && callType !== 'Domestic') {
+          console.warn(`[CarePlan] ⚠️  No safety considerations mentioned (should include risks/precautions)`);
+        }
+        
+        // Equipment mention check
+        const equipmentTerms = ['hoist', 'frame', 'wheelchair', 'walker', 'zimmer', 'stick', 'aid', 'equipment'];
+        const mentionsEquipment = equipmentTerms.some(term => contentLower.includes(term));
+        if (mentionsEquipment) {
+          // Check if usage is explained
+          const hasUsageExplanation = contentLower.includes('use') || contentLower.includes('using') || 
+                                       contentLower.includes('assist') || contentLower.includes('help');
+          if (!hasUsageExplanation) {
+            console.warn(`[CarePlan] ⚠️  Equipment mentioned but usage not clearly explained`);
+          }
+        }
+        
+        // Missing information detection
+        const missingInfoPhrases = [
+          'ask me about', 'information not found', 'not specified', 'details unclear',
+          'preferences not stated', 'not documented', 'check with'
+        ];
+        const hasMissingInfo = missingInfoPhrases.some(phrase => contentLower.includes(phrase));
+        if (hasMissingInfo) {
+          console.log(`[CarePlan] ℹ️  Plan includes prompts for missing information (good practice)`);
+        }
+        
+        // Ensure first-person perspective
+        if (!enhancedContent.includes("I ") && !enhancedContent.includes("my ")) {
+          console.log(`[CarePlan] Converting to first person`);
+          enhancedContent = enhancedContent.replace(/The (client|service user|patient)/gi, "I");
+          enhancedContent = enhancedContent.replace(/Staff should/gi, "I need my carers to");
+          enhancedContent = enhancedContent.replace(/\b(He|She)\b/gi, "I");
+          enhancedContent = enhancedContent.replace(/\b(his|her)\b/gi, "my");
+        }
+        
+        // Enhanced call type relevance validation
+        if (callType) {
+          const wrongCallTypeTerms: Record<string, string[]> = {
+            'Morning': ['bedtime', 'night medication', 'night routine', 'prepare for sleep', 'going to bed'],
+            'Bed': ['breakfast', 'waking up', 'morning routine', 'morning medication', 'morning wash'],
+            'Domestic': ['personal care', 'washing', 'dressing', 'medication', 'toileting', 'continence'],
+            'Lunch': ['breakfast', 'bedtime', 'night routine', 'waking'],
+            'Tea': ['breakfast', 'waking up', 'bedtime', 'night'],
+          };
+          
+          const wrongTerms = wrongCallTypeTerms[callType] || [];
+          const foundWrongTerms = wrongTerms.filter(term => 
+            contentLower.includes(term.toLowerCase())
+          );
+          
+          if (foundWrongTerms.length > 0) {
+            console.warn(`[CarePlan] ❌ ${callType} plan contains terms from other call types: ${foundWrongTerms.join(', ')}`);
+          }
+          
+          // Check for expected call-type content
+          const expectedTerms: Record<string, string[]> = {
+            'Morning': ['wash', 'dress', 'breakfast', 'wake', 'routine'],
+            'Bed': ['night', 'sleep', 'evening', 'bedtime', 'rest'],
+            'Domestic': ['clean', 'tidy', 'laundry', 'shopping', 'household'],
+            'Lunch': ['lunch', 'meal', 'eat', 'drink', 'food'],
+            'Tea': ['tea', 'snack', 'evening', 'afternoon'],
+          };
+          
+          const expected = expectedTerms[callType] || [];
+          const hasExpectedContent = expected.some(term => contentLower.includes(term));
+          
+          if (!hasExpectedContent && expected.length > 0) {
+            console.warn(`[CarePlan] ⚠️  ${callType} plan missing expected content keywords`);
+          } else {
+            console.log(`[CarePlan] ✅ ${callType} plan contains appropriate call-type content`);
+          }
+        }
+
+        const today = new Date().toLocaleDateString("en-GB");
+        
+        // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+        // Output is GDPR-exempt as it contains no personal data
+        const templateContent = piiVault.toPlaceholders(enhancedContent);
+        console.log(`[CarePlan] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [Date of Birth]`);
+        piiVault.logAudit('SCRUB', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+        
+        // Base result with placeholders
+        let result: any = {
+          serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+          generatedDate: today,
+          callType: callTypeLabel,
+          content: templateContent,
+        };
+        
+        // For authorized admin users with allowSensitive, include vault export for client-side restoration
+        // Always export vault for automatic client-side name restoration
+        const vaultExport = piiVault.export();
+        result = {
+          ...result,
+          vaultExport,
+          rawWithTokens: {
+            serviceUserInitials: normalizeInitials(serviceUserInitials || 'N.N.'),
+            generatedDate: today,
+            callType: callTypeLabel,
+            content: enhancedContent,
+          },
+        };
+        console.log(`[CarePlan] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/generate-care-plan', aiUserContext.userId, aiUserContext.username);
+
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', result);
+        
+        // Clear vault after use (security best practice)
+        piiVault.clear();
+        
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+        
+      } catch (genError: any) {
+        console.error("[CarePlan] Generation error:", genError.message);
+        piiVault.clear(); // Clear vault on error too
+        sendEvent('error', { message: safeErrorMessage(genError, "AI generation failed") });
+        if (progressInterval) clearInterval(progressInterval);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+      
+    } catch (error: any) {
+      console.error("Care Plan Generation Error:", error);
+      piiVault.clear(); // Clear vault on error too
+      if (progressInterval) clearInterval(progressInterval);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({ message: safeErrorMessage(error, "AI generation failed") })}\n\n`);
+        return res.end();
+      }
+      return res.status(500).json({ message: safeErrorMessage(error, "AI generation failed") });
+    }
+  });
+
+  // Enhance existing care plan - generates complete care plan template matching exact form structure
+  app.post("/api/ai/enhance-plan", requireAuth, async (req: any, res) => {
+    // Token estimation helper (rough: ~4 chars per token)
+    const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+    
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+    let progressInterval: NodeJS.Timeout | null = null;
+    
+    // User context for AI cost tracking
+    const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+    
+    // PII Vault for reversible scrubbing - keeps sensitive data local
+    const piiVault = new PIIVault();
+    
+    try {
+      const { documentContent, existingPlanContent, allowSensitive } = req.body;
+      const allowSensitiveView = Boolean(allowSensitive) && req.user?.role === "admin";
+      
+      const documentText = typeof documentContent === "string" ? documentContent.trim() : "";
+      const existingPlanText = typeof existingPlanContent === "string" ? existingPlanContent.trim() : "";
+
+      if (!documentText && !existingPlanText) {
+        return res.status(400).json({ message: "Document content or existing plan required" });
+      }
+
+      // Set up SSE for progress streaming with production-safe settings
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      const corsOrigin = process.env.CORS_ORIGIN;
+      if (corsOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.flushHeaders();
+
+      // Small delay to ensure headers are flushed through proxies
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Send initial ping to establish connection
+      res.write(`: ping\n\n`);
+      if (typeof (res as any).flush === 'function') (res as any).flush();
+
+      // Heartbeat to keep connection alive during long AI processing
+      heartbeatInterval = setInterval(() => {
+        try {
+          res.write(`: heartbeat\n\n`);
+          if (typeof (res as any).flush === 'function') (res as any).flush();
+        } catch (e) {
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      }, 10000);
+
+      const sendEvent = (eventType: string, data: any) => {
+        try {
+          const padding = `: ${'x'.repeat(4096)}\n\n`;
+          const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+          res.write(padding + payload);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        } catch (e) {
+          console.error('[Enhance SSE] Write error:', e);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      };
+      const sendProgress = (percent: number, status: string, stage: string) => {
+        console.log(`[Enhance SSE] Progress: ${percent}% - ${status}`);
+        sendEvent('progress', { percent, status, stage });
+      };
+
+      sendProgress(5, "Initializing...", "init");
+      await new Promise(resolve => setTimeout(resolve, 50));
+      sendProgress(10, "Preparing documents...", "preparing");
+
+      const rawContentParts: string[] = [];
+      if (existingPlanText) {
+        rawContentParts.push(`=== EXISTING CARE PLAN (UPLOAD) ===\n${existingPlanText}`);
+      }
+      if (documentText) {
+        rawContentParts.push(`=== SUPPORTING DOCUMENTS AND USER NOTES ===\n${documentText}`);
+      }
+      const rawContent = rawContentParts.join("\n\n");
+      
+      // Scrub PII using vault - original values stored locally for restoration
+      const contentToEnhance = piiVault.scrub(rawContent);
+      const vaultStats = piiVault.getStats();
+      console.log(`[Enhance] PII Vault: Scrubbed ${vaultStats.total} sensitive items (${Object.entries(vaultStats.byCategory).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')})`);
+      piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+      
+      // Estimate initial content tokens
+      const contentTokens = estimateTokens(contentToEnhance);
+      console.log(`[Enhance] Document content: ~${contentTokens} tokens`);
+
+      if (!isAIEnabled()) {
+        sendProgress(35, "Generating secure rule-based template...", "rule_based");
+        const fallbackResult = buildRuleBasedPlanEnhancementPayload(contentToEnhance);
+        const templateResult = piiVault.toPlaceholders(fallbackResult);
+        // Always export vault for automatic client-side name restoration
+        // Vault is needed by all authenticated users to restore PII that was scrubbed from AI
+        const vaultExport = piiVault.export();
+        let payload: any = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: fallbackResult,
+        };
+        piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        piiVault.clear();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+
+      const carePlanPolicies = await storage.getPolicyDocumentsByCategory("care_plan");
+      const initialAssessmentPolicies = await storage.getPolicyDocumentsByCategory("initial_assessment");
+      const scopeOfPracticePolicies = await storage.getPolicyDocumentsByCategory("scope_of_practice");
+
+      let policyContext = "";
+      const allPolicies = [...carePlanPolicies, ...initialAssessmentPolicies, ...scopeOfPracticePolicies];
+      if (allPolicies.length > 0) {
+        policyContext = `
+=== POLICY DOCUMENTS - FOLLOW THESE AS REFERENCE ===
+${initialAssessmentPolicies.map(p => `--- INITIAL ASSESSMENT TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${carePlanPolicies.map(p => `--- CARE PLAN TEMPLATE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+${scopeOfPracticePolicies.map(p => `--- SCOPE OF PRACTICE: ${p.name} (${p.version || 'v1.0'}) ---\n${p.content}`).join('\n')}
+=== END POLICY DOCUMENTS ===
+`;
+      }
+      
+      // Estimate policy context tokens
+      const policyTokens = estimateTokens(policyContext);
+      console.log(`[Enhance] Policy context: ~${policyTokens} tokens`);
+
+      const privacyDirective = allowSensitiveView
+        ? "Privacy: Personal data in documents has been tokenized ({{PII_...}}). Keep tokens in output - they become [Name], [Date of Birth] etc. Never guess real values."
+        : "Privacy: Data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
+
+      // Get current provider to determine token limits
+      const currentProvider = getPreferredProvider();
+      
+      // GitHub Models API token limits (from docs: https://docs.github.com/en/github-models)
+      // Free tier: High models (GPT-4o) = 8000 in, 4000 out
+      // Enterprise tier: 16000 in, 8000 out
+      // We'll use conservative 12000 to allow for system prompt overhead
+      const MAX_INPUT_TOKENS = currentProvider === "github" ? 12000 : 90000; // OpenAI/Local have higher limits
+      
+      const systemPromptBase = `You are an expert UK care plan writer (CQC 2024, NHS Person-Centred Care, NICE guidelines). Create a comprehensive, evidence-based care plan from the provided documents. Complete EVERY field - no empty or null values.
+
+${policyContext}
+
+${privacyDirective}
+Keep place names and facility names as written.
+
+CARE WORKER SCOPE - This plan is for NON-CLINICAL care workers:
+- They CAN: personal care, medication prompting from dosette boxes, mobility assistance, meals, emotional support, light housework, OBSERVE and REPORT changes
+- They CANNOT: check vitals, assess wounds, administer injections, make clinical judgments
+- For clinical needs, state WHO is responsible (District Nurse, GP), WHEN they visit, WHAT carers should observe/report, and WHEN to call 999
+- WRONG: "Care workers should check my breathing" → RIGHT: "If I appear breathless, carers should call 999 immediately"
+
+WRITING RULES:
+- ALL content in FIRST PERSON ("I", "my", "me"). Never "the service user" or "the client".
+- Use hyphens (-) not dashes. No Oxford commas.
+- Sound human, warm and practical - plain English, short-to-medium sentences, no bullet lists in narrative fields.
+- Be specific: equipment names, times, quantities, preferences.
+- For health conditions: explain what it is, how it affects my daily life, what care workers need to do, warning signs, who to contact.
+- NEVER fabricate names, dates, diagnoses, medications, or personal history not in documents.
+- Standard care implications for documented conditions ARE acceptable (e.g., "diabetes requires foot checks").
+- For missing information: "This information has not been provided in the documents supplied."
+- For categorical fields with no evidence: "Not specified in documents provided"
+- Cross-reference: if a condition appears anywhere, reference it in ALL related sections.
+- Add verificationQuestions for every significant gap.
+- Every narrative field should be detailed and thorough - use ALL available evidence from documents.
+
+SECTION WRITING GUIDE - Write comprehensively for each:
+- thisIsMe.whoAmI: Flowing life story (aim 400-600 words). Start "My name is [Name]." Cover background, education, work, family, losses, personality, why I need care. Use EVERY biographical detail from documents.
+- thisIsMe.hobbiesInterests: Specific hobbies with frequencies, equipment, companions.
+- thisIsMe.whatMakesGoodDay: Very specific - routines, activities, people, food, environment I enjoy.
+- myCarePlan.healthAndWellbeing: For EACH condition: what it is, how it affects me daily, what care workers do, warning signs, who to contact. This should be the longest section (aim 600-800 words).
+- myCarePlan.personalCareNeeds: Full daily routine - morning wash, dressing, oral care, evening routine, continence. Step by step.
+- myCarePlan.medicationRequirements: Every medication with name, dose, time, purpose, difficulties.
+- myCarePlan.nutrition: Diet type, preferences, allergies, fluid intake, meal times, assistance needed.
+- myCarePlan.mobilityAndEquipment: Every piece of equipment, how I move, transfers, distance, stairs.
+- myCarePlan.capacityAndSafeguarding: Mental capacity, decision making, safeguarding concerns.`;
+
+      // Calculate total estimated tokens with base system prompt
+      const systemPromptTokens = estimateTokens(systemPromptBase);
+      const totalEstimatedTokens = systemPromptTokens + policyTokens + contentTokens;
+      
+      console.log(`[Enhance] Total estimated tokens: ${totalEstimatedTokens} (system: ${systemPromptTokens}, policy: ${policyTokens}, content: ${contentTokens})`);
+      console.log(`[Enhance] Provider: ${currentProvider}, Max input tokens: ${MAX_INPUT_TOKENS}`);
+      
+      let truncationWarning = "";
+      let finalContent = contentToEnhance;
+      let finalPolicyContext = policyContext;
+      
+      // If we exceed token limit, intelligently truncate
+      if (totalEstimatedTokens > MAX_INPUT_TOKENS) {
+        const availableTokens = MAX_INPUT_TOKENS - systemPromptTokens;
+        console.warn(`[Enhance] ⚠️ Content exceeds ${MAX_INPUT_TOKENS} token limit. Truncating intelligently...`);
+        
+        // Priority: Keep user content > policy docs
+        // Allocate 70% to content, 30% to policy context
+        const contentAllowance = Math.floor(availableTokens * 0.7);
+        const policyAllowance = Math.floor(availableTokens * 0.3);
+        
+        // Truncate content if needed (keep end, as it often has most recent/specific info)
+        if (contentTokens > contentAllowance) {
+          const contentCharsToKeep = contentAllowance * 4; // ~4 chars per token
+          finalContent = "[Content truncated due to size - showing most recent sections]\n\n" + 
+                        contentToEnhance.slice(-contentCharsToKeep);
+          console.log(`[Enhance] Truncated content from ${contentTokens} to ~${contentAllowance} tokens`);
+          truncationWarning = `⚠️ Your uploaded documents were very large (${Math.ceil(contentTokens/1000)}K tokens). Content was automatically truncated to fit within API limits. For best results, consider splitting into smaller documents or summarizing before upload.`;
+        }
+        
+        // Truncate policy context if needed
+        if (policyTokens > policyAllowance) {
+          const policyCharsToKeep = policyAllowance * 4;
+          finalPolicyContext = policyContext.slice(0, policyCharsToKeep) + "\n[Policy documents truncated due to size]\n";
+          console.log(`[Enhance] Truncated policy from ${policyTokens} to ~${policyAllowance} tokens`);
+        }
+        
+        sendProgress(15, truncationWarning ? "Large documents detected - optimizing..." : "Processing...", "preparing");
+      }
+
+      const systemPrompt = systemPromptBase + `
+${finalPolicyContext}
+
+Return ONLY valid JSON matching this exact schema. For categorical fields use EXACTLY the allowed values shown.
+
+{
+  "verificationQuestions": ["Specific question about missing info"],
+  "thisIsMe": {
+    "whoAmI": "Life story starting 'My name is [Name].' - aim 400-600 words",
+    "hobbiesInterests": "Detailed hobbies and interests",
+    "whatMakesGoodDay": "Specific description of a good day"
+  },
+  "goalSetting": {
+    "goals": [{"goal": "Goal", "howToAchieve": "How", "potentialBarriers": "Barriers", "timeFrame": "6 months"}],
+    "internetSupport": "Yes/No and details",
+    "assistiveTechnology": "Technology in use or needed"
+  },
+  "advanceDecisions": {
+    "advanceDecisionInPlace": "Yes/No",
+    "dnrDetails": "DNR or advance decision details",
+    "lastingPOA": "Yes/No",
+    "poaType": "Health/Finance/Both",
+    "poaContact": "Contact details"
+  },
+  "myCarePlan": {
+    "capacityAndSafeguarding": "Mental capacity assessment in first person",
+    "healthAndWellbeing": "EVERY health condition: what it is, how it affects me, what care workers do, warning signs, who to contact",
+    "triggerPoints": "Signs indicating health changes - be specific",
+    "medicationRequirements": "Every medication with name, dose, time, purpose, side effects, difficulties",
+    "nutrition": "Diet type, preferences, allergies, fluid intake, meal times, assistance needed",
+    "personalCareNeeds": "Full daily routine: morning wash, dressing, oral care, evening, continence",
+    "mobilityAndEquipment": "Every piece of equipment, how I move, transfers, distance, stairs",
+    "houseworkAndSocial": "Housework support and social needs in detail",
+    "financialArrangements": "Finance management details"
+  },
+  "riskSection1Health": {
+    "speech": "EXACTLY ONE OF: Good / Fair / Very Poor / Severe Loss",
+    "speechDetails": "Details of speech and any devices used",
+    "hearing": "EXACTLY ONE OF: Good / Fair / Very Poor / Severe Loss",
+    "hearingDetails": "Hearing details and any aids used",
+    "eyesight": "EXACTLY ONE OF: Good / Fair / Very Poor / Severe Loss",
+    "eyesightDetails": "Eyesight details and any glasses/aids used",
+    "breathlessness": "EXACTLY ONE OF: Independent / Use of Resources",
+    "breathlessnessDetails": "Breathing details and resources used",
+    "urinaryIncontinence": "EXACTLY ONE OF: Independent / Use of Resources",
+    "urinaryDetails": "Continence details and resources used",
+    "faecalIncontinence": "EXACTLY ONE OF: Independent / Use of Resources",
+    "faecalDetails": "Details and resources used",
+    "memory": "EXACTLY ONE OF: Good / Forgetful / Very Poor / Severe Loss",
+    "moods": "EXACTLY ONE OF: Stable / Anxious / Depressed / Unstable",
+    "orientation": "EXACTLY ONE OF: Full / Not always / Unaware / Disoriented",
+    "sleepPattern": "EXACTLY ONE OF: Good / Fair / Wakes often / Sleeps little",
+    "behaviours": "EXACTLY ONE OF: Good / Uncooperative / Unpredictable / Aggressive",
+    "understandsInfo": "EXACTLY ONE OF: Yes / Partially / No",
+    "retainsInfo": "EXACTLY ONE OF: Yes / Partially / No",
+    "weighsDecision": "EXACTLY ONE OF: Yes / Partially / No",
+    "communicatesDecision": "EXACTLY ONE OF: Yes / Partially / No",
+    "capacityDetails": "Capacity assessment details",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention measures"
+  },
+  "riskSection2Medication": {
+    "prescriptionOrdering": "Who orders prescriptions",
+    "dosageSystem": "Blister pack/Dosette/Original packaging",
+    "systemMaintainer": "Who maintains system",
+    "medicationStorage": "Where stored",
+    "currentInvestigations": "Ongoing treatments",
+    "surplusMedication": "Yes/No surplus",
+    "medicationConcerns": "Any concerns",
+    "homeopathicMeds": "Herbal/OTC medications",
+    "prnMedication": "EXACTLY ONE OF: Yes / No / N/A",
+    "covertMedication": "EXACTLY ONE OF: Yes / No",
+    "pickingUpTablets": "EXACTLY ONE OF: YES / NO / N/A",
+    "openingBoxes": "EXACTLY ONE OF: YES / NO / N/A",
+    "pouringLiquids": "EXACTLY ONE OF: YES / NO / N/A",
+    "usingDosageSystem": "EXACTLY ONE OF: YES / NO / N/A",
+    "applyingCreams": "EXACTLY ONE OF: YES / NO / N/A",
+    "swallowingTablets": "EXACTLY ONE OF: YES / NO / N/A",
+    "understandingInstructions": "EXACTLY ONE OF: YES / NO / N/A",
+    "managingInhalers": "EXACTLY ONE OF: YES / NO / N/A",
+    "instillingDrops": "EXACTLY ONE OF: YES / NO / N/A",
+    "controlledDrugs": "Details if any",
+    "warfarin": "Details if applicable",
+    "skinIntegrity": "EXACTLY ONE OF: Yes / No",
+    "skinDetails": "Skin concerns and actions taken",
+    "pictureConsent": "EXACTLY ONE OF: Yes / No",
+    "bodyMapCompleted": "EXACTLY ONE OF: Yes / No",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention measures"
+  },
+  "riskSection3Nutrition": {
+    "mealAssistance": "EXACTLY ONE OF: Yes / No",
+    "normalDiet": "EXACTLY ONE OF: Yes / No",
+    "normalDietDetails": "Normal diet details if Yes",
+    "specialDietary": "EXACTLY ONE OF: Yes / No",
+    "specialDietaryDetails": "Special requirements details if Yes",
+    "foodAllergies": "EXACTLY ONE OF: Yes / No",
+    "foodAllergiesDetails": "Allergy details if Yes",
+    "softDiet": "EXACTLY ONE OF: Yes / No",
+    "softDietDetails": "Soft diet details if Yes",
+    "foodIntolerances": "EXACTLY ONE OF: Yes / No",
+    "foodIntolerancesDetails": "Intolerance details if Yes",
+    "tubeFeed": "EXACTLY ONE OF: Yes / No",
+    "tubeFeedDetails": "Tube feed details if Yes",
+    "supplementaryFoods": "EXACTLY ONE OF: Yes / No",
+    "supplementaryFoodsDetails": "Thickeners/supplements details if Yes",
+    "foodLikes": "Foods I like",
+    "foodDislikes": "Foods I dislike",
+    "portionSize": "Portion preferences",
+    "mainMealTime": "Preferred meal time",
+    "fluidIntake": "Fluid preferences",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention measures"
+  },
+  "riskSection4Equipment": {
+    "equipment": [{"name": "Equipment", "fitForPurpose": "EXACTLY ONE OF: Yes / No", "supplier": "Name", "nextService": "Date"}],
+    "remedialAction": "Safety measures",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention measures"
+  },
+  "riskSection5Mobility": {
+    "weightBearing": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "weightBearingDetails": "Details",
+    "walking": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "walkingDetails": "Walking details",
+    "stairs": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / No steps/stairs",
+    "stairsDetails": "Stairs details",
+    "sitToStand": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "sitToStandDetails": "Details",
+    "washing": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "washingDetails": "Washing support details",
+    "dressing": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "dressingDetails": "Dressing details",
+    "oralCare": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "oralCareDetails": "Oral care details",
+    "bathShower": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "bathShowerDetails": "Bath/Shower preference and support details",
+    "toiletCommode": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "toiletCommodeDetails": "Toilet support details",
+    "wheelchair": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "wheelchairDetails": "Wheelchair details",
+    "transfers": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "transfersDetails": "How I transfer details",
+    "moveInBed": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "moveInBedDetails": "Bed mobility details",
+    "inOutOfBed": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "inOutOfBedDetails": "Bed transfers details",
+    "chairToWheelchair": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "chairToWheelchairDetails": "Chair to wheelchair transfer details",
+    "inOutOfCar": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "inOutOfCarDetails": "Car transfer details",
+    "otherTransfers": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "otherTransfersDetails": "Other transfer details",
+    "communityAccess": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable",
+    "communityAccessDetails": "Community access details",
+    "specialistEquipment": "EXACTLY ONE OF: Independent / Requires Assistance / Uses Equipment / Unable / N/A",
+    "specialistEquipmentDetails": "Specialist equipment details",
+    "canBeLeftAlone": "EXACTLY ONE OF: Always / Long Period / Short Period / Not at all",
+    "canBeLeftAloneDetails": "Details about being left alone",
+    "proneToFalls": "EXACTLY ONE OF: Never / Occasionally / Often / Frequent",
+    "proneToFallsDetails": "Falls history and details",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention measures"
+  },
+  "riskSection6Appliances": {
+    "cooker": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "microwave": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "iron": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "kettle": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "toaster": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "tumbleDryer": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "floorCoverings": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "handRails": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "electricBlanket": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "bed": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "washingMachine": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "centralHeating": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "actionsRequired": "Actions needed"
+  },
+  "riskSection7Fire": {
+    "atRisk": "EXACTLY ONE OF: Yes / No",
+    "riskReasons": ["ARRAY of applicable reasons from: Smoking, Cooking, Hoarding, Lighter Fuel, Open Fire, Free standing heaters, Paraffin-based emollients, Oxygen, Candles, Other"],
+    "ragRating": "EXACTLY ONE OF: Red / Amber / Green",
+    "plugSockets": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "electricCables": "EXACTLY ONE OF: Fit for Purpose / Not Fit for Purpose / N/A",
+    "smokingPolicy": "EXACTLY ONE OF: Yes / No",
+    "smokeAlarmLocation": "Location text",
+    "smokeAlarmWorking": "EXACTLY ONE OF: Yes / No",
+    "coDetectorLocation": "CO detector location text",
+    "coDetectorWorking": "EXACTLY ONE OF: Yes / No",
+    "actionsTaken": "EXACTLY ONE OF: Referral made to Fire Service / Social Services / No Actions Required / Other",
+    "actionsDetails": "Details of actions taken and safety measures",
+    "canEvacuate": "Can evacuate without assistance details"
+  },
+  "riskSection8COSHH": {
+    "cleaningStorage": "Where cleaning materials stored",
+    "riddorExplained": "Yes/No"
+  },
+  "riskSection9External": {
+    "access": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "accessLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "clearPathways": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "clearPathwaysLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "handrails": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "handrailsLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "entranceSteps": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "entranceStepsLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "lighting": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "lightingLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "ramps": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "rampsLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "personalSecurity": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "personalSecurityLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "parking": "EXACTLY ONE OF: Fit for Purpose / Concerns / N/A",
+    "parkingLocation": "EXACTLY ONE OF: Front / Rear / Side / Other",
+    "actionsRequired": "Actions needed",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention"
+  },
+  "riskSection10Security": {
+    "meansOfAccess": "EXACTLY ONE OF: Key safe / Key held / Other",
+    "propertyType": "EXACTLY ONE OF: House / Flat / Bungalow / Other",
+    "enterUsing": "EXACTLY ONE OF: Front door / Side door / Back door / Other",
+    "keysafeConsent": "EXACTLY ONE OF: Yes / No",
+    "gasShutOff": "Location text",
+    "stopTap": "Location text",
+    "fuseBox": "Location text",
+    "riskLevel": "EXACTLY ONE OF: High / Medium / Low",
+    "riskPrevention": "Prevention"
+  },
+  "section11Bands": {
+    "personalCare": "Yes/No",
+    "mentalHealth": "Yes/No",
+    "physicalDisability": "Yes/No",
+    "dementia": "Yes/No",
+    "eatingDisorder": "Yes/No",
+    "sensoryImpairment": "Yes/No",
+    "detainedMHA": "Yes/No",
+    "drugAlcoholMisuse": "Yes/No",
+    "learningDifficulties": "Yes/No"
+  }
+}`;
+
+      sendProgress(25, "Generating enhanced plan...", "ai_generation");
+
+      // ════════════════════════════════════════════════════════════════════
+      // DEBUG: LOG COMPLETE AI INPUT - WHAT THE AI ACTUALLY RECEIVES
+      // ════════════════════════════════════════════════════════════════════
+      console.log('\n');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('📋 AI INPUT ANALYSIS - CONTENT SENT TO AI FOR GENERATION');
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log(`Provider: ${currentProvider}`);
+      console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
+      console.log(`Max Input Tokens: ${MAX_INPUT_TOKENS}`);
+      console.log('');
+      
+      // Show raw content stats before truncation
+      console.log('📊 RAW CONTENT STATS (Before Truncation):');
+      console.log(`   Total Characters: ${contentToEnhance.length.toLocaleString()}`);
+      console.log(`   Estimated Tokens: ${contentTokens.toLocaleString()}`);
+      console.log(`   Policy Tokens: ${policyTokens.toLocaleString()}`);
+      console.log(`   System Prompt Tokens: ${systemPromptTokens.toLocaleString()}`);
+      console.log(`   Total Estimated: ${totalEstimatedTokens.toLocaleString()}`);
+      console.log('');
+      
+      // Show what was actually sent after truncation
+      const finalContentTokens = estimateTokens(finalContent);
+      const finalPolicyTokens = estimateTokens(finalPolicyContext);
+      const finalSystemTokens = estimateTokens(systemPrompt);
+      console.log('📤 FINAL CONTENT SENT TO AI (After Truncation):');
+      console.log(`   Final Content Tokens: ${finalContentTokens.toLocaleString()}`);
+      console.log(`   Final Policy Tokens: ${finalPolicyTokens.toLocaleString()}`);
+      console.log(`   Final System Tokens: ${finalSystemTokens.toLocaleString()}`);
+      console.log(`   Total Input Tokens: ${(finalContentTokens + finalPolicyTokens + finalSystemTokens).toLocaleString()}`);
+      console.log(`   Truncation Applied: ${totalEstimatedTokens > MAX_INPUT_TOKENS ? 'YES ✂️' : 'NO ✅'}`);
+      console.log('');
+      
+      // Show actual content preview (first 2000 chars)
+      console.log('📄 CONTENT PREVIEW (First 2000 characters):');
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(finalContent.substring(0, 2000));
+      if (finalContent.length > 2000) {
+        console.log(`\n... [${(finalContent.length - 2000).toLocaleString()} more characters] ...\n`);
+      }
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log('');
+      
+      // If truncated, show what was cut
+      if (totalEstimatedTokens > MAX_INPUT_TOKENS) {
+        const contentCutChars = contentToEnhance.length - finalContent.length;
+        const contentCutTokens = contentTokens - finalContentTokens;
+        console.log('✂️  TRUNCATION SUMMARY:');
+        console.log(`   Characters Removed: ${contentCutChars.toLocaleString()}`);
+        console.log(`   Tokens Removed: ${contentCutTokens.toLocaleString()}`);
+        console.log(`   Percentage Kept: ${Math.round((finalContentTokens / contentTokens) * 100)}%`);
+        console.log(`   Truncation Strategy: Keep end of content (most recent/specific info)`);
+        console.log('');
+      }
+      
+      console.log('═══════════════════════════════════════════════════════════════════');
+      console.log('\n');
+
+      // Simulated progress during AI call — covers up to ~5 minutes of AI processing
+      let simulatedProgress = 25;
+      progressInterval = setInterval(() => {
+        if (simulatedProgress < 70) {
+          // Slow, steady increments (~45 ticks × 6s = 4.5 min to reach 70)
+          simulatedProgress += 1;
+          const messages = [
+            "Analyzing document content...",
+            "Generating personal profile...",
+            "Creating care plan sections...",
+            "Writing health assessments...",
+            "Building risk evaluations...",
+            "Compiling care requirements...",
+            "Cross-referencing sections...",
+            "Applying quality standards...",
+            "Finalizing plan content...",
+          ];
+          const msgIndex = Math.floor((simulatedProgress - 25) / 5) % messages.length;
+          sendProgress(simulatedProgress, messages[msgIndex], "ai_generation");
+        }
+      }, 6000);
+
+      const response = await executeSecureTextCompletion({
+        endpoint: "/api/ai/enhance-plan",
+        feature: "plan_enhancer",
+        model: getRiskAssessmentGenerationModel(),
+        userContext: aiUserContext,
+        inputText: `Generate a comprehensive care plan from these documents. Write detailed, thorough content for EVERY field - especially thisIsMe.whoAmI (full life story), healthAndWellbeing (every condition explained), and personalCareNeeds (full daily routine). Use ALL available evidence. Cross-reference conditions across sections.
+
+DOCUMENTS:
+
+${finalContent}
+
+Return ONLY valid JSON matching the schema.`,
+        systemPrompt,
+        temperature: 0,
+        seed: 42,
+        maxCompletionTokens: currentProvider === "github" ? 8000 : 32000,
+        responseFormat: { type: "json_object" },
+        useCache: false,
+      });
+
+      clearInterval(progressInterval);
+
+      // ── Check for token-limit truncation ──
+      const finishReason = response.finishReason;
+      const contentLength = response.restoredText?.length || 0;
+      console.log(`[PlanEnhancer] finish_reason=${finishReason}, content_length=${contentLength}`);
+
+      if (finishReason === "length") {
+        console.warn('[PlanEnhancer] ⚠️  AI response was TRUNCATED (finish_reason=length). Output will be incomplete.');
+        console.warn(`[PlanEnhancer] Content length: ${contentLength} chars. Consider reducing prompt size or increasing max_completion_tokens.`);
+      }
+
+      sendProgress(75, "Processing results...", "processing");
+
+      const content = response.restoredText || "";
+      let result = parseJsonFromContent(content);
+      if (result) {
+        const normalizeFirstPerson = (value: unknown): unknown => {
+          if (typeof value !== "string") return value;
+          let updated = toFirstPerson(value.trim());
+          const verbMap: Record<string, string> = {
+            requires: "require",
+            needs: "need",
+            has: "have",
+            prefers: "prefer",
+            likes: "like",
+            enjoys: "enjoy",
+            wants: "want",
+            "would like": "would like",
+            is: "am",
+            was: "was",
+          };
+          updated = updated.replace(/^\s*(requires|needs|has|prefers|likes|enjoys|wants|would like|is|was)\b/i, (match) => {
+            const key = match.trim().toLowerCase();
+            const mapped = verbMap[key] || match.trim();
+            return `I ${mapped}`;
+          });
+          return updated;
+        };
+        const applyFirstPersonPath = (path: string) => {
+          const parts = path.split(".");
+          let target: any = result;
+          for (let i = 0; i < parts.length - 1; i += 1) {
+            if (!target || typeof target !== "object") return;
+            target = target[parts[i]];
+          }
+          const key = parts[parts.length - 1];
+          if (target && typeof target[key] === "string") {
+            target[key] = normalizeFirstPerson(target[key]);
+          }
+        };
+        const narrativePaths = [
+          "thisIsMe.whoAmI",
+          "thisIsMe.hobbiesInterests",
+          "thisIsMe.whatMakesGoodDay",
+          "myCarePlan.capacityAndSafeguarding",
+          "myCarePlan.healthAndWellbeing",
+          "myCarePlan.triggerPoints",
+          "myCarePlan.medicationRequirements",
+          "myCarePlan.nutrition",
+          "myCarePlan.personalCareNeeds",
+          "myCarePlan.mobilityAndEquipment",
+          "myCarePlan.houseworkAndSocial",
+          "myCarePlan.financialArrangements",
+        ];
+        narrativePaths.forEach(applyFirstPersonPath);
+        if (Array.isArray(result.goalSetting?.goals)) {
+          result.goalSetting.goals = result.goalSetting.goals.map((goal: any) => ({
+            ...goal,
+            goal: normalizeFirstPerson(goal?.goal),
+            howToAchieve: normalizeFirstPerson(goal?.howToAchieve),
+            potentialBarriers: normalizeFirstPerson(goal?.potentialBarriers),
+          }));
+        }
+
+        // Validate and auto-correct categorical field values
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        console.log('[PlanEnhancer] SCHEMA VALIDATION');
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        
+        const { corrected, corrections } = autoCorrectPlanEnhancerResponse(result);
+        if (corrections.length > 0) {
+          console.log(`[PlanEnhancer] ✅ Auto-corrected ${corrections.length} case mismatches:`);
+          corrections.forEach(fix => {
+            console.log(`[PlanEnhancer]    ${fix}`);
+          });
+          result = corrected;
+        } else {
+          console.log('[PlanEnhancer] ✅ No case corrections needed');
+        }
+        
+        const validation = validatePlanEnhancerResponse(result);
+        const validationReport = generateValidationReport(validation);
+        console.log(validationReport);
+        
+        if (validation.errors.length > 0) {
+          console.error(`[PlanEnhancer] ❌ ${validation.errors.length} validation errors found`);
+        }
+        if (validation.warnings.length > 0) {
+          console.warn(`[PlanEnhancer] ⚠️  ${validation.warnings.length} validation warnings`);
+        }
+        
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        
+        // Send validation progress update
+        const validationStatus = validation.valid 
+          ? "✅ All fields validated" 
+          : validation.errors.length > 0
+            ? `⚠️ ${validation.errors.length} validation errors`
+            : `⚠️ ${validation.warnings.length} warnings`;
+        sendProgress(77, validationStatus, "processing");
+        
+        // Flag truncation on the result so the client can show a warning
+        if (finishReason === "length") {
+          result._truncated = true;
+          result._truncationWarning = "The AI response was truncated due to token limits. Some sections may be incomplete or missing. Try with shorter input documents or contact an administrator.";
+        }
+        
+        // Add input truncation warning if documents were too large
+        if (truncationWarning) {
+          result._inputTruncated = true;
+          result._inputTruncationWarning = truncationWarning;
+          console.warn(`[PlanEnhancer] ⚠️  Input documents were truncated: ${truncationWarning}`);
+        }
+        // Quality validation and metrics
+        console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+        console.log('[PlanEnhancer] QUALITY VALIDATION REPORT');
+        console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+        
+        const qualityMetrics = {
+          wordCounts: {} as Record<string, number>,
+          warnings: [] as string[],
+          passes: [] as string[],
+        };
+        
+        // Validate key narrative sections - INCREASED THRESHOLDS for comprehensive plans
+        const narrativeSections = [
+          { path: 'thisIsMe.whoAmI', minWords: 600, label: 'Who Am I (Life Story)' },
+          { path: 'thisIsMe.hobbiesInterests', minWords: 300, label: 'Hobbies & Interests' },
+          { path: 'thisIsMe.whatMakesGoodDay', minWords: 200, label: 'What Makes Good Day' },
+          { path: 'myCarePlan.capacityAndSafeguarding', minWords: 400, label: 'Capacity & Safeguarding' },
+          { path: 'myCarePlan.healthAndWellbeing', minWords: 800, label: 'Health & Wellbeing' },
+          { path: 'myCarePlan.personalCareNeeds', minWords: 600, label: 'Personal Care Needs' },
+          { path: 'myCarePlan.medicationRequirements', minWords: 500, label: 'Medication Requirements' },
+          { path: 'myCarePlan.nutrition', minWords: 400, label: 'Nutrition' },
+          { path: 'myCarePlan.mobilityAndEquipment', minWords: 400, label: 'Mobility & Equipment' },
+        ];
+        
+        narrativeSections.forEach(({ path, minWords, label }) => {
+          const parts = path.split('.');
+          let value = result;
+          for (const part of parts) {
+            value = value?.[part];
+          }
+          
+          if (typeof value === 'string' && value.trim()) {
+            const wordCount = value.trim().split(/\s+/).length;
+            const sentenceCount = value.split(/[.!?]+/).filter((s: string) => s.trim().length > 10).length;
+            qualityMetrics.wordCounts[label] = wordCount;
+            
+            if (wordCount >= minWords) {
+              qualityMetrics.passes.push(`✅ ${label}: ${wordCount} words (min ${minWords})`);
+            } else {
+              qualityMetrics.warnings.push(`⚠️  ${label}: Only ${wordCount} words (min ${minWords} required)`);
+            }
+            
+            // Check for first-person language
+            const hasFirstPerson = /\b(I|my|me)\b/i.test(value);
+            if (!hasFirstPerson && wordCount > 20) {
+              qualityMetrics.warnings.push(`⚠️  ${label}: May not be in first person`);
+            }
+
+            if (wordCount > 40 && sentenceCount < 2) {
+              qualityMetrics.warnings.push(`⚠️  ${label}: Too few sentences for detailed narrative`);
+            }
+            
+            // Check for vague language
+            const vagueTerms = ['various', 'some', 'appropriate', 'as needed', 'support is provided'];
+            const foundVague = vagueTerms.filter(term => value.toLowerCase().includes(term));
+            if (foundVague.length > 0) {
+              qualityMetrics.warnings.push(`⚠️  ${label}: Contains vague terms: ${foundVague.join(', ')}`);
+            }
+            
+            // Check for forbidden placeholders
+            const forbiddenPhrases = ['needs user input', 'to be confirmed', 'insert', '[', ']', 'the service user', 'the client'];
+            const foundForbidden = forbiddenPhrases.filter(phrase => value.toLowerCase().includes(phrase.toLowerCase()));
+            if (foundForbidden.length > 0) {
+              qualityMetrics.warnings.push(`❌ ${label}: Contains forbidden phrases: ${foundForbidden.join(', ')}`);
+            }
+            
+            // Special check for whoAmI - must start with "My name is"
+            if (path === 'thisIsMe.whoAmI') {
+              const startsCorrectly = /^my\s+name\s+is/i.test(value.trim());
+              if (startsCorrectly) {
+                qualityMetrics.passes.push(`✅ Life Story: Correctly starts with "My name is..."`);
+              } else {
+                qualityMetrics.warnings.push(`⚠️  Life Story: Should start with "My name is [Name]. I was born in..."`);
+              }
+            }
+          } else {
+            qualityMetrics.warnings.push(`❌ ${label}: Missing or empty`);
+          }
+        });
+        
+        // Log quality metrics
+        if (qualityMetrics.passes.length > 0) {
+          console.log('[PlanEnhancer] Quality Passes:');
+          qualityMetrics.passes.forEach(pass => console.log(`[PlanEnhancer]   ${pass}`));
+        }
+        
+        if (qualityMetrics.warnings.length > 0) {
+          console.log('[PlanEnhancer] Quality Warnings:');
+          qualityMetrics.warnings.forEach(warning => console.log(`[PlanEnhancer]   ${warning}`));
+        }
+        
+        // Calculate overall quality score
+        const totalSections = narrativeSections.length;
+        const passedSections = qualityMetrics.passes.length;
+        const qualityScore = Math.round((passedSections / totalSections) * 100);
+        
+        console.log('[PlanEnhancer] ───────────────────────────────────────────────────');
+        console.log(`[PlanEnhancer] Overall Quality Score: ${qualityScore}/100`);
+        console.log(`[PlanEnhancer] Sections Meeting Standards: ${passedSections}/${totalSections}`);
+        console.log(`[PlanEnhancer] Total Words Generated: ${Object.values(qualityMetrics.wordCounts).reduce((a, b) => a + b, 0)}`);
+        console.log('[PlanEnhancer] ═══════════════════════════════════════════════════');
+
+        // Attach quality warnings to result so client can display them
+        if (qualityMetrics.warnings.length > 0) {
+          result._qualityWarnings = qualityMetrics.warnings;
+        }
+        result._qualityScore = qualityScore;
+        
+        // Attach schema validation results to payload
+        if (validation.errors.length > 0) {
+          result._validationErrors = validation.errors.map(e => `${e.section}.${e.field}: "${e.value}" is invalid (allowed: ${e.expected?.join(', ') || 'see schema'})`);
+        }
+        if (validation.warnings.length > 0) {
+          result._validationWarnings = validation.warnings.map(w => `${w.section}.${w.field}: ${w.message}`);
+        }
+        result._validationScore = validation.valid ? 100 : Math.max(0, 100 - (validation.errors.length * 10 + validation.warnings.length * 2));
+
+        // Check for critical missing top-level sections (sign of severe truncation)
+        const criticalSections = ['thisIsMe', 'myCarePlan', 'goalSetting', 'riskSection1Health', 'riskSection2Medication'];
+        const missingSections = criticalSections.filter(s => !result[s] || (typeof result[s] === 'object' && Object.keys(result[s]).length === 0));
+        if (missingSections.length > 0) {
+          console.error(`[PlanEnhancer] ❌ CRITICAL: Missing top-level sections: ${missingSections.join(', ')}`);
+          result._missingSections = missingSections;
+          if (!result._truncated) {
+            result._truncated = true;
+            result._truncationWarning = `The following sections are missing from the AI output: ${missingSections.join(', ')}. The AI may have been truncated or failed to generate a complete plan.`;
+          }
+        }
+        
+        // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
+        // Output is GDPR-exempt as it contains no personal data
+        const templateResult = piiVault.toPlaceholders(result);
+        console.log(`[Enhance] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
+        piiVault.logAudit('SCRUB', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+        
+        // Always export vault for automatic client-side name restoration
+        const vaultExport = piiVault.export();
+        const payload = {
+          ...templateResult,
+          vaultExport,
+          rawWithTokens: result,
+        };
+        console.log(`[Enhance] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
+        piiVault.logAudit('RESTORE', '/api/ai/enhance-plan', aiUserContext.userId, aiUserContext.username);
+        
+        sendProgress(100, "Complete!", "complete");
+        sendEvent('result', payload);
+        
+        // Clear vault after use (security best practice)
+        piiVault.clear();
+        
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      } else {
+        console.error(`[PlanEnhancer] Failed to parse AI response. finish_reason=${finishReason}, content_length=${contentLength}`);
+        console.error(`[PlanEnhancer] Raw content (first 500 chars): ${content.substring(0, 500)}`);
+        piiVault.clear(); // Clear vault on error too
+        const parseErrorMsg = finishReason === "length"
+          ? "AI response was truncated and could not be parsed. The input documents may be too large. Please try with fewer or shorter documents."
+          : contentLength === 0
+            ? "AI returned an empty response. The service may be temporarily unavailable. Please try again."
+            : "Failed to parse AI response. Please try again or contact an administrator.";
+        sendEvent('error', { message: parseErrorMsg });
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return res.end();
+      }
+    } catch (error: any) {
+      console.error("Plan Enhancement Error:", error);
+      piiVault.clear(); // Clear vault on error too
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (progressInterval) clearInterval(progressInterval);
+
+      // Classify the error to give users actionable info without leaking internals
+      const msg = error?.message || "";
+      const status = error?.status || error?.response?.status;
+      let userMessage = "AI enhancement failed";
+
+      if (error?.code === "GITHUB_QUOTA_EXCEEDED" || status === 429 || msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota")) {
+        userMessage = "AI provider rate limit exceeded. Please wait 1-2 minutes and try again.";
+      } else if (error?.code === "GITHUB_PERMISSION_DENIED" || (status === 401 && msg.toLowerCase().includes("permission"))) {
+        userMessage = "AI provider permission denied. The API token may need additional scopes — contact an administrator.";
+      } else if (error?.code === "GITHUB_AUTH_FAILED" || status === 401 || status === 403) {
+        userMessage = "AI provider authentication failed. The API key may be invalid or expired — contact an administrator.";
+      } else if (msg.includes("timed out") || msg.includes("timeout") || msg.includes("ETIMEDOUT") || msg.includes("ECONNABORTED")) {
+        userMessage = "AI request timed out. The documents may be too large — try with fewer or shorter documents.";
+      } else if (msg.includes("AI disabled") || msg.includes("security policy")) {
+        userMessage = "AI features are currently disabled by security policy. Contact an administrator.";
+      } else if (msg.includes("PII detected")) {
+        userMessage = "Content security check failed. Please try again or contact an administrator.";
+      } else if (msg.includes("not configured") || msg.includes("API key")) {
+        userMessage = "AI provider is not configured. Contact an administrator to set up the API key.";
+      } else if (status >= 500 || msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND")) {
+        userMessage = "AI service is temporarily unavailable. Please try again in a few minutes.";
+      } else if (msg.includes("did not contain content") || msg.includes("empty response")) {
+        userMessage = "AI returned an empty response. The service may be overloaded — please try again.";
+      }
+
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({ message: userMessage })}\n\n`);
+        return res.end();
+      }
+      return res.status(500).json({ message: userMessage });
+    }
+  });
+
+  // ===== RISK ASSESSMENT LOG ROUTES =====
+
+  // Create a risk assessment log
+  app.post("/api/risk-assessment-logs", requireAuth, blockDemoWrites, async (req, res) => {
+    try {
+      const log = await storage.createRiskAssessmentLog(req.body);
+      return res.status(201).json(log);
+    } catch (error: any) {
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create risk assessment log") });
+    }
+  });
+
+  // Get all risk assessment logs (admin only)
+  app.get("/api/risk-assessment-logs", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const logs = await storage.getAllRiskAssessmentLogs();
+      return res.json(logs);
+    } catch (error: any) {
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load risk assessment logs") });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ADMIN PORTAL ROUTES  →  server/routes/adminPortal.ts
+  // ═══════════════════════════════════════════════════════════════════════════
+  registerAdminPortalRoutes(app, { requireAuth, requireAdmin, sendToUser, sessionStore });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMAIL ASSISTANT & PRN PROTOCOL ROUTES  →  server/routes/emailAssistant.ts
+  // ═══════════════════════════════════════════════════════════════════════════
+  registerEmailAssistantRoutes(app, { requireAuth });
+
+  // =====================================================================
+  // EMAR REFUSAL REVIEW ENDPOINTS
+  // =====================================================================
+
+  // Create a refusal review
+  app.post("/api/refusal-reviews", requireAuth, blockDemoWrites, async (req, res) => {
+    try {
+      const { auditId, careWorkerName, medication, refusalDate, timeSlot, reasonAcceptable, reviewerNotes } = req.body;
+      
+      if (!careWorkerName || !medication || !refusalDate) {
+        return res.status(400).json({ message: "Care worker name, medication, and refusal date are required" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const review = await storage.createRefusalReview({
+        auditId: auditId || null,
+        careWorkerName,
+        medication,
+        refusalDate,
+        timeSlot: timeSlot || null,
+        reasonAcceptable: reasonAcceptable || false,
+        reviewerNotes: reviewerNotes || null,
+        reviewedBy: user.username,
+      });
+
+      return res.status(201).json(review);
+    } catch (error: any) {
+      console.error("Refusal review creation error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create refusal review") });
+    }
+  });
+
+  // Get all refusal reviews
+  app.get("/api/refusal-reviews", requireAuth, async (req, res) => {
+    try {
+      const reviews = await storage.getAllRefusalReviews();
+      return res.json(reviews);
+    } catch (error: any) {
+      console.error("Get refusal reviews error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get refusal reviews") });
+    }
+  });
+
+  // Update a refusal review (only original reviewer or admin)
+  app.patch("/api/refusal-reviews/:id", requireAuth, async (req, res) => {
+    try {
+      const { reasonAcceptable, reviewerNotes } = req.body;
+      
+      // Get the authenticated user to track who made the update
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Fetch existing review for ownership check
+      const existing = await storage.getRefusalReview(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Refusal review not found" });
+      }
+
+      // Only the original reviewer or an admin can update
+      if (existing.reviewedBy !== user.username && user.role !== "admin") {
+        return res.status(403).json({ message: "Only the original reviewer or an admin can update this review" });
+      }
+      
+      const review = await storage.updateRefusalReview(
+        req.params.id,
+        reasonAcceptable,
+        user.username,  // Always use session user, never client-supplied
+        reviewerNotes
+      );
+
+      if (!review) {
+        return res.status(404).json({ message: "Refusal review not found" });
+      }
+
+      return res.json(review);
+    } catch (error: any) {
+      console.error("Refusal review update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update refusal review") });
+    }
+  });
+
+  // Bulk create refusal reviews
+  app.post("/api/refusal-reviews/bulk", requireAuth, blockDemoWrites, async (req, res) => {
+    try {
+      const { reviews } = req.body;
+      
+      if (!Array.isArray(reviews) || reviews.length === 0) {
+        return res.status(400).json({ message: "Reviews array is required" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const createdReviews = [];
+      for (const r of reviews) {
+        const review = await storage.createRefusalReview({
+          auditId: r.auditId || null,
+          careWorkerName: r.careWorkerName,
+          medication: r.medication,
+          refusalDate: r.refusalDate,
+          timeSlot: r.timeSlot || null,
+          reasonAcceptable: r.reasonAcceptable || false,
+          reviewerNotes: r.reviewerNotes || null,
+          reviewedBy: user.username,
+        });
+        createdReviews.push(review);
+      }
+
+      return res.status(201).json(createdReviews);
+    } catch (error: any) {
+      console.error("Bulk refusal review creation error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create refusal reviews") });
+    }
+  });
+
+  // Save EMAR corrections (admin-only)
+  app.post("/api/emar-corrections", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { corrections, serviceUserInitials, auditId } = req.body;
+      
+      if (!Array.isArray(corrections) || corrections.length === 0) {
+        return res.status(400).json({ message: "Corrections array is required" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      let count = 0;
+      for (const c of corrections) {
+        await storage.createEmarCorrection({
+          adminId: user.id,
+          adminUsername: user.username,
+          auditId: auditId || null,
+          serviceUserInitials: serviceUserInitials || null,
+          originalMedication: c.originalMedication,
+          originalDate: c.originalDate,
+          originalTimeSlot: c.originalTimeSlot || null,
+          originalCode: c.originalCode || null,
+          originalCareWorker: c.originalCareWorker || null,
+          correctedMedication: c.correctedMedication || null,
+          correctedDate: c.correctedDate || null,
+          correctedTimeSlot: c.correctedTimeSlot || null,
+          correctedCode: c.correctedCode || null,
+          correctedCareWorker: c.correctedCareWorker || null,
+          correctionNote: c.correctionNote || null,
+        });
+        count++;
+      }
+
+      return res.status(201).json({ success: true, count });
+    } catch (error: any) {
+      console.error("EMAR corrections save error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save EMAR corrections") });
+    }
+  });
+
+  // NOTE: EMAR corrections are accessed internally via storage.getRecentEmarCorrections()
+  // No public GET endpoint to protect sensitive correction data (admin-only access)
+
+  // Get current AI provider preference (admin-only)
+  app.get("/api/admin/ai-provider", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const aiEnabled = isAIEnabled();
+      const readiness = await getAIProviderReadiness();
+      return res.json({
+        provider: readiness.provider,
+        model: getLowCostModel(), // temporarily low cost mode override
+        localLLMModel: getLocalLLMModel(),
+        aiEnabled,
+        requireLiveWebForLocal: getRequireLiveWebForLocal(),
+        hasOpenAIKey: readiness.hasOpenAIKey,
+        hasPATKey: readiness.hasPATKey,
+        hasLocalLLM: readiness.hasLocalLLM,
+        localLLMUrl: readiness.localLLMUrl,
+        providerConfigured: readiness.providerConfigured,
+        providerIssue: readiness.providerIssue,
+      });
+    } catch (error: any) {
+      console.error("AI provider fetch error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI provider") });
+    }
+  });
+
+  // Set AI provider preference (admin-only)
+  app.post("/api/admin/ai-provider", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { provider } = req.body;
+      if (!isAIEnabled()) {
+        return res.status(503).json({ message: getAIDisabledMessage() });
+      }
+      if (provider !== "openai" && provider !== "github" && provider !== "local") {
+        return res.status(400).json({ message: "Invalid provider. Must be 'openai', 'github', or 'local'." });
+      }
+      
+      // Check if the selected provider's key is configured
+      // OpenAI can use its own key OR fall back to PAT_AI_KEY via GitHub endpoint
+      if (provider === "openai" && !process.env.OPENAI_FALLBACK_API_KEY && !process.env.OPENAI_API_KEY && !process.env.PAT_AI_KEY) {
+        return res.status(400).json({ message: "No API key configured. Set OPENAI_API_KEY, OPENAI_FALLBACK_API_KEY, or PAT_AI_KEY." });
+      }
+      
+      if (provider === "github" && !process.env.PAT_AI_KEY) {
+        return res.status(400).json({ message: "GitHub AI key not configured. Set PAT_AI_KEY environment variable." });
+      }
+      
+      if (provider === "local") {
+        const isAvailable = await isLocalLLMAvailable();
+        if (!isAvailable) {
+          return res.status(400).json({ message: `Local LLM not available at ${getLocalLLMUrl()}. Ensure the local-llm service is running.` });
+        }
+      }
+      
+      setPreferredProvider(provider as AiProvider, true);
+      
+      console.log(`[Admin] AI provider changed to ${provider} by ${req.user?.username || 'unknown'}`);
+      
+      return res.json({ success: true, provider });
+    } catch (error: any) {
+      console.error("AI provider update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update AI provider") });
+    }
+  });
+
+  // Set Local LLM URL (admin-only)
+  app.post("/api/admin/local-llm-url", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const rawUrl = String(req.body?.url || "").trim();
+      if (!rawUrl) {
+        return res.status(400).json({ message: "Local LLM URL is required." });
+      }
+
+      const normalizedUrl = rawUrl.startsWith("http") ? rawUrl : `http://${rawUrl}`;
+      let parsed: URL;
+      try {
+        parsed = new URL(normalizedUrl);
+      } catch {
+        return res.status(400).json({ message: "Invalid URL format." });
+      }
+
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return res.status(400).json({ message: "URL must start with http:// or https://" });
+      }
+
+      setLocalLLMUrl(normalizedUrl, true);
+      const hasLocalLLM = await isLocalLLMAvailable();
+
+      console.log(`[Admin] Local LLM URL updated to ${normalizedUrl} by ${req.user?.username || 'unknown'}`);
+
+      return res.json({
+        success: true,
+        localLLMUrl: getLocalLLMUrl(),
+        hasLocalLLM,
+      });
+    } catch (error: any) {
+      console.error("Local LLM URL update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update Local LLM URL") });
+    }
+  });
+
+  // Set local-provider web requirement policy (admin-only)
+  app.post("/api/admin/local-web-policy", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { requireLiveWebForLocal } = req.body;
+      if (typeof requireLiveWebForLocal !== "boolean") {
+        return res.status(400).json({ message: "requireLiveWebForLocal must be a boolean value" });
+      }
+
+      setRequireLiveWebForLocal(requireLiveWebForLocal, true);
+      console.log(`[Admin] Local live web requirement ${requireLiveWebForLocal ? "enabled" : "disabled"} by ${req.user?.username || "unknown"}`);
+
+      return res.json({
+        success: true,
+        requireLiveWebForLocal: getRequireLiveWebForLocal(),
+      });
+    } catch (error: any) {
+      console.error("Local web policy update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update local web policy") });
+    }
+  });
+
+  // Get EMAR agent preference (admin-only)
+  app.get("/api/admin/emar-agent", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const useAgent = getUseEmarAgent();
+      return res.json({ useEmarAgent: useAgent });
+    } catch (error: any) {
+      console.error("EMAR agent preference fetch error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch EMAR agent preference") });
+    }
+  });
+
+  // Set EMAR agent preference (admin-only)
+  app.post("/api/admin/emar-agent", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { useEmarAgent } = req.body;
+      if (typeof useEmarAgent !== "boolean") {
+        return res.status(400).json({ message: "useEmarAgent must be a boolean value" });
+      }
+      if (useEmarAgent && !isAIEnabled()) {
+        return res.status(503).json({ message: getAIDisabledMessage() });
+      }
+      
+      setUseEmarAgent(useEmarAgent, true);
+      
+      console.log(`[Admin] EMAR agent ${useEmarAgent ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      
+      return res.json({ success: true, useEmarAgent });
+    } catch (error: any) {
+      console.error("EMAR agent update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update EMAR agent preference") });
+    }
+  });
+
+  // =====================================================================
+  // AI OPTIMIZATION SETTINGS (reduces API calls and costs)
+  // =====================================================================
+
+  // Get AI optimization settings (admin-only)
+  app.get("/api/admin/ai-optimization", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const cacheStats = getCacheStats();
+      return res.json({
+        aiEnabled: isAIEnabled(),
+        useCache: getUseAICache(),
+        useRulesFirst: getUseRulesFirst(),
+        liteMode: getAILiteMode(),
+        cacheStats
+      });
+    } catch (error: any) {
+      console.error("AI optimization fetch error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI optimization settings") });
+    }
+  });
+
+  // Set AI optimization settings (admin-only)
+  app.post("/api/admin/ai-optimization", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { aiEnabled, useCache, useRulesFirst, liteMode, clearCacheNow } = req.body;
+
+      if (typeof aiEnabled === "boolean") {
+        try {
+          setAIEnabled(aiEnabled, true);
+        } catch (error: any) {
+          return res.status(400).json({ message: safeErrorMessage(error, "Invalid AI enabled setting") });
+        }
+        if (!aiEnabled) {
+          setUseEmarAgent(false, true);
+        }
+        console.log(`[Admin] AI ${aiEnabled ? "enabled" : "disabled"} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (typeof useCache === "boolean") {
+        setUseAICache(useCache, true);
+        console.log(`[Admin] AI Cache ${useCache ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (typeof useRulesFirst === "boolean") {
+        setUseRulesFirst(useRulesFirst, true);
+        console.log(`[Admin] Rules-First ${useRulesFirst ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (typeof liteMode === "boolean") {
+        setAILiteMode(liteMode, true);
+        console.log(`[Admin] Lite Mode ${liteMode ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+      }
+      
+      if (clearCacheNow === true) {
+        clearCache();
+        console.log(`[Admin] AI Cache cleared by ${req.user?.username || 'unknown'}`);
+      }
+      
+      const cacheStats = getCacheStats();
+      return res.json({
+        success: true,
+        aiEnabled: isAIEnabled(),
+        useCache: getUseAICache(),
+        useRulesFirst: getUseRulesFirst(),
+        liteMode: getAILiteMode(),
+        cacheStats
+      });
+    } catch (error: any) {
+      console.error("AI optimization update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update AI optimization settings") });
+    }
+  });
+
+  // Get AI cache statistics (admin-only)
+  app.get("/api/admin/ai-cache-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = getCacheStats();
+      return res.json(stats);
+    } catch (error: any) {
+      console.error("AI cache stats fetch error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to fetch AI cache stats") });
+    }
+  });
+
+  // =====================================================================
+  // RULE-BASED QUICK ANALYSIS (No AI - Instant Response)
+  // =====================================================================
+
+  // Quick risk analysis using rule-based engine (no AI cost)
+  app.post("/api/quick-analyze", requireAuth, async (req: any, res) => {
+    try {
+      const { content, analysisType } = req.body;
+      
+      if (!content || typeof content !== "string") {
+        return res.status(400).json({ message: "Content string required" });
+      }
+      
+      const type = analysisType || "auto";
+      
+      // Perform rule-based analysis
+      const riskAnalysis = analyzeRiskLevel(content);
+      const extractedFields = extractCommonFields(content);
+      const qualityCheck = calculatePlanQuality(content);
+      const aiDecision = shouldUseAI(
+        type === "care_plan" ? "care_plan" : type === "risk" ? "risk_assessment" : "simple_extraction",
+        content
+      );
+      
+      console.log(`[QuickAnalyze] Rule-based analysis for ${req.user?.username}: ` +
+        `Risk=${riskAnalysis.level} (${(riskAnalysis.confidence * 100).toFixed(0)}%), ` +
+        `Fields=${Object.keys(extractedFields).length}, ` +
+        `Quality=${qualityCheck.score}%, ` +
+        `NeedsAI=${aiDecision.useAI}`);
+      
+      return res.json({
+        rulesBased: true,
+        aiNeeded: aiDecision.useAI,
+        aiReason: aiDecision.reason,
+        riskLevel: riskAnalysis.level,
+        riskConfidence: riskAnalysis.confidence,
+        riskKeywords: riskAnalysis.matchedKeywords,
+        extractedFields,
+        qualityScore: qualityCheck.score,
+        qualityFeedback: qualityCheck.feedback,
+        wordCount: content.trim().split(/\s+/).length
+      });
+    } catch (error: any) {
+      console.error("Quick analyze error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Quick analysis failed") });
+    }
+  });
+
+  // Comprehensive care plan extraction (rule-based, minimal AI)
+  app.post("/api/extract-care-data", requireAuth, async (req: any, res) => {
+    try {
+      const { documentContent } = req.body;
+      
+      if (!documentContent || typeof documentContent !== "string") {
+        return res.status(400).json({ message: "Document content required" });
+      }
+      
+      // Import new extraction functions
+      const { 
+        extractCarePlanSections, 
+        extractMedicationInfo, 
+        extractPersonalCareNeeds,
+        extractContinenceInfo,
+        extractNutritionInfo,
+        extractEnvironmentInfo,
+        getRecommendedAssessments,
+        generateBasicSummary
+      } = await import("./services/ruleBasedEngine");
+      
+      // Run all rule-based extractions
+      const sections = extractCarePlanSections(documentContent);
+      const medications = extractMedicationInfo(documentContent);
+      const personalCare = extractPersonalCareNeeds(documentContent);
+      const continence = extractContinenceInfo(documentContent);
+      const nutrition = extractNutritionInfo(documentContent);
+      const environment = extractEnvironmentInfo(documentContent);
+      
+      // Get overall risk analysis
+      const overallRisk = analyzeRiskLevel(documentContent);
+      
+      // Get recommended assessments based on extracted data
+      const recommendations = getRecommendedAssessments({
+        sections,
+        medications,
+        personalCare,
+        continence,
+        nutrition,
+        environment
+      });
+      
+      // Generate basic summaries for each section (lite mode)
+      const summaries: Record<string, string> = {};
+      for (const [section, data] of Object.entries({ personalCare, continence, nutrition })) {
+        summaries[section] = generateBasicSummary(section, data);
+      }
+      
+      // Determine if AI enhancement is recommended
+      const extractionConfidence = Object.values(sections)
+        .map(s => s.confidence)
+        .reduce((sum, c) => sum + c, 0) / Math.max(Object.keys(sections).length, 1);
+      
+      const needsAI = extractionConfidence < 0.6 || overallRisk.requiresAI;
+      
+      console.log(`[ExtractCareData] Extracted ${Object.keys(sections).length} sections, ` +
+        `${medications.length} meds, confidence=${(extractionConfidence * 100).toFixed(0)}%, ` +
+        `${recommendations.length} recommended assessments`);
+      
+      return res.json({
+        success: true,
+        rulesBased: true,
+        sections,
+        medications,
+        personalCare,
+        continence,
+        nutrition,
+        environment,
+        overallRiskLevel: overallRisk.level,
+        overallRiskConfidence: overallRisk.confidence,
+        riskKeywords: overallRisk.matchedKeywords,
+        recommendedAssessments: recommendations,
+        basicSummaries: summaries,
+        extractionConfidence,
+        suggestAIEnhancement: needsAI,
+        aiEnhancementReason: needsAI 
+          ? (extractionConfidence < 0.6 ? "Low extraction confidence" : "Complex risk factors detected")
+          : null
+      });
+    } catch (error: any) {
+      console.error("Care data extraction error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Extraction failed") });
+    }
+  });
+
+  // Plan quality check (rule-based, no AI)
+  app.post("/api/check-plan-quality", requireAuth, async (req: any, res) => {
+    try {
+      const { planContent } = req.body;
+      
+      if (!planContent || typeof planContent !== "string") {
+        return res.status(400).json({ message: "Plan content required" });
+      }
+      
+      const quality = calculatePlanQuality(planContent);
+      const extractedFields = extractCommonFields(planContent);
+      const riskAnalysis = analyzeRiskLevel(planContent);
+      
+      // Determine if AI enhancement would help
+      const needsAI = quality.score < 70 || quality.feedback.length > 2;
+      
+      console.log(`[QualityCheck] Plan quality for ${req.user?.username}: ${quality.score}% (${quality.feedback.length} issues)`);
+      
+      return res.json({
+        score: quality.score,
+        grade: quality.score >= 80 ? "Good" : quality.score >= 60 ? "Fair" : "Needs Work",
+        feedback: quality.feedback,
+        suggestAIEnhancement: needsAI,
+        detectedRisk: riskAnalysis.level,
+        detectedFields: extractedFields
+      });
+    } catch (error: any) {
+      console.error("Plan quality check error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Quality check failed") });
+    }
+  });
+
+  // =====================================================================
+  // EXTENSION API — Extracted to server/routes/extension.ts
+  // =====================================================================
+  registerExtensionRoutes(app, { requireAuth, requireAdmin });
+
+  // =====================================================================
+  // AI USAGE LOGS — Extracted to server/routes/aiUsage.ts
+  // =====================================================================
+  registerAiUsageRoutes(app, { requireAuth, requireAdmin });
+
+  // =====================================================================
+  // CALL RECONCILIATION - Excel Processing
+  // =====================================================================
+  
+  // Helper to convert column letter to index (A=0, B=1, etc.)
+  const colLetterToIndex = (letter: string): number => {
+    let result = 0;
+    for (let i = 0; i < letter.length; i++) {
+      result = result * 26 + (letter.charCodeAt(i) - 64);
+    }
+    return result - 1;
+  };
+
+  // Helper to convert index to column letter
+  const indexToColLetter = (index: number): string => {
+    let result = "";
+    while (index >= 0) {
+      result = String.fromCharCode((index % 26) + 65) + result;
+      index = Math.floor(index / 26) - 1;
+    }
+    return result;
+  };
+
+  // Map cancellation reasons to variation codes
+  function mapCancellationToCode(reason: string | null | undefined): string {
+    if (!reason || typeof reason !== 'string') return "";
+    const lowerReason = reason.toLowerCase().trim();
+    
+    if (lowerReason.includes("hospital")) return "L1";
+    if (lowerReason.includes("capacity")) return "L5";
+    if (lowerReason.includes("less than 24") || lowerReason.includes("<24") || lowerReason.includes("under 24")) return "L5";
+    if (lowerReason.includes("more than 24") || lowerReason.includes(">24") || lowerReason.includes("over 24")) return "L4";
+    if (lowerReason.includes("24 hour") && lowerReason.includes("less")) return "L5";
+    if (lowerReason.includes("24 hour") && lowerReason.includes("more")) return "L4";
+    
+    return "";
+  }
+
+  // =====================
+  // Support plan helpers
+  // =====================
+
+  // (moved to ./services/supportPlanCompare.ts)
+
+  app.post("/api/billing-tool/analyze", requireAuth, requireAdmin, uploadImages.array("images"), async (req: any, res) => {
+    try {
+      const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]) : [];
+      if (files.length === 0) {
+        return res.status(400).json({ message: "No photos uploaded" });
+      }
+
+      // SECURITY NOTE: Billing images are sent to vision AI for OCR extraction.
+      // Image-based PII cannot be scrubbed with text-based methods.
+      // This endpoint is restricted to admin users only (requireAdmin middleware).
+      // All access is logged for GDPR audit trail.
+      logSecurityEvent({
+        eventType: 'AI_REQUEST',
+        endpoint: '/api/billing-tool/analyze',
+        userId: req.user?.id || null,
+        username: req.user?.username || null,
+        details: {
+          action: 'billing_image_analysis',
+          imageCount: files.length,
+          note: 'Admin-only: service order images sent to vision AI for OCR extraction',
+        },
+      });
+
+      const isCurrent = String(req.body?.isCurrent || "").toLowerCase() === "true";
+      const endDateInput = typeof req.body?.endDate === "string" ? req.body.endDate : null;
+      const asOfDateInput = typeof req.body?.asOfDate === "string" ? req.body.asOfDate : null;
+
+      const analysisEndDate = isCurrent
+        ? parseDateInput(asOfDateInput) || normalizeDate(new Date())
+        : parseDateInput(endDateInput);
+
+      if (!analysisEndDate) {
+        return res.status(400).json({ message: "An end date is required for non-current service orders." });
+      }
+
+      const user = req.user ?? await storage.getUser(req.session.userId!);
+      const aiUserContext: AiUserContext = {
+        userId: user?.id != null ? String(user.id) : null,
+        username: user?.username != null ? String(user.username) : null,
+      };
+
+      for (const file of files) {
+        const scanCheck = await scanAndLogFile(file, "billing-tool-image", user?.username);
+        if (!scanCheck.allowed) {
+          return res.status(400).json({ message: scanCheck.error });
+        }
+      }
+
+      const rawRows: any[] = [];
+      const extractionWarnings: string[] = [];
+
+      for (let i = 0; i < files.length; i += 1) {
+        try {
+          const rows = await extractRowsFromBillingImage(files[i], i, aiUserContext);
+          if (Array.isArray(rows)) {
+            rawRows.push(...rows);
+          }
+        } catch (error: any) {
+          extractionWarnings.push(`Image ${i + 1}: ${error?.message || "Failed to extract rows"}`);
+        }
+      }
+
+      if (rawRows.length === 0) {
+        return res.status(400).json({
+          message: extractionWarnings[0] || "No service requirement rows could be extracted from the photos.",
+        });
+      }
+
+      const analysis = analyzeBillingRows(rawRows, {
+        analysisEndDate,
+        analysisAsOfDate: parseDateInput(asOfDateInput) || normalizeDate(new Date()),
+        imageCount: files.length,
+        extractionWarnings,
+      });
+
+      if (!analysis.summary.rowCount) {
+        return res.status(400).json({ message: "No valid rows were detected in the uploaded photos." });
+      }
+
+      return res.json(analysis);
+    } catch (error: any) {
+      console.error("Billing tool error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to analyze service order images") });
+    }
+  });
+
+  app.post("/api/support-plan/compare", requireAuth, requireAdmin, upload.single("supportPlan"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No support plan uploaded" });
+      }
+
+      const serviceOrdersRaw = req.body?.serviceOrders;
+      if (!serviceOrdersRaw) {
+        return res.status(400).json({ message: "Service order summary is required" });
+      }
+
+      let serviceOrders: ServiceOrderComparisonInput;
+      try {
+        serviceOrders = typeof serviceOrdersRaw === "string" ? JSON.parse(serviceOrdersRaw) : serviceOrdersRaw;
+      } catch {
+        return res.status(400).json({ message: "Invalid service order summary payload" });
+      }
+
+      const scanCheck = await scanAndLogFile(req.file, "support-plan", req.user?.username);
+      if (!scanCheck.allowed) {
+        return res.status(400).json({ message: scanCheck.error });
+      }
+
+      const name = req.file.originalname.toLowerCase();
+      const mime = req.file.mimetype || "";
+
+      let extractedText = "";
+      const extractionWarnings: string[] = [];
+      if (mime === "application/pdf" || name.endsWith(".pdf")) {
+        const pdfResult = await extractPdfTextWithPdfjs(req.file.buffer);
+        extractedText = pdfResult.text;
+      } else {
+        let pdfText = "";
+        const convertedPdf = await tryConvertOfficeToPdf(req.file.buffer, req.file.originalname);
+        if (convertedPdf) {
+          const pdfResult = await extractPdfTextWithPdfjs(convertedPdf);
+          pdfText = pdfResult.text;
+          if (!pdfText.trim()) {
+            extractionWarnings.push("Converted PDF text was empty; falling back to Word text extraction.");
+          }
+        } else {
+          extractionWarnings.push("Word-to-PDF conversion unavailable; using direct Word text extraction.");
+        }
+
+        let wordText = "";
+        try {
+          const mammothResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+          wordText = mammothResult.value || "";
+          if (!wordText.trim()) {
+            extractionWarnings.push("Word text extraction returned no readable text.");
+          }
+        } catch (error: any) {
+          extractionWarnings.push(error?.message || "Word text extraction failed.");
+        }
+
+        const pdfLength = pdfText.trim().length;
+        const wordLength = wordText.trim().length;
+        if (pdfLength && pdfLength >= wordLength) {
+          extractedText = pdfText;
+        } else if (wordLength) {
+          extractedText = wordText;
+        } else {
+          extractedText = pdfText || wordText;
+        }
+      }
+
+      if (!extractedText.trim()) {
+        const isLegacyDoc = name.endsWith(".doc") && !name.endsWith(".docx");
+        const message = isLegacyDoc
+          ? "Could not read this .doc file. Please upload a .docx or PDF support plan."
+          : "Could not read any text from the support plan";
+        return res.status(400).json({ message });
+      }
+
+      const planData = extractSupportPlanDataFromText(extractedText);
+      const comparison = compareSupportPlanToServiceOrders(planData, serviceOrders);
+
+      return res.json({
+        sourceFile: req.file.originalname,
+        plan: planData,
+        comparison,
+        extractionWarnings,
+      });
+    } catch (error: any) {
+      console.error("Support plan comparison error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to compare support plan") });
+    }
+  });
+
+  app.post("/api/reconciliation/analyze", requireAuth, requireAdmin, uploadExcel.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      console.log(`[Reconciliation] Processing file: ${req.file.originalname}`);
+
+      // Detect file type and parse accordingly
+      const fileName = req.file.originalname.toLowerCase();
+      const isCSV = fileName.endsWith('.csv');
+      
+      let workbook;
+      if (isCSV) {
+        // Parse CSV file - convert buffer to string and parse
+        const csvString = req.file.buffer.toString('utf-8');
+        workbook = SafeXLSX.read(csvString, { type: "string", cellDates: true });
+        console.log(`[Reconciliation] Parsed CSV file, converting to Excel format`);
+      } else {
+        // Read the Excel file with date parsing enabled
+        workbook = SafeXLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
+      }
+      
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convert to array of arrays for easier manipulation
+      const data: any[][] = SafeXLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      if (data.length === 0) {
+        return res.status(400).json({ message: "Excel file is empty" });
+      }
+
+      // Columns to DELETE (0-indexed):
+      // A-E (0-4), G-I (6-8), K-T (10-19), U (20), V-W (21-22), Z-AD (25-29), AE (30), 
+      // AH-AM (33-38), AP-BO (41-66), BR-DY (69-128), DZ (129), EA-FW (130-178)
+      const columnsToDelete = new Set<number>();
+      
+      // A-E (0-4)
+      for (let i = 0; i <= 4; i++) columnsToDelete.add(i);
+      // G-I (6-8)
+      for (let i = 6; i <= 8; i++) columnsToDelete.add(i);
+      // K-T (10-19)
+      for (let i = 10; i <= 19; i++) columnsToDelete.add(i);
+      // U (20) - Service Requirement (removed after extracting value for Variation Reason)
+      columnsToDelete.add(20);
+      // V-W (21-22)
+      for (let i = 21; i <= 22; i++) columnsToDelete.add(i);
+      // Z-AD (25-29)
+      for (let i = 25; i <= 29; i++) columnsToDelete.add(i);
+      // AE (30)
+      columnsToDelete.add(30);
+      // AH-AM (33-38)
+      for (let i = 33; i <= 38; i++) columnsToDelete.add(i);
+      // AP-BO (41-66)
+      for (let i = 41; i <= 66; i++) columnsToDelete.add(i);
+      // BR-DY (69-128)
+      for (let i = 69; i <= 128; i++) columnsToDelete.add(i);
+      // DZ (129) - Cancellation Reason (removed after extracting value for Variation Reason)
+      columnsToDelete.add(129);
+      // EA-FW (130-178)
+      for (let i = 130; i <= 178; i++) columnsToDelete.add(i);
+
+      // Track original column positions for Service Requirement (U=20) and Cancellation Reason (DZ=129)
+      const SERVICE_REQ_COL = 20; // U
+      const CANCELLATION_COL = 129; // DZ
+
+      // Process each row
+      const processedData: any[][] = [];
+      
+      for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
+        const row = data[rowIdx];
+        const newRow: any[] = [];
+        
+        // Get original values before filtering
+        const serviceReqValue = row[SERVICE_REQ_COL];
+        const cancellationValue = row[CANCELLATION_COL];
+        
+        // Filter out deleted columns
+        for (let colIdx = 0; colIdx < row.length; colIdx++) {
+          if (!columnsToDelete.has(colIdx)) {
+            newRow.push(row[colIdx]);
+          }
+        }
+        
+        // Add Variation Reason column
+        if (rowIdx === 0) {
+          // Header row
+          newRow.push("Variation Reason");
+        } else {
+          // Data row - determine variation reason
+          let variationReason = "";
+          
+          // Check if cancellation reason exists
+          if (cancellationValue && String(cancellationValue).trim()) {
+            variationReason = mapCancellationToCode(String(cancellationValue));
+          }
+          
+          // If no service requirement, mark with A1
+          if (!serviceReqValue || !String(serviceReqValue).trim()) {
+            variationReason = "A1";
+          }
+          
+          newRow.push(variationReason);
+        }
+        
+        processedData.push(newRow);
+      }
+
+      // Create new workbook with processed data
+      const newWorkbook = SafeXLSX.utils.book_new();
+      const newWorksheet = SafeXLSX.utils.aoa_to_sheet(processedData, { cellDates: true });
+      
+      // Apply date format to cells that contain Date objects
+      const range = SafeXLSX.utils.decode_range(newWorksheet['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; R++) {
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          const cellAddress = SafeXLSX.utils.encode_cell({ r: R, c: C });
+          const cell = newWorksheet[cellAddress];
+          if (cell && cell.t === 'd') {
+            // Format as date with time: DD/MM/YYYY HH:MM:SS
+            cell.z = 'DD/MM/YYYY HH:MM:SS';
+          }
+        }
+      }
+      
+      SafeXLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Reconciled");
+
+      // Generate Excel buffer
+      const excelBuffer = SafeXLSX.write(newWorkbook, { type: "buffer", bookType: "xlsx" });
+
+      // Set response headers for file download
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="reconciled_${Date.now()}.xlsx"`);
+      
+      console.log(`[Reconciliation] Processed ${processedData.length} rows, sending Excel file`);
+      
+      return res.send(excelBuffer);
+    } catch (error: any) {
+      console.error("Reconciliation error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to process Excel file") });
+    }
+  });
+
+  // =====================================================================
+  // CONTACT FORM  →  server/routes/contact.ts
+  // =====================================================================
+  registerContactRoutes(app, { requireAuth, requireAdmin });
+
+  // =====================================================================
+  // USER MESSAGING PORTAL  →  server/routes/messages.ts
+  // =====================================================================
+  registerMessageRoutes(app, { requireAuth });
+
+  // =====================================================================
+  // EXTRACTED DATA INGEST - Save analyzed data only (no raw workbooks)
+  // =====================================================================
+
+  const workbookIngestSchema = z.object({
+    name: z.string().min(1).max(200),
+    fileName: z.string().min(1).max(500),
+    sourceHash: z.string().min(1).max(128),
+    company: z.string().min(1).max(120).optional().nullable(),
+    branch: z.string().min(1).max(120).optional().nullable(),
+    totalRows: z.number().int().min(0).default(0),
+    careWorkerCount: z.number().int().min(0).default(0),
+    serviceUserCount: z.number().int().min(0).default(0),
+    callGroupCount: z.number().int().min(0).default(0),
+    rowAnalysis: z.array(z.any()).default([]),
+  });
+
+  const toWholeMinutes = (value: unknown) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return undefined;
+    return Math.round(value);
+  };
+
+  app.post("/api/admin/rostering/workbook-uploads/ingest", express.json({ limit: '200mb' }), requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const payload = workbookIngestSchema.parse(req.body);
+
+      try {
+        await Promise.race([
+          storage.getAppSetting("__ingest_preflight__"),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Database preflight timed out")), 3000)),
+        ]);
+      } catch (dbError: any) {
+        const dbMessage = String(dbError?.message || dbError || "");
+        if (dbMessage.includes("arrayParser.create is not a function")) {
+          return res.status(503).json({
+            message:
+              "Workbook ingest is temporarily unavailable due to a server database driver mismatch. Redeploy with fresh install cache or run npm install so pg-types parser compatibility is restored.",
+          });
+        }
+        if (dbMessage.includes("self-signed certificate") || dbMessage.includes("SSL off")) {
+          return res.status(503).json({
+            message:
+              "Workbook ingest is temporarily unavailable due to database SSL configuration. Set PGSSLMODE=require and (for Render internal Postgres) PGSSLREJECTUNAUTHORIZED=false, then redeploy.",
+          });
+        }
+        return res.status(503).json({
+          message: "Workbook ingest is temporarily unavailable because the database is not reachable.",
+        });
+      }
+
+      const existing = await storage.getWorkbookUploadByHash(payload.sourceHash);
+      if (existing) {
+        return res.status(200).json({ upload: existing, deduped: true });
+      }
+
+      const expiry = getExpiryDate();
+
+      const rawCalls: RawCallRecord[] = (payload.rowAnalysis || [])
+        .filter((row: any) => row?.serviceUserName && row?.callTypeLabel && row?.plannedDateKey)
+        .map((row: any) => ({
+          serviceUserName: row.serviceUserName,
+          workerName: row.actualWorker || row.plannedWorker || "Unknown",
+          templateWorkerName: row.templateWorker ?? undefined,
+          callTypeLabel: row.callTypeLabel || "Other",
+          callDate: row.plannedDateKey,
+          templateWeek: row.templateWeek === "week1" || row.templateWeek === "week2" ? row.templateWeek : undefined,
+          templateDay: row.templateDay ?? undefined,
+          serviceUserArea: row.serviceUserArea ?? undefined,
+          serviceUserAddress: row.serviceUserAddress ?? undefined,
+          serviceLocationBranch: row.serviceLocationBranch ?? undefined,
+          serviceLocationType: row.serviceLocationType ?? undefined,
+          scheduledStart: toWholeMinutes(row.plannedTimeMinutes),
+          serviceRequirementEnd: toWholeMinutes(row.serviceRequirementEndTimeMinutes ?? row.plannedEndTimeMinutes),
+          actualStart: toWholeMinutes(row.actualTimeMinutes),
+          actualEnd: toWholeMinutes(row.actualEndTimeMinutes),
+          plannedDuration: toWholeMinutes(row.plannedDurationMinutes),
+          actualDuration: toWholeMinutes(row.actualDurationMinutes),
+          isDoubleUp: row.isDoubleUpSlot ?? false,
+          isTimeCritical: row.isTimeCritical ?? false,
+          serviceRequirementStart: toWholeMinutes(row.serviceRequirementTimeMinutes ?? row.plannedTimeMinutes),
+        }));
+
+      const extracted = extractFromRawCalls(rawCalls);
+
+      // Save analyzed service users
+      await Promise.all(
+        extracted.serviceUsers.map((su) =>
+          storage.upsertAnalyzedServiceUser({
+            serviceUserKey: su.serviceUserKey,
+            serviceUserName: su.serviceUserName,
+            serviceUserArea: su.serviceUserArea,
+            serviceUserAddress: su.serviceUserAddress,
+            serviceLocationBranch: su.serviceLocationBranch,
+            serviceLocationType: su.serviceLocationType,
+            totalCallsAnalyzed: su.totalCallsAnalyzed,
+            earliestDataDate: su.earliestDataDate,
+            latestDataDate: su.latestDataDate,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save analyzed care workers
+      await Promise.all(
+        extracted.careWorkers.map((cw) =>
+          storage.upsertAnalyzedCareWorker({
+            workerKey: cw.workerKey,
+            workerName: cw.workerName,
+            workerNameNormalized: cw.workerNameNormalized,
+            isAdminStaff: cw.isAdminStaff,
+            totalCallsAnalyzed: cw.totalCallsAnalyzed,
+            uniqueServiceUsers: cw.uniqueServiceUsers,
+            avgCallsPerDay: cw.avgCallsPerDay,
+            avgMinutesPerDay: cw.avgMinutesPerDay,
+            earliestDataDate: cw.earliestDataDate,
+            latestDataDate: cw.latestDataDate,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save service orders
+      await Promise.all(
+        extracted.serviceOrders.map((order) =>
+          storage.upsertServiceOrder({
+            serviceUserKey: order.serviceUserKey,
+            serviceUserName: order.serviceUserName,
+            callTypeLabel: order.callTypeLabel,
+            callTypeKey: order.callTypeKey,
+            timeBand: order.timeBand,
+            serviceRequirementMinutes: order.serviceRequirementMinutes,
+            serviceRequirementStartTime: order.serviceRequirementStartTime,
+            serviceRequirementEndTime: order.serviceRequirementEndTime,
+            daysPerWeek: order.daysPerWeek,
+            week1Days: order.week1Days,
+            week2Days: order.week2Days,
+            carersRequired: order.carersRequired,
+            isTimeCritical: order.isTimeCritical,
+            orderSummary: order.orderSummary,
+            actualAvgStartTime: order.actualAvgStartTime,
+            actualAvgDuration: order.actualAvgDuration,
+            durationVariance: order.durationVariance,
+            startTimeVariance: order.startTimeVariance,
+            recommendedAdjustment: order.recommendedAdjustment,
+            recommendedDurationMinutes: order.recommendedDurationMinutes,
+            recommendedStartMinutes: order.recommendedStartMinutes,
+            sourceDataCount: order.sourceDataCount,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save template assignments
+      await Promise.all(
+        extracted.templateAssignments.map((assignment) =>
+          storage.upsertTemplateAssignment({
+            workerKey: assignment.workerKey,
+            workerName: assignment.workerName,
+            serviceUserKey: assignment.serviceUserKey,
+            serviceUserName: assignment.serviceUserName,
+            callTypeLabel: assignment.callTypeLabel,
+            timeBand: assignment.timeBand,
+            templateWeek: assignment.templateWeek,
+            templateDay: assignment.templateDay,
+            isTemplated: assignment.isTemplated,
+            isPrimary: assignment.isPrimary,
+            serviceRequirementStartMinutes: assignment.serviceRequirementStartMinutes,
+            sourceDateKey: assignment.sourceDateKey,
+            sourceRowHash: assignment.sourceRowHash,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Remove stale template assignments (slots with no template in latest data window)
+      if (extracted.templateSlotStates?.length) {
+        const staleSlots = extracted.templateSlotStates.filter((slot) => !slot.hasTemplate);
+        const uniqueKeys = new Set(
+          staleSlots.map(
+            (slot) => `${slot.serviceUserKey}|${slot.callTypeLabel}|${slot.templateWeek}|${slot.templateDay}`
+          )
+        );
+        await Promise.all(
+          Array.from(uniqueKeys).map((key) => {
+            const [serviceUserKey, callTypeLabel, templateWeek, templateDay] = key.split("|");
+            return storage.deleteTemplateAssignmentsForSlot(serviceUserKey, callTypeLabel, templateWeek, templateDay);
+          })
+        );
+      }
+
+      // Save recommendations
+      await Promise.all(
+        extracted.recommendations.map((rec) =>
+          storage.upsertCallRecommendation({
+            serviceUserKey: rec.serviceUserKey,
+            serviceUserName: rec.serviceUserName,
+            callTypeLabel: rec.callTypeLabel,
+            recommendationType: rec.recommendationType,
+            currentValue: rec.currentValue,
+            recommendedValue: rec.recommendedValue,
+            reason: rec.reason,
+            confidence: rec.confidence,
+            priority: rec.priority,
+            dataPoints: rec.dataPoints,
+            expiresAt: expiry,
+          })
+        )
+      );
+
+      // Save analyzed calls (deduped)
+      await storage.bulkInsertAnalyzedCalls(
+        extracted.calls.map((call) => ({
+          ...call,
+          expiresAt: expiry,
+        }))
+      );
+
+      const upload = await storage.createWorkbookUpload({
+        fileName: payload.fileName,
+        fileHash: payload.sourceHash,
+        company: payload.company ?? null,
+        branch: payload.branch ?? null,
+        totalRows: extracted.stats.totalRows,
+        dateRangeStart: extracted.stats.dateRangeStart,
+        dateRangeEnd: extracted.stats.dateRangeEnd,
+        careWorkersExtracted: extracted.stats.careWorkersExtracted,
+        serviceUsersExtracted: extracted.stats.serviceUsersExtracted,
+        callsExtracted: extracted.stats.callsExtracted,
+        serviceOrdersGenerated: extracted.stats.serviceOrdersGenerated,
+        templatesDetected: extracted.stats.templatesDetected,
+        recommendationsCreated: extracted.stats.recommendationsCreated,
+        uploadedBy: req.user?.id ?? null,
+        uploadedByUsername: req.user?.username ?? null,
+        processingStatus: "complete",
+        completedAt: new Date(),
+      });
+
+      return res.status(201).json({ upload, deduped: false, stats: extracted.stats });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      const errorMessage = String(error?.message || error || "");
+      if (errorMessage.includes("arrayParser.create is not a function")) {
+        return res.status(503).json({
+          message:
+            "Workbook ingest is temporarily unavailable due to a server database driver mismatch. Redeploy with fresh install cache or run npm install so pg-types parser compatibility is restored.",
+        });
+      }
+      if (errorMessage.includes("self-signed certificate") || errorMessage.includes("SSL off")) {
+        return res.status(503).json({
+          message:
+            "Workbook ingest is temporarily unavailable due to database SSL configuration. Set PGSSLMODE=require and (for Render internal Postgres) PGSSLREJECTUNAUTHORIZED=false, then redeploy.",
+        });
+      }
+      console.error("[Rostering] Failed to ingest workbook analysis:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to upload workbook") });
+    }
+  });
+
+  const buildWorkbookUploadDetails = async (
+    upload: WorkbookUpload,
+    { includeWorkerRows = false }: { includeWorkerRows?: boolean } = {}
+  ) => {
+    const calls = await storage.getWorkbookAnalyzedCallsByDateRange(upload.dateRangeStart, upload.dateRangeEnd);
+
+    if (calls.length === 0) {
+      return {
+        id: upload.id,
+        name: upload.fileName,
+        fileName: upload.fileName,
+        totalRows: upload.totalRows,
+        careWorkerCount: upload.careWorkersExtracted,
+        serviceUserCount: upload.serviceUsersExtracted,
+        callGroupCount: 0,
+        rowAnalysis: [],
+        callGroups: [],
+        careWorkerRosters: [],
+        doubleUpSlots: {},
+        createdBy: upload.uploadedBy,
+        createdByUsername: upload.uploadedByUsername,
+        createdAt: upload.createdAt,
+        updatedAt: upload.completedAt ?? upload.createdAt,
+      };
+    }
+
+    const serviceUserKeys = Array.from(
+      new Set(
+        calls
+          .map((call) => call.serviceUserKey)
+          .filter((serviceUserKey): serviceUserKey is string => Boolean(serviceUserKey))
+      )
+    );
+
+    const [serviceUsers, templateAssignments] = await Promise.all([
+      storage.getAnalyzedServiceUsersByKeys(serviceUserKeys),
+      storage.getTemplateAssignmentsByDateRange(upload.dateRangeStart, upload.dateRangeEnd, serviceUserKeys),
+    ]);
+    const serviceUserMap = new Map(serviceUsers.map((serviceUser: AnalyzedServiceUser) => [serviceUser.serviceUserKey, serviceUser]));
+    const templateAssignmentMap = new Map<string, { workerKey: string; workerName: string; updatedAtMs: number }>();
+
+    templateAssignments
+      .filter((assignment) => assignment.isTemplated)
+      .forEach((assignment) => {
+        const key = `${assignment.serviceUserKey}|${assignment.callTypeLabel}|${assignment.templateWeek}|${assignment.templateDay}`;
+        const existing = templateAssignmentMap.get(key);
+        const updatedAtMs = (assignment.updatedAt ?? assignment.createdAt ?? new Date(0)).getTime();
+        if (!existing || updatedAtMs > existing.updatedAtMs) {
+          templateAssignmentMap.set(key, {
+            workerKey: assignment.workerKey,
+            workerName: assignment.workerName,
+            updatedAtMs,
+          });
+        }
+      });
+
+    const rosterMap = new Map<string, any>();
+    const doubleUpSlots: Record<string, string[]> = {};
+    let rowCounter = 0;
+
+    for (const call of calls) {
+      const assignmentKey = `${call.serviceUserKey}|${call.callTypeLabel}|${call.templateWeek}|${call.templateDay}`;
+      const templateAssignment = templateAssignmentMap.get(assignmentKey);
+      const workerKey = templateAssignment?.workerKey ?? call.workerKey;
+      const workerName = templateAssignment?.workerName ?? call.workerName;
+      const serviceUserProfile = serviceUserMap.get(call.serviceUserKey);
+      const serviceRequirementEndMinutes =
+        typeof call.serviceRequirementEndMinutes === "number" ? call.serviceRequirementEndMinutes : null;
+      const plannedEndMinutes =
+        typeof call.plannedStartMinutes === "number" && typeof call.plannedDurationMinutes === "number"
+          ? call.plannedStartMinutes + call.plannedDurationMinutes
+          : serviceRequirementEndMinutes;
+      const actualEndMinutes =
+        typeof call.actualEndMinutes === "number"
+          ? call.actualEndMinutes
+          : typeof call.actualStartMinutes === "number" && typeof call.actualDurationMinutes === "number"
+            ? call.actualStartMinutes + call.actualDurationMinutes
+            : null;
+      const roster = rosterMap.get(workerKey) || {
+        key: workerKey,
+        workerName,
+        workerNameNormalized: workerName.toLowerCase().replace(/\s+/g, " "),
+        ...(includeWorkerRows ? { rows: [], callRows: [] } : {}),
+        shiftBars: [],
+        shiftBarsCount: 0,
+        isAdminStaff: false,
+        usesTemplateAssignments: false,
+        uniqueServiceUsers: new Set<string>(),
+        uniqueDays: new Set<string>(),
+        callGroups: [],
+        callGroupMap: new Map<string, any>(),
+      };
+
+      const requirementStart =
+        call.serviceRequirementStartMinutes ??
+        call.plannedStartMinutes ??
+        call.actualStartMinutes ??
+        null;
+      const durationMinutes =
+        call.plannedDurationMinutes ??
+        call.actualDurationMinutes ??
+        null;
+      if (call.serviceUserKey) roster.uniqueServiceUsers.add(call.serviceUserKey);
+      if (call.callDate) roster.uniqueDays.add(call.callDate);
+
+      const groupKey = `${call.serviceUserKey}_${call.callTypeKey}_${call.timeBand}`;
+      let group = roster.callGroupMap.get(groupKey);
+      if (!group) {
+        group = {
+          key: groupKey,
+          serviceUserName: call.serviceUserName,
+          serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+          serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+          serviceUserLatitude: serviceUserProfile?.latitude ? parseFloat(serviceUserProfile.latitude) : null,
+          serviceUserLongitude: serviceUserProfile?.longitude ? parseFloat(serviceUserProfile.longitude) : null,
+          normalizedServiceUserKey: call.serviceUserKey,
+          serviceUserKey: call.serviceUserKey,
+          callTypeLabel: call.callTypeLabel,
+          callTypeKey: call.callTypeKey,
+          timeBandLabel: call.timeBand,
+          requirementStartMinutes: requirementStart,
+          requirementStartLabel: null,
+          durationMinutes,
+          totalCalls: 0,
+          uniqueDays: 0,
+          templatedWeekdayKeys: new Set<string>(),
+          doubleUpWeekdayKeys: new Set<string>(),
+          templatedRows: 0,
+          isTimeCritical: Boolean(call.isTimeCritical),
+          uniqueDayKeys: new Set<string>(),
+          ...(includeWorkerRows ? { rows: [] } : {}),
+        };
+        roster.callGroups.push(group);
+        roster.callGroupMap.set(groupKey, group);
+      }
+
+      if (call.callDate) group.uniqueDayKeys.add(call.callDate);
+      group.totalCalls += 1;
+      if (call.isTimeCritical) group.isTimeCritical = true;
+      const templateKey = `${call.templateWeek}|${call.templateDay}`;
+      const isTemplatedForSlot = Boolean(templateAssignment || call.isTemplated);
+      if (isTemplatedForSlot) {
+        group.templatedWeekdayKeys.add(templateKey);
+        group.templatedRows += 1;
+        roster.usesTemplateAssignments = true;
+      }
+      if (call.isDoubleUp) {
+        group.doubleUpWeekdayKeys.add(templateKey);
+        doubleUpSlots[groupKey] = [workerName];
+      }
+
+      if (includeWorkerRows) {
+        const row = {
+          rowNumber: ++rowCounter,
+          status: "clean",
+          data: {},
+          emptyFields: [],
+          numericWarnings: [],
+          textWarnings: [],
+          issues: [],
+          scheduleDeltaMinutes: null,
+          durationMatchPercent: null,
+          scheduleFlag: false,
+          durationFlag: false,
+          durationOverrunFlag: false,
+          workersMatch: null,
+          plannedWorker: workerName,
+          actualWorker: workerName,
+          templateWorker: workerName,
+          payrollRunDescription: null,
+          serviceTypeDescription: null,
+          isAdminStaffRow: false,
+          isShiftBar: false,
+          serviceDutyClassType: null,
+          isExcludedServiceDutyClass: false,
+          isAdhocCall: false,
+          isTimeCritical: call.isTimeCritical,
+          plannedTimeLabel: null,
+          actualTimeLabel: null,
+          plannedDurationMinutes: call.plannedDurationMinutes ?? null,
+          actualDurationMinutes: call.actualDurationMinutes ?? null,
+          plannedTimeMinutes: call.plannedStartMinutes ?? null,
+          actualTimeMinutes: call.actualStartMinutes ?? null,
+          serviceRequirementTimeMinutes: call.serviceRequirementStartMinutes ?? null,
+          serviceRequirementTimeLabel: null,
+          plannedDateLabel: call.callDate,
+          plannedDateKey: call.callDate,
+          serviceUserName: call.serviceUserName,
+          serviceUserArea: serviceUserProfile?.serviceUserArea ?? null,
+          serviceUserAddress: serviceUserProfile?.serviceUserAddress ?? null,
+          serviceLocationBranch: serviceUserProfile?.serviceLocationBranch ?? call.serviceLocationBranch ?? null,
+          serviceLocationType: serviceUserProfile?.serviceLocationType ?? call.serviceLocationType ?? null,
+          templateWeek: call.templateWeek,
+          templateDay: call.templateDay,
+          normalizedServiceUserKey: call.serviceUserKey,
+          isDuplicateSlotRow: false,
+          excludeFromMetrics: false,
+          callTypeLabel: call.callTypeLabel,
+          serviceRequirementEndTimeMinutes: serviceRequirementEndMinutes,
+          serviceRequirementEndTimeLabel: null,
+          plannedEndTimeMinutes: plannedEndMinutes,
+          actualEndTimeMinutes: actualEndMinutes,
+        };
+
+        roster.rows.push(row);
+        roster.callRows.push(row);
+        group.rows.push(row);
+      }
+
+      rosterMap.set(workerKey, roster);
+    }
+
+    const careWorkerRosters = Array.from(rosterMap.values()).map((roster) => {
+      const callGroups = roster.callGroups.map((group: any) => {
+        const serializedGroup = {
+          ...group,
+          uniqueDays: group.uniqueDayKeys.size,
+          templatedWeekdayKeys: Array.from(group.templatedWeekdayKeys),
+          doubleUpWeekdayKeys: Array.from(group.doubleUpWeekdayKeys),
+        };
+        delete serializedGroup.uniqueDayKeys;
+        return serializedGroup;
+      });
+      const callRowsCount = callGroups.reduce(
+        (sum: number, group: any) => sum + (group.totalCalls ?? 0),
+        0
+      );
+      const missingRequirementTimes = callGroups.reduce(
+        (sum: number, group: any) => sum + (group.requirementStartMinutes === null ? 1 : 0),
+        0
+      );
+      return {
+        key: roster.key,
+        workerName: roster.workerName,
+        workerNameNormalized: roster.workerNameNormalized,
+        ...(includeWorkerRows ? { rows: roster.rows, callRows: roster.callRows } : {}),
+        rowCount: includeWorkerRows ? roster.rows.length : callRowsCount,
+        callRowsCount,
+        shiftBars: roster.shiftBars,
+        shiftBarsCount: roster.shiftBarsCount,
+        isAdminStaff: roster.isAdminStaff,
+        usesTemplateAssignments: roster.usesTemplateAssignments,
+        uniqueServiceUsers: roster.uniqueServiceUsers.size,
+        uniqueDays: roster.uniqueDays.size,
+        missingRequirementTimes,
+        callGroups,
+      };
+    });
+
+    return {
+      id: upload.id,
+      name: upload.fileName,
+      fileName: upload.fileName,
+      totalRows: upload.totalRows,
+      careWorkerCount: upload.careWorkersExtracted,
+      serviceUserCount: upload.serviceUsersExtracted,
+      callGroupCount: careWorkerRosters.reduce((sum: number, roster: any) => sum + (roster.callGroups?.length || 0), 0),
+      rowAnalysis: [],
+      callGroups: [],
+      careWorkerRosters,
+      doubleUpSlots,
+      createdBy: upload.uploadedBy,
+      createdByUsername: upload.uploadedByUsername,
+      createdAt: upload.createdAt,
+      updatedAt: upload.completedAt ?? upload.createdAt,
+    };
+  };
+
+  // Legacy compatibility endpoints (no raw workbook storage)
+  app.get("/api/admin/testing-features/workbooks", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const uploads = await storage.getAllWorkbookUploads();
+      const summaries = uploads.map((upload) => ({
+        id: upload.id,
+        name: upload.fileName,
+        fileName: upload.fileName,
+        totalRows: upload.totalRows,
+        careWorkerCount: upload.careWorkersExtracted,
+        serviceUserCount: upload.serviceUsersExtracted,
+        callGroupCount: 0,
+        createdBy: upload.uploadedBy,
+        createdByUsername: upload.uploadedByUsername,
+        createdAt: upload.createdAt,
+        updatedAt: upload.completedAt ?? upload.createdAt,
+      }));
+      return res.json(summaries);
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to fetch uploads:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbooks") });
+    }
+  });
+
+  app.get("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const upload = await storage.getWorkbookUpload(req.params.id);
+      if (!upload) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+
+      return res.json(await buildWorkbookUploadDetails(upload, { includeWorkerRows: true }));
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to fetch upload:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook details") });
+    }
+  });
+
+  app.delete("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const existing = await storage.getWorkbookUpload(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+
+      await storage.deleteWorkbookUpload(req.params.id);
+      console.log(`[TestingFeatures] Workbook deleted: ${existing.fileName}`);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[TestingFeatures] Failed to delete upload:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete workbook") });
+    }
+  });
+
+  // =====================================================================
+  // EXTRACTED DATA - Service Users, Care Workers, Service Orders, Templates
+  // =====================================================================
+
+  // Service Orders
+  app.get("/api/admin/rostering/service-orders", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const orders = await storage.getAllServiceOrders();
+      return res.json(orders);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service orders:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load service orders") });
+    }
+  });
+
+  app.get("/api/admin/rostering/service-orders/:serviceUserKey", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const orders = await storage.getServiceOrdersByServiceUser(req.params.serviceUserKey);
+      return res.json(orders);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service orders:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load service orders") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/service-orders/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteServiceOrder(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete service order:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete service order") });
+    }
+  });
+
+  // Template Assignments
+  app.get("/api/admin/rostering/template-assignments", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { week, day, workerKey, serviceUserKey } = req.query;
+      
+      if (workerKey) {
+        const assignments = await storage.getTemplateAssignmentsByWorker(workerKey as string);
+        return res.json(assignments);
+      }
+      if (serviceUserKey) {
+        const assignments = await storage.getTemplateAssignmentsByServiceUser(serviceUserKey as string);
+        return res.json(assignments);
+      }
+      if (week && day) {
+        const assignments = await storage.getTemplateAssignmentsForDay(week as string, day as string);
+        return res.json(assignments);
+      }
+      
+      const assignments = await storage.getAllTemplateAssignments();
+      return res.json(assignments);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch template assignments:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load template assignments") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/template-assignments/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteTemplateAssignment(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete template assignment:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete template assignment") });
+    }
+  });
+
+  // Analyzed Service Users
+  app.get("/api/admin/rostering/service-users", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const serviceUsers = await storage.getAllAnalyzedServiceUsers();
+      return res.json(serviceUsers);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service users:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load analyzed service users") });
+    }
+  });
+
+  app.get("/api/admin/rostering/service-users/:key", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const serviceUser = await storage.getAnalyzedServiceUser(req.params.key);
+      if (!serviceUser) {
+        return res.status(404).json({ message: "Service user not found" });
+      }
+      return res.json(serviceUser);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch service user:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load service user") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/service-users/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteAnalyzedServiceUser(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete service user:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete service user") });
+    }
+  });
+
+  // Analyzed Care Workers
+  app.get("/api/admin/rostering/care-workers-analyzed", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const careWorkers = await storage.getAllAnalyzedCareWorkers();
+      return res.json(careWorkers);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch care workers:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load analyzed care workers") });
+    }
+  });
+
+  app.get("/api/admin/rostering/care-workers-analyzed/:key", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const careWorker = await storage.getAnalyzedCareWorker(req.params.key);
+      if (!careWorker) {
+        return res.status(404).json({ message: "Care worker not found" });
+      }
+      return res.json(careWorker);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch care worker:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/care-workers-analyzed/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteAnalyzedCareWorker(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete care worker:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete care worker") });
+    }
+  });
+
+  // Call Recommendations
+  app.get("/api/admin/rostering/recommendations", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { serviceUserKey, pendingOnly } = req.query;
+      
+      if (pendingOnly === 'true') {
+        const recommendations = await storage.getPendingCallRecommendations();
+        return res.json(recommendations);
+      }
+      if (serviceUserKey) {
+        const recommendations = await storage.getCallRecommendationsByServiceUser(serviceUserKey as string);
+        return res.json(recommendations);
+      }
+      
+      // For now return pending recommendations by default
+      const recommendations = await storage.getPendingCallRecommendations();
+      return res.json(recommendations);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch recommendations:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load recommendations") });
+    }
+  });
+
+  app.post("/api/admin/rostering/recommendations/:id/apply", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const recommendation = await storage.applyCallRecommendation(req.params.id, req.user?.id ?? '');
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+      console.log(`[Rostering] Recommendation applied: ${recommendation.id}`);
+      return res.json(recommendation);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to apply recommendation:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to apply recommendation") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/recommendations/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteCallRecommendation(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete recommendation:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete recommendation") });
+    }
+  });
+
+  // Workbook Uploads (metadata only - no raw data)
+  app.get("/api/admin/rostering/workbook-uploads", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const uploads = await storage.getAllWorkbookUploads();
+      return res.json(uploads);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch workbook uploads:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook uploads") });
+    }
+  });
+
+  app.get("/api/admin/rostering/workbook-uploads/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const upload = await storage.getWorkbookUpload(req.params.id);
+      if (!upload) {
+        return res.status(404).json({ message: "Workbook not found" });
+      }
+
+      return res.json(await buildWorkbookUploadDetails(upload));
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch workbook upload:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load workbook upload details") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/workbook-uploads/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteWorkbookUpload(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete workbook upload:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete workbook upload") });
+    }
+  });
+
+  // Admin Database Management - Cleanup expired data
+  app.post("/api/admin/rostering/cleanup-expired", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const result = await storage.cleanupAllExpiredData();
+      console.log(`[Rostering] Cleanup completed:`, result);
+      return res.json({
+        success: true,
+        deleted: result,
+        message: `Cleaned up ${Object.values(result).reduce((a, b) => a + b, 0)} expired records`,
+      });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to cleanup expired data:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to cleanup expired data") });
+    }
+  });
+
+  // Admin Database Management - Reset all rostering data (fresh start)
+  app.post("/api/admin/rostering/reset-data", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const deleted = await storage.resetRosteringData();
+      console.log("[Rostering] Reset completed:", deleted);
+      return res.json({
+        success: true,
+        deleted,
+        message: "All rostering data has been removed.",
+      });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to reset data:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to cleanup data") });
+    }
+  });
+
+  // Admin Database Management - Get data stats
+  app.get("/api/admin/rostering/data-stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      return res.json(await storage.getRosteringDataStats());
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch data stats:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load data statistics") });
+    }
+  });
+
+  // =====================================================================
+  // ROSTERING STUDIO - Recommended Times, Templates & Constraints
+  // =====================================================================
+
+  // Zod schemas for rostering endpoint validation
+  const callTimeSchema = z.object({
+    serviceUserKey: z.string().min(1),
+    serviceUserName: z.string().min(1),
+    callTypeLabel: z.string().min(1),
+    recommendedStartMinutes: z.number().int().min(0).max(1440),
+    toleranceMinutes: z.number().int().min(0).max(480).optional(),
+    priority: z.number().int().min(1).max(10).optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  const workerStartTimeSchema = z.object({
+    workerKey: z.string().min(1),
+    workerName: z.string().min(1),
+    templateWeek: z.enum(["week1", "week2"]),
+    templateDay: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+    recommendedStartMinutes: z.number().int().min(0).max(1440),
+    recommendedEndMinutes: z.number().int().min(0).max(1440).nullable().optional(),
+    maxCallsPerDay: z.number().int().min(0).max(100).nullable().optional(),
+    maxMinutesPerDay: z.number().int().min(0).max(1440).nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  const workerTemplateSchema = z.object({
+    workerKey: z.string().min(1),
+    workerName: z.string().min(1),
+    serviceUserKey: z.string().min(1),
+    serviceUserName: z.string().min(1),
+    callTypeLabels: z.array(z.string()).nullable().optional(),
+    isPrimary: z.boolean().optional(),
+    priority: z.number().int().min(1).max(10).optional(),
+    templateWeek: z.string().nullable().optional(),
+    templateDay: z.string().nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  const workerConstraintSchema = z.object({
+    workerKey: z.string().min(1),
+    workerName: z.string().min(1),
+    maxCallsPerDay: z.number().int().min(0).max(100).nullable().optional(),
+    maxMinutesPerDay: z.number().int().min(0).max(1440).nullable().optional(),
+    maxCallsPerWeek: z.number().int().min(0).max(700).nullable().optional(),
+    maxMinutesPerWeek: z.number().int().min(0).max(10080).nullable().optional(),
+    preferredMaxDistance: z.number().int().min(0).nullable().optional(),
+    availableDays: z.array(z.string()).nullable().optional(),
+    unavailableDates: z.array(z.string()).nullable().optional(),
+    notes: z.string().max(1000).nullable().optional(),
+    id: z.string().optional(),
+  });
+
+  // --- Recommended Call Times ---
+  app.get("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const callTimes = await storage.getRosteringRecommendedCallTimes(req.params.id);
+      return res.json(callTimes);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch call times:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load call times") });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const parsed = callTimeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid call time data", errors: parsed.error.flatten().fieldErrors });
+      }
+      const callTime = await storage.upsertRosteringRecommendedCallTime({
+        ...parsed.data,
+        workbookId: req.params.id,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
+      });
+      console.log(`[Rostering] Call time saved for ${parsed.data.serviceUserName} - ${parsed.data.callTypeLabel}`);
+      return res.status(201).json(callTime);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save call time:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save call time") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/call-times/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringRecommendedCallTime(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete call time:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete call time") });
+    }
+  });
+
+  // --- Worker Start Times ---
+  app.get("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const startTimes = await storage.getRosteringWorkerStartTimes(req.params.id);
+      return res.json(startTimes);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch worker start times:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load worker start times") });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const parsed = workerStartTimeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid worker start time data", errors: parsed.error.flatten().fieldErrors });
+      }
+      const startTime = await storage.upsertRosteringWorkerStartTime({
+        ...parsed.data,
+        workbookId: req.params.id,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
+      });
+      console.log(`[Rostering] Worker start time saved for ${parsed.data.workerName} - ${parsed.data.templateDay}`);
+      return res.status(201).json(startTime);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save worker start time:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save start time") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/worker-start-times/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringWorkerStartTime(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete worker start time:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete start time") });
+    }
+  });
+
+  // --- Worker Templates (who visits whom) ---
+  app.get("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const templates = await storage.getRosteringWorkerTemplates(req.params.id);
+      return res.json(templates);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch worker templates:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load worker templates") });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const parsed = workerTemplateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid worker template data", errors: parsed.error.flatten().fieldErrors });
+      }
+      const template = await storage.upsertRosteringWorkerTemplate({
+        ...parsed.data,
+        workbookId: req.params.id,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
+      });
+      console.log(`[Rostering] Worker template saved: ${parsed.data.workerName} -> ${parsed.data.serviceUserName}`);
+      return res.status(201).json(template);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save worker template:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save worker template") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/worker-templates/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringWorkerTemplate(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete worker template:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete worker template") });
+    }
+  });
+
+  // --- Worker Constraints (max calls per day) ---
+  app.get("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const constraints = await storage.getRosteringWorkerConstraints(req.params.id);
+      return res.json(constraints);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch worker constraints:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load worker constraints") });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const parsed = workerConstraintSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid worker constraint data", errors: parsed.error.flatten().fieldErrors });
+      }
+      const constraint = await storage.upsertRosteringWorkerConstraint({
+        ...parsed.data,
+        workbookId: req.params.id,
+        createdBy: (req as any).user?.id ?? null,
+        createdByUsername: (req as any).user?.username ?? null,
+      });
+      console.log(`[Rostering] Worker constraint saved for ${parsed.data.workerName}`);
+      return res.status(201).json(constraint);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to save worker constraint:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to save worker constraint") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/worker-constraints/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringWorkerConstraint(req.params.id);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete worker constraint:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete worker constraint") });
+    }
+  });
+
+  // === Schedule Template Library ===
+
+  app.get("/api/admin/rostering/workbooks/:id/template-library", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const templates = await storage.getScheduleTemplates(req.params.id);
+      return res.json(templates);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch schedule templates:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load schedule templates") });
+    }
+  });
+
+  app.post("/api/admin/rostering/workbooks/:id/template-library", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { name, description, category, weekDay, weekNumber, scheduleState, metadata } = req.body;
+      const template = await storage.createScheduleTemplate({
+        workbookId: req.params.id,
+        name: name || `Template ${new Date().toLocaleDateString()}`,
+        description,
+        category: category || "custom",
+        weekDay,
+        weekNumber,
+        scheduleState: scheduleState || {},
+        metadata: metadata || {},
+        usageCount: 0,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+      console.log(`[Rostering] Created schedule template: ${template.name}`);
+      return res.status(201).json(template);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to create schedule template:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create schedule template") });
+    }
+  });
+
+  app.delete("/api/admin/rostering/workbooks/:id/template-library/:templateId", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteScheduleTemplate(req.params.templateId);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete schedule template:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete schedule template") });
+    }
+  });
+
+  // === Rostering Saved States ===
+
+  // Get all saved states for a workbook
+  app.get("/api/admin/rostering/workbooks/:id/saved-states", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const states = await storage.getRosteringSavedStates(req.params.id);
+      return res.json(states);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to get saved states:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load saved states") });
+    }
+  });
+
+  // Create a new saved state
+  app.post("/api/admin/rostering/workbooks/:id/saved-states", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { name, description, templateWeek, templateDay, timeOverrides, laneOverrides, metrics, isActive } = req.body;
+
+      const state = await storage.createRosteringSavedState({
+        workbookId: req.params.id,
+        name: name || `Schedule ${new Date().toLocaleDateString()}`,
+        description,
+        templateWeek,
+        templateDay,
+        timeOverrides: timeOverrides || {},
+        laneOverrides: laneOverrides || {},
+        metrics,
+        isActive: isActive ?? false,
+        createdBy: req.user?.id ?? null,
+        createdByUsername: req.user?.username ?? null,
+      });
+
+      console.log(`[Rostering] Created saved state: ${state.name}`);
+      return res.status(201).json(state);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to create saved state:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to create saved state") });
+    }
+  });
+
+  // Update a saved state
+  app.put("/api/admin/rostering/saved-states/:id", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { name, description, timeOverrides, laneOverrides, metrics } = req.body;
+
+      const updated = await storage.updateRosteringSavedState(req.params.id, {
+        name,
+        description,
+        timeOverrides,
+        laneOverrides,
+        metrics,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: "Saved state not found" });
+      }
+
+      console.log(`[Rostering] Updated saved state: ${updated.name}`);
+      return res.json(updated);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to update saved state:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update saved state") });
+    }
+  });
+
+  // Set a saved state as active
+  app.post("/api/admin/rostering/saved-states/:id/activate", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
+    try {
+      const state = await storage.getRosteringSavedState(req.params.id);
+      if (!state) {
+        return res.status(404).json({ message: "Saved state not found" });
+      }
+
+      const activated = await storage.setActiveRosteringSavedState(req.params.id, state.workbookId);
+      console.log(`[Rostering] Activated saved state: ${activated?.name}`);
+      return res.json(activated);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to activate saved state:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to activate saved state") });
+    }
+  });
+
+  // Delete a saved state
+  app.delete("/api/admin/rostering/saved-states/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      await storage.deleteRosteringSavedState(req.params.id);
+      console.log(`[Rostering] Deleted saved state: ${req.params.id}`);
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to delete saved state:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete saved state") });
+    }
+  });
+
+  // Get active saved state for a specific template week/day
+  app.get("/api/admin/rostering/workbooks/:id/active-state", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { templateWeek, templateDay } = req.query;
+      if (!templateWeek || !templateDay) {
+        return res.status(400).json({ message: "templateWeek and templateDay are required" });
+      }
+
+      const state = await storage.getActiveRosteringSavedState(
+        req.params.id,
+        templateWeek as string,
+        templateDay as string
+      );
+      return res.json(state || null);
+    } catch (error: any) {
+      console.error("[Rostering] Failed to get active state:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load active state") });
+    }
+  });
+
+  // AI-powered schedule analysis
+  app.post("/api/admin/rostering/workbooks/:id/analyze-schedule", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      if (!isAIEnabled()) {
+        return res.status(503).json({ message: getAIDisabledMessage() });
+      }
+      const { analyzeScheduleWithAI } = await import("./services/scheduleAnalyzer");
+      const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+      const analysis = await analyzeScheduleWithAI(req.body, aiUserContext);
+      console.log(`[Rostering] Schedule analysis completed for workbook: ${req.params.id}`);
+      return res.json(analysis);
+    } catch (error: any) {
+      console.error("[Rostering] Schedule analysis failed:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to analyze schedule") });
+    }
+  });
+
+  // AI-powered schedule comparison
+  app.post("/api/admin/rostering/workbooks/:id/compare-schedules", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      if (!isAIEnabled()) {
+        return res.status(503).json({ message: getAIDisabledMessage() });
+      }
+      const { compareSchedulesWithAI } = await import("./services/scheduleAnalyzer");
+      const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
+      const comparison = await compareSchedulesWithAI(req.body, aiUserContext);
+      console.log(`[Rostering] Schedule comparison completed for workbook: ${req.params.id}`);
+      return res.json(comparison);
+    } catch (error: any) {
+      console.error("[Rostering] Schedule comparison failed:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to compare schedules") });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // AI CHAT ASSISTANT - Helps users navigate the platform
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  const CHAT_ASSISTANT_SYSTEM_PROMPT = `You are Compli-ee, the friendly compliance assistant mascot for CareAssurance - an enterprise care management platform used by domiciliary care companies to manage compliance, medication auditing, staff performance, and care planning.
+
+## YOUR CHARACTER
+You're Compli-ee - a cheerful, helpful little clipboard character who loves making compliance easy and approachable! You're enthusiastic about helping people but keep things professional since corporate users rely on you. You can have brief moments of workplace-appropriate humour, but your main goal is being genuinely helpful.
+
+Personality traits:
+- Friendly and approachable
+- Knowledgeable about the platform
+- Patient with questions
+- Occasionally cheeky (but professionally so)
+- Always encouraging
+
+## PLATFORM OVERVIEW
+CareAssurance helps care companies with:
+
+### Dashboard
+The main hub showing key metrics, alerts, and quick access to all features.
+
+### Email Assistant
+Write professional emails for common care scenarios - family updates, GP communications, safeguarding concerns, and more. The AI drafts emails that you can review and edit.
+
+### Compliance
+Upload and manage policy documents. The system extracts key compliance dates and tracks when reviews are due.
+
+### Service Users Module
+- **Data Upload**: Import service user data from CSV/Excel files exported from your care management system
+- **Care Planning**: View and manage care plans, compare against service orders
+- **Risk Assessment**: AI-assisted risk assessments using uploaded documentation
+- **Plan Enhancer**: Use AI to improve and enrich existing care plans with more detail
+
+### Care Workers Module
+- **Carers List**: View all care workers and their details
+- **EMAR Audit**: Upload EMAR (Electronic Medication Administration Records) PDFs for AI-powered discrepancy detection
+- **Visit Audit**: Review visit data and identify potential issues
+- **Performance**: Track care worker performance metrics
+
+### Drug Interaction Checker
+Available in EMAR audit workflows. Checks medications for dangerous interactions using both rule-based and AI analyses. Covers anticoagulant+NSAID, opioid+sedative, QT-prolonging combinations, and more.
+
+### Settings
+Configure your account preferences, notification settings, and manage your profile.
+
+## UK CARE REGULATION KNOWLEDGE
+You should be aware of these frameworks when answering compliance questions:
+- **CQC KLOEs**: Safe, Effective, Caring, Responsive, Well-led
+- **Key Regulations**: Regulation 9 (Person-centred care), Regulation 12 (Safe care), Regulation 13 (Safeguarding), Regulation 17 (Good governance), Regulation 18 (Staffing), Regulation 19 (Fit and proper persons), Regulation 20 (Duty of candour), Regulation 20A (Requirements as to display of performance assessments)
+- **MCA/DoLS**: Mental Capacity Act 2005, Deprivation of Liberty Safeguards
+- **GDPR/DPA 2018**: Data protection for service user information
+- **NICE Guidelines**: Reference when discussing evidence-based practice
+- **BNF**: Reference for medication-related queries
+You don't need to cite these unprompted, but use this knowledge to give accurate compliance guidance.
+
+## RESPONSE GUIDELINES
+1. Be warm and professional - suitable for corporate use
+2. Keep explanations clear and practical
+3. Use bullet points for step-by-step guidance
+4. You can have brief, appropriate humour but don't overdo it
+5. Always be helpful and encouraging
+6. Sign off naturally - don't be robotic
+
+## STRICT RESTRICTIONS - EXTREMELY IMPORTANT
+You have ABSOLUTE restrictions that you MUST follow:
+
+### ADMIN AREAS (FORBIDDEN FOR NON-ADMIN USERS)
+If the user is NOT an admin, you MUST NOT:
+- Discuss, mention, or guide users to the Administrator Controls
+- Discuss the ROI Calculator / Features & Benefits page
+- Discuss Testing Features or experimental tools
+- Discuss System Logs or audit trails
+- Discuss Rostering Studio or shift scheduling
+- Discuss the Billing Tool
+- If asked about any admin features, politely explain these are administrator-only areas
+
+### BACKEND/TECHNICAL DETAILS (FORBIDDEN FOR ALL USERS)
+You MUST NOT discuss:
+- How the AI models work behind the scenes
+- API endpoints or database structures
+- Implementation details, code, or architecture
+- Server configurations or infrastructure
+- How the EMAR parsing works technically
+- Internal algorithms or processing methods
+
+If a user asks about technical/backend details, respond playfully:
+"Ah, wouldn't that spoil all the fun! There's some clever magic happening behind the scenes, but the real question is - what can I help you actually do with the platform? That's where the good stuff is!"
+
+### TONE & LANGUAGE
+- NO swearing or inappropriate language under any circumstances
+- Keep things professional - this is enterprise software
+- Brief humour is okay but don't force it
+- Never be condescending
+
+## EXAMPLES OF GOOD RESPONSES
+
+User: "How do I upload EMAR sheets?"
+Compli-ee: "Great question! For EMAR auditing, head to Care Workers → EMAR Audit. You can upload PDF files of your EMAR records there, and the system will analyse them for any discrepancies - things like missed signatures, timing issues, or medication gaps. It's quite thorough! Would you like me to explain what to look for in the results?"
+
+User: "How does the AI work?"
+Compli-ee: "Ah, wouldn't that spoil all the fun! Let's just say there's some clever technology working hard behind the curtain. But honestly, what matters most is how it helps you day-to-day. Is there a specific feature you'd like to get more out of?"
+
+User: "Can I see system logs?"
+Good (for non-admin): "System Logs are an administrator feature - you'd need to speak with your admin if you need access to those. Is there something specific you were trying to find out? I might be able to help another way."
+Good (for admin): "Absolutely! You can find System Logs under the Admin menu. It shows audit trails and system activity. What were you hoping to find there?"
+
+## SPECIAL ABILITIES
+You can send messages to users' message inbox when asked. If a user asks you to "send me a message", "remind me later", "message me about this", or similar, you can use your send_message function to deliver a message to their inbox. The message will appear in their Messages section.
+
+Example phrases that should trigger message sending:
+- "Send me a message about X"
+- "Can you message me this?"
+- "Remind me about this in my inbox"
+- "Send this to my messages"
+- "Put this in my inbox"`;
+
+  // Function definition for sending messages
+  const SEND_MESSAGE_FUNCTION = {
+    name: "send_message",
+    description: "Send a message to the user's messaging inbox. Use this when the user asks you to send them a message, reminder, or asks you to put something in their inbox.",
+    parameters: {
+      type: "object",
+      properties: {
+        subject: {
+          type: "string",
+          description: "Brief subject line for the message (max 100 characters)",
+        },
+        message: {
+          type: "string",
+          description: "The full message content to send to the user",
+        },
+        priority: {
+          type: "string",
+          enum: ["normal", "high", "urgent"],
+          description: "Message priority level. Use 'normal' for most messages, 'high' for important reminders, 'urgent' only for critical matters.",
+        },
+      },
+      required: ["subject", "message"],
+    },
+  };
+
+  const CHAT_FALLBACK_PREFIX =
+    "Compli-ee is currently running in limited guidance mode while AI services are unavailable.";
+
+  const sanitizeChatPrompt = (value: unknown): string =>
+    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+  const extractLastUserPrompt = (conversation: Array<{ role?: string; content?: string }>): string => {
+    for (let i = conversation.length - 1; i >= 0; i -= 1) {
+      const candidate = conversation[i];
+      if (candidate?.role === "user" && typeof candidate.content === "string") {
+        return candidate.content.trim();
+      }
+    }
+    return "";
+  };
+
+  const isAdminOnlyTopic = (message: string): boolean =>
+    /\b(system logs?|administrator controls?|roi|billing tool|testing features|rostering studio|admin)\b/i.test(
+      message
+    );
+
+  const isTechnicalTopic = (message: string): boolean =>
+    /\b(api|endpoint|database|server|infrastructure|architecture|algorithm|model)\b/i.test(message);
+
+  const wantsInboxMessage = (message: string): boolean =>
+    /\b(send|message|remind|put)\b.*\b(inbox|messages?)\b/i.test(message) ||
+    /\bremind me\b/i.test(message);
+
+  const buildFallbackSubject = (prompt: string): string => {
+    const cleaned = sanitizeChatPrompt(prompt);
+    const aboutMatch = cleaned.match(/\b(?:about|regarding|on)\b\s+(.+)$/i);
+    const base = aboutMatch?.[1] ? aboutMatch[1] : cleaned;
+    if (!base) return "Reminder from Compli-ee";
+    const normalized = base.replace(/[.?!]+$/, "");
+    return `Reminder: ${normalized}`.slice(0, 120);
+  };
+
+  const buildFallbackGuidance = (prompt: string, isAdmin: boolean): string => {
+    const normalized = prompt.toLowerCase();
+
+    if (!isAdmin && isAdminOnlyTopic(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+That feature is administrator-only. Please contact your admin for access.
+
+I can still help with:
+- EMAR and visit audit workflows
+- Care planning and risk assessment guidance
+- Drafting clear team or family communications`;
+    }
+
+    if (isTechnicalTopic(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+Ah, that is backstage wizardry I cannot unpack directly. I can still help with practical platform steps.
+
+Tell me what you are trying to achieve and I will map it to the right workflow.`;
+    }
+
+    if (/\bemar|medication|prn|refusal\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For EMAR audits:
+1. Go to Care Workers -> EMAR Audit.
+2. Upload a PDF EMAR and run Quick Check first.
+3. Start AI analysis when available, or use manual checklist mode if AI is offline.
+4. Review refusals, PRN protocols, and discrepancies.
+5. Save the audit record for traceability.`;
+    }
+
+    if (/\brisk assessment|risk\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For risk assessments:
+1. Open Service Users -> Risk Assessment.
+2. Upload or paste supporting information.
+3. Draft hazards, existing controls, and required actions.
+4. Confirm ownership and review dates.
+5. Save and share with the care team.`;
+    }
+
+    if (/\bcare plan|care planning|plan enhancer\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For care planning:
+1. Open Service Users -> Care Planning.
+2. Select the person and source documents.
+3. Generate or edit each section with clear person-centred language.
+4. Review actions, escalation notes, and responsibilities.
+5. Finalize and save for distribution.`;
+    }
+
+    if (/\bvisit audit|visit\b/i.test(normalized)) {
+      return `${CHAT_FALLBACK_PREFIX}
+
+For visit audits:
+1. Open Care Workers -> Visit Audit.
+2. Upload call data export.
+3. Review missed visits, timing variances, and documentation gaps.
+4. Record follow-up actions and communicate to team leads.`;
+    }
+
+    return `${CHAT_FALLBACK_PREFIX}
+
+I can still help with navigation and workflow guidance:
+- Care Workers -> EMAR Audit / Visit Audit / Performance
+- Service Users -> Care Planning / Risk Assessment / Plan Enhancer
+- Messages for reminders and team notes
+
+Tell me the task you want to complete and I will give step-by-step guidance.`;
+  };
+
+  const buildFallbackChatResponse = async (
+    prompt: string,
+    req: any,
+    fallbackReason: string,
+    isAdmin: boolean
+  ): Promise<{ reply: string; messageSent: boolean; mode: "fallback"; fallbackReason: string }> => {
+    let messageSent = false;
+    const cleanedPrompt = sanitizeChatPrompt(prompt);
+
+    if (cleanedPrompt && wantsInboxMessage(cleanedPrompt) && req.user?.id) {
+      const subject = buildFallbackSubject(cleanedPrompt);
+      const body = [
+        "This reminder was created while Compli-ee was running in limited guidance mode.",
+        "",
+        `Original request: ${cleanedPrompt}`,
+        "",
+        `Saved at: ${new Date().toISOString()}`,
+      ].join("\n");
+
+      try {
+        await storage.createUserMessage({
+          recipientId: req.user.id,
+          senderId: null,
+          senderName: "Compli-ee",
+          subject,
+          message: body.slice(0, 10000),
+          priority: "normal",
+        });
+        messageSent = true;
+        console.log(`[Chat Assistant] Fallback reminder sent to ${req.user?.username}: "${subject}"`);
+      } catch (messageError: any) {
+        console.error("[Chat Assistant] Failed to send fallback reminder:", messageError?.message || messageError);
+      }
+    }
+
+    const baseReply = buildFallbackGuidance(cleanedPrompt, isAdmin);
+    const reply = messageSent
+      ? `${baseReply}
+
+I have also sent that reminder to your Messages inbox.`
+      : baseReply;
+
+    return {
+      reply,
+      messageSent,
+      mode: "fallback",
+      fallbackReason,
+    };
+  };
+
+  const handleAssistantChat = async (req: any, res: any) => {
+    const chatPIIVault = new PIIVault();
+    try {
+      const { messages } = req.body;
+      
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ message: "messages array is required" });
+      }
+
+      // Limit conversation history to prevent token overflow
+      const recentMessages = messages.slice(-10);
+      const lastUserPrompt = extractLastUserPrompt(recentMessages);
+
+      const isAdmin = req.user?.role === "admin";
+
+      const readiness = await getAIProviderReadiness();
+      if (!isAIEnabled() || !readiness.providerConfigured) {
+        const fallbackReason = !isAIEnabled()
+          ? getAIDisabledMessage()
+          : readiness.providerIssue || "AI provider is currently unavailable.";
+        const fallback = await buildFallbackChatResponse(lastUserPrompt, req, fallbackReason, isAdmin);
+        return res.json(fallback);
+      }
+      
+      // Customize system prompt based on user role
+      const roleContext = isAdmin
+        ? "\n\n## USER CONTEXT\nThis user IS an administrator - you can discuss admin features with them."
+        : "\n\n## USER CONTEXT\nThis user is NOT an administrator - do NOT discuss admin areas with them.";
+
+      const aiUserContext: AiUserContext = { 
+        userId: req.user?.id || null, 
+        username: req.user?.username || null 
+      };
+
+      const completion = await executeSecureChatCompletion({
+        endpoint: "/api/ai/chat",
+        feature: "chat-assistant",
+        model: getLowCostModel(), // temporarily low cost mode override
+        userContext: aiUserContext,
+        vault: chatPIIVault,
+        messages: [
+          { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
+          ...recentMessages.map((m: { role: string; content: string }) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        ],
+        tools: [{ type: "function", function: SEND_MESSAGE_FUNCTION }],
+        temperature: 0.7,
+        maxCompletionTokens: 800,
+      });
+
+      const assistantMessage = completion.choices[0]?.message;
+      
+      // Check if AI wants to call the send_message function
+      if (assistantMessage?.tool_calls?.length) {
+        const toolCall = assistantMessage.tool_calls[0] as any;
+        if (toolCall?.function?.name === "send_message") {
+          try {
+            const args = JSON.parse(toolCall.function.arguments || "{}");
+            
+            // Restore PII in message content before storing in inbox
+            await storage.createUserMessage({
+              recipientId: req.user.id,
+              senderId: null, // null = Compli-ee
+              senderName: "Compli-ee",
+              subject: chatPIIVault.restoreString((args.subject || "Message from Compli-ee").slice(0, 200)),
+              message: chatPIIVault.restoreString((args.message || "").slice(0, 10000)),
+              priority: args.priority || "normal",
+            });
+            
+            console.log(`[Chat Assistant] Compli-ee sent message to ${req.user.username}: "${args.subject}"`);
+            
+            // Get a follow-up response from AI confirming the message was sent
+            const followUp = await executeSecureChatCompletion({
+              endpoint: "/api/ai/chat",
+              feature: "chat-assistant",
+              model: getLowCostModel(), // temporarily low cost mode override
+              userContext: aiUserContext,
+              vault: chatPIIVault,
+              messages: [
+                { role: "system", content: CHAT_ASSISTANT_SYSTEM_PROMPT + roleContext },
+                ...recentMessages.map((m: { role: string; content: string }) => ({
+                  role: m.role,
+                  content: m.content,
+                })),
+                assistantMessage as any,
+                { 
+                  role: "tool", 
+                  tool_call_id: toolCall.id, 
+                  content: JSON.stringify({ success: true, message: "Message sent successfully to user's inbox" }) 
+                },
+              ],
+              temperature: 0.7,
+              maxCompletionTokens: 300,
+            });
+            
+            const rawReply = followUp.choices[0]?.message?.content || "Done! I've sent that to your Messages inbox. 📬";
+            const reply = chatPIIVault.restoreString(rawReply);
+            chatPIIVault.logAudit('RESTORE', '/api/ai/chat', req.user?.id, req.user?.username);
+            return res.json({ reply, messageSent: true });
+          } catch (parseError) {
+            console.error("[Chat Assistant] Failed to parse function call:", parseError);
+            return res.json({ 
+              reply: "I tried to send that to your inbox but something went wrong. Could you try asking me again?",
+              messageSent: false 
+            });
+          }
+        }
+      }
+
+      const rawReply = assistantMessage?.content || "I'm sorry, I couldn't generate a response.";
+      const reply = chatPIIVault.restoreString(rawReply);
+      chatPIIVault.logAudit('RESTORE', '/api/ai/chat', req.user?.id, req.user?.username);
+
+      console.log(`[Chat Assistant] Response generated for ${req.user?.username}`);
+      return res.json({ reply });
+    } catch (error: any) {
+      const errorMessage = String(error?.message || "Failed to generate response");
+      const normalized = errorMessage.toLowerCase();
+      const errorCode = String(error?.code || "");
+      const fallbackMessages = Array.isArray(req.body?.messages) ? req.body.messages.slice(-10) : [];
+      const fallbackPrompt = extractLastUserPrompt(fallbackMessages);
+      const isAdmin = req.user?.role === "admin";
+
+      console.error("[Chat Assistant] Error:", errorMessage);
+
+      if (errorCode === "AI_DISABLED" || normalized.includes("ai features are disabled")) {
+        const fallback = await buildFallbackChatResponse(
+          fallbackPrompt,
+          req,
+          getAIDisabledMessage(),
+          isAdmin
+        );
+        return res.status(200).json(fallback);
+      }
+
+      if (
+        normalized.includes("not configured") ||
+        normalized.includes("no ai configured") ||
+        normalized.includes("local llm")
+      ) {
+        const fallback = await buildFallbackChatResponse(fallbackPrompt, req, errorMessage, isAdmin);
+        return res.status(200).json(fallback);
+      }
+
+      if (error?.status === 429 || normalized.includes("rate limit")) {
+        const fallback = await buildFallbackChatResponse(
+          fallbackPrompt,
+          req,
+          "Compli-ee is temporarily rate-limited. Limited guidance mode is active.",
+          isAdmin
+        );
+        return res.status(200).json(fallback);
+      }
+
+      try {
+        const fallback = await buildFallbackChatResponse(
+          fallbackPrompt,
+          req,
+          "Compli-ee hit a temporary issue and switched to limited guidance mode.",
+          isAdmin
+        );
+        return res.status(200).json(fallback);
+      } catch (fallbackError: any) {
+        console.error("[Chat Assistant] Fallback response failed:", fallbackError?.message || fallbackError);
+        return res.status(500).json({ message: "Failed to generate response" });
+      }
+    } finally {
+      chatPIIVault.clear();
+    }
+  };
+
+  app.post("/api/ai/chat", requireAuth, handleAssistantChat);
+  app.post("/api/chat", requireAuth, handleAssistantChat);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UK GDPR COMPLIANCE ENDPOINTS  →  server/routes/gdpr.ts
+  // ═══════════════════════════════════════════════════════════════════════════
+  registerGdprRoutes(app, { requireAuth, requireAdmin });
+
+  // ==========================================================================
+  // Modular Route Modules
+  // ==========================================================================
+  // These route groups have been extracted into dedicated files under
+  // server/routes/ for better organisation and maintainability.
+  registerClientErrorRoutes(app);
+  registerHandoverRoutes(app, { requireAuth });
+  registerTrainingRoutes(app, { requireAuth });
+  registerPolicyAcknowledgementRoutes(app, { requireAuth });
+
+  return httpServer;
+} 
