@@ -2260,11 +2260,82 @@ function scrubPIIWithAudit(data: any): { scrubbed: any; stats: ScrubStats } {
 const toFirstPerson = (text: string): string => {
   if (!text) return text;
   let updated = text;
-  updated = updated.replace(/\b(the|this)\s+(service user|client|resident|patient)\b/gi, "I");
-  updated = updated.replace(/\bthe service user's\b/gi, "my");
-  updated = updated.replace(/\bthe client's\b/gi, "my");
-  updated = updated.replace(/\bthe resident's\b/gi, "my");
-  updated = updated.replace(/\bthe patient's\b/gi, "my");
+
+  // Possessive forms first (before replacing the subject pronouns)
+  updated = updated.replace(/\b(the|this)\s+(service user|client|resident|patient|individual|person)'?s\b/gi, "my");
+  updated = updated.replace(/\bher\s+(?=\w)/gi, "my ");
+  updated = updated.replace(/\bhis\s+(?=\w)/gi, "my ");
+  updated = updated.replace(/\btheir\s+(?=\w)/gi, "my ");
+
+  // Subject pronoun replacements
+  updated = updated.replace(/\b(the|this)\s+(service user|client|resident|patient|individual|person)\b/gi, "I");
+  updated = updated.replace(/\bshe\s+is\b/gi, "I am");
+  updated = updated.replace(/\bhe\s+is\b/gi, "I am");
+  updated = updated.replace(/\bshe\s+has\b/gi, "I have");
+  updated = updated.replace(/\bhe\s+has\b/gi, "I have");
+  updated = updated.replace(/\bshe\s+was\b/gi, "I was");
+  updated = updated.replace(/\bhe\s+was\b/gi, "I was");
+  updated = updated.replace(/\bshe\s+needs\b/gi, "I need");
+  updated = updated.replace(/\bhe\s+needs\b/gi, "I need");
+  updated = updated.replace(/\bshe\s+requires\b/gi, "I require");
+  updated = updated.replace(/\bhe\s+requires\b/gi, "I require");
+  updated = updated.replace(/\bshe\s+uses\b/gi, "I use");
+  updated = updated.replace(/\bhe\s+uses\b/gi, "I use");
+  updated = updated.replace(/\bshe\s+takes\b/gi, "I take");
+  updated = updated.replace(/\bhe\s+takes\b/gi, "I take");
+  updated = updated.replace(/\bshe\s+experiences\b/gi, "I experience");
+  updated = updated.replace(/\bhe\s+experiences\b/gi, "I experience");
+  updated = updated.replace(/\bshe\s+suffers\b/gi, "I suffer");
+  updated = updated.replace(/\bhe\s+suffers\b/gi, "I suffer");
+  updated = updated.replace(/\bshe\s+lives\b/gi, "I live");
+  updated = updated.replace(/\bhe\s+lives\b/gi, "I live");
+  updated = updated.replace(/\bshe\s+receives\b/gi, "I receive");
+  updated = updated.replace(/\bhe\s+receives\b/gi, "I receive");
+  updated = updated.replace(/\bshe\s+can\b/gi, "I can");
+  updated = updated.replace(/\bhe\s+can\b/gi, "I can");
+  updated = updated.replace(/\bshe\s+cannot\b/gi, "I cannot");
+  updated = updated.replace(/\bhe\s+cannot\b/gi, "I cannot");
+  updated = updated.replace(/\bshe\s+may\b/gi, "I may");
+  updated = updated.replace(/\bhe\s+may\b/gi, "I may");
+  updated = updated.replace(/\bshe\s+will\b/gi, "I will");
+  updated = updated.replace(/\bhe\s+will\b/gi, "I will");
+  updated = updated.replace(/\bshe\s+should\b/gi, "I should");
+  updated = updated.replace(/\bhe\s+should\b/gi, "I should");
+  updated = updated.replace(/\bshe\s+would\b/gi, "I would");
+  updated = updated.replace(/\bhe\s+would\b/gi, "I would");
+  updated = updated.replace(/\bshe\s+also\b/gi, "I also");
+  updated = updated.replace(/\bhe\s+also\b/gi, "I also");
+
+  // Remaining standalone pronouns (after verb combos handled above)
+  updated = updated.replace(/\bshe\b/gi, "I");
+  updated = updated.replace(/\bhe\b/gi, "I");
+
+  // Object pronoun replacements
+  updated = updated.replace(/\bfor her\b/gi, "for me");
+  updated = updated.replace(/\bfor him\b/gi, "for me");
+  updated = updated.replace(/\bwith her\b/gi, "with me");
+  updated = updated.replace(/\bwith him\b/gi, "with me");
+  updated = updated.replace(/\bto her\b/gi, "to me");
+  updated = updated.replace(/\bto him\b/gi, "to me");
+  updated = updated.replace(/\bsupport her\b/gi, "support me");
+  updated = updated.replace(/\bsupport him\b/gi, "support me");
+  updated = updated.replace(/\bassist her\b/gi, "assist me");
+  updated = updated.replace(/\bassist him\b/gi, "assist me");
+  updated = updated.replace(/\bhelp her\b/gi, "help me");
+  updated = updated.replace(/\bhelp him\b/gi, "help me");
+
+  // Fix grammatical issues from pronoun replacement
+  updated = updated.replace(/\bI\s+is\b/g, "I am");
+  updated = updated.replace(/\bI\s+has\b/g, "I have");
+  updated = updated.replace(/\bI\s+needs\b/g, "I need");
+  updated = updated.replace(/\bI\s+requires\b/g, "I require");
+  updated = updated.replace(/\bI\s+uses\b/g, "I use");
+  updated = updated.replace(/\bI\s+takes\b/g, "I take");
+  updated = updated.replace(/\bI\s+experiences\b/g, "I experience");
+  updated = updated.replace(/\bI\s+lives\b/g, "I live");
+  updated = updated.replace(/\bI\s+receives\b/g, "I receive");
+  updated = updated.replace(/\bI\s+suffers\b/g, "I suffer");
+
   return updated;
 };
 
@@ -2428,6 +2499,8 @@ function normalizeFullName(value: unknown): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
   if (/information not found/i.test(trimmed)) return "";
+  // Reject PII vault tokens that weren't restored
+  if (/\{\{PII_/.test(trimmed)) return "";
   // Reject placeholder/generic words that are not real names
   const lower = trimmed.toLowerCase().replace(/\s+/g, " ");
   const invalidNames = [
@@ -14641,7 +14714,11 @@ Remember: Extract information ONLY from service user documents above. Templates 
       clearInterval(progressInterval);
       sendProgress(80, "Processing results...", "processing");
 
-      const content = response.restoredText || "";
+      // Use raw AI response (with route handler vault tokens intact) so toPlaceholders works correctly.
+      // Clean up any truncated/incomplete PII tokens caused by output token limits.
+      const rawAiContent = response.rawWithTokens || "";
+      const cleanedContent = rawAiContent.replace(/\{\{PII_[^}]*$/gm, "");
+      const content = cleanedContent;
       const parsed = parseJsonFromContent(content);
       if (!parsed) {
         sendEvent('error', { message: "Failed to parse AI response" });
@@ -14665,8 +14742,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
         initials: normalizeInitials(parsed?.serviceUser?.initials),
       };
       if (allowSensitiveView) {
-        // Try AI-extracted name first, then fall back to regex extraction from original (unscrubbed) documents
-        const aiFull = normalizeFullName(parsed?.serviceUser?.fullName);
+        // Try AI-extracted name first (restore any PII tokens), then fall back to regex extraction from original (unscrubbed) documents
+        const aiFullRaw = typeof parsed?.serviceUser?.fullName === "string" ? piiVault.restoreString(parsed.serviceUser.fullName) : "";
+        const aiFull = normalizeFullName(aiFullRaw);
         const fullName = aiFull || normalizeFullName(extractServiceUserFullName(documentContent));
         if (fullName) {
           serviceUser.fullName = fullName;
@@ -15224,8 +15302,13 @@ Remember: Extract information ONLY from the service user documents above. Templa
       if (progressInterval) clearInterval(progressInterval);
       sendProgress(70, "Processing results...", "processing");
 
-      const content = response.restoredText || "";
-      const parsed = parseJsonFromContent(content);
+      // The pipeline vault may have added its own tokens on top of the route handler's vault tokens.
+      // Use the raw AI response (with route handler tokens intact) and restore only the pipeline vault's tokens.
+      // Route handler tokens remain for toPlaceholders + client-side vault restore.
+      const rawAiContent = response.rawWithTokens || "";
+      // Clean up any truncated/incomplete PII tokens caused by output token limits
+      const cleanedContent = rawAiContent.replace(/\{\{PII_[^}]*$/gm, "");
+      const parsed = parseJsonFromContent(cleanedContent);
       if (parsed) {
         let result = parsed;
         
