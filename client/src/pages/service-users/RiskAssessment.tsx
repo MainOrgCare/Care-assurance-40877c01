@@ -96,6 +96,7 @@ interface GeneratedAssessment {
   serviceUserInitials: string;
   assessmentDate: string;
   risks: RiskRow[];
+  supportingEvidence?: string[];
   signedBy: string;
   jobTitle: string;
   additionalNotes: string;
@@ -990,6 +991,14 @@ export default function RiskAssessment() {
       "",
     ];
 
+    if (assessment.supportingEvidence && assessment.supportingEvidence.length > 0) {
+      lines.push("Supporting Evidence:");
+      assessment.supportingEvidence.forEach((evidence) => {
+        lines.push(`- ${evidence}`);
+      });
+      lines.push("");
+    }
+
     assessment.risks.forEach((risk, index) => {
       lines.push(`Risk ${index + 1}: ${risk.riskDefinition}`);
       lines.push(`Initial Rating: ${risk.initialRating}`);
@@ -1076,6 +1085,14 @@ export default function RiskAssessment() {
       addParagraph(`Service User: ${getServiceUserDisplay(assessment.serviceUserInitials)}`);
       addParagraph(`Signed By: ${formatSignedBy(assessment)}`);
       y += 2;
+
+      if (assessment.supportingEvidence && assessment.supportingEvidence.length > 0) {
+        doc.setFont("helvetica", "bold");
+        addParagraph("Supporting Evidence:", 7);
+        doc.setFont("helvetica", "normal");
+        assessment.supportingEvidence.forEach((evidence) => addParagraph(`- ${evidence}`));
+        y += 2;
+      }
 
       assessment.risks.forEach((risk, idx) => {
         doc.setFont("helvetica", "bold");
@@ -1913,6 +1930,19 @@ export default function RiskAssessment() {
                   <p className="text-foreground font-medium">{getServiceUserDisplay(assessment.serviceUserInitials)}</p>
                 </div>
               </div>
+
+              {assessment.supportingEvidence && assessment.supportingEvidence.length > 0 && (
+                <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+                  <Label className="text-muted-foreground text-xs">Supporting Evidence</Label>
+                  <div className="mt-2 space-y-2">
+                    {assessment.supportingEvidence.map((evidence, evidenceIdx) => (
+                      <p key={evidenceIdx} className="text-muted-foreground text-sm">
+                        {evidenceIdx + 1}. {highlightPlaceholders(evidence)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Risk Rows */}
               <div className="space-y-4">

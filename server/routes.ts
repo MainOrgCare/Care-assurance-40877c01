@@ -2339,6 +2339,32 @@ const toFirstPerson = (text: string): string => {
   return updated;
 };
 
+const PII_TOKEN_CATEGORY_FRAGMENT = String.raw`(?:NAME|NHS_NUM|NI_NUM|POSTCODE|EMAIL|PHONE|NETWORK|BANK|CARD|LICENSE|PASSPORT|VEHICLE|FIELD|DATE|DOB|AGE|ADDRESS|CONTACT|LOCATION|BIOGRAPHICAL|HEALTH|IP|MAC)`;
+
+const stripLeakedPiiTokensFromString = (text: string): string => {
+  if (!text) return text;
+  return text
+    .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
+    .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+`, "gi"), "")
+    .replace(new RegExp(String.raw`\bPII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
+    .replace(new RegExp(String.raw`\b[a-z0-9]{1,12}_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
+    .replace(/\{\{PII_/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+};
+
+const stripLeakedPiiTokens = <T = any>(data: T): T => {
+  if (typeof data === "string") return stripLeakedPiiTokensFromString(data) as T;
+  if (Array.isArray(data)) return data.map((item) => stripLeakedPiiTokens(item)) as T;
+  if (typeof data === "object" && data !== null) {
+    const cleaned: Record<string, any> = {};
+    for (const key of Object.keys(data)) cleaned[key] = stripLeakedPiiTokens((data as Record<string, any>)[key]);
+    return cleaned as T;
+  }
+  return data;
+};
+
 /**
  * Enhanced narrative text sanitizer - UK GDPR compliant
  * Converts scrubbed tokens to natural language for care plan output
@@ -2510,9 +2536,12 @@ function normalizeFullName(value: unknown): string {
     "enter name", "your name", "client name", "service user name",
   ];
   if (invalidNames.includes(lower)) return "";
+  if (/\b(?:emergency|contact|next of kin|telephone|phone|mobile|email|address|relationship|relation|allerg(?:y|ies)|dob|date of birth)\b/i.test(lower)) return "";
   // Also reject if every word in the name is the same generic word (e.g., "Name Name Name")
   const words = lower.split(" ");
   if (words.length > 0 && words.every(w => w === "name" || w === "unknown" || w === "n/a")) return "";
+  const usefulWords = words.filter((word) => word.length > 1 && !["of", "the", "and", "for", "to"].includes(word));
+  if (usefulWords.length < 2) return "";
   return trimmed;
 }
 
@@ -2533,20 +2562,28 @@ function normalizeSignedByName(value?: string | null): string {
 
 const extractServiceUserFullName = (text: string): string => {
   if (!text) return "";
-  const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id)\b/i;
-  // Name capture pattern: first + last name (mixed case, all caps, or title case)
-  const nameCapture = "([A-Za-z][A-Za-z'`-]+(?:\\s+[A-Za-z][A-Za-z'`-]+)+)";
+  const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id|emergency|contact|next of kin|telephone|phone|mobile|email|address|relationship|relation)\b/i;
+  // Same-line capture only to avoid merging labels across line breaks.
+  const sameLineNameCapture = "([A-Za-z][A-Za-z'`-]+(?:[ \t]+[A-Za-z][A-Za-z'`-]+)+)";
+  // Next-line capture only for explicit service-user labels, and only when the next line looks like a real name.
+  const nextLineNameCapture = "([A-Z][A-Za-z'`-]+(?:[ \t]+[A-Z][A-Za-z'`-]+)+)";
   const patterns = [
-    new RegExp(`Printed date\\s+${nameCapture}\\s+CASE`, "i"),
-    new RegExp(`\\bCase\\s*:\\s*${nameCapture}\\b`, "i"),
-    new RegExp(`\\bCase\\s+${nameCapture}\\b`, "i"),
-    new RegExp(`Service User(?: Name)?[:\\s]+${nameCapture}`, "i"),
-    new RegExp(`Resident(?: Name)?[:\\s]+${nameCapture}`, "i"),
-    new RegExp(`Patient(?: Name)?[:\\s]+${nameCapture}`, "i"),
-    new RegExp(`Client(?: Name)?[:\\s]+${nameCapture}`, "i"),
-    new RegExp(`(?:Full )?Name[:\\s]+${nameCapture}`, "i"),
-    // ALL CAPS patterns common in care documents
-    /\b(?:SERVICE USER|RESIDENT|CLIENT|PATIENT|NAME)[:\s]+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)+)/,
+    new RegExp(`Printed date[ \t]+${sameLineNameCapture}[ \t]+CASE`, "i"),
+    new RegExp(`\\bCase[ \t]*:[ \t]*${sameLineNameCapture}\\b`, "i"),
+    new RegExp(`\\bCase[ \t]+${sameLineNameCapture}\\b`, "i"),
+    new RegExp(`Service User(?: Name)?[ \t]*:?[ \t]*${sameLineNameCapture}`, "i"),
+    new RegExp(`Resident(?: Name)?[ \t]*:?[ \t]*${sameLineNameCapture}`, "i"),
+    new RegExp(`Patient(?: Name)?[ \t]*:?[ \t]*${sameLineNameCapture}`, "i"),
+    new RegExp(`Client(?: Name)?[ \t]*:?[ \t]*${sameLineNameCapture}`, "i"),
+    new RegExp(`Full Name[ \t]*:?[ \t]*${sameLineNameCapture}`, "i"),
+    new RegExp(`Name[ \t]*:[ \t]*${nextLineNameCapture}`, "i"),
+    new RegExp(`Name[ \t]*:?[ \t]*\n+[ \t]*${nextLineNameCapture}`, "i"),
+    new RegExp(`Service User(?: Name)?[ \t]*:?[ \t]*\n+[ \t]*${nextLineNameCapture}`, "i"),
+    new RegExp(`Resident(?: Name)?[ \t]*:?[ \t]*\n+[ \t]*${nextLineNameCapture}`, "i"),
+    new RegExp(`Patient(?: Name)?[ \t]*:?[ \t]*\n+[ \t]*${nextLineNameCapture}`, "i"),
+    new RegExp(`Client(?: Name)?[ \t]*:?[ \t]*\n+[ \t]*${nextLineNameCapture}`, "i"),
+    new RegExp(`Full Name[ \t]*:?[ \t]*\n+[ \t]*${nextLineNameCapture}`, "i"),
+    /\b(?:SERVICE USER|RESIDENT|CLIENT|PATIENT|FULL NAME)[: \t]+([A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+)+)/,
   ];
 
   for (const pattern of patterns) {
@@ -2561,6 +2598,8 @@ const extractServiceUserFullName = (text: string): string => {
       const genericWords = new Set(["name", "unknown", "n/a", "tbc", "tbd", "first", "last", "surname", "full", "client", "resident", "patient", "person", "service", "user", "enter"]);
       const nameWords = lowerName.split(" ");
       if (nameWords.every(w => genericWords.has(w))) continue;
+      const usefulWords = nameWords.filter((word) => word.length > 1 && !["of", "the", "and", "for", "to"].includes(word));
+      if (usefulWords.length < 2) continue;
       return fullName;
     }
   }
@@ -2812,7 +2851,7 @@ const collectAssessmentEvidence = (
   return matches;
 };
 
-const truncateEvidence = (text: string, maxLength = 160) => {
+const truncateEvidence = (text: string, maxLength = 260) => {
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 3)}...`;
 };
@@ -3555,6 +3594,7 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
     serviceUserInitials: normalizeInitials(serviceUserInitials || "N.N."),
     assessmentDate: formatRiskAssessmentDate(),
     risks,
+    supportingEvidence: evidencePool,
     signedBy: normalizeSignedByName(performedBy || "Staff member"),
     jobTitle: performedByJobTitle || "Care Staff",
     additionalNotes: toFirstPerson("I need this risk area reviewed regularly and updated when my needs change."),
@@ -14879,28 +14919,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
       const templateResult = piiVault.toPlaceholders(result);
       console.log(`[Risks] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
       piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
-      
-      // Final safety net: strip any remaining PII tokens (complete, truncated, or fragmented) from all string fields
-      const stripLeakedTokens = (data: any): any => {
-        if (typeof data === "string") {
-          return data
-            .replace(/\{\{PII_[^}]*\}\}/g, "")          // complete tokens: {{PII_abc_NAME_1}}
-            .replace(/\{\{PII_[^}"\n]*/g, "")            // truncated prefix: {{PII_abc_NAME (no closing)
-            .replace(/[a-z0-9]{2,}_[A-Z_]+_\d+\}\}/g, "") // partial suffix: fz_NAME_207}}
-            .replace(/\{\{PII_/g, "")                     // lone prefix fragments
-            .replace(/\s{2,}/g, " ")                      // collapse double spaces
-            .trim();
-        }
-        if (Array.isArray(data)) return data.map(stripLeakedTokens);
-        if (typeof data === "object" && data !== null) {
-          const cleaned: Record<string, any> = {};
-          for (const key of Object.keys(data)) cleaned[key] = stripLeakedTokens(data[key]);
-          return cleaned;
-        }
-        return data;
-      };
-      const cleanTemplateResult = stripLeakedTokens(templateResult);
-      const cleanRawResult = stripLeakedTokens(result);
+      const restoredRawResult = piiVault.restore(result);
+      const cleanTemplateResult = stripLeakedPiiTokens(templateResult);
+      const cleanRawResult = stripLeakedPiiTokens(restoredRawResult);
       
       // Always export vault for automatic client-side name restoration
       // The client restores PII values locally without them being retransmitted
@@ -14915,7 +14936,7 @@ Remember: Extract information ONLY from service user documents above. Templates 
       piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
       // Cache only the template result — NEVER cache vaultExport (contains real PII)
-      const cachePayload = { ...templateResult };
+      const cachePayload = { ...cleanTemplateResult };
       setRiskAnalysisCache(cacheKey, cachePayload);
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', payload);
@@ -15078,12 +15099,28 @@ CRITICAL REMINDER:
       const evidenceSnippets = Array.isArray(assessmentEvidence?.evidenceSnippets)
         ? assessmentEvidence.evidenceSnippets.filter(isMeaningfulEvidence)
         : [];
-      const evidencePack = [
-        typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "",
-        ...evidenceSnippets,
-      ]
-        .filter((snippet) => isMeaningfulEvidence(snippet))
-        .join("\n- ");
+      const evidenceSummary = typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "";
+      const assessmentKey = normalizeAssessmentKey(assessmentCategory);
+      const categoryEvidenceTerms = ASSESSMENT_EVIDENCE_TERMS[assessmentKey] || [];
+      const generationEvidenceFinder = buildDocumentEvidenceFinder(documentContent || "");
+      const documentEvidenceSnippets = generationEvidenceFinder.findAllSnippets(categoryEvidenceTerms, 12).filter(isMeaningfulEvidence);
+      const supportingEvidencePool = Array.from(new Set(
+        [
+          evidenceSummary,
+          ...evidenceSnippets,
+          ...documentEvidenceSnippets,
+        ]
+          .map((snippet) => typeof snippet === "string" ? snippet.replace(/\s+/g, " ").trim() : "")
+          .filter((snippet) => isMeaningfulEvidence(snippet))
+      )).slice(0, 16);
+      if (supportingEvidencePool.length === 0) {
+        const fallbackEvidence = truncateEvidence((documentContent || "").replace(/\s+/g, " ").trim(), 260);
+        if (isMeaningfulEvidence(fallbackEvidence)) {
+          supportingEvidencePool.push(fallbackEvidence);
+        }
+      }
+      const scrubbedSupportingEvidence = supportingEvidencePool.map((snippet) => piiVault.scrubString(snippet));
+      const evidencePack = scrubbedSupportingEvidence.join("\n- ");
 
       const profileContext = analysisContext
         ? JSON.stringify(
@@ -15219,7 +15256,7 @@ Respond ONLY with valid JSON in this exact format:
 
       // Pre-scrub content BEFORE AI call for accurate audit logging
       const scrubbedDocumentContent = piiVault.scrub(documentContent);
-      const scrubbedEvidencePack = evidencePack ? piiVault.scrub(evidencePack) : "";
+      const scrubbedEvidencePack = evidencePack;
       const scrubbedProfileContext = profileContext ? piiVault.scrub(profileContext) : "";
       
       const vaultScrubStats = piiVault.getStats();
@@ -15366,28 +15403,30 @@ Remember: Extract information ONLY from the service user documents above. Templa
           return cleaned;
         };
 
-        const evidenceHints: string[] = scrubbedEvidencePack
-          ? scrubbedEvidencePack
-              .split(/\n+/)
-              .map((line: string) => line.replace(/^[-•]\s*/, "").trim())
-              .filter(Boolean)
-              .slice(0, 8)
-          : [];
+        const evidenceHints: string[] = scrubbedSupportingEvidence
+          .map((line: string) => line.replace(/^[-•]\s*/, "").trim())
+          .filter(Boolean)
+          .slice(0, 16);
+        const pickEvidenceHint = (offset = 0): string => {
+          const hints = evidenceHints.filter((line: string) => line.length > 12);
+          if (hints.length === 0) return "";
+          return hints[offset % hints.length];
+        };
         const hasSpecificDetail = (value: string) =>
           /\d|mg|ml|hour|minute|am|pm|wheelchair|hoist|frame|walker|oxygen|insulin|falls|seizure|pressure|catheter|stairs|dementia|diabetes|epilepsy|copd|asthma|stroke|arthritis|skin|wound|ulcer/i.test(value);
-        const improveField = (value: string, fallback: string) => {
+        const improveField = (value: string, fallback: string, hintOffset = 0) => {
           const trimmed = value?.trim() || "";
           if (trimmed.length >= 40 && hasSpecificDetail(trimmed)) return trimmed;
-          const hint = evidenceHints.find((line: string) => line.length > 12) || "";
+          const hint = pickEvidenceHint(hintOffset);
           if (hint) {
             return `${trimmed || fallback} ${toFirstPerson(hint)}`.trim();
           }
           return trimmed || fallback;
         };
-        const ensureDetailed = (value: string) => {
+        const ensureDetailed = (value: string, hintOffset = 0) => {
           const sentenceCount = value.split(/[.!?]+/).filter((s) => s.trim().length > 10).length;
           if (sentenceCount >= 2) return value;
-          const hint = evidenceHints.find((line: string) => line.length > 12) || "";
+          const hint = pickEvidenceHint(hintOffset);
           const extra = hint
             ? ` ${toFirstPerson(hint)}.`
             : " I prefer calm, clear support that follows my care plan and keeps me safe.";
@@ -15414,7 +15453,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
         result.category = preservedFields.category;
 
         if (Array.isArray(result.risks)) {
-          result.risks = result.risks.map((risk: any) => {
+          result.risks = result.risks.map((risk: any, riskIdx: number) => {
             const riskDefinition = typeof risk?.riskDefinition === "string"
               ? cleanNotAwarePhrases(toFirstPerson(risk.riskDefinition))
               : "";
@@ -15427,9 +15466,9 @@ Remember: Extract information ONLY from the service user documents above. Templa
             return {
               ...risk,
               initialRating: normalizeRiskRating(risk?.initialRating),
-              riskDefinition: ensureDetailed(improveField(riskDefinition, "I have a documented risk in this area of my care.")),
-              howItsARisk: ensureDetailed(improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support.")),
-              controlMeasures: ensureDetailed(improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk.")),
+              riskDefinition: ensureDetailed(improveField(riskDefinition, "I have a documented risk in this area of my care.", riskIdx * 3), riskIdx * 3 + 1),
+              howItsARisk: ensureDetailed(improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support.", riskIdx * 3 + 1), riskIdx * 3 + 2),
+              controlMeasures: ensureDetailed(improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk.", riskIdx * 3 + 2), riskIdx * 3 + 3),
               whoWillBeHarmed: typeof risk?.whoWillBeHarmed === "string" && risk.whoWillBeHarmed.trim().length > 0
                 ? risk.whoWillBeHarmed.trim()
                 : "Service User and Care Workers",
@@ -15477,33 +15516,21 @@ Remember: Extract information ONLY from the service user documents above. Templa
             result.additionalNotes = "";
           }
         }
+        const mergedSupportingEvidence = normalizeStringArray([
+          ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
+          ...scrubbedSupportingEvidence,
+        ]).filter(isMeaningfulEvidence);
+        if (mergedSupportingEvidence.length > 0) {
+          result.supportingEvidence = mergedSupportingEvidence;
+        }
         
         // Template-Only AI: Convert tokens to readable placeholders (no PII in output)
         // Output is GDPR-exempt as it contains no personal data
         const templateResult = piiVault.toPlaceholders(result);
         console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
-        
-        // Final safety net: strip any remaining PII tokens (complete, truncated, or fragmented) from all string fields
-        const stripLeakedTokens = (data: any): any => {
-          if (typeof data === "string") {
-            return data
-              .replace(/\{\{PII_[^}]*\}\}/g, "")          // complete tokens: {{PII_abc_NAME_1}}
-              .replace(/\{\{PII_[^}"\n]*/g, "")            // truncated prefix: {{PII_abc_NAME (no closing)
-              .replace(/[a-z0-9]{2,}_[A-Z_]+_\d+\}\}/g, "") // partial suffix: fz_NAME_207}}
-              .replace(/\{\{PII_/g, "")                     // lone prefix fragments
-              .replace(/\s{2,}/g, " ")                      // collapse double spaces
-              .trim();
-          }
-          if (Array.isArray(data)) return data.map(stripLeakedTokens);
-          if (typeof data === "object" && data !== null) {
-            const cleaned: Record<string, any> = {};
-            for (const key of Object.keys(data)) cleaned[key] = stripLeakedTokens(data[key]);
-            return cleaned;
-          }
-          return data;
-        };
-        const cleanTemplateResult = stripLeakedTokens(templateResult);
-        const cleanRawResult = stripLeakedTokens(result);
+        const restoredRawResult = piiVault.restore(result);
+        const cleanTemplateResult = stripLeakedPiiTokens(templateResult);
+        const cleanRawResult = stripLeakedPiiTokens(restoredRawResult);
         
         // Always export vault for automatic client-side name restoration
         const vaultExport = piiVault.export();
