@@ -2534,15 +2534,19 @@ function normalizeSignedByName(value?: string | null): string {
 const extractServiceUserFullName = (text: string): string => {
   if (!text) return "";
   const stopPattern = /\b(?:allerg(?:y|ies)|allergy status|dob|date of birth|nhs|case id)\b/i;
+  // Name capture pattern: first + last name (mixed case, all caps, or title case)
+  const nameCapture = "([A-Za-z][A-Za-z'`-]+(?:\\s+[A-Za-z][A-Za-z'`-]+)+)";
   const patterns = [
-    /Printed date\s+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\s+CASE/i,
-    /\bCase\s*:\s*([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\b/i,
-    /\bCase\s+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)\b/i,
-    /Service User(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
-    /Resident(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
-    /Patient(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
-    /Client(?: Name)?[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
-    /Name[:\s]+([A-Z][A-Za-z'`-]+(?:\s+[A-Z][A-Za-z'`-]+)+)/i,
+    new RegExp(`Printed date\\s+${nameCapture}\\s+CASE`, "i"),
+    new RegExp(`\\bCase\\s*:\\s*${nameCapture}\\b`, "i"),
+    new RegExp(`\\bCase\\s+${nameCapture}\\b`, "i"),
+    new RegExp(`Service User(?: Name)?[:\\s]+${nameCapture}`, "i"),
+    new RegExp(`Resident(?: Name)?[:\\s]+${nameCapture}`, "i"),
+    new RegExp(`Patient(?: Name)?[:\\s]+${nameCapture}`, "i"),
+    new RegExp(`Client(?: Name)?[:\\s]+${nameCapture}`, "i"),
+    new RegExp(`(?:Full )?Name[:\\s]+${nameCapture}`, "i"),
+    // ALL CAPS patterns common in care documents
+    /\b(?:SERVICE USER|RESIDENT|CLIENT|PATIENT|NAME)[:\s]+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)+)/,
   ];
 
   for (const pattern of patterns) {
@@ -14714,13 +14718,10 @@ Remember: Extract information ONLY from service user documents above. Templates 
       clearInterval(progressInterval);
       sendProgress(80, "Processing results...", "processing");
 
-      // Use raw AI response (with route handler vault tokens intact) so toPlaceholders works correctly.
-      // Clean up any truncated/incomplete PII tokens caused by output token limits.
-      const rawAiContent = response.rawWithTokens || "";
-      const cleanedContent = rawAiContent
-        .replace(/\{\{PII_[^}]*$/gm, "")  // truncated at end of line
-        .replace(/\{\{PII_(?![^}]*\}\})[^"\n,]*/g, "");  // truncated mid-text (no closing }})
-      const content = cleanedContent;
+      // response.restoredText has pipeline vault tokens restored back to route handler tokens.
+      // Route handler tokens remain for piiVault.toPlaceholders() + client-side vault restore.
+      const restoredContent = response.restoredText || "";
+      const content = restoredContent;
       const parsed = parseJsonFromContent(content);
       if (!parsed) {
         sendEvent('error', { message: "Failed to parse AI response" });
@@ -14747,7 +14748,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
         // Try AI-extracted name first (restore any PII tokens), then fall back to regex extraction from original (unscrubbed) documents
         const aiFullRaw = typeof parsed?.serviceUser?.fullName === "string" ? piiVault.restoreString(parsed.serviceUser.fullName) : "";
         const aiFull = normalizeFullName(aiFullRaw);
-        const fullName = aiFull || normalizeFullName(extractServiceUserFullName(documentContent));
+        // Always try regex extraction from raw documents - use whichever gives the most complete name
+        const regexFull = normalizeFullName(extractServiceUserFullName(documentContent));
+        const fullName = (regexFull && regexFull.includes(" ") ? regexFull : aiFull) || regexFull || aiFull;
         if (fullName) {
           serviceUser.fullName = fullName;
           // Derive initials from name if AI couldn't extract them
@@ -14877,13 +14880,15 @@ Remember: Extract information ONLY from service user documents above. Templates 
       console.log(`[Risks] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
       piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
-      // Final safety net: strip any remaining PII tokens (complete or truncated) from all string fields
+      // Final safety net: strip any remaining PII tokens (complete, truncated, or fragmented) from all string fields
       const stripLeakedTokens = (data: any): any => {
         if (typeof data === "string") {
           return data
-            .replace(/\{\{PII_[^}]*\}\}/g, "")  // complete tokens
-            .replace(/\{\{PII_[^}"\n]*/g, "")   // truncated tokens
-            .replace(/\s{2,}/g, " ")             // collapse double spaces
+            .replace(/\{\{PII_[^}]*\}\}/g, "")          // complete tokens: {{PII_abc_NAME_1}}
+            .replace(/\{\{PII_[^}"\n]*/g, "")            // truncated prefix: {{PII_abc_NAME (no closing)
+            .replace(/[a-z0-9]{2,}_[A-Z_]+_\d+\}\}/g, "") // partial suffix: fz_NAME_207}}
+            .replace(/\{\{PII_/g, "")                     // lone prefix fragments
+            .replace(/\s{2,}/g, " ")                      // collapse double spaces
             .trim();
         }
         if (Array.isArray(data)) return data.map(stripLeakedTokens);
@@ -15324,16 +15329,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
       if (progressInterval) clearInterval(progressInterval);
       sendProgress(70, "Processing results...", "processing");
 
-      // The pipeline vault may have added its own tokens on top of the route handler's vault tokens.
-      // Use the raw AI response (with route handler tokens intact) and restore only the pipeline vault's tokens.
-      // Route handler tokens remain for toPlaceholders + client-side vault restore.
-      const rawAiContent = response.rawWithTokens || "";
-      // Clean up any truncated/incomplete PII tokens caused by output token limits
-      // Match both incomplete tokens (no closing }}) and tokens with partial closing
-      const cleanedContent = rawAiContent
-        .replace(/\{\{PII_[^}]*$/gm, "")  // truncated at end of line
-        .replace(/\{\{PII_(?![^}]*\}\})[^"\n,]*/g, "");  // truncated mid-text (no closing }})
-      const parsed = parseJsonFromContent(cleanedContent);
+      // response.restoredText has pipeline vault tokens restored back to route handler tokens.
+      // Route handler tokens remain for piiVault.toPlaceholders() + client-side vault restore.
+      const restoredContent = response.restoredText || "";
+      const parsed = parseJsonFromContent(restoredContent);
       if (parsed) {
         let result = parsed;
         
@@ -15484,13 +15483,15 @@ Remember: Extract information ONLY from the service user documents above. Templa
         const templateResult = piiVault.toPlaceholders(result);
         console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
         
-        // Final safety net: strip any remaining PII tokens (complete or truncated) from all string fields
+        // Final safety net: strip any remaining PII tokens (complete, truncated, or fragmented) from all string fields
         const stripLeakedTokens = (data: any): any => {
           if (typeof data === "string") {
             return data
-              .replace(/\{\{PII_[^}]*\}\}/g, "")  // complete tokens
-              .replace(/\{\{PII_[^}"\n]*/g, "")   // truncated tokens
-              .replace(/\s{2,}/g, " ")             // collapse double spaces
+              .replace(/\{\{PII_[^}]*\}\}/g, "")          // complete tokens: {{PII_abc_NAME_1}}
+              .replace(/\{\{PII_[^}"\n]*/g, "")            // truncated prefix: {{PII_abc_NAME (no closing)
+              .replace(/[a-z0-9]{2,}_[A-Z_]+_\d+\}\}/g, "") // partial suffix: fz_NAME_207}}
+              .replace(/\{\{PII_/g, "")                     // lone prefix fragments
+              .replace(/\s{2,}/g, " ")                      // collapse double spaces
               .trim();
           }
           if (Array.isArray(data)) return data.map(stripLeakedTokens);
