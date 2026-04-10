@@ -14353,12 +14353,12 @@ CRITICAL REQUIREMENTS FOR EVIDENCE:
    ✓ If no specific evidence → DO NOT recommend the assessment
 
 5. SELECTIVE APPROACH - ONLY STRONG EVIDENCE ASSESSMENTS:
-   ✓ Each assessment needs MULTIPLE pieces of SPECIFIC documented evidence (2+ diverse quotes)
+   ✓ Each assessment needs SPECIFIC documented evidence (1+ direct quotes, more is better)
    ✓ Evidence must contain concrete details: names, dates, equipment, conditions, incidents
    ✓ Evidence diversity required: prefer varied sources (medical + behavioral + environmental)
    ✓ Recent evidence weighted higher: incidents in past month > incidents from years ago
-   ✓ TYPICAL RESULT: 3-7 assessments for most service users (only more if extensive risks documented)
-   ✓ Quality over quantity - 5 strong assessments better than 15 weak ones
+   ✓ COMPREHENSIVE COVERAGE: Recommend ALL assessments that have strong documented evidence - there is NO upper limit
+   ✓ Generate as many or as few assessments as the evidence supports (could be 3 or 20+)
    ✓ Avoid duplicates: don't recommend "Falls" AND "Mobility" if evidence overlaps >70%
    ✓ If evidence is vague/generic (e.g., "may need support", "requires assessment") → DO NOT recommend
    ✓ If in doubt about evidence quality, diversity or specificity → DO NOT recommend
@@ -14461,9 +14461,9 @@ Boundaries with informal carers, Financial exploitation risk, Domestic abuse ind
 ⚠️ CRITICAL RULES FOR ASSESSMENT RECOMMENDATIONS:
 
 1. SELECT WISELY: Only recommend risks where THIS service user has STRONG documented evidence (not generic "everyone needs this")
-2. EVIDENCE REQUIRED: Each recommendation needs MULTIPLE concrete documented facts (2+ diverse quotes)
+2. EVIDENCE REQUIRED: Each recommendation needs concrete documented facts (1+ specific quotes, more is better)
 3. BE SPECIFIC: Tie each risk to documented conditions, incidents, equipment, behaviors, or environmental factors
-4. QUALITY > QUANTITY: Better to recommend 3-7 strong evidence-based assessments than 15 weak ones
+4. COMPREHENSIVE COVERAGE: Recommend ALL assessments where strong documented evidence exists - no artificial limit on quantity
 5. NO MANDATORY FLAGS: "isMandatory": false for ALL assessments (CQC 2024 person-centred principle)
 6. IF INSUFFICIENT EVIDENCE → DO NOT RECOMMEND THE ASSESSMENT
 
@@ -14496,8 +14496,8 @@ Respond ONLY with valid JSON in this exact format:
       "evidence": "Specific, detailed summary citing concrete facts from documents (NOT generic phrases like 'requires assessment')",
       "evidenceSnippets": [
         "Direct quote 1 from documents showing specific risk/need",
-        "Direct quote 2 from documents with concrete details",
-        "MINIMUM 2 quotes required - must be SPECIFIC not vague"
+        "Direct quote 2 from documents with concrete details (include as many relevant quotes as found)",
+        "Include 1+ quotes - the more specific evidence the better"
       ]
     }
   ],
@@ -14577,7 +14577,7 @@ REMINDER: NHS ENGLAND PRINCIPLE #1 - PERSON-CENTRED CARE
 → BE SPECIFIC: Each risk must be tied to CONCRETE EVIDENCE about THIS person (not generic)
 → Recommend ONLY assessments supported by STRONG DOCUMENTED EVIDENCE about THIS service user
 → DO NOT recommend generic/blanket assessments "just in case"
-→ Quality over quantity - better to omit than recommend without solid evidence
+→ COMPREHENSIVE: Assess ALL documented needs - omit only if evidence is genuinely insufficient
 → DOCUMENT-DRIVEN: Every recommendation must cite specific facts from the documents
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -14613,7 +14613,7 @@ Don't default to blanket assessments - find the SPECIFIC documented risks for TH
 
 1. COMPREHENSIVE & THOROUGH: Recommend ALL assessments with STRONG evidence where you've found SPECIFIC documented risks to THIS person
    - Scan all documents carefully - don't miss documented risks
-   - Include ALL assessments backed by concrete evidence (minimum 3-5, but can be 10+ if documented)
+   - Include ALL assessments backed by concrete evidence - there is NO cap on the number of assessments
    
 2. PERSON-CENTRED & SPECIFIC: Every risk must be tied to CONCRETE EVIDENCE about THIS individual (CQC 2024)
    - "Has diabetes requiring blood sugar monitoring twice daily" ✓ (specific to this person)
@@ -14623,7 +14623,7 @@ Don't default to blanket assessments - find the SPECIFIC documented risks for TH
 
 4. NO MANDATORY FLAGS: Set "isMandatory": false for ALL assessments
 
-5. EVIDENCE REQUIRED: Each assessment needs 2-6 SPECIFIC direct quotes from documents above
+5. EVIDENCE REQUIRED: Each assessment needs 1+ SPECIFIC direct quotes from documents above (more is better)
    - Each quote must contain specific details (conditions, medications, incidents, equipment, dates)
    
 6. NO SPECULATION: Do not assume or infer conditions not explicitly documented
@@ -14727,16 +14727,16 @@ Remember: Extract information ONLY from service user documents above. Templates 
           return false;
         }
         
-        // Must have at least 2 evidence snippets (STRONG evidence requirement)
+        // Must have at least 1 evidence snippet
         const snippets = normalizeStringArray(assessment?.evidenceSnippets || []).filter(isMeaningfulEvidence);
-        if (snippets.length < 2) {
-          console.log(`[Risks] ❌ ${assessmentName}: Only ${snippets.length} snippet(s), need 2+`);
+        if (snippets.length < 1) {
+          console.log(`[Risks] ❌ ${assessmentName}: No meaningful evidence snippets`);
           return false;
         }
         
         // Score evidence quality (0-100)
         const qualityScore = scoreEvidenceQuality(assessment.evidence, snippets);
-        const MINIMUM_QUALITY_SCORE = 60; // Require at least 60/100 quality score (stricter quality gate)
+        const MINIMUM_QUALITY_SCORE = 35; // Allow assessments with reasonable evidence through
         
         if (qualityScore < MINIMUM_QUALITY_SCORE) {
           console.log(`[Risks] ❌ ${assessmentName}: Quality score ${qualityScore}/100 (minimum ${MINIMUM_QUALITY_SCORE})`);
