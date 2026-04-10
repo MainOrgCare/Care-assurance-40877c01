@@ -14717,7 +14717,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
       // Use raw AI response (with route handler vault tokens intact) so toPlaceholders works correctly.
       // Clean up any truncated/incomplete PII tokens caused by output token limits.
       const rawAiContent = response.rawWithTokens || "";
-      const cleanedContent = rawAiContent.replace(/\{\{PII_[^}]*$/gm, "");
+      const cleanedContent = rawAiContent
+        .replace(/\{\{PII_[^}]*$/gm, "")  // truncated at end of line
+        .replace(/\{\{PII_(?![^}]*\}\})[^"\n,]*/g, "");  // truncated mid-text (no closing }})
       const content = cleanedContent;
       const parsed = parseJsonFromContent(content);
       if (!parsed) {
@@ -14875,14 +14877,34 @@ Remember: Extract information ONLY from service user documents above. Templates 
       console.log(`[Risks] Template Output: ${piiVault.getStats().total} fields converted to placeholders like [Name], [NHS Number]`);
       piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
+      // Final safety net: strip any remaining PII tokens (complete or truncated) from all string fields
+      const stripLeakedTokens = (data: any): any => {
+        if (typeof data === "string") {
+          return data
+            .replace(/\{\{PII_[^}]*\}\}/g, "")  // complete tokens
+            .replace(/\{\{PII_[^}"\n]*/g, "")   // truncated tokens
+            .replace(/\s{2,}/g, " ")             // collapse double spaces
+            .trim();
+        }
+        if (Array.isArray(data)) return data.map(stripLeakedTokens);
+        if (typeof data === "object" && data !== null) {
+          const cleaned: Record<string, any> = {};
+          for (const key of Object.keys(data)) cleaned[key] = stripLeakedTokens(data[key]);
+          return cleaned;
+        }
+        return data;
+      };
+      const cleanTemplateResult = stripLeakedTokens(templateResult);
+      const cleanRawResult = stripLeakedTokens(result);
+      
       // Always export vault for automatic client-side name restoration
       // The client restores PII values locally without them being retransmitted
       const vaultExport = piiVault.export();
       const payload = {
-        ...templateResult,
+        ...cleanTemplateResult,
         vaultExport,
         // Include the raw result with tokens for client-side restoration
-        rawWithTokens: result,
+        rawWithTokens: cleanRawResult,
       };
       console.log(`[Risks] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
       piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
@@ -15307,7 +15329,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
       // Route handler tokens remain for toPlaceholders + client-side vault restore.
       const rawAiContent = response.rawWithTokens || "";
       // Clean up any truncated/incomplete PII tokens caused by output token limits
-      const cleanedContent = rawAiContent.replace(/\{\{PII_[^}]*$/gm, "");
+      // Match both incomplete tokens (no closing }}) and tokens with partial closing
+      const cleanedContent = rawAiContent
+        .replace(/\{\{PII_[^}]*$/gm, "")  // truncated at end of line
+        .replace(/\{\{PII_(?![^}]*\}\})[^"\n,]*/g, "");  // truncated mid-text (no closing }})
       const parsed = parseJsonFromContent(cleanedContent);
       if (parsed) {
         let result = parsed;
@@ -15459,12 +15484,32 @@ Remember: Extract information ONLY from the service user documents above. Templa
         const templateResult = piiVault.toPlaceholders(result);
         console.log(`[RiskAssessment] Template Output: ${piiVault.getStats().total} fields converted to placeholders`);
         
+        // Final safety net: strip any remaining PII tokens (complete or truncated) from all string fields
+        const stripLeakedTokens = (data: any): any => {
+          if (typeof data === "string") {
+            return data
+              .replace(/\{\{PII_[^}]*\}\}/g, "")  // complete tokens
+              .replace(/\{\{PII_[^}"\n]*/g, "")   // truncated tokens
+              .replace(/\s{2,}/g, " ")             // collapse double spaces
+              .trim();
+          }
+          if (Array.isArray(data)) return data.map(stripLeakedTokens);
+          if (typeof data === "object" && data !== null) {
+            const cleaned: Record<string, any> = {};
+            for (const key of Object.keys(data)) cleaned[key] = stripLeakedTokens(data[key]);
+            return cleaned;
+          }
+          return data;
+        };
+        const cleanTemplateResult = stripLeakedTokens(templateResult);
+        const cleanRawResult = stripLeakedTokens(result);
+        
         // Always export vault for automatic client-side name restoration
         const vaultExport = piiVault.export();
         const payload = {
-          ...templateResult,
+          ...cleanTemplateResult,
           vaultExport,
-          rawWithTokens: result,
+          rawWithTokens: cleanRawResult,
         };
         console.log(`[RiskAssessment] Including vault export with ${vaultExport.mapping ? Object.keys(vaultExport.mapping).length : 0} tokens for automatic local restoration`);
         piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
