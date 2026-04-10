@@ -2384,6 +2384,8 @@ const NAME_FIELD_PLACEHOLDERS = new Set([
   "patient",
 ]);
 
+const RISK_DISPLAY_PLACEHOLDER_PATTERN = /\[(?:Name|NHS Number|NI Number|Postcode|Email|Phone|Date|Date of Birth|Age|Address|Staff Member|Healthcare Professional|Contact Number|Personal Field|Bank Details|Card Number|Driving License|Passport Number|Vehicle Registration|Network ID|Location|Biographical Detail|Health Detail|Redacted)\]/i;
+
 const PERSON_NAME_PARTICLES = new Set([
   "al",
   "ap",
@@ -3022,6 +3024,7 @@ const sanitizeEvidenceSnippet = (value: string | undefined | null): string => {
     .replace(/\s{2,}/g, " ")
     .trim();
   if (!cleaned) return "";
+  if (RISK_DISPLAY_PLACEHOLDER_PATTERN.test(cleaned)) return "";
   if (isQuestionLikeText(cleaned)) return "";
   if (isQuestionnairePromptText(cleaned)) return "";
   if (isTruncatedEvidenceSnippet(cleaned)) return "";
@@ -14489,7 +14492,9 @@ Return JSON - include ALL by default:
         .update(allowSensitiveView ? "1" : "0")
         .digest("hex");
 
-      const cachedPayload = getRiskAnalysisCache(cacheKey);
+      const shouldUseRiskAnalysisCache = !allowSensitiveView;
+
+      const cachedPayload = shouldUseRiskAnalysisCache ? getRiskAnalysisCache(cacheKey) : null;
       if (cachedPayload) {
         // Cache stores placeholder-only output to avoid persisting PII across requests.
         // Do not return rawWithTokens on cache hits because tokens would not match this request's vault.
@@ -15125,8 +15130,10 @@ Remember: Extract information ONLY from service user documents above. Templates 
       piiVault.logAudit('RESTORE', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
       
       // Cache only the template result — NEVER cache vaultExport (contains real PII)
-      const cachePayload = { ...cleanTemplateResult };
-      setRiskAnalysisCache(cacheKey, cachePayload);
+      if (shouldUseRiskAnalysisCache) {
+        const cachePayload = { ...cleanTemplateResult };
+        setRiskAnalysisCache(cacheKey, cachePayload);
+      }
       sendProgress(100, "Complete!", "complete");
       sendEvent('result', payload);
       

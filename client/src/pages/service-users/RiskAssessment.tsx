@@ -694,8 +694,8 @@ export default function RiskAssessment() {
   }, [serviceUserData]);
 
   useEffect(() => {
-    const hasFullName = Boolean(analysisRaw?.serviceUser?.fullName?.trim());
-    if (hasFullName || isRefreshingIdentity || !hasAllParsed) return;
+    const hasFullName = Boolean(sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName));
+    if (!isAdmin || hasFullName || isRefreshingIdentity || !hasAllParsed) return;
     const refreshSensitiveIdentity = async () => {
       setIsRefreshingIdentity(true);
       try {
@@ -749,7 +749,7 @@ export default function RiskAssessment() {
       }
     };
     refreshSensitiveIdentity();
-  }, [analysisRaw, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent]);
+  }, [analysisRaw, isAdmin, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent]);
 
   const analyzeDocuments = async () => {
     setIsAnalyzing(true);
