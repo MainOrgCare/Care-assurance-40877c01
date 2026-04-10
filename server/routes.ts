@@ -14631,7 +14631,7 @@ Don't default to blanket assessments - find the SPECIFIC documented risks for TH
 
 Remember: Extract information ONLY from service user documents above. Templates contain placeholder text to ignore.`,
         systemPrompt,
-        maxCompletionTokens: 8000,
+        maxCompletionTokens: 16000,
         temperature: 0,
         seed: 42,
         responseFormat: { type: "json_object" },
@@ -14774,6 +14774,15 @@ Remember: Extract information ONLY from service user documents above. Templates 
 
       console.log(`[Risks] FINAL: Sending ${result.recommendedAssessments.length} assessments to user`);
       console.log(`[Risks] Final assessment names:`, result.recommendedAssessments.map((a: any) => a.name));
+      
+      // Fallback: If AI filtering removed ALL assessments, use rule-based engine
+      // This should never return 0 assessments to the user
+      if (result.recommendedAssessments.length === 0) {
+        console.log(`[Risks] ⚠️ All AI assessments filtered out — falling back to rule-based engine`);
+        const fallbackResult = buildRuleBasedRiskAnalysisPayload(documentContentForAi, allowSensitiveView);
+        result.recommendedAssessments = fallbackResult.recommendedAssessments || [];
+        console.log(`[Risks] Rule-based fallback produced ${result.recommendedAssessments.length} assessments`);
+      }
       
       // Quality metrics summary
       if (result.recommendedAssessments.length > 0) {
