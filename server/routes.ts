@@ -2346,12 +2346,115 @@ const stripLeakedPiiTokensFromString = (text: string): string => {
   return text
     .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
     .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+`, "gi"), "")
+    .replace(/\{\{[^{}\n]*PII_[^{}\n]*\}\}/gi, "")
+    .replace(/\{\{[^{}\n]*PII_[^{}\n]*/gi, "")
+    .replace(/\bPII_[a-z0-9]+_[A-Z_]+_\d+\b/gi, "")
     .replace(new RegExp(String.raw`\bPII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
     .replace(new RegExp(String.raw`\b[a-z0-9]{1,12}_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
     .replace(/\{\{PII_/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.;:])/g, "$1")
     .trim();
+};
+
+const RISK_TEMPLATE_ARTIFACT_PATTERNS = [
+  /\bunderstand the information provided\b/i,
+  /^\s*service user information\b/i,
+  /^\s*service user details\b/i,
+  /^\s*documents? to analyze\b/i,
+  /\bstructure reference only\b/i,
+  /\bplaceholder text\b/i,
+  /\breal service user (?:information|documents?)\b/i,
+  /\bdo not use any content from templates?\b/i,
+  /\btemplate\/example text\b/i,
+];
+
+const NAME_FIELD_PLACEHOLDERS = new Set([
+  "name",
+  "name name",
+  "full name",
+  "first name",
+  "last name",
+  "surname",
+  "service user",
+  "service user name",
+  "client",
+  "client name",
+  "resident",
+  "patient",
+]);
+
+const PERSON_NAME_PARTICLES = new Set([
+  "al",
+  "ap",
+  "ben",
+  "bin",
+  "da",
+  "de",
+  "del",
+  "della",
+  "der",
+  "di",
+  "dos",
+  "du",
+  "ibn",
+  "la",
+  "le",
+  "st",
+  "st.",
+  "van",
+  "von",
+]);
+
+const cleanRiskArtifactText = (value: string | undefined | null): string => {
+  if (typeof value !== "string") return "";
+  let cleaned = stripLeakedPiiTokensFromString(value)
+    .replace(/\bunderstand the information provided\b/gi, "")
+    .replace(/\bservice user information\b/gi, "")
+    .replace(/\bservice user details\b/gi, "")
+    .replace(/\bdocuments? to analyze\b/gi, "")
+    .replace(/\bstructure reference only\b/gi, "")
+    .replace(/\bplaceholder text\b/gi, "")
+    .replace(/\breal service user (?:information|documents?)\b/gi, "")
+    .replace(/\bdo not use any content from templates?\b/gi, "")
+    .replace(/\btemplate\/example text\b/gi, "")
+    .replace(/^[\s:;-]+|[\s:;-]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+
+  if (NAME_FIELD_PLACEHOLDERS.has(cleaned.toLowerCase())) {
+    return "";
+  }
+
+  return cleaned;
+};
+
+const looksLikePersonName = (value: string): boolean => {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return false;
+
+  let capitalizedCount = 0;
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    const bare = word.replace(/[.'`-]/g, "");
+    if (!bare) return false;
+
+    const lower = bare.toLowerCase();
+    if (PERSON_NAME_PARTICLES.has(lower)) {
+      if (index === 0 || index === words.length - 1) return false;
+      continue;
+    }
+
+    if (/^[A-Z][A-Za-z'`-]+$/.test(word) || /^[A-Z]{2,}$/.test(bare)) {
+      capitalizedCount += 1;
+      continue;
+    }
+
+    return false;
+  }
+
+  return capitalizedCount >= 2;
 };
 
 const stripLeakedPiiTokens = <T = any>(data: T): T => {
@@ -2521,12 +2624,12 @@ function normalizeInitials(name: string | undefined | null): string {
 }
 
 function normalizeFullName(value: unknown): string {
-  if (typeof value !== "string") return "";
-  const trimmed = value.trim();
+  const trimmed = cleanRiskArtifactText(typeof value === "string" ? value : "");
   if (!trimmed) return "";
   if (/information not found/i.test(trimmed)) return "";
   // Reject PII vault tokens that weren't restored
   if (/\{\{PII_/.test(trimmed)) return "";
+  if (RISK_TEMPLATE_ARTIFACT_PATTERNS.some((pattern) => pattern.test(trimmed))) return "";
   // Reject placeholder/generic words that are not real names
   const lower = trimmed.toLowerCase().replace(/\s+/g, " ");
   const invalidNames = [
@@ -2542,6 +2645,7 @@ function normalizeFullName(value: unknown): string {
   if (words.length > 0 && words.every(w => w === "name" || w === "unknown" || w === "n/a")) return "";
   const usefulWords = words.filter((word) => word.length > 1 && !["of", "the", "and", "for", "to"].includes(word));
   if (usefulWords.length < 2) return "";
+  if (!looksLikePersonName(trimmed)) return "";
   return trimmed;
 }
 
@@ -2589,18 +2693,13 @@ const extractServiceUserFullName = (text: string): string => {
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      let fullName = match[1].replace(/\s+/g, " ").trim();
+      let fullName = cleanRiskArtifactText(match[1].replace(/\s+/g, " ").trim());
       fullName = fullName.split(/\s{2,}|\s{1}(?=Allerg(?:y|ies)|Allergy Status|DOB|Date of Birth|NHS|Case ID)/i)[0].trim();
       if (stopPattern.test(fullName)) continue;
       if (/\bcase\s*id\b/i.test(fullName)) continue;
-      // Reject generic/placeholder words extracted as names
-      const lowerName = fullName.toLowerCase().replace(/\s+/g, " ");
-      const genericWords = new Set(["name", "unknown", "n/a", "tbc", "tbd", "first", "last", "surname", "full", "client", "resident", "patient", "person", "service", "user", "enter"]);
-      const nameWords = lowerName.split(" ");
-      if (nameWords.every(w => genericWords.has(w))) continue;
-      const usefulWords = nameWords.filter((word) => word.length > 1 && !["of", "the", "and", "for", "to"].includes(word));
-      if (usefulWords.length < 2) continue;
-      return fullName;
+      const normalized = normalizeFullName(fullName);
+      if (!normalized) continue;
+      return normalized;
     }
   }
   return "";
@@ -2852,8 +2951,9 @@ const collectAssessmentEvidence = (
 };
 
 const truncateEvidence = (text: string, maxLength = 260) => {
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 3)}...`;
+  const cleaned = cleanRiskArtifactText(text);
+  if (cleaned.length <= maxLength) return cleaned;
+  return `${cleaned.slice(0, maxLength - 3)}...`;
 };
 
 const QUESTION_LIKE_PATTERNS = [
@@ -2876,6 +2976,19 @@ const QUESTION_LIKE_PATTERNS = [
   /\bn\/a\b/i,
 ];
 
+const QUESTIONNAIRE_PROMPT_PATTERNS = [
+  /(?:^|[.!?]\s+)(if there (?:is|was|were)|would i(?: be able to)?|am i able to|can i|will i|do i need|should i|is there|are there|who would|what would happen if)\b/i,
+  /\bevacuate the premises\b/i,
+  /\bunderstand the information provided\b/i,
+];
+
+const EVIDENCE_BOILERPLATE_PATTERNS = [
+  /\bany concerns should be reported to the office\b/i,
+  /\bshould be assessed and documented here\b/i,
+  /\breported to the office immediately\b/i,
+  /\bthis section should be completed\b/i,
+];
+
 const isQuestionLikeText = (text: string | undefined | null): boolean => {
   if (!text) return false;
   const trimmed = text.trim();
@@ -2883,9 +2996,86 @@ const isQuestionLikeText = (text: string | undefined | null): boolean => {
   return QUESTION_LIKE_PATTERNS.some((pattern) => pattern.test(trimmed));
 };
 
+const isQuestionnairePromptText = (text: string | undefined | null): boolean => {
+  if (!text) return false;
+  const trimmed = cleanRiskArtifactText(text);
+  if (!trimmed) return false;
+  const sentenceParts = trimmed.match(/[^.!?]+[.!?]?/g) || [trimmed];
+  return sentenceParts.some((part) => {
+    const sentence = part.trim();
+    if (!sentence) return false;
+    return QUESTIONNAIRE_PROMPT_PATTERNS.some((pattern) => pattern.test(sentence));
+  });
+};
+
+const isTruncatedEvidenceSnippet = (text: string | undefined | null): boolean => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (!trimmed || /[.!?]$/.test(trimmed)) return false;
+  const lastToken = trimmed.split(/\s+/).pop() || "";
+  return trimmed.length > 40 && lastToken.length <= 2;
+};
+
+const sanitizeEvidenceSnippet = (value: string | undefined | null): string => {
+  const cleaned = cleanRiskArtifactText(value)
+    .replace(/^[•*\-\d\.)\s]+/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  if (isQuestionLikeText(cleaned)) return "";
+  if (isQuestionnairePromptText(cleaned)) return "";
+  if (isTruncatedEvidenceSnippet(cleaned)) return "";
+  if (EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(cleaned))) return "";
+  return cleaned;
+};
+
+const sanitizeRiskNarrativeFieldText = (value: string | undefined | null): string => {
+  const cleaned = cleanRiskArtifactText(value);
+  if (!cleaned) return "";
+  const sentenceParts = cleaned.match(/[^.!?]+[.!?]?/g) || [cleaned];
+  const filtered = sentenceParts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .filter((part) => !isQuestionLikeText(part))
+    .filter((part) => !isQuestionnairePromptText(part))
+    .filter((part) => !isTruncatedEvidenceSnippet(part))
+    .filter((part) => !EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(part)));
+
+  return filtered.join(" ").replace(/\s{2,}/g, " ").trim();
+};
+
 const buildDocumentEvidenceFinder = (documentContent: string) => {
   const content = documentContent || "";
   const lower = content.toLowerCase();
+
+  const extractSnippet = (index: number, needleLength: number) => {
+    const maxBacktrack = 140;
+    const maxForward = 180;
+    let start = index;
+    let walkedBack = 0;
+    while (start > 0 && walkedBack < maxBacktrack) {
+      const char = content[start - 1];
+      if (/[\n\r.!?]/.test(char)) break;
+      start -= 1;
+      walkedBack += 1;
+    }
+
+    let end = index + needleLength;
+    let walkedForward = 0;
+    while (end < content.length && walkedForward < maxForward) {
+      const char = content[end];
+      end += 1;
+      walkedForward += 1;
+      if (/[\n\r.!?]/.test(char)) break;
+    }
+
+    if (start === index && end === index + needleLength) {
+      start = Math.max(0, index - 70);
+      end = Math.min(content.length, index + needleLength + 70);
+    }
+
+    return sanitizeEvidenceSnippet(content.slice(start, end).replace(/\s+/g, " ").trim());
+  };
 
   const findSnippets = (terms: string[], maxMatches = 2) => {
     if (!content || terms.length === 0) return [];
@@ -2897,11 +3087,8 @@ const buildDocumentEvidenceFinder = (documentContent: string) => {
       const needle = term.toLowerCase();
       const index = lower.indexOf(needle);
       if (index < 0) continue;
-      const start = Math.max(0, index - 60);
-      const end = Math.min(content.length, index + needle.length + 60);
-      const snippet = content.slice(start, end).replace(/\s+/g, " ").trim();
+      const snippet = extractSnippet(index, needle.length);
       if (!snippet) continue;
-      if (isQuestionLikeText(snippet)) continue;
       const key = snippet.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
@@ -2923,12 +3110,9 @@ const buildDocumentEvidenceFinder = (documentContent: string) => {
       while (startIndex < lower.length) {
         const index = lower.indexOf(needle, startIndex);
         if (index < 0) break;
-        const start = Math.max(0, index - 70);
-        const end = Math.min(content.length, index + needle.length + 70);
-        const snippet = content.slice(start, end).replace(/\s+/g, " ").trim();
+        const snippet = extractSnippet(index, needle.length);
         startIndex = index + needle.length;
         if (!snippet) continue;
-        if (isQuestionLikeText(snippet)) continue;
         const key = snippet.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -2948,7 +3132,7 @@ const normalizeStringArray = (values: unknown): string[] => {
   const result: string[] = [];
   for (const value of values) {
     if (typeof value !== "string") continue;
-    const trimmed = value.trim();
+    const trimmed = cleanRiskArtifactText(value);
     if (!trimmed) continue;
     if (isQuestionLikeText(trimmed)) continue;
     const key = trimmed.toLowerCase();
@@ -2974,8 +3158,7 @@ const isNegatedEvidence = (value: string): boolean => {
 };
 
 const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
-  if (!value) return false;
-  const trimmed = value.trim();
+  const trimmed = cleanRiskArtifactText(value);
   if (!trimmed) return false;
   const wordCount = trimmed.split(/\s+/).filter((token) => /[a-z0-9]/i.test(token)).length;
   if (wordCount < 2) return false;
@@ -2984,7 +3167,11 @@ const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   if (lower.includes("information not found in documents")) return false;
   if (lower.includes("i'm not aware of") || lower.includes("im not aware of")) return false;
   if (lower.includes("not found in the provided documents")) return false;
+  if (RISK_TEMPLATE_ARTIFACT_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
   if (isQuestionLikeText(trimmed)) return false;
+  if (isQuestionnairePromptText(trimmed)) return false;
+  if (isTruncatedEvidenceSnippet(trimmed)) return false;
+  if (EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
   if (isNegatedEvidence(trimmed)) return false;
   return true;
 };
@@ -3195,7 +3382,9 @@ const isAssessmentRelevantServer = (
 
 const pickEvidenceSnippet = (snippets: string[]): string => {
   if (!Array.isArray(snippets) || snippets.length === 0) return "";
-  const candidate = snippets.find((snippet) => isMeaningfulEvidence(snippet));
+  const candidate = snippets
+    .map((snippet) => sanitizeEvidenceSnippet(snippet))
+    .find((snippet) => isMeaningfulEvidence(snippet));
   return candidate ? truncateEvidence(candidate) : "";
 };
 
@@ -3574,10 +3763,10 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
   const risks = evidencePool.slice(0, 3).map((snippet, index) => {
     const supportLabel = index === 0 ? "primary" : "additional";
     return {
-      riskDefinition: toFirstPerson(`I have a ${supportLabel} ${category.toLowerCase()} risk identified in my records.`),
+      riskDefinition: toFirstPerson(`I have a ${supportLabel} ${category.toLowerCase()} risk identified in my records. I need a clear plan so this is managed safely and consistently.`),
       initialRating: baseline,
       howItsARisk: toFirstPerson(
-        `My documents note that ${snippet}. If this is not managed, my safety and wellbeing may be affected.`
+        `This ${category.toLowerCase()} risk could affect my safety, comfort and independence if it is not managed properly. I need carers to notice changes early and follow my care plan in a calm and timely way.`
       ),
       whoWillBeHarmed: "Service user and care workers",
       controlMeasures: toFirstPerson(
@@ -14295,7 +14484,7 @@ Return JSON - include ALL by default:
         .update("|")
         .update(policyFingerprint)
         .update("|")
-        .update("evidence_v4")
+        .update("evidence_v5")
         .update("|")
         .update(allowSensitiveView ? "1" : "0")
         .digest("hex");
@@ -14775,9 +14964,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
             .map((item: any) => ({
               name: canonicalizeAssessmentName(item.name),
               isMandatory: Boolean(item.isMandatory),
-              reason: typeof item?.reason === "string" ? item.reason.trim() : "",
-              evidence: typeof item?.evidence === "string" ? item.evidence.trim() : "",
-              evidenceSnippets: normalizeStringArray(item?.evidenceSnippets),
+              reason: cleanRiskArtifactText(typeof item?.reason === "string" ? item.reason : ""),
+              evidence: sanitizeEvidenceSnippet(typeof item?.evidence === "string" ? item.evidence : ""),
+              evidenceSnippets: normalizeStringArray(item?.evidenceSnippets).map((snippet) => sanitizeEvidenceSnippet(snippet)).filter(Boolean),
             }))
         : [];
 
@@ -14816,7 +15005,7 @@ Remember: Extract information ONLY from service user documents above. Templates 
         communicationNeeds: normalizeStringArray(parsed?.communicationNeeds),
         environmentalFactors: normalizeStringArray(parsed?.environmentalFactors),
         recommendedAssessments: normalizedRecommendations,
-        documentSummary: typeof parsed?.documentSummary === "string" ? parsed.documentSummary.trim() : "Information not found in documents",
+        documentSummary: cleanRiskArtifactText(typeof parsed?.documentSummary === "string" ? parsed.documentSummary : "") || "Information not found in documents",
       };
 
       console.log(`[Risks] AI initially returned ${normalizedRecommendations.length} assessments`);
@@ -15110,7 +15299,7 @@ CRITICAL REMINDER:
           ...evidenceSnippets,
           ...documentEvidenceSnippets,
         ]
-          .map((snippet) => typeof snippet === "string" ? snippet.replace(/\s+/g, " ").trim() : "")
+          .map((snippet) => typeof snippet === "string" ? sanitizeEvidenceSnippet(snippet.replace(/\s+/g, " ").trim()) : "")
           .filter((snippet) => isMeaningfulEvidence(snippet))
       )).slice(0, 16);
       if (supportingEvidencePool.length === 0) {
@@ -15405,32 +15594,21 @@ Remember: Extract information ONLY from the service user documents above. Templa
 
         const evidenceHints: string[] = scrubbedSupportingEvidence
           .map((line: string) => line.replace(/^[-•]\s*/, "").trim())
+          .map((line: string) => sanitizeEvidenceSnippet(line))
           .filter(Boolean)
           .slice(0, 16);
-        const pickEvidenceHint = (offset = 0): string => {
-          const hints = evidenceHints.filter((line: string) => line.length > 12);
-          if (hints.length === 0) return "";
-          return hints[offset % hints.length];
-        };
         const hasSpecificDetail = (value: string) =>
           /\d|mg|ml|hour|minute|am|pm|wheelchair|hoist|frame|walker|oxygen|insulin|falls|seizure|pressure|catheter|stairs|dementia|diabetes|epilepsy|copd|asthma|stroke|arthritis|skin|wound|ulcer/i.test(value);
-        const improveField = (value: string, fallback: string, hintOffset = 0) => {
-          const trimmed = value?.trim() || "";
+        const improveField = (value: string, fallback: string) => {
+          const trimmed = sanitizeRiskNarrativeFieldText(value);
           if (trimmed.length >= 40 && hasSpecificDetail(trimmed)) return trimmed;
-          const hint = pickEvidenceHint(hintOffset);
-          if (hint) {
-            return `${trimmed || fallback} ${toFirstPerson(hint)}`.trim();
-          }
-          return trimmed || fallback;
+          if (trimmed.length >= 30) return trimmed;
+          return fallback;
         };
-        const ensureDetailed = (value: string, hintOffset = 0) => {
+        const ensureDetailed = (value: string, extraSentence: string) => {
           const sentenceCount = value.split(/[.!?]+/).filter((s) => s.trim().length > 10).length;
           if (sentenceCount >= 2) return value;
-          const hint = pickEvidenceHint(hintOffset);
-          const extra = hint
-            ? ` ${toFirstPerson(hint)}.`
-            : " I prefer calm, clear support that follows my care plan and keeps me safe.";
-          return `${value.trim()}${extra}`.trim();
+          return `${value.trim()} ${extraSentence}`.trim();
         };
 
         if (!Array.isArray(result.risks) || result.risks.length === 0) {
@@ -15455,22 +15633,31 @@ Remember: Extract information ONLY from the service user documents above. Templa
         if (Array.isArray(result.risks)) {
           result.risks = result.risks.map((risk: any, riskIdx: number) => {
             const riskDefinition = typeof risk?.riskDefinition === "string"
-              ? cleanNotAwarePhrases(toFirstPerson(risk.riskDefinition))
+              ? sanitizeRiskNarrativeFieldText(cleanNotAwarePhrases(toFirstPerson(risk.riskDefinition)))
               : "";
             const howItsARisk = typeof risk?.howItsARisk === "string"
-              ? cleanNotAwarePhrases(toFirstPerson(risk.howItsARisk))
+              ? sanitizeRiskNarrativeFieldText(cleanNotAwarePhrases(toFirstPerson(risk.howItsARisk)))
               : "";
             const controlMeasures = typeof risk?.controlMeasures === "string"
-              ? cleanNotAwarePhrases(toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures)))
+              ? sanitizeRiskNarrativeFieldText(cleanNotAwarePhrases(toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures))))
               : "";
             return {
               ...risk,
               initialRating: normalizeRiskRating(risk?.initialRating),
-              riskDefinition: ensureDetailed(improveField(riskDefinition, "I have a documented risk in this area of my care.", riskIdx * 3), riskIdx * 3 + 1),
-              howItsARisk: ensureDetailed(improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support.", riskIdx * 3 + 1), riskIdx * 3 + 2),
-              controlMeasures: ensureDetailed(improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk.", riskIdx * 3 + 2), riskIdx * 3 + 3),
+              riskDefinition: ensureDetailed(
+                improveField(riskDefinition, "I have a documented risk in this area of my care."),
+                "I need clear, person-centred support so this risk is managed safely and consistently."
+              ),
+              howItsARisk: ensureDetailed(
+                improveField(howItsARisk, "This risk could affect my safety and wellbeing without the right support."),
+                "If the warning signs are missed, this could disrupt my routine, comfort and independence."
+              ),
+              controlMeasures: ensureDetailed(
+                improveField(controlMeasures, "My care team will follow my care plan and provide support to reduce this risk."),
+                "I prefer calm, clear support that follows my care plan, uses the right equipment and escalates concerns promptly."
+              ),
               whoWillBeHarmed: typeof risk?.whoWillBeHarmed === "string" && risk.whoWillBeHarmed.trim().length > 0
-                ? risk.whoWillBeHarmed.trim()
+                ? cleanRiskArtifactText(risk.whoWillBeHarmed.trim()) || "Service User and Care Workers"
                 : "Service User and Care Workers",
               ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
             };
@@ -15510,7 +15697,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
           result.category = preservedFields.category;
         }
         if (typeof result.additionalNotes === "string") {
-          result.additionalNotes = cleanNotAwarePhrases(toFirstPerson(result.additionalNotes));
+          result.additionalNotes = cleanRiskArtifactText(cleanNotAwarePhrases(toFirstPerson(result.additionalNotes)));
           // If additionalNotes is now empty or just whitespace, set to empty string
           if (!result.additionalNotes || result.additionalNotes.trim().length < 5) {
             result.additionalNotes = "";

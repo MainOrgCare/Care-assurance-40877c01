@@ -27,19 +27,228 @@ function countPlaceholders(text: string): number {
   return matches ? matches.length : 0;
 }
 
+const TOKEN_ARTIFACT_PATTERNS = [
+  /\{\{[^{}\n]*PII_[^{}\n]*\}\}/gi,
+  /\{\{[^{}\n]*PII_[^{}\n]*/gi,
+  /\bPII_[a-z0-9]+_[A-Z_]+_\d+\b/gi,
+];
+
+const TEMPLATE_ARTIFACT_PATTERNS = [
+  /\bunderstand the information provided\b/gi,
+  /\bservice user information\b/gi,
+  /\bservice user details\b/gi,
+  /\bdocuments? to analyze\b/gi,
+  /\bstructure reference only\b/gi,
+  /\bplaceholder text\b/gi,
+  /\breal service user (?:information|documents?)\b/gi,
+  /\bdo not use any content from templates?\b/gi,
+  /\btemplate\/example text\b/gi,
+];
+
+const QUESTIONNAIRE_SENTENCE_PATTERNS = [
+  /(?:^|[.!?]\s*)(if there (?:is|was|were)|would i(?: be able to)?|am i able to|can i|will i|do i need|should i|is there|are there|who would|what would happen if)\b/i,
+  /\bevacuate the premises\b/i,
+  /\bunderstand the information provided\b/i,
+];
+
+const DISPLAY_BOILERPLATE_PATTERNS = [
+  /\bany concerns should be reported to the office\b/i,
+  /\bshould be assessed and documented here\b/i,
+  /\breported to the office immediately\b/i,
+  /\bthis section should be completed\b/i,
+];
+
+const NAME_PLACEHOLDER_LABELS = new Set([
+  "name",
+  "name name",
+  "full name",
+  "first name",
+  "last name",
+  "surname",
+  "service user",
+  "service user name",
+  "client",
+  "client name",
+  "resident",
+  "patient",
+]);
+
+const PERSON_NAME_PARTICLES = new Set([
+  "al",
+  "ap",
+  "ben",
+  "bin",
+  "da",
+  "de",
+  "del",
+  "della",
+  "der",
+  "di",
+  "dos",
+  "du",
+  "ibn",
+  "la",
+  "le",
+  "st",
+  "st.",
+  "van",
+  "von",
+]);
+
+function sanitizeRiskDisplayText(value?: string | null): string {
+  if (typeof value !== "string") return "";
+  let cleaned = value;
+  for (const pattern of TOKEN_ARTIFACT_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  for (const pattern of TEMPLATE_ARTIFACT_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  cleaned = cleaned
+    .replace(/^[\s:;-]+|[\s:;-]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+
+  const sentenceParts = cleaned.match(/[^.!?]+[.!?]?/g) || [cleaned];
+  cleaned = sentenceParts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .filter((part) => !QUESTIONNAIRE_SENTENCE_PATTERNS.some((pattern) => pattern.test(part)))
+    .filter((part) => !DISPLAY_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(part)))
+    .filter((part) => {
+      if (/[.!?]$/.test(part)) return true;
+      const lastToken = part.split(/\s+/).pop() || "";
+      return !(part.length > 40 && lastToken.length <= 2);
+    })
+    .join(" ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+
+  if (NAME_PLACEHOLDER_LABELS.has(cleaned.toLowerCase())) {
+    return "";
+  }
+
+  return cleaned;
+}
+
+function sanitizeStringList(values?: string[]): string[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+
+  values.forEach((value) => {
+    const next = sanitizeRiskDisplayText(value);
+    if (!next) return;
+    const key = next.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    cleaned.push(next);
+  });
+
+  return cleaned;
+}
+
+function looksLikeServiceUserName(value: string): boolean {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 5) return false;
+
+  let capitalizedCount = 0;
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    const bare = word.replace(/[.'`-]/g, "");
+    if (!bare) return false;
+
+    const lower = bare.toLowerCase();
+    if (PERSON_NAME_PARTICLES.has(lower)) {
+      if (index === 0 || index === words.length - 1) return false;
+      continue;
+    }
+
+    if (/^[A-Z][A-Za-z'`-]+$/.test(word) || /^[A-Z]{2,}$/.test(bare)) {
+      capitalizedCount += 1;
+      continue;
+    }
+
+    return false;
+  }
+
+  return capitalizedCount >= 2;
+}
+
+function sanitizeServiceUserName(value?: string | null): string {
+  const cleaned = sanitizeRiskDisplayText(value);
+  if (!cleaned) return "";
+  if (/information not found/i.test(cleaned)) return "";
+  if (!looksLikeServiceUserName(cleaned)) return "";
+  return cleaned;
+}
+
+function sanitizeRecommendedAssessment(assessment: RecommendedAssessment): RecommendedAssessment {
+  return {
+    ...assessment,
+    name: sanitizeRiskDisplayText(assessment.name) || assessment.name,
+    reason: sanitizeRiskDisplayText(assessment.reason),
+    evidence: sanitizeRiskDisplayText(assessment.evidence),
+    evidenceSnippets: sanitizeStringList(assessment.evidenceSnippets),
+  };
+}
+
+function sanitizeRiskAnalysisResult(result: RiskAnalysis): RiskAnalysis {
+  return {
+    ...result,
+    serviceUser: {
+      ...result.serviceUser,
+      fullName: sanitizeServiceUserName(result.serviceUser?.fullName),
+    },
+    medicalConditions: sanitizeStringList(result.medicalConditions),
+    careActivities: sanitizeStringList(result.careActivities),
+    concerns: sanitizeStringList(result.concerns),
+    equipment: sanitizeStringList(result.equipment),
+    communicationNeeds: sanitizeStringList(result.communicationNeeds),
+    environmentalFactors: sanitizeStringList(result.environmentalFactors),
+    recommendedAssessments: (result.recommendedAssessments || []).map(sanitizeRecommendedAssessment),
+    documentSummary: sanitizeRiskDisplayText(result.documentSummary),
+  };
+}
+
+function sanitizeRiskRow(row: RiskRow): RiskRow {
+  return {
+    ...row,
+    riskDefinition: sanitizeRiskDisplayText(row.riskDefinition),
+    howItsARisk: sanitizeRiskDisplayText(row.howItsARisk),
+    whoWillBeHarmed: sanitizeRiskDisplayText(row.whoWillBeHarmed),
+    controlMeasures: sanitizeRiskDisplayText(row.controlMeasures),
+  };
+}
+
+function sanitizeGeneratedAssessmentResult(assessment: GeneratedAssessment): GeneratedAssessment {
+  return {
+    ...assessment,
+    category: sanitizeRiskDisplayText(assessment.category) || assessment.category,
+    risks: (assessment.risks || []).map(sanitizeRiskRow),
+    supportingEvidence: sanitizeStringList(assessment.supportingEvidence),
+    additionalNotes: sanitizeRiskDisplayText(assessment.additionalNotes),
+    signedBy: sanitizeRiskDisplayText(assessment.signedBy) || assessment.signedBy,
+    jobTitle: sanitizeRiskDisplayText(assessment.jobTitle) || assessment.jobTitle,
+  };
+}
+
 /**
  * Highlight template placeholders like [Name], [NHS Number] etc.
  */
 function highlightPlaceholders(text: string): React.ReactNode {
+  const safeText = sanitizeRiskDisplayText(text);
   const placeholderPattern = /\[([^\]]+)\]/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
   let key = 0;
 
-  while ((match = placeholderPattern.exec(text)) !== null) {
+  while ((match = placeholderPattern.exec(safeText)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      parts.push(safeText.slice(lastIndex, match.index));
     }
     parts.push(
       <span
@@ -52,10 +261,10 @@ function highlightPlaceholders(text: string): React.ReactNode {
     );
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+  if (lastIndex < safeText.length) {
+    parts.push(safeText.slice(lastIndex));
   }
-  return parts.length > 0 ? parts : text;
+  return parts.length > 0 ? parts : safeText;
 }
 
 interface RecommendedAssessment {
@@ -173,8 +382,8 @@ export default function RiskAssessment() {
   );
   const serviceUserDisplayName = useMemo(() => {
     // Use full name if available (vault automatically restores it)
-    const fullName = analysisRaw?.serviceUser?.fullName;
-    if (fullName && !/information not found/i.test(fullName)) return fullName.trim();
+    const fullName = sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName);
+    if (fullName) return fullName;
     const initials = analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials;
     return initials || "N.N.";
   }, [analysisRaw, analysisScrubbed]);
@@ -188,10 +397,11 @@ export default function RiskAssessment() {
   };
   const getServiceUserDisplay = (fallbackInitials?: string) => {
     // Automatically use restored full name if available
-    if (analysisRaw?.serviceUser?.fullName && !/information not found/i.test(analysisRaw.serviceUser.fullName)) {
-      return analysisRaw.serviceUser.fullName.trim();
+    const fullName = sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName);
+    if (fullName) {
+      return fullName;
     }
-    return fallbackInitials || serviceUserDisplayName || "N.N.";
+    return sanitizeRiskDisplayText(fallbackInitials) || serviceUserDisplayName || "N.N.";
   };
 
   const hasData = Boolean(
@@ -526,8 +736,10 @@ export default function RiskAssessment() {
         });
 
         if (resultRaw) {
-          setAnalysisRaw(resultRaw);
-          setAnalysisScrubbed(resultScrubbed || resultRaw);
+          const cleanedRaw = sanitizeRiskAnalysisResult(resultRaw);
+          const cleanedScrubbed = sanitizeRiskAnalysisResult((resultScrubbed || resultRaw) as RiskAnalysis);
+          setAnalysisRaw(cleanedRaw);
+          setAnalysisScrubbed(cleanedScrubbed);
           setAnalysisVaultExport(resultVaultExport);
         }
       } catch (error) {
@@ -605,6 +817,9 @@ export default function RiskAssessment() {
         throw new Error("No result received from server");
       }
 
+      const cleanedRaw = sanitizeRiskAnalysisResult(resultRaw);
+      const cleanedScrubbed = sanitizeRiskAnalysisResult((resultScrubbed || resultRaw) as RiskAnalysis);
+
       setProgress(100);
       setProgressStatus("Complete!");
       setSearchQuery("");
@@ -612,13 +827,13 @@ export default function RiskAssessment() {
       setSortMode("default");
       setCustomAssessments([]);
       setCustomAssessmentName("");
-      setAnalysisRaw(resultRaw);
-      setAnalysisScrubbed(resultScrubbed || resultRaw);
+      setAnalysisRaw(cleanedRaw);
+      setAnalysisScrubbed(cleanedScrubbed);
       setAnalysisVaultExport(resultVaultExport);
       setStep("select");
       
       // Auto-select mandatory assessments
-      const finalAnalysis: RiskAnalysis = resultScrubbed ?? resultRaw;
+      const finalAnalysis: RiskAnalysis = cleanedScrubbed;
       const mandatory = new Set<string>(
         finalAnalysis.recommendedAssessments
           .filter((a: RecommendedAssessment) => a.isMandatory)
@@ -894,8 +1109,10 @@ export default function RiskAssessment() {
         });
 
         if (resultRaw) {
-          generatedRawMap.set(assessmentName, resultRaw);
-          generatedScrubbedMap.set(assessmentName, resultScrubbed || resultRaw);
+          const cleanedRaw = sanitizeGeneratedAssessmentResult(resultRaw);
+          const cleanedScrubbed = sanitizeGeneratedAssessmentResult((resultScrubbed || resultRaw) as GeneratedAssessment);
+          generatedRawMap.set(assessmentName, cleanedRaw);
+          generatedScrubbedMap.set(assessmentName, cleanedScrubbed);
         } else {
           throw new Error(`No result received for ${assessmentName}`);
         }
@@ -984,22 +1201,23 @@ export default function RiskAssessment() {
   };
 
   const formatAssessmentForCopy = (assessment: GeneratedAssessment) => {
+    const safeAssessment = sanitizeGeneratedAssessmentResult(assessment);
     const lines: string[] = [
-      `Risk Assessment: ${assessment.category}`,
-      `Date: ${assessment.assessmentDate}`,
-      `Service User: ${getServiceUserDisplay(assessment.serviceUserInitials)}`,
+      `Risk Assessment: ${safeAssessment.category}`,
+      `Date: ${safeAssessment.assessmentDate}`,
+      `Service User: ${getServiceUserDisplay(safeAssessment.serviceUserInitials)}`,
       "",
     ];
 
-    if (assessment.supportingEvidence && assessment.supportingEvidence.length > 0) {
+    if (safeAssessment.supportingEvidence && safeAssessment.supportingEvidence.length > 0) {
       lines.push("Supporting Evidence:");
-      assessment.supportingEvidence.forEach((evidence) => {
+      safeAssessment.supportingEvidence.forEach((evidence) => {
         lines.push(`- ${evidence}`);
       });
       lines.push("");
     }
 
-    assessment.risks.forEach((risk, index) => {
+    safeAssessment.risks.forEach((risk, index) => {
       lines.push(`Risk ${index + 1}: ${risk.riskDefinition}`);
       lines.push(`Initial Rating: ${risk.initialRating}`);
       lines.push(`Who Will Be Harmed: ${risk.whoWillBeHarmed}`);
@@ -1010,15 +1228,15 @@ export default function RiskAssessment() {
     });
 
     if (
-      assessment.additionalNotes &&
-      assessment.additionalNotes !== "I'm not aware of additional information based on the documents provided"
+      safeAssessment.additionalNotes &&
+      safeAssessment.additionalNotes !== "I'm not aware of additional information based on the documents provided"
     ) {
       lines.push("Additional Notes:");
-      lines.push(assessment.additionalNotes);
+      lines.push(safeAssessment.additionalNotes);
       lines.push("");
     }
 
-    lines.push(`Signed By: ${formatSignedBy(assessment)}`);
+    lines.push(`Signed By: ${formatSignedBy(safeAssessment)}`);
 
     return lines.join("\n").trim();
   };
@@ -1071,6 +1289,7 @@ export default function RiskAssessment() {
     };
 
     generatedAssessmentsForCopy.forEach((assessment, index) => {
+      const safeAssessment = sanitizeGeneratedAssessmentResult(assessment);
       if (index > 0) {
         doc.addPage();
         y = 18;
@@ -1078,23 +1297,23 @@ export default function RiskAssessment() {
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
-      addParagraph(`${assessment.category} Risk Assessment`, 8);
+      addParagraph(`${safeAssessment.category} Risk Assessment`, 8);
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
-      addParagraph(`Date: ${assessment.assessmentDate}`);
-      addParagraph(`Service User: ${getServiceUserDisplay(assessment.serviceUserInitials)}`);
-      addParagraph(`Signed By: ${formatSignedBy(assessment)}`);
+      addParagraph(`Date: ${safeAssessment.assessmentDate}`);
+      addParagraph(`Service User: ${getServiceUserDisplay(safeAssessment.serviceUserInitials)}`);
+      addParagraph(`Signed By: ${formatSignedBy(safeAssessment)}`);
       y += 2;
 
-      if (assessment.supportingEvidence && assessment.supportingEvidence.length > 0) {
+      if (safeAssessment.supportingEvidence && safeAssessment.supportingEvidence.length > 0) {
         doc.setFont("helvetica", "bold");
         addParagraph("Supporting Evidence:", 7);
         doc.setFont("helvetica", "normal");
-        assessment.supportingEvidence.forEach((evidence) => addParagraph(`- ${evidence}`));
+        safeAssessment.supportingEvidence.forEach((evidence) => addParagraph(`- ${evidence}`));
         y += 2;
       }
 
-      assessment.risks.forEach((risk, idx) => {
+      safeAssessment.risks.forEach((risk, idx) => {
         doc.setFont("helvetica", "bold");
         addParagraph(`Risk ${idx + 1}: ${risk.riskDefinition}`, 7);
         doc.setFont("helvetica", "normal");
@@ -1107,13 +1326,13 @@ export default function RiskAssessment() {
       });
 
       if (
-        assessment.additionalNotes &&
-        assessment.additionalNotes !== "I'm not aware of additional information based on the documents provided"
+        safeAssessment.additionalNotes &&
+        safeAssessment.additionalNotes !== "I'm not aware of additional information based on the documents provided"
       ) {
         doc.setFont("helvetica", "bold");
         addParagraph("Additional Notes", 7);
         doc.setFont("helvetica", "normal");
-        addParagraph(assessment.additionalNotes);
+        addParagraph(safeAssessment.additionalNotes);
       }
     });
 
@@ -1169,22 +1388,25 @@ export default function RiskAssessment() {
       createdAt: new Date().toISOString(),
       serviceUserDisplayName,
       serviceUserInitials: payloadInitials,
-      assessments: assessments.map((assessment) => ({
-        category: assessment.category,
-        serviceUserInitials: assessment.serviceUserInitials,
-        assessmentDate: assessment.assessmentDate,
-        signedBy: assessment.signedBy,
-        jobTitle: assessment.jobTitle,
-        additionalNotes: assessment.additionalNotes,
-        risks: assessment.risks.map((risk) => ({
-          riskDefinition: risk.riskDefinition,
-          initialRating: risk.initialRating,
-          whoWillBeHarmed: risk.whoWillBeHarmed,
-          howItsARisk: risk.howItsARisk,
-          controlMeasures: risk.controlMeasures,
-          ratingAfterControls: risk.ratingAfterControls,
-        })),
-      })),
+      assessments: assessments.map((assessment) => {
+        const safeAssessment = sanitizeGeneratedAssessmentResult(assessment);
+        return {
+          category: safeAssessment.category,
+          serviceUserInitials: safeAssessment.serviceUserInitials,
+          assessmentDate: safeAssessment.assessmentDate,
+          signedBy: safeAssessment.signedBy,
+          jobTitle: safeAssessment.jobTitle,
+          additionalNotes: safeAssessment.additionalNotes,
+          risks: safeAssessment.risks.map((risk) => ({
+            riskDefinition: risk.riskDefinition,
+            initialRating: risk.initialRating,
+            whoWillBeHarmed: risk.whoWillBeHarmed,
+            howItsARisk: risk.howItsARisk,
+            controlMeasures: risk.controlMeasures,
+            ratingAfterControls: risk.ratingAfterControls,
+          })),
+        };
+      }),
     };
 
     try {
