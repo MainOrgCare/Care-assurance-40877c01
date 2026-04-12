@@ -14,7 +14,7 @@ version: "1"
 # ── Managed PostgreSQL database ──────────────────────────────────────────────
 databases:
   - name: Care-Assurance-Database
-    plan: standard
+    plan: Basic-256mb
     region: frankfurt
     postgresMajorVersion: 18
     # DATABASE_URL is auto-wired to services via fromDatabase (see below).
