@@ -1,10 +1,53 @@
 version: "1"
 
+# ══════════════════════════════════════════════════════════════════════════════
+# RENDER BLUEPRINT — Care Assurance
+# Matches the actual Render dashboard layout:
+#   Database group : Care-Assurance-Database  (PostgreSQL 18, Frankfurt)
+#   Development    : Care-assurance-development  (Node, Frankfurt — single service)
+#   Production     : Care-assurance-web  (Static, Global CDN)
+#                    Care-assurance-api  (Node, Frankfurt)
+#                    Care-assurance-worker  (Node, Frankfurt)
+#                    CORS  (Env Group — 2 vars shared by api + web)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Managed PostgreSQL database ──────────────────────────────────────────────
+databases:
+  - name: Care-Assurance-Database
+    plan: standard
+    region: frankfurt
+    postgresMajorVersion: 18
+    # DATABASE_URL is auto-wired to services via fromDatabase (see below).
+
+# ── Shared env group (Production) ────────────────────────────────────────────
+# Matches the "CORS" env group visible in the Production environment on Render.
+# Contains 2 vars shared between Care-assurance-api and Care-assurance-web.
+envVarGroups:
+  - name: CORS
+    envVars:
+      - key: CORS_ORIGIN
+        sync: false
+        # Comma-separated origins, e.g. https://careassurance.uk,https://www.careassurance.uk
+      - key: CANONICAL_DOMAIN
+        sync: false
+        # Primary domain without protocol, e.g. careassurance.uk
+        # Used in Helmet CSP connect-src and CSRF origin checks.
+
 services:
+  # ── NODE.JS HEAP SIZE FOR BUILDS ──────────────────────────────────────────
+  # All buildCommands export NODE_OPTIONS for the full command chain to prevent OOM errors:
+  #   - Web build (Vite + React): 2048 MB (large dependencies, bundle optimization)
+  #   - API & Worker builds (esbuild): 1024 MB (adequate for bundle)
+  #   - Dev build (full: Vite + esbuild): 2048 MB (runs all three builds sequentially)
+  # Inline VAR=value only scopes the first command, so use sh -c with export here.
+  # Without this, vite build falls back to the runtime 512 MB limit and OOMs after 12-15s.
+  # Runtime NODE_OPTIONS (512MB) is separate and sufficient for steady-state traffic.
+  #
+  # ── Production — Static CDN frontend ───────────────────────────────────────
   - type: web
     runtime: static
-    name: care-assurance-web
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:client
+    name: Care-assurance-web
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build:client'
     staticPublishPath: dist/public
     routes:
       - type: rewrite
@@ -14,86 +57,100 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         sync: false
+        # Set to the production API URL, e.g. https://care-assurance-api.onrender.com
+        # The SPA uses this at build time to know where to send API calls.
 
+  # ── Production — Node API ───────────────────────────────────────────────────
+  # RESTful API backend serving the web app and any external integrations.
+  #
+  # Health endpoints:
+  #   /healthz         — Lightweight liveness probe (always 200 if process alive)
+  #   /readyz          — Checks database connectivity (503 if disconnected — no traffic routed)
+  #   /status          — Comprehensive diagnostics (uptime, memory, DB latency, environment)
+  #
+  # Performance:
+  #   - Global rate limiting: 1000 req/15min per IP (polling endpoints exempted)
+  #   - Auth endpoints: 20 req/2min per IP (brute-force protection)
+  #   - Admin endpoints: 10 req/hour per IP (sensitive action throttling)
+  #   - Compression enabled (gzip for text, skipped for SSE streams)
+  #   - Request ID tracking for debugging production issues
+  #
+  # Monitoring:
+  #   - Visit /status endpoint regularly from a monitoring service to catch degradation
+  #   - Check logs for "[worker]" messages if worker tasks fail (see Care-assurance-worker)
+  #   - Monitor DATABASE_URL connectivity — /readyz will return 503 on connection loss
+  #
   - type: web
-    name: care-assurance-api
+    name: Care-assurance-api
     runtime: node
+    region: frankfurt
     plan: standard
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:server'
     startCommand: npm run start:api
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
-      - key: NODE_OPTIONS
-        value: --max-old-space-size=512
+      # ── Shared env group ──────────────────────────────────────────────────
+      - fromGroup: CORS
+        # Injects CORS_ORIGIN and CANONICAL_DOMAIN from the shared CORS env group.
+
+      # ── Runtime ───────────────────────────────────────────────────────────
       - key: NODE_ENV
         value: production
-      - key: ENABLE_CANONICAL_REDIRECT
-        value: "false"
-      - key: SERVE_STATIC
-        value: "false"
-      - key: CORS_ORIGIN
-        sync: false
-      - key: SESSION_SECRET
-        sync: false
-      - key: AI_ENABLED
-        value: "true"
-      - key: CONTACT_EMAIL
-        sync: false
-      - key: CONTACT_FROM
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_SECURE
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: CLOUDMERSIVE_API_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: PGSSLMODE
-        value: require
-      - key: PGSSLREJECTUNAUTHORIZED
-        value: "false"
-      - key: PAT_AI_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_FALLBACK_API_KEY
-        sync: false
-
-  - type: web
-    name: care-assurance-api-dev
-    runtime: node
-    plan: standard
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
-    startCommand: npm run start:api
-    healthCheckPath: /healthz
-    autoDeploy: true
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
-    envVars:
       - key: NODE_OPTIONS
         value: --max-old-space-size=512
-      - key: NODE_ENV
-        value: development
+
+      # ── Network ───────────────────────────────────────────────────────────
+      - key: SERVE_STATIC
+        value: "false"
+        # Static files served by Care-assurance-web; API handles /api routes only.
       - key: ENABLE_CANONICAL_REDIRECT
         value: "false"
-      - key: SERVE_STATIC
-        value: "true"
-      - key: CORS_ORIGIN
-        sync: false
+        # Set to "true" once your custom domain is fully verified in Render.
+
+      # ── Database ──────────────────────────────────────────────────────────
+      - key: DATABASE_URL
+        fromDatabase:
+          name: Care-Assurance-Database
+          property: connectionString
+        # Auto-wired from the Render-managed Care-Assurance-Database.
+        # Uses the internal connection string (stays within Render's network).
+      - key: PGSSLMODE
+        value: require
+      - key: PGSSLREJECTUNAUTHORIZED
+        value: "false"
+
+      # ── Session ───────────────────────────────────────────────────────────
       - key: SESSION_SECRET
         sync: false
+        # Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+      # ── Admin bootstrap ───────────────────────────────────────────────────
+      - key: ADMIN_BOOTSTRAP_USERNAME
+        sync: false
+        # Username for the initial admin account. Only runs if no admin exists yet.
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+        # Password for the initial admin account (min 12 chars). Required in production.
+
+      # ── AI features ───────────────────────────────────────────────────────
       - key: AI_ENABLED
         value: "true"
+      - key: PAT_AI_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_FALLBACK_API_KEY
+        sync: false
+      - key: OPENAI_FALLBACK_BASE_URL
+        sync: false
+        # Defaults to https://api.openai.com/v1. Override for Azure OpenAI or a proxy.
+
+      # ── File scanning ─────────────────────────────────────────────────────
+      - key: CLOUDMERSIVE_API_KEY
+        sync: false
+
+      # ── Email / SMTP ──────────────────────────────────────────────────────
       - key: CONTACT_EMAIL
         sync: false
       - key: CONTACT_FROM
@@ -108,26 +165,27 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
-      - key: CLOUDMERSIVE_API_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: PGSSLMODE
-        value: require
-      - key: PGSSLREJECTUNAUTHORIZED
-        value: "false"
-      - key: PAT_AI_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_FALLBACK_API_KEY
-        sync: false
 
+  # ── Production — Background worker ───────────────────────────────────────
+  # Autonomous background job processor running on a separate process to handle
+  # scheduled maintenance tasks without impacting API performance.
+  #
+  # Current responsibilities (runs every CLEANUP_INTERVAL_MS):
+  #   1. Data cleanup: Removes expired service users, care workers, calls, orders, templates, recommendations
+  #   2. Session cleanup: Removes stale active sessions (inactive 7+ days)
+  #   3. Suspension reset: Auto-reinstates users whose suspension period has expired
+  #   4. IP block cleanup: Removes expired IP blocks (older than 30 days)
+  #   5. System log archival: Identifies system logs eligible for long-term archive (90+ days old)
+  #
+  # Design: Sequential task execution (not parallel) to minimize database contention.
+  # Logs detailed progress for each task — monitor logs to verify maintenance is running.
+  #
   - type: worker
-    name: care-assurance-worker
+    name: Care-assurance-worker
     runtime: node
+    region: frankfurt
     plan: starter
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:worker
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:worker'
     startCommand: npm run start:worker
     autoDeploy: true
     envVars:
@@ -135,10 +193,160 @@ services:
         value: production
       - key: CLEANUP_INTERVAL_MS
         sync: false
+        # How often the worker runs all maintenance tasks, in milliseconds.
+        # Default: 21600000 (6 hours). Runs immediately on startup, then periodically.
+        # Common values:
+        #   - 3600000 = 1 hour (frequent, for active platforms)
+        #   - 21600000 = 6 hours (balanced, default)
+        #   - 86400000 = 24 hours (low-frequency, for off-peak times)
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: Care-Assurance-Database
+          property: connectionString
       - key: PGSSLMODE
         value: require
       - key: PGSSLREJECTUNAUTHORIZED
         value: "false"
+
+  # ── Development — Single-service (API + static client) ───────────────────
+  - type: web
+    name: Care-assurance-development
+    runtime: node
+    plan: standard
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build'
+    startCommand: NODE_ENV=development PORT=$PORT node dist/index.cjs
+    healthCheckPath: /healthz
+    autoDeploy: true
+    region: frankfurt
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      # ── Runtime ────────────────────────────────────────────────────────────
+      - key: NODE_ENV
+        value: development
+        # The server detects Render env vars (RENDER, RENDER_EXTERNAL_HOSTNAME) and
+        # activates "hosted development" mode — production-like CSP/CORS + static file
+        # serving, but relaxed rate limiting and CSRF for easier dev testing.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=512
+
+      # ── Network & static serving ───────────────────────────────────────────
+      - key: SERVE_STATIC
+        value: "true"
+        # Tells Express to serve the Vite-built client from dist/public.
+        # Required because this is a single-service deployment (no separate static site).
+      - key: ENABLE_CANONICAL_REDIRECT
+        value: "false"
+        # Keep false in dev — canonical redirect would redirect your Render URL away.
+      - key: CANONICAL_DOMAIN
+        sync: false
+        # Set to this service's public hostname, e.g. care-assurance-development.onrender.com
+        # Used in CSP connect-src allowlist and CSRF origin checks.
+
+      # ── CORS ───────────────────────────────────────────────────────────────
+      - key: CORS_ORIGIN
+        sync: false
+        # Leave blank — the server auto-allows RENDER_EXTERNAL_HOSTNAME and any
+        # *.onrender.com origin in hosted-development mode.
+      - key: CORS_DEBUG
+        value: "false"
+        # Set to "true" to log every CORS allow/reject decision to the server console.
+        # Useful for diagnosing cross-origin issues without code changes.
+
+      # ── Database ───────────────────────────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false
+        # Paste the Care-Assurance-Database Internal Connection String from:
+        # Render dashboard → Care-Assurance-Database → Info → Connections tab
+        # The internal URL keeps traffic within Render's private network.
+      - key: PGSSLMODE
+        value: require
+      - key: PGSSLREJECTUNAUTHORIZED
+        value: "false"
+
+      # ── Session & auth ─────────────────────────────────────────────────────
+      - key: SESSION_SECRET
+        sync: false
+        # Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+        # Must be different from the production SESSION_SECRET.
+      - key: DISABLE_CSRF
+        value: "false"
+        # Set to "true" to bypass CSRF token validation (non-production only).
+        # Useful when testing the API with tools like Postman or curl.
+
+      # ── Admin bootstrap ────────────────────────────────────────────────────
+      - key: ADMIN_BOOTSTRAP_USERNAME
+        value: admin
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+        # Min 12 chars, mixed case + symbol. Falls back to DEV_ADMIN_PASSWORD if unset.
+      - key: DEV_ADMIN_PASSWORD
+        sync: false
+        # Optional override for the default dev admin password.
+        # Ignored if ADMIN_BOOTSTRAP_PASSWORD is set.
+
+      # ── AI features ────────────────────────────────────────────────────────
+      - key: AI_ENABLED
+        value: "true"
+      - key: PAT_AI_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_FALLBACK_API_KEY
+        sync: false
+        # Secondary OpenAI key — tried before OPENAI_API_KEY when set.
+        # Useful for separating dev quota from the primary key.
+      - key: OPENAI_FALLBACK_BASE_URL
+        sync: false
+        # Override the OpenAI-compatible API base URL (default: https://api.openai.com/v1).
+        # Set to your LM Studio / Ollama / Azure OpenAI endpoint if needed.
+      - key: LOCAL_LLM_URL
+        sync: false
+        # URL of a local Ollama/LM Studio instance (default: http://local-llm:11434).
+        # Only used if a local LLM provider is configured in aiClient.ts.
+      - key: LOCAL_LLM_MODEL
+        sync: false
+        # Model name served by LOCAL_LLM_URL (default: qwen2.5-64k).
+      - key: LLM_KEY
+        sync: false
+        # API key for the local LLM endpoint if it requires authentication.
+
+      # ── File scanning ──────────────────────────────────────────────────────
+      - key: CLOUDMERSIVE_API_KEY
+        sync: false
+        # Free tier: 800 scans/month — https://cloudmersive.com
+
+      # ── Email / SMTP ───────────────────────────────────────────────────────
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: CONTACT_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+
+      # ── Observability & feature flags ──────────────────────────────────────
+      - key: SECURITY_AUDIT_LOG
+        value: "false"
+        # Set to "true" to force security audit log writes in dev (normally production-only).
+      - key: ENABLE_DEMO_MODE
+        value: "false"
+        # Set to "true" to seed demo data on startup (non-production only).
+      - key: EMAR_GRID_DEBUG
+        value: "off"
+        # EMAR grid parser verbosity: "off" | "warn" | "info" | "verbose"
+      - key: DEBUG_EMAR_GRID
+        value: "false"
+        # Set to "true" for per-row grid transposition debug output in EMAR parsing.
+
+
 

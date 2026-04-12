@@ -920,6 +920,7 @@ export default function RiskAssessment() {
     if (!analysis) return;
     const cleaned = normalizeAssessmentName(customAssessmentName);
     if (!cleaned) return;
+    const canonicalName = canonicalizeAssessmentName(cleaned);
     const key = normalizeAssessmentKey(cleaned);
     const existing =
       combinedAssessments.find((assessment) => normalizeAssessmentKey(assessment.name) === key) ||
@@ -936,13 +937,13 @@ export default function RiskAssessment() {
       return;
     }
     const nextAssessment: RecommendedAssessment = {
-      name: canonicalizeAssessmentName(cleaned),
+      name: canonicalName,
       isMandatory: false,
       reason: "Added manually by assessor.",
     };
     setCustomAssessments((prev) => [...prev, nextAssessment]);
     const nextSelected = new Set(selectedAssessments);
-    nextSelected.add(cleaned);
+    nextSelected.add(canonicalName);
     setSelectedAssessments(nextSelected);
     setCustomAssessmentName("");
   };

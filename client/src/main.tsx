@@ -5,8 +5,25 @@ import "./index.css";
 import "leaflet/dist/leaflet.css";
 import { AUTH_EXPIRED_EVENT, REQUEST_ID_HEADER, randomRequestId } from "@/lib/queryClient";
 import { reportClientError } from "@/lib/clientErrorReporter";
+import { toast } from "@/hooks/use-toast";
 
 const AUTH_EXPIRED_EXCLUDE_PATTERN = /\/api\/auth\/(login|register|demo|logout)\b/i;
+let lastGlobalErrorToastAt = 0;
+
+const showGlobalErrorToast = (message: string): void => {
+	const now = Date.now();
+	// Prevent toast storms from repeated uncaught errors.
+	if (now - lastGlobalErrorToastAt < 10_000) {
+		return;
+	}
+	lastGlobalErrorToastAt = now;
+
+	toast({
+		title: "Unexpected error",
+		description: message || "An unexpected issue occurred. Please retry your last action.",
+		variant: "destructive",
+	});
+};
 
 const shouldNotifyAuthExpired = (response: Response): boolean => {
 	if (response.status !== 401) {
@@ -41,6 +58,7 @@ const emitAuthExpired = (response: Response): void => {
 
 window.addEventListener("error", (event) => {
 	const message = event.error?.message || event.message || "Unknown client error";
+	showGlobalErrorToast(message);
 	reportClientError({
 		message,
 		stack: event.error?.stack,
@@ -56,6 +74,7 @@ window.addEventListener("unhandledrejection", (event) => {
 		typeof reason === "string"
 			? reason
 			: reason?.message || "Unhandled promise rejection";
+	showGlobalErrorToast(message);
 	reportClientError({
 		message,
 		stack: reason?.stack,
@@ -65,47 +84,87 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
-if (apiBaseUrl) {
-	const originalFetch = window.fetch.bind(window);
-	const withRequestId = (headers?: HeadersInit): Headers => {
-		const finalHeaders = new Headers(headers || undefined);
-		if (!finalHeaders.has(REQUEST_ID_HEADER)) {
-			finalHeaders.set(REQUEST_ID_HEADER, randomRequestId());
-		}
-		return finalHeaders;
-	};
-	window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-		const withApiDefaults = (requestInit?: RequestInit): RequestInit => ({
-			...requestInit,
-			credentials: requestInit?.credentials ?? "include",
-			headers: withRequestId(requestInit?.headers),
-		});
+const API_REQUEST_TIMEOUT_MS = 30_000;
+const originalFetch = window.fetch.bind(window);
 
-		if (typeof input === "string" && input.startsWith("/api")) {
-			return originalFetch(`${apiBaseUrl}${input}`, withApiDefaults(init));
-		}
-		if (input instanceof Request) {
-			const url = new URL(input.url);
-			if (url.origin === window.location.origin && url.pathname.startsWith("/api")) {
-				const nextUrl = `${apiBaseUrl}${url.pathname}${url.search}`;
-				const rewrittenRequest = new Request(nextUrl, input);
-				return originalFetch(
-					rewrittenRequest,
-					withApiDefaults({ ...init, credentials: init?.credentials ?? input.credentials })
-				);
-			}
-		}
-		return originalFetch(input, init);
-	};
-}
-
-const fetchForAuthMonitor = window.fetch.bind(window);
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-	const response = await fetchForAuthMonitor(input, init);
-	if (shouldNotifyAuthExpired(response)) {
-		emitAuthExpired(response);
+const withRequestId = (headers?: HeadersInit): Headers => {
+	const finalHeaders = new Headers(headers || undefined);
+	if (!finalHeaders.has(REQUEST_ID_HEADER)) {
+		finalHeaders.set(REQUEST_ID_HEADER, randomRequestId());
 	}
-	return response;
+	return finalHeaders;
+};
+
+const resolveApiUrl = (input: RequestInfo | URL): URL | null => {
+	if (typeof input === "string") {
+		if (!input.startsWith("/api")) return null;
+		return new URL(input, window.location.origin);
+	}
+
+	if (input instanceof URL) {
+		if (input.origin !== window.location.origin || !input.pathname.startsWith("/api")) {
+			return null;
+		}
+		return input;
+	}
+
+	if (input instanceof Request) {
+		const url = new URL(input.url, window.location.origin);
+		if (url.origin !== window.location.origin || !url.pathname.startsWith("/api")) {
+			return null;
+		}
+		return url;
+	}
+
+	return null;
+};
+
+window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+	const apiUrl = resolveApiUrl(input);
+	if (!apiUrl) {
+		return originalFetch(input, init);
+	}
+
+	const finalUrl = apiBaseUrl
+		? `${apiBaseUrl}${apiUrl.pathname}${apiUrl.search}`
+		: `${apiUrl.pathname}${apiUrl.search}`;
+
+	const requestHeaders = withRequestId(
+		init?.headers ?? (input instanceof Request ? input.headers : undefined),
+	);
+
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+
+	const sourceSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+	let signal: AbortSignal = controller.signal;
+	if (typeof AbortSignal.any === "function") {
+		signal = sourceSignal ? AbortSignal.any([sourceSignal, controller.signal]) : controller.signal;
+	} else if (sourceSignal) {
+		sourceSignal.addEventListener("abort", () => controller.abort(sourceSignal.reason), { once: true });
+	}
+
+	if (sourceSignal?.aborted) {
+		clearTimeout(timeout);
+		throw sourceSignal.reason ?? new DOMException("Aborted", "AbortError");
+	}
+
+	const finalInit: RequestInit = {
+		...init,
+		credentials: init?.credentials ?? (input instanceof Request ? input.credentials : "include") ?? "include",
+		headers: requestHeaders,
+		signal,
+	};
+
+	try {
+		const response = await originalFetch(finalUrl, finalInit);
+		if (shouldNotifyAuthExpired(response)) {
+			emitAuthExpired(response);
+		}
+		return response;
+	} finally {
+		clearTimeout(timeout);
+	}
 };
 
 const rootElement = document.getElementById("root");

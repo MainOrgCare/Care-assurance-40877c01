@@ -238,22 +238,20 @@ export default function PlanEnhancer() {
 
   // Run quick pre-analysis when documents are ready (rule-based, no AI cost)
   const runPreAnalysis = useCallback(async () => {
-    const docs = getAllDocumentContent();
-    if (!docs || Object.values(docs).every((s) => !s || s.trim().length < 50)) {
+    const documentContent = getAllDocumentContent();
+    if (!documentContent || documentContent.trim().length < 50) {
       setPreAnalysis(null);
       return;
     }
     
     setIsPreAnalyzing(true);
     try {
-      const content = Object.values(docs).filter(Boolean).join("\n\n");
-      
       // Use extract-care-data for comprehensive extraction
       const response = await fetch("/api/extract-care-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ documentContent: content }),
+        body: JSON.stringify({ documentContent }),
       });
       
       if (response.ok) {
@@ -280,8 +278,8 @@ export default function PlanEnhancer() {
 
   // Auto-run pre-analysis when documents change
   useEffect(() => {
-    const docs = getAllDocumentContent();
-    const hasContent = docs && Object.values(docs).some((s) => s && s.trim().length > 50);
+    const documentContent = getAllDocumentContent();
+    const hasContent = Boolean(documentContent && documentContent.trim().length > 50);
     if (hasContent && !isAnyParsing()) {
       const timer = setTimeout(runPreAnalysis, 500);
       return () => clearTimeout(timer);

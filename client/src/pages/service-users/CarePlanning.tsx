@@ -91,7 +91,10 @@ interface CallTypeInfo {
   carersRequired?: number;
 }
 
+const GENERAL_CALL_TYPE = "General";
+
 type CarePlanMutationResult = {
+  callType: string;
   raw: CarePlanResult;
   scrubbed: CarePlanResult;
 };
@@ -123,6 +126,7 @@ export default function CarePlanning() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [sortMode, setSortMode] = useState<"default" | "priority">("default");
+  const effectiveCallType = selectedCallType || GENERAL_CALL_TYPE;
 
   // Throttle progress updates to reduce re-renders during SSE streaming
   const lastProgressUpdateRef = useRef<number>(0);
@@ -265,6 +269,7 @@ export default function CarePlanning() {
           description: `Found ${data.callTypes.length} call type(s): ${data.callTypes.join(", ")}`,
         });
       } else {
+        setSelectedCallType(GENERAL_CALL_TYPE);
         toast({
           title: "No Call Types Found",
           description: "Service user not found in database. You can still generate a general care plan.",
@@ -290,12 +295,10 @@ export default function CarePlanning() {
         throw new Error("No document content available");
       }
 
-      if (!selectedCallType) {
-        throw new Error("Please select a call type first");
-      }
+      const requestedCallType = effectiveCallType;
 
       setProgress(0);
-      setProgressStatus(`Preparing ${selectedCallType} care plan...`);
+      setProgressStatus(`Preparing ${requestedCallType} care plan...`);
 
       // Don't clear existing plans - we're building up a collection
       const sectionsInProgressRaw: CarePlanSection[] = [];
@@ -307,7 +310,7 @@ export default function CarePlanning() {
         credentials: "include",
         body: JSON.stringify({ 
           documentContent, 
-          callType: selectedCallType,
+          callType: requestedCallType,
           allowSensitive: true // Always request vault export for automatic restoration
         }),
       });
@@ -382,30 +385,26 @@ export default function CarePlanning() {
         throw new Error("No result received from server");
       }
 
-      return { raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
+      return { callType: requestedCallType, raw: resultRaw, scrubbed: resultScrubbed || resultRaw };
     },
-    onSuccess: ({ raw, scrubbed }: CarePlanMutationResult) => {
+    onSuccess: ({ callType, raw, scrubbed }: CarePlanMutationResult) => {
       setProgress(100);
       setProgressStatus("Complete!");
       setTimeout(() => {
         setProgress(0);
         setProgressStatus("");
       }, 500);
+      setSelectedCallType(callType);
       
-      if (!selectedCallType) {
-        console.error("[CarePlan] No call type selected - this shouldn't happen");
-        return;
-      }
-
       // Store in call-type-specific maps
       setCarePlansByTypeRaw(prev => {
         const next = new Map(prev);
-        next.set(selectedCallType, raw);
+        next.set(callType, raw);
         return next;
       });
       setCarePlansByTypeScrubbed(prev => {
         const next = new Map(prev);
-        next.set(selectedCallType, scrubbed || raw);
+        next.set(callType, scrubbed || raw);
         return next;
       });
 
@@ -444,7 +443,7 @@ export default function CarePlanning() {
       setSortMode("default");
       
       toast({
-        title: `${selectedCallType} Care Plan Generated`,
+        title: `${callType} Care Plan Generated`,
         description: "Your detailed first-person care plan is ready.",
       });
     },
@@ -730,24 +729,19 @@ export default function CarePlanning() {
           
           <Button 
             onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending || isAnyParsing() || !selectedCallType}
+            disabled={generateMutation.isPending || isAnyParsing()}
             className="w-full mt-2 gap-2.5 h-12 rounded-xl font-medium tracking-tight shadow-glow"
             data-testid="button-generate-care-plan"
           >
             {generateMutation.isPending ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Generating {selectedCallType} Plan...
-              </>
-            ) : selectedCallType ? (
-              <>
-                <Sparkles size={18} />
-                Generate {selectedCallType} Care Plan
+                Generating {effectiveCallType} Plan...
               </>
             ) : (
               <>
                 <Sparkles size={18} />
-                Select Call Type First
+                Generate {effectiveCallType} Care Plan
               </>
             )}
           </Button>
