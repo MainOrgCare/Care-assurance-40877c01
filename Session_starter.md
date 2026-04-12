@@ -60,6 +60,8 @@
 
 **Critical Discoveries:**
 
+- `getAllDocumentContent()` from `TemporaryDataContext` returns a single combined string, not a per-document object. Feature code that treats it like `Object.values(...)` silently breaks pre-analysis and document-readiness checks.
+- Render build commands in `render.yaml` must use `sh -c 'export NODE_OPTIONS=...; ...'` when chaining `npm ci && npm run build*`; inline `NODE_OPTIONS=... cmd1 && cmd2` only applies the heap override to the first command, letting Vite fall back to the runtime 512 MB limit during deploys.
 - README documents a mature multi-domain healthcare operations platform rather than an early MVP scaffold.
 - Route-level frontend code-splitting + idle preloading already implemented for common pages.
 - Security posture is explicitly engineered (canonical host controls, CSRF/origin checks via route stack, progressive lockout helpers, request logger middleware).
@@ -95,6 +97,8 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-12 | ✅ Fixed three service-user workflow regressions and revalidated with `npm run build`: Care Planning now supports a `General` fallback when no DB call types are found, Plan Enhancer pre-analysis now uses the correct combined-string document contract from `TemporaryDataContext`, and Risk Assessment custom assessments now keep canonical selection names aligned with UI state and generation payloads. |
+| 2026-04-12 | ✅ Fixed Render deploy heap scoping in `render.yaml` by changing all build commands to `sh -c 'export NODE_OPTIONS=...; ...'`, ensuring Vite/esbuild inherit the intended build-time heap instead of falling back to the 512 MB runtime `NODE_OPTIONS` env var. |
 | 2026-04-12 | ✅ Improved app-wide runtime resilience in `client/src/main.tsx`: all same-origin `/api` requests now pass through a single hardened fetch wrapper (default credentials include, request-id header injection, optional `VITE_API_BASE_URL` rewrite for split deployments, and 30s timeout/abort handling), while uncaught runtime errors and unhandled promise rejections now trigger throttled user-visible destructive toasts in addition to existing server-side client-error reporting. |
 | 2026-04-12 | ✅ Added Render-hosted development runtime detection in `server/index.ts`: when running on Render with `NODE_ENV=development`, the app now behaves as a single hosted web service (production-like CSP/CORS handling and static serving) instead of local Vite/HMR dev mode assumptions. |
 | 2026-04-12 | ✅ Enforced automatic logout on credential expiry across the frontend: added a shared auth-expired event in `client/src/lib/queryClient.ts`, added global fetch-based 401 monitoring in `client/src/main.tsx` (including direct `fetch` call sites), and updated `client/src/context/AuthContext.tsx` to force-clear auth state, redirect to `/`, and show a session-expired toast when an authenticated session receives unauthorized API responses. |
