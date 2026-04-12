@@ -46,7 +46,7 @@ services:
   # ── Production — Static CDN frontend ───────────────────────────────────────
   - type: web
     runtime: static
-    name: Care-assurance-web
+    name: care-assurance-web
     buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build:client'
     staticPublishPath: dist/public
     routes:
@@ -81,7 +81,7 @@ services:
   #   - Monitor DATABASE_URL connectivity — /readyz will return 503 on connection loss
   #
   - type: web
-    name: Care-assurance-api
+    name: care-assurance-api
     runtime: node
     region: frankfurt
     plan: standard
@@ -181,7 +181,7 @@ services:
   # Logs detailed progress for each task — monitor logs to verify maintenance is running.
   #
   - type: worker
-    name: Care-assurance-worker
+    name: care-assurance-worker
     runtime: node
     region: frankfurt
     plan: starter
@@ -210,7 +210,7 @@ services:
 
   # ── Development — Single-service (API + static client) ───────────────────
   - type: web
-    name: Care-assurance-development
+    name: care-assurance-development
     runtime: node
     plan: standard
     buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build'
