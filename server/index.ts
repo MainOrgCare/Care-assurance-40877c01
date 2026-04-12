@@ -253,6 +253,52 @@ app.get("/readyz", async (_req, res) => {
   }
 });
 
+// Comprehensive status endpoint for monitoring and observability
+// Provides detailed health information about the API, database, and environment.
+// Not rate-limited to ensure continuous monitoring access.
+app.get("/status", async (_req, res) => {
+  try {
+    const startTime = Date.now();
+    const dbHealth = await Promise.race([
+      storage.getAppSetting("platform_controls"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("DB timeout")), 2000)),
+    ]).then(() => ({ status: "ok", latencyMs: Date.now() - startTime })).catch((err) => ({ status: "degraded", error: err.message }));
+
+    const uptime = process.uptime();
+    const memUsage = process.memoryUsage();
+
+    const status = {
+      service: "care-assurance-api",
+      timestamp: new Date().toISOString(),
+      uptime: {
+        seconds: Math.round(uptime),
+        hours: Math.round(uptime / 3600),
+      },
+      database: dbHealth,
+      memory: {
+        heapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+      },
+      environment: {
+        nodeEnv: process.env.NODE_ENV || "development",
+        renderHosted: isRenderHosted,
+        hostedDevelopment: isHostedDevelopment,
+        region: process.env.RENDER_REGION || "unknown",
+      },
+    };
+
+    const statusCode = dbHealth.status === "ok" ? 200 : 503;
+    res.status(statusCode).json(status);
+  } catch (error) {
+    res.status(503).json({
+      service: "care-assurance-api",
+      timestamp: new Date().toISOString(),
+      status: "error",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 // Global API rate limiting (1000 requests per 15 minutes)
 // Increased from 100 due to frequent polling endpoints (platform-controls every 60s, unread-count every 2min)
 const apiLimiter = rateLimit({
@@ -263,7 +309,7 @@ const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again after 15 minutes',
   skip: (req) => {
     // Never rate limit health/status probes (Render health checks can be frequent)
-    if (req.path === "/api/contact/status") return true;
+    if (req.path === "/status" || req.path === "/api/contact/status") return true;
     
     // Exempt frequently-polled read-only endpoints from rate limiting
     // These endpoints are polled by the client every 20-120 seconds

@@ -52,6 +52,25 @@ services:
         # The SPA uses this at build time to know where to send API calls.
 
   # ── Production — Node API ───────────────────────────────────────────────────
+  # RESTful API backend serving the web app and any external integrations.
+  #
+  # Health endpoints:
+  #   /healthz         — Lightweight liveness probe (always 200 if process alive)
+  #   /readyz          — Checks database connectivity (503 if disconnected — no traffic routed)
+  #   /status          — Comprehensive diagnostics (uptime, memory, DB latency, environment)
+  #
+  # Performance:
+  #   - Global rate limiting: 1000 req/15min per IP (polling endpoints exempted)
+  #   - Auth endpoints: 20 req/2min per IP (brute-force protection)
+  #   - Admin endpoints: 10 req/hour per IP (sensitive action throttling)
+  #   - Compression enabled (gzip for text, skipped for SSE streams)
+  #   - Request ID tracking for debugging production issues
+  #
+  # Monitoring:
+  #   - Visit /status endpoint regularly from a monitoring service to catch degradation
+  #   - Check logs for "[worker]" messages if worker tasks fail (see Care-assurance-worker)
+  #   - Monitor DATABASE_URL connectivity — /readyz will return 503 on connection loss
+  #
   - type: web
     name: Care-assurance-api
     runtime: node
@@ -139,6 +158,19 @@ services:
         sync: false
 
   # ── Production — Background worker ───────────────────────────────────────
+  # Autonomous background job processor running on a separate process to handle
+  # scheduled maintenance tasks without impacting API performance.
+  #
+  # Current responsibilities (runs every CLEANUP_INTERVAL_MS):
+  #   1. Data cleanup: Removes expired service users, care workers, calls, orders, templates, recommendations
+  #   2. Session cleanup: Removes stale active sessions (inactive 7+ days)
+  #   3. Suspension reset: Auto-reinstates users whose suspension period has expired
+  #   4. IP block cleanup: Removes expired IP blocks (older than 30 days)
+  #   5. System log archival: Identifies system logs eligible for long-term archive (90+ days old)
+  #
+  # Design: Sequential task execution (not parallel) to minimize database contention.
+  # Logs detailed progress for each task — monitor logs to verify maintenance is running.
+  #
   - type: worker
     name: Care-assurance-worker
     runtime: node
@@ -152,7 +184,12 @@ services:
         value: production
       - key: CLEANUP_INTERVAL_MS
         sync: false
-        # How often the cleanup job runs in ms. Defaults to 21600000 (6 hours).
+        # How often the worker runs all maintenance tasks, in milliseconds.
+        # Default: 21600000 (6 hours). Runs immediately on startup, then periodically.
+        # Common values:
+        #   - 3600000 = 1 hour (frequent, for active platforms)
+        #   - 21600000 = 6 hours (balanced, default)
+        #   - 86400000 = 24 hours (low-frequency, for off-peak times)
       - key: DATABASE_URL
         fromDatabase:
           name: Care-Assurance-Database
