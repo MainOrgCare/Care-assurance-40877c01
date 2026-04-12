@@ -47,7 +47,7 @@ services:
   - type: web
     runtime: static
     name: Care-assurance-web
-    buildCommand: "sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build:client'"
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build:client'
     staticPublishPath: dist/public
     routes:
       - type: rewrite
@@ -85,7 +85,7 @@ services:
     runtime: node
     region: frankfurt
     plan: standard
-    buildCommand: "sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:server'"
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:server'
     startCommand: npm run start:api
     healthCheckPath: /healthz
     autoDeploy: true
@@ -185,7 +185,7 @@ services:
     runtime: node
     region: frankfurt
     plan: starter
-    buildCommand: "sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:worker'"
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:worker'
     startCommand: npm run start:worker
     autoDeploy: true
     envVars:
@@ -213,7 +213,7 @@ services:
     name: Care-assurance-development
     runtime: node
     plan: standard
-    buildCommand: "sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build'"
+    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=2048; npm ci --include=dev --legacy-peer-deps && npm run build'
     startCommand: NODE_ENV=development PORT=$PORT node dist/index.cjs
     healthCheckPath: /healthz
     autoDeploy: true
