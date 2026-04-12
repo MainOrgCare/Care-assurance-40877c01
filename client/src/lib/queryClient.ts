@@ -1,6 +1,8 @@
-import { QueryClient, QueryFunction, type QueryFunctionContext } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, MutationCache, type QueryFunctionContext } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 
 export const REQUEST_ID_HEADER = "X-Request-ID";
+export const AUTH_EXPIRED_EVENT = "care-assurance:auth-expired";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const SENSITIVE_ENDPOINT_PATTERN = /\/api\/(ai|parse-pdf|gdpr|client-errors)\b/i;
 
@@ -23,6 +25,28 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Extracts a user-friendly error message from any thrown value.
+ * Handles ApiError HTTP semantics and falls back gracefully for plain Errors.
+ */
+export function getApiErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 429) return "Too many requests — please wait a moment and try again.";
+    if (error.status === 503) return "Service temporarily unavailable. Please try again shortly.";
+    if (error.status === 401) return "Your session has expired. Please sign in again.";
+    if (error.status === 403) return "You do not have permission to perform this action.";
+    if (error.status >= 500) return "A server error occurred. Please try again or contact support.";
+    // Use the parsed body message for 4xx errors (they usually have helpful text)
+    return error.body || error.message || "An unexpected error occurred.";
+  }
+  if (error instanceof Error) {
+    // Suppress noise from aborted requests (e.g. navigating away mid-request)
+    if (error.name === "AbortError") return "Request was cancelled.";
+    return error.message || "An unexpected error occurred.";
+  }
+  return "An unexpected error occurred.";
+}
+
 export const normalizeApiPayload = <T>(payload: unknown): T => {
   if (payload && typeof payload === "object" && "data" in payload) {
     return (payload as { data: T }).data;
@@ -41,6 +65,33 @@ const withRequestIdHeader = (headers?: HeadersInit): Headers => {
     nextHeaders.set(REQUEST_ID_HEADER, randomRequestId());
   }
   return nextHeaders;
+};
+
+const AUTH_EXPIRED_EXCLUDE_PATTERN = /\/api\/auth\/(login|register|demo|logout)\b/i;
+
+const notifyAuthExpired = (res: Response): void => {
+  if (res.status !== 401 || typeof window === "undefined") {
+    return;
+  }
+
+  let pathname = "";
+  try {
+    pathname = new URL(res.url, window.location.origin).pathname;
+  } catch {
+    return;
+  }
+
+  if (!pathname.startsWith("/api") || AUTH_EXPIRED_EXCLUDE_PATTERN.test(pathname)) {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, {
+    detail: {
+      status: 401,
+      url: res.url,
+      pathname,
+    },
+  }));
 };
 
 const isSensitiveApiUrl = (input: RequestInfo | URL): boolean => {
@@ -111,6 +162,8 @@ async function fetchWithTimeout(
 
 async function throwIfResNotOk(res: Response): Promise<void> {
   if (!res.ok) {
+    notifyAuthExpired(res);
+
     const text = (await res.text()) || res.statusText;
     const requestIdFromHeader = res.headers.get(REQUEST_ID_HEADER) || undefined;
     let message = text;
@@ -167,6 +220,7 @@ export function getQueryFn<T>(
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      notifyAuthExpired(res);
       return null;
     }
 
@@ -176,6 +230,24 @@ export function getQueryFn<T>(
 }
 
 export const queryClient = new QueryClient({
+  // Global fallback for mutations that don't supply their own onError handler.
+  // This prevents silent failures — any unhandled mutation error surfaces as a toast.
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.options.onError) {
+        // Mutation already handles its own errors — skip global handler.
+        return;
+      }
+      // 401 is handled globally by the auth-expired event; don't double-toast.
+      if (error instanceof ApiError && error.status === 401) return;
+
+      toast({
+        title: "Action failed",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),

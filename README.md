@@ -183,6 +183,28 @@ The platform deploys as a **split architecture** on [Render.com](https://render.
 
 See [`render.yaml`](render.yaml) for the full blueprint.
 
+### Single-service development on Render
+
+To test with a single Render web service and `NODE_ENV=development`, configure it as follows:
+
+| Setting | Value |
+|---------|-------|
+| **Build command** | `npm ci --include=dev --legacy-peer-deps && npm run build` |
+| **Start command** | `npm run start:api` |
+| **`NODE_ENV`** | `development` |
+| **`SERVE_STATIC`** | `true` |
+
+The server detects it is running on Render (via the `RENDER` / `RENDER_EXTERNAL_HOSTNAME` environment variables set automatically by Render) and switches to **hosted-development mode**:
+
+- Serves the pre-built client from `dist/public/` as a single service (no separate static site required).
+- Applies production-grade CSP and strict CORS instead of the permissive local-dev settings.
+- Keeps `NODE_ENV=development` for verbose logging, relaxed error messages, and dev-only admin bootstrap.
+- Rate limiting, CSRF protection, and session cookie behaviour remain active.
+
+> **Tip:** The `care-assurance-api-dev` service in [`render.yaml`](render.yaml) already sets
+> `NODE_ENV=development`. Build command runs `npm run build` (full client + server build) so the
+> static client is available on disk when the server starts.
+
 ### Health Endpoints
 
 | Endpoint | Purpose |

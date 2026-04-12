@@ -3,8 +3,41 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import "leaflet/dist/leaflet.css";
-import { REQUEST_ID_HEADER, randomRequestId } from "@/lib/queryClient";
+import { AUTH_EXPIRED_EVENT, REQUEST_ID_HEADER, randomRequestId } from "@/lib/queryClient";
 import { reportClientError } from "@/lib/clientErrorReporter";
+
+const AUTH_EXPIRED_EXCLUDE_PATTERN = /\/api\/auth\/(login|register|demo|logout)\b/i;
+
+const shouldNotifyAuthExpired = (response: Response): boolean => {
+	if (response.status !== 401) {
+		return false;
+	}
+
+	let pathname = "";
+	try {
+		pathname = new URL(response.url, window.location.origin).pathname;
+	} catch {
+		return false;
+	}
+
+	if (!pathname.startsWith("/api") || AUTH_EXPIRED_EXCLUDE_PATTERN.test(pathname)) {
+		return false;
+	}
+
+	return true;
+};
+
+const emitAuthExpired = (response: Response): void => {
+	window.dispatchEvent(
+		new CustomEvent(AUTH_EXPIRED_EVENT, {
+			detail: {
+				status: 401,
+				url: response.url,
+				pathname: new URL(response.url, window.location.origin).pathname,
+			},
+		})
+	);
+};
 
 window.addEventListener("error", (event) => {
 	const message = event.error?.message || event.message || "Unknown client error";
@@ -65,6 +98,15 @@ if (apiBaseUrl) {
 		return originalFetch(input, init);
 	};
 }
+
+const fetchForAuthMonitor = window.fetch.bind(window);
+window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+	const response = await fetchForAuthMonitor(input, init);
+	if (shouldNotifyAuthExpired(response)) {
+		emitAuthExpired(response);
+	}
+	return response;
+};
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {

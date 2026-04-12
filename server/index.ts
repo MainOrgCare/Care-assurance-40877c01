@@ -9,6 +9,8 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import cors, { CorsOptions } from "cors";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { requestLogger } from "./middleware/requestLogger";
 
 const app = express();
@@ -54,8 +56,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Security headers via Helmet
+// Security/runtime mode detection
+const isRenderHosted = Boolean(
+  process.env.RENDER ||
+  process.env.RENDER_EXTERNAL_HOSTNAME ||
+  process.env.RENDER_SERVICE_ID,
+);
+const isHostedDevelopment = process.env.NODE_ENV !== "production" && isRenderHosted;
 const isProduction = process.env.NODE_ENV === "production";
+const isProductionLike = isProduction || isHostedDevelopment;
+
+// Security headers via Helmet
 
 // CSP is stricter in production, relaxed in dev for HMR/debugging
 // In the split Render architecture the static site and API live on separate origins.
@@ -85,7 +96,7 @@ const cspDirectives: Record<string, string[]> = {
   // Google Fonts stylesheets + CSS-in-JS inline styles
   styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
   imgSrc: ["'self'", "data:", "https:"],
-  connectSrc: isProduction 
+  connectSrc: isProductionLike
     ? productionConnectSrc
     : ["'self'", "ws:", "wss:", "http://localhost:*", "http://127.0.0.1:*", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
   fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -135,12 +146,12 @@ app.use('/api/', (req, res, next) => {
   next();
 });
 
-log(`Security headers enabled (Helmet) - CSP mode: ${isProduction ? 'strict' : 'development'}`);
+log(`Security headers enabled (Helmet) - CSP mode: ${isProductionLike ? 'strict' : 'development'}`);
 
 // CORS middleware
 const corsOriginEnv = process.env.CORS_ORIGIN;
 const defaultOrigins = [`https://${CANONICAL_DOMAIN}`, `https://www.${CANONICAL_DOMAIN}`];
-const devOrigins = process.env.NODE_ENV !== "production" ? [
+const devOrigins = !isProductionLike ? [
   "http://localhost:5173",
   "http://localhost:3000",
   "http://localhost:5000", // Express default
@@ -154,7 +165,7 @@ const allowedOrigins = (corsOriginEnv ? corsOriginEnv.split(",") : defaultOrigin
   .concat(devOrigins);
 
 log(`Allowed CORS origins: ${allowedOrigins.join(", ")}`);
-log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+log(`NODE_ENV: ${process.env.NODE_ENV || 'development'} (renderHosted=${isRenderHosted}, hostedDevelopment=${isHostedDevelopment})`);
 
 const corsOptions: CorsOptions = {
   origin: (origin, cb) => {
@@ -162,8 +173,9 @@ const corsOptions: CorsOptions = {
       log(`CORS request from origin: ${origin || "(no origin - same origin request)"}`);
     }
     
-    // In development, allow ALL origins for easier debugging
-    if (process.env.NODE_ENV !== "production") {
+    // In true local development, allow all origins for easier debugging.
+    // Hosted development on Render should remain strict to mimic production.
+    if (process.env.NODE_ENV !== "production" && !isHostedDevelopment) {
       if (!origin) {
         if (CORS_DEBUG) {
           log("CORS: no origin header, same-origin request allowed");
@@ -171,7 +183,7 @@ const corsOptions: CorsOptions = {
         return cb(null, true);
       }
       if (CORS_DEBUG) {
-        log(`CORS: origin allowed (development mode): ${origin}`);
+        log(`CORS: origin allowed (local development mode): ${origin}`);
       }
       return cb(null, true);
     }
@@ -436,12 +448,25 @@ const DEFAULT_ADMIN_USERNAME = "admin";
     }
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production" && process.env.SERVE_STATIC === "true") {
+  // Import/serve strategy by runtime mode:
+  // - Explicit opt-in: SERVE_STATIC=true enables static serving for any NODE_ENV.
+  // - Render-hosted development auto-detection: serve static when a client build is present.
+  // - Local development fallback: use Vite middleware for HMR.
+  const staticIndexPath = path.resolve(process.cwd(), "dist/public/index.html");
+  const hasStaticBuild = existsSync(staticIndexPath);
+  const shouldServeStatic =
+    process.env.SERVE_STATIC === "true" ||
+    (isHostedDevelopment && hasStaticBuild);
+
+  if (shouldServeStatic) {
+    if (isHostedDevelopment) {
+      log(`Hosted development mode detected on Render - serving static client from ${staticIndexPath}`);
+    }
     serveStatic(app);
   } else if (process.env.NODE_ENV !== "production") {
+    if (isHostedDevelopment && !hasStaticBuild) {
+      log(`Hosted development detected but no client build found at ${staticIndexPath}; falling back to Vite middleware.`);
+    }
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }

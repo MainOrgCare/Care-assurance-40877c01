@@ -71,7 +71,7 @@ services:
     name: care-assurance-api-dev
     runtime: node
     plan: standard
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build:server
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
     startCommand: npm run start:api
     healthCheckPath: /healthz
     autoDeploy: true
@@ -87,7 +87,7 @@ services:
       - key: ENABLE_CANONICAL_REDIRECT
         value: "false"
       - key: SERVE_STATIC
-        value: "false"
+        value: "true"
       - key: CORS_ORIGIN
         sync: false
       - key: SESSION_SECRET

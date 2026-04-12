@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { normalizeApiPayload } from "@/lib/queryClient";
+import { AUTH_EXPIRED_EVENT, normalizeApiPayload } from "@/lib/queryClient";
 
 interface User {
   id: string;
@@ -56,6 +56,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const activeUserRef = useRef<User | null>(null);
+  const authExpiryHandledRef = useRef(false);
+
+  useEffect(() => {
+    activeUserRef.current = user;
+  }, [user]);
+
+  const clearAuthState = useCallback(() => {
+    setUser(null);
+    setAllUsers([]);
+    setAuditLogs([]);
+  }, []);
 
   const mapSystemLog = (log: Record<string, unknown>): AuditLogEntry => {
     const details = log?.details && typeof log.details === "object" ? (log.details as Record<string, unknown>) : {};
@@ -100,9 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        setUser(null);
-        setAllUsers([]);
-        setAuditLogs([]);
+        clearAuthState();
         return;
       }
 
@@ -110,16 +120,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionData?.authenticated && sessionData?.user) {
         setUser(sessionData.user);
       } else {
-        setUser(null);
-        setAllUsers([]);
-        setAuditLogs([]);
+        clearAuthState();
       }
     } catch (error) {
       console.error("Session check failed:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearAuthState]);
 
   useEffect(() => {
     checkSession();
@@ -168,14 +176,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionData?.authenticated && sessionData?.user) {
         setUser(sessionData.user);
       } else {
-        setUser(null);
-        setAllUsers([]);
-        setAuditLogs([]);
+        clearAuthState();
       }
     } catch (error) {
       console.error("Refetch user failed:", error);
     }
-  }, []);
+  }, [clearAuthState]);
+
+  const handleCredentialsExpired = useCallback(async () => {
+    if (!activeUserRef.current || authExpiryHandledRef.current) {
+      return;
+    }
+
+    authExpiryHandledRef.current = true;
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Ignore failures; credential expiry already invalidated the active session.
+    } finally {
+      clearAuthState();
+      setLocation("/");
+      toast({
+        title: "Session expired",
+        description: "Your credentials expired. Please sign in again.",
+        variant: "destructive",
+      });
+      authExpiryHandledRef.current = false;
+    }
+  }, [clearAuthState, setLocation, toast]);
+
+  useEffect(() => {
+    const onAuthExpired = () => {
+      void handleCredentialsExpired();
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired as EventListener);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired as EventListener);
+    };
+  }, [handleCredentialsExpired]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -389,13 +431,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       
       logAction("Logout", "System", "Authorized");
-      setUser(null);
-      setAllUsers([]);
+      clearAuthState();
       setLocation("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }
-  }, [logAction, setLocation]);
+  }, [clearAuthState, logAction, setLocation]);
 
   const approveUser = useCallback(async (id: string) => {
     try {
