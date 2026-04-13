@@ -167,6 +167,16 @@ interface ExtensionPackageInfo {
   };
 }
 
+interface InstalledExtensionStatus {
+  detected: boolean;
+  refreshRequired: boolean;
+  version: string | null;
+  name: string | null;
+  origin: string | null;
+  error?: string | null;
+  lastSeenAt: string | null;
+}
+
 interface AdminAcpServiceUser {
   accessCarePlanningId: string;
   serviceUserName: string;
@@ -4256,6 +4266,7 @@ export default function SecretAdminPortal() {
   const [extensionInfoLoading, setExtensionInfoLoading] = useState(false);
   const [extensionInfoRefreshing, setExtensionInfoRefreshing] = useState(false);
   const [extensionInfoUpdating, setExtensionInfoUpdating] = useState(false);
+  const [installedExtensionStatus, setInstalledExtensionStatus] = useState<InstalledExtensionStatus | null>(null);
   const [extensionTestStatus, setExtensionTestStatus] = useState<"idle" | "testing" | "success" | "failed">("idle");
   const [extensionTestMessage, setExtensionTestMessage] = useState("");
   const [acpServiceUsers, setAcpServiceUsers] = useState<AdminAcpServiceUser[]>([]);
@@ -4512,6 +4523,64 @@ export default function SecretAdminPortal() {
     if (!mounted) return;
     void fetchExtensionPackageInfo();
     void fetchAcpServiceUsers();
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined") return;
+
+    const requestInstalledExtensionStatus = () => {
+      window.postMessage({ type: "CA_EXTENSION_REQUEST_STATUS" }, window.location.origin);
+    };
+
+    const handleInstalledExtensionStatus = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      if (!event.data || event.data.type !== "CA_EXTENSION_STATUS") return;
+
+      const payload = event.data.payload;
+      if (!payload || typeof payload !== "object") return;
+
+      setInstalledExtensionStatus({
+        detected: Boolean((payload as Record<string, unknown>).detected),
+        refreshRequired: Boolean((payload as Record<string, unknown>).refreshRequired),
+        version:
+          typeof (payload as Record<string, unknown>).version === "string"
+            ? ((payload as Record<string, unknown>).version as string)
+            : null,
+        name:
+          typeof (payload as Record<string, unknown>).name === "string"
+            ? ((payload as Record<string, unknown>).name as string)
+            : null,
+        origin:
+          typeof (payload as Record<string, unknown>).origin === "string"
+            ? ((payload as Record<string, unknown>).origin as string)
+            : null,
+        error:
+          typeof (payload as Record<string, unknown>).error === "string"
+            ? ((payload as Record<string, unknown>).error as string)
+            : null,
+        lastSeenAt:
+          typeof (payload as Record<string, unknown>).lastSeenAt === "string"
+            ? ((payload as Record<string, unknown>).lastSeenAt as string)
+            : null,
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestInstalledExtensionStatus();
+      }
+    };
+
+    window.addEventListener("message", handleInstalledExtensionStatus);
+    window.addEventListener("focus", requestInstalledExtensionStatus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    requestInstalledExtensionStatus();
+
+    return () => {
+      window.removeEventListener("message", handleInstalledExtensionStatus);
+      window.removeEventListener("focus", requestInstalledExtensionStatus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [mounted]);
 
   const openAcpDashboard = (serviceUser: AdminAcpServiceUser) => {
@@ -4881,6 +4950,26 @@ export default function SecretAdminPortal() {
     const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
     return base && raw.startsWith("/") ? `${base}${raw}` : raw;
   })();
+  const installedExtensionVersion = installedExtensionStatus?.detected
+    ? installedExtensionStatus.version || "Detected"
+    : installedExtensionStatus?.refreshRequired
+    ? "Refresh required"
+    : "Not detected";
+  const extensionVersionMismatch = Boolean(
+    extensionInfo?.manifestVersion &&
+      installedExtensionStatus?.version &&
+      extensionInfo.manifestVersion !== installedExtensionStatus.version
+  );
+  const installedExtensionSeenAt = installedExtensionStatus?.lastSeenAt
+    ? new Date(installedExtensionStatus.lastSeenAt).toLocaleTimeString()
+    : "Unavailable";
+  const extensionSyncSummary = installedExtensionStatus?.refreshRequired
+    ? "This page is attached to an older extension context. Refresh after updating the browser extension."
+    : !installedExtensionStatus?.detected
+    ? "The website has not detected an installed Care Assurance extension on this page yet."
+    : extensionVersionMismatch
+    ? `The page currently sees extension v${installedExtensionStatus.version}. Refresh after loading v${extensionInfo?.manifestVersion || "latest"}.`
+    : "The installed extension version matches the package currently published from CareAssurance.";
 
   if (!mounted) return null;
 
@@ -5102,7 +5191,7 @@ export default function SecretAdminPortal() {
                       Loading extension package metadata...
                     </div>
                   ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="extension-package-metadata">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="extension-package-metadata">
                       <div className="rounded-lg border border-border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Version</p>
                         <p className="mt-1 text-sm font-semibold text-foreground">{extensionManifestVersion}</p>
@@ -5119,8 +5208,18 @@ export default function SecretAdminPortal() {
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">SHA-256</p>
                         <p className="mt-1 text-sm font-semibold text-foreground">{extensionHashShort}</p>
                       </div>
+                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Installed In Browser</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{installedExtensionVersion}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">Last seen {installedExtensionSeenAt}</p>
+                      </div>
                     </div>
                   )}
+
+                  <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">Website sync:</span> {extensionSyncSummary}
+                    {installedExtensionStatus?.error ? ` ${installedExtensionStatus.error}` : ""}
+                  </div>
 
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex flex-wrap items-center gap-2">
@@ -5133,7 +5232,12 @@ export default function SecretAdminPortal() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => void fetchExtensionPackageInfo({ fresh: false })}
+                        onClick={() => {
+                          void fetchExtensionPackageInfo({ fresh: false });
+                          if (typeof window !== "undefined") {
+                            window.postMessage({ type: "CA_EXTENSION_REQUEST_STATUS" }, window.location.origin);
+                          }
+                        }}
                         disabled={extensionInfoLoading || extensionInfoRefreshing || extensionInfoUpdating}
                         data-testid="button-refresh-edge-extension-status"
                       >

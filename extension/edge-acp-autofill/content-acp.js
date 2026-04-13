@@ -18,10 +18,18 @@ const FALLBACK_MESSAGE_TYPES = {
   uploadSignature: "CA_EXTENSION_UPLOAD_SIGNATURE",
 };
 
-const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+const FALLBACK_STORAGE_HELPERS = {
+  get: (keys) =>
+    new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items || {}))),
+  set: (items) =>
+    new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
+};
+
+const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
   FORM_CONFIGS: FALLBACK_FORM_CONFIGS,
   MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
+  STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
 };
 
 const FORM_FIELD_NAMES = {
@@ -65,111 +73,470 @@ let INTERACTION_MODE = "auto";
 let overlayInitialized = false;
 let overlayElements = null;
 let overlayCollapsed = false;
+const OVERLAY_STYLE_ID = "ca-autofill-overlay-styles";
+
+const getInteractionModeLabel = (interactionMode, dryRun) => {
+  if (dryRun) return "Dry run";
+  if (interactionMode === "manual") return "Manual assist";
+  if (interactionMode === "slow") return "Guided";
+  return "Auto";
+};
+
+const getAssessmentSummary = (payload, queueState) => {
+  const index = queueState && typeof queueState.currentIndex === "number" ? queueState.currentIndex : -1;
+  const assessment = Array.isArray(payload?.assessments) && index >= 0 ? payload.assessments[index] : null;
+  const label = assessment?.category || assessment?.title || assessment?.riskType || (index >= 0 ? `Assessment ${index + 1}` : "Awaiting assessment");
+  const riskCount = Array.isArray(assessment?.risks) ? assessment.risks.length : 0;
+
+  return {
+    label,
+    detail: riskCount > 0 ? `${riskCount} risk${riskCount === 1 ? "" : "s"} queued` : "Preparing workflow",
+  };
+};
+
+const injectOverlayStyles = () => {
+  if (document.getElementById(OVERLAY_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = OVERLAY_STYLE_ID;
+  style.textContent = `
+    #ca-autofill-overlay {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 2147483647;
+      font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: #10233f;
+      pointer-events: none;
+    }
+
+    .ca-overlay-panel {
+      width: min(360px, calc(100vw - 24px));
+      border-radius: 20px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background:
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.16), transparent 42%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96));
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+      pointer-events: auto;
+    }
+
+    .ca-overlay-panel.is-collapsed {
+      width: auto;
+      min-width: 168px;
+      cursor: pointer;
+    }
+
+    .ca-overlay-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px 16px 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .ca-overlay-panel.is-collapsed .ca-overlay-header {
+      padding: 12px 14px;
+      border-bottom: 0;
+      align-items: center;
+    }
+
+    .ca-overlay-brandmark {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #163d77, #2f6fed);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      flex-shrink: 0;
+    }
+
+    .ca-overlay-panel.is-collapsed .ca-overlay-brandmark {
+      width: 32px;
+      height: 32px;
+      border-radius: 12px;
+      font-size: 10px;
+    }
+
+    .ca-overlay-heading {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .ca-overlay-kicker {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #50627b;
+      margin-bottom: 3px;
+    }
+
+    .ca-overlay-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #10233f;
+    }
+
+    .ca-overlay-subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #5b6c84;
+    }
+
+    .ca-overlay-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .ca-overlay-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(47, 111, 237, 0.18);
+      background: rgba(255, 255, 255, 0.8);
+      color: #214e9f;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .ca-overlay-chip.is-warning {
+      border-color: rgba(185, 89, 12, 0.25);
+      color: #9a3412;
+    }
+
+    .ca-overlay-chip.is-idle {
+      border-color: rgba(100, 116, 139, 0.22);
+      color: #475569;
+    }
+
+    .ca-overlay-minimize {
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(148, 163, 184, 0.26);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      color: #475569;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    }
+
+    .ca-overlay-body {
+      padding: 0 16px 16px;
+    }
+
+    .ca-overlay-panel.is-collapsed .ca-overlay-body,
+    .ca-overlay-panel.is-collapsed .ca-overlay-kicker,
+    .ca-overlay-panel.is-collapsed .ca-overlay-subtitle,
+    .ca-overlay-panel.is-collapsed .ca-overlay-chip {
+      display: none;
+    }
+
+    .ca-overlay-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .ca-overlay-stat {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      min-width: 0;
+    }
+
+    .ca-overlay-stat-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 5px;
+    }
+
+    .ca-overlay-stat-value {
+      display: block;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #10233f;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ca-overlay-progress {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.035);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      margin-bottom: 14px;
+    }
+
+    .ca-overlay-progress-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #10233f;
+    }
+
+    .ca-overlay-progress-note {
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    .ca-overlay-progress-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.2);
+      overflow: hidden;
+    }
+
+    .ca-overlay-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #163d77, #2f6fed 55%, #4b83f2);
+      transition: width 180ms ease;
+    }
+
+    .ca-overlay-logs-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .ca-overlay-logs-box {
+      max-height: 108px;
+      overflow: auto;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      color: #475569;
+      white-space: pre-line;
+    }
+
+    .ca-overlay-footer {
+      margin-top: 12px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #5b6c84;
+    }
+
+    @media (max-width: 640px) {
+      #ca-autofill-overlay {
+        top: auto;
+        right: 12px;
+        left: 12px;
+        bottom: 12px;
+      }
+
+      .ca-overlay-panel {
+        width: 100%;
+      }
+
+      .ca-overlay-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+};
 
 const initOverlay = () => {
   if (overlayInitialized) return;
   overlayInitialized = true;
+  injectOverlayStyles();
 
   const container = document.createElement("div");
   container.id = "ca-autofill-overlay";
-  container.style.position = "fixed";
-  container.style.right = "16px";
-  container.style.top = "16px";
-  container.style.zIndex = "2147483647";
-  container.style.fontFamily = "system-ui, -apple-system, Segoe UI, sans-serif";
-  container.style.color = "#0f172a";
-  container.style.pointerEvents = "none";
 
   const panel = document.createElement("div");
-  panel.style.background = "rgba(255, 255, 255, 0.97)";
-  panel.style.border = "1px solid hsl(214, 25%, 89%)";
-  panel.style.borderRadius = "8px";
-  panel.style.boxShadow = "0 6px 16px rgba(15, 23, 42, 0.1)";
-  panel.style.padding = "10px 12px";
-  panel.style.minWidth = "220px";
-  panel.style.maxWidth = "300px";
-  panel.style.backdropFilter = "blur(8px)";
+  panel.className = "ca-overlay-panel";
 
   const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.alignItems = "center";
-  header.style.gap = "8px";
-  header.style.marginBottom = "8px";
+  header.className = "ca-overlay-header";
 
-  const icon = document.createElement("div");
-  icon.textContent = "CA";
-  icon.style.width = "24px";
-  icon.style.height = "24px";
-  icon.style.borderRadius = "6px";
-  icon.style.background = "hsl(215, 55%, 30%)";
-  icon.style.color = "#ffffff";
-  icon.style.display = "flex";
-  icon.style.alignItems = "center";
-  icon.style.justifyContent = "center";
-  icon.style.fontSize = "10px";
-  icon.style.fontWeight = "600";
-  icon.style.letterSpacing = "0.3px";
+  const brandmark = document.createElement("div");
+  brandmark.className = "ca-overlay-brandmark";
+  brandmark.textContent = "CA";
+
+  const heading = document.createElement("div");
+  heading.className = "ca-overlay-heading";
+
+  const kicker = document.createElement("div");
+  kicker.className = "ca-overlay-kicker";
+  kicker.textContent = "Care Assurance";
 
   const title = document.createElement("div");
-  title.textContent = "Risk Assessment";
-  title.style.fontWeight = "600";
-  title.style.fontSize = "13px";
-  title.style.color = "#0f172a";
+  title.className = "ca-overlay-title";
+  title.textContent = "Risk Assessment Autofill";
+
+  const subtitle = document.createElement("div");
+  subtitle.className = "ca-overlay-subtitle";
+  subtitle.textContent = "Connecting to the current Mobizio assessment.";
+
+  heading.appendChild(kicker);
+  heading.appendChild(title);
+  heading.appendChild(subtitle);
+
+  const actions = document.createElement("div");
+  actions.className = "ca-overlay-actions";
+
+  const statusChip = document.createElement("div");
+  statusChip.className = "ca-overlay-chip is-idle";
+  statusChip.textContent = "Waiting";
 
   const minimizeButton = document.createElement("button");
   minimizeButton.type = "button";
-  minimizeButton.textContent = "–";
-  minimizeButton.style.marginLeft = "auto";
-  minimizeButton.style.width = "22px";
-  minimizeButton.style.height = "22px";
-  minimizeButton.style.borderRadius = "4px";
-  minimizeButton.style.border = "1px solid hsl(214, 25%, 89%)";
-  minimizeButton.style.background = "hsl(210, 15%, 97%)";
-  minimizeButton.style.color = "#475569";
-  minimizeButton.style.cursor = "pointer";
-  minimizeButton.style.fontSize = "14px";
-  minimizeButton.style.lineHeight = "16px";
-  minimizeButton.style.padding = "0";
-  minimizeButton.style.pointerEvents = "auto";
+  minimizeButton.className = "ca-overlay-minimize";
+  minimizeButton.textContent = "-";
+  minimizeButton.title = "Minimize";
 
+  actions.appendChild(statusChip);
+  actions.appendChild(minimizeButton);
+
+  header.appendChild(brandmark);
+  header.appendChild(heading);
+  header.appendChild(actions);
+
+  const body = document.createElement("div");
+  body.className = "ca-overlay-body";
+
+  const summaryGrid = document.createElement("div");
+  summaryGrid.className = "ca-overlay-grid";
+
+  const serviceUserStat = document.createElement("div");
+  serviceUserStat.className = "ca-overlay-stat";
+  const serviceUserLabel = document.createElement("span");
+  serviceUserLabel.className = "ca-overlay-stat-label";
+  serviceUserLabel.textContent = "Service user";
+  const serviceUserValue = document.createElement("span");
+  serviceUserValue.className = "ca-overlay-stat-value";
+  serviceUserValue.textContent = "Awaiting payload";
+  serviceUserStat.appendChild(serviceUserLabel);
+  serviceUserStat.appendChild(serviceUserValue);
+
+  const modeStat = document.createElement("div");
+  modeStat.className = "ca-overlay-stat";
+  const modeLabel = document.createElement("span");
+  modeLabel.className = "ca-overlay-stat-label";
+  modeLabel.textContent = "Mode";
+  const modeValue = document.createElement("span");
+  modeValue.className = "ca-overlay-stat-value";
+  modeValue.textContent = "Auto";
+  modeStat.appendChild(modeLabel);
+  modeStat.appendChild(modeValue);
+
+  const stepStat = document.createElement("div");
+  stepStat.className = "ca-overlay-stat";
+  const stepLabel = document.createElement("span");
+  stepLabel.className = "ca-overlay-stat-label";
+  stepLabel.textContent = "Current step";
+  const stepValue = document.createElement("span");
+  stepValue.className = "ca-overlay-stat-value";
+  stepValue.textContent = "Waiting";
+  stepStat.appendChild(stepLabel);
+  stepStat.appendChild(stepValue);
+
+  summaryGrid.appendChild(serviceUserStat);
+  summaryGrid.appendChild(modeStat);
+  summaryGrid.appendChild(stepStat);
+
+  const progressCard = document.createElement("div");
+  progressCard.className = "ca-overlay-progress";
+  const progressMeta = document.createElement("div");
+  progressMeta.className = "ca-overlay-progress-meta";
   const progress = document.createElement("div");
-  progress.textContent = "Waiting...";
-  progress.style.fontSize = "12px";
-  progress.style.color = "#64748b";
+  progress.textContent = "Waiting for an active assessment batch";
+  const progressNote = document.createElement("div");
+  progressNote.className = "ca-overlay-progress-note";
+  progressNote.textContent = "Preparing workflow";
+  progressMeta.appendChild(progress);
+  progressMeta.appendChild(progressNote);
+  const progressTrack = document.createElement("div");
+  progressTrack.className = "ca-overlay-progress-track";
+  const progressFill = document.createElement("div");
+  progressFill.className = "ca-overlay-progress-fill";
+  progressTrack.appendChild(progressFill);
+  progressCard.appendChild(progressMeta);
+  progressCard.appendChild(progressTrack);
 
   const logsLabel = document.createElement("div");
-  logsLabel.textContent = "Logs";
-  logsLabel.style.fontSize = "11px";
-  logsLabel.style.marginTop = "8px";
-  logsLabel.style.color = "#64748b";
-  logsLabel.style.textTransform = "uppercase";
-  logsLabel.style.letterSpacing = "0.06em";
+  logsLabel.className = "ca-overlay-logs-label";
+  logsLabel.textContent = "Recent activity";
 
   const logsBox = document.createElement("div");
-  logsBox.style.marginTop = "6px";
-  logsBox.style.padding = "6px 8px";
-  logsBox.style.borderRadius = "6px";
-  logsBox.style.background = "hsl(210, 15%, 95%)";
-  logsBox.style.border = "1px solid hsl(214, 25%, 89%)";
-  logsBox.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
-  logsBox.style.fontSize = "10px";
-  logsBox.style.color = "#64748b";
-  logsBox.style.whiteSpace = "pre-line";
-  logsBox.style.maxHeight = "80px";
-  logsBox.style.overflow = "hidden";
+  logsBox.className = "ca-overlay-logs-box";
   logsBox.textContent = "No actions yet.";
 
-  header.appendChild(icon);
-  header.appendChild(title);
-  header.appendChild(minimizeButton);
-  panel.appendChild(header);
-  panel.appendChild(progress);
-  panel.appendChild(logsLabel);
-  panel.appendChild(logsBox);
-  container.appendChild(panel);
+  const footerNote = document.createElement("div");
+  footerNote.className = "ca-overlay-footer";
+  footerNote.textContent = "The overlay stays synced with the Care Assurance extension batch state.";
 
+  body.appendChild(summaryGrid);
+  body.appendChild(progressCard);
+  body.appendChild(logsLabel);
+  body.appendChild(logsBox);
+  body.appendChild(footerNote);
+
+  panel.appendChild(header);
+  panel.appendChild(body);
+  container.appendChild(panel);
   document.body.appendChild(container);
-  overlayElements = { progress, logsBox, logsLabel, panel, minimizeButton, title };
+
+  overlayElements = {
+    panel,
+    header,
+    body,
+    title,
+    subtitle,
+    statusChip,
+    progress,
+    progressNote,
+    progressFill,
+    serviceUserValue,
+    modeValue,
+    stepValue,
+    logsBox,
+    footerNote,
+    minimizeButton,
+    collapsedTitle: "CA ready",
+  };
 
   minimizeButton.addEventListener("click", (event) => {
     event.preventDefault();
@@ -192,21 +559,70 @@ const refreshOverlaySoon = () => {
 
 const refreshOverlay = async () => {
   if (!overlayInitialized || !overlayElements) return;
-  if (overlayCollapsed) return;
-  const { caAcpQueueState, caAcpLogs } = await loadStorage([STORAGE_KEYS.queueState, STORAGE_KEYS.logs]);
-  if (caAcpQueueState && typeof caAcpQueueState.currentIndex === "number") {
-    const current = caAcpQueueState.currentIndex + 1;
-    const total = caAcpQueueState.total || "?";
-    overlayElements.progress.textContent = `Assessment ${current} of ${total}`;
+  const {
+    caAcpQueueState,
+    caAcpLogs,
+    caAcpPayload,
+    caAcpDryRun,
+    caAcpInteractionMode,
+    caAcpLastError,
+  } = await loadStorage([
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.logs,
+    STORAGE_KEYS.payload,
+    STORAGE_KEYS.dryRun,
+    STORAGE_KEYS.interactionMode,
+    STORAGE_KEYS.lastError,
+  ]);
+
+  const hasActiveQueue = caAcpQueueState && typeof caAcpQueueState.currentIndex === "number";
+  const current = hasActiveQueue ? caAcpQueueState.currentIndex + 1 : 0;
+  const total = hasActiveQueue ? Number(caAcpQueueState.total || 0) : 0;
+  const progressPercent = total > 0 ? Math.max(0, Math.min(100, Math.round((current / total) * 100))) : 0;
+  const serviceUserLabel =
+    caAcpPayload?.serviceUserDisplayName ||
+    caAcpPayload?.serviceUserInitials ||
+    caAcpPayload?.serviceUserName ||
+    "Awaiting payload";
+  const assessmentSummary = getAssessmentSummary(caAcpPayload, caAcpQueueState);
+  const modeLabel = getInteractionModeLabel(caAcpInteractionMode, Boolean(caAcpDryRun));
+
+  overlayElements.serviceUserValue.textContent = serviceUserLabel;
+  overlayElements.modeValue.textContent = modeLabel;
+  overlayElements.stepValue.textContent = hasActiveQueue && total > 0 ? `${current} of ${total}` : "Waiting";
+  overlayElements.subtitle.textContent = assessmentSummary.label;
+  overlayElements.progress.textContent = hasActiveQueue && total > 0
+    ? `Assessment ${current} of ${total}`
+    : "Waiting for an active assessment batch";
+  overlayElements.progressNote.textContent = caAcpLastError ? String(caAcpLastError) : assessmentSummary.detail;
+  overlayElements.progressFill.style.width = `${progressPercent}%`;
+
+  if (caAcpLastError) {
+    overlayElements.statusChip.textContent = "Attention";
+    overlayElements.statusChip.classList.add("is-warning");
+    overlayElements.statusChip.classList.remove("is-idle");
+    overlayElements.footerNote.textContent = "Care Assurance needs attention before the next assessment can continue.";
+  } else if (hasActiveQueue) {
+    overlayElements.statusChip.textContent = "Live sync";
+    overlayElements.statusChip.classList.remove("is-warning", "is-idle");
+    overlayElements.footerNote.textContent = `${modeLabel} mode is active on the current Mobizio risk assessment form.`;
+  } else if (caAcpPayload) {
+    overlayElements.statusChip.textContent = "Ready";
+    overlayElements.statusChip.classList.remove("is-warning");
+    overlayElements.statusChip.classList.add("is-idle");
+    overlayElements.footerNote.textContent = "Payload detected. Open the matching assessment to continue autofill.";
   } else {
-    overlayElements.progress.textContent = "Waiting...";
+    overlayElements.statusChip.textContent = "Waiting";
+    overlayElements.statusChip.classList.remove("is-warning");
+    overlayElements.statusChip.classList.add("is-idle");
+    overlayElements.footerNote.textContent = "Send a Care Assurance risk assessment to start the workflow on this page.";
   }
 
   const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
-  if (logs.length === 0) {
-    overlayElements.logsBox.textContent = "No actions yet.";
-  } else {
-    overlayElements.logsBox.textContent = logs.slice(-6).join("\n");
+  overlayElements.logsBox.textContent = logs.length === 0 ? "No actions yet." : logs.slice(-6).join("\n");
+  overlayElements.collapsedTitle = hasActiveQueue && total > 0 ? `CA ${current}/${total}` : caAcpPayload ? "CA ready" : "CA idle";
+  if (overlayCollapsed) {
+    overlayElements.title.textContent = overlayElements.collapsedTitle;
   }
 };
 
@@ -214,31 +630,20 @@ const setOverlayCollapsed = (collapsed) => {
   overlayCollapsed = collapsed;
   if (!overlayElements) return;
   if (collapsed) {
-    overlayElements.panel.style.minWidth = "auto";
-    overlayElements.panel.style.maxWidth = "auto";
-    overlayElements.panel.style.cursor = "pointer";
-    overlayElements.logsBox.style.display = "none";
-    overlayElements.logsLabel.style.display = "none";
-    overlayElements.progress.style.display = "none";
-    overlayElements.title.textContent = "CA";
+    overlayElements.panel.classList.add("is-collapsed");
+    overlayElements.title.textContent = overlayElements.collapsedTitle || "CA ready";
     overlayElements.minimizeButton.textContent = "+";
     overlayElements.minimizeButton.title = "Expand";
-    // Click panel to expand
-    overlayElements.panel.onclick = (e) => {
+    overlayElements.header.onclick = (e) => {
       if (e.target === overlayElements.minimizeButton) return;
       setOverlayCollapsed(false);
     };
   } else {
-    overlayElements.panel.style.minWidth = "220px";
-    overlayElements.panel.style.maxWidth = "300px";
-    overlayElements.panel.style.cursor = "default";
-    overlayElements.logsBox.style.display = "block";
-    overlayElements.logsLabel.style.display = "block";
-    overlayElements.progress.style.display = "block";
-    overlayElements.title.textContent = "Risk Assessment";
+    overlayElements.panel.classList.remove("is-collapsed");
+    overlayElements.title.textContent = "Risk Assessment Autofill";
     overlayElements.minimizeButton.textContent = "\u2013";
     overlayElements.minimizeButton.title = "Minimize";
-    overlayElements.panel.onclick = null;
+    overlayElements.header.onclick = null;
     refreshOverlay();
   }
 };
@@ -560,8 +965,8 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
   }
 };
 
-const loadStorage = (keys) =>
-  new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
+const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
+const saveStorage = (items) => STORAGE_HELPERS.set(items);
 
 const notifyStepComplete = () =>
   chrome.runtime.sendMessage({ type: MESSAGE_TYPES?.stepComplete || "CA_EXTENSION_STEP_COMPLETE" });
@@ -725,7 +1130,7 @@ const run = async () => {
       notifyStepComplete();
     } else {
       logAction(`All ${caAcpQueueState.total} assessment(s) complete.`);
-      chrome.storage.local.set({
+      saveStorage({
         [STORAGE_KEYS.queueState]: null,
         [STORAGE_KEYS.payload]: null,
         [STORAGE_KEYS.caseInfo]: null,

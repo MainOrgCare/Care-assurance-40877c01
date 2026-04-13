@@ -15,6 +15,7 @@
 - Background retry handling is more resilient when the MV3 service worker is waking up or the content script needs to reattach after an update.
 - Added a live `Workspace Pulse` panel that detects the current CareAssurance route, tab title, and app host from the connected browser tab.
 - Added integrated quick actions that move the connected CareAssurance tab directly into Dashboard, Care Planning, Risk Assessment, Plan Enhancer, and Admin Portal flows.
+- The website admin extension card now detects the installed extension build on the current page, compares it with the latest package version, and warns when the page needs a refresh after an extension update.
 
 ### Popup and Autofill Workflow
 
@@ -22,6 +23,8 @@
 - Improved payload status handling for ACP, EMAR, custom, and Initial Assessment workflows.
 - Added clearer extension test and refresh guidance when the page and extension are out of sync after an update.
 - Retitled the primary popup navigation around app-native workflows (`Workspace`, `Intake`, `Autofill`) and refreshed the shell styling so the popup reads more like a CareAssurance workspace surface than a standalone browser utility.
+- ACP, EMAR, Initial Assessment, and generic Mobizio content scripts now use the shared session-aware storage helpers, so in-page autofill reads the same transient care payload state as the popup and background worker.
+- Redesigned the ACP in-page overlay with a richer CareAssurance-style status surface, including service-user context, mode, assessment progress, and recent activity logs.
 
 ### Packaging and Installation
 

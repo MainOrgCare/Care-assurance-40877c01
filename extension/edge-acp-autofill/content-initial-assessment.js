@@ -12,14 +12,23 @@ const FALLBACK_STORAGE_KEYS = {
   interactionMode: "caAcpInteractionMode",
   signatureData: "caAcpSignatureData",
   signatureBatchId: "caAcpSignatureBatchId",
+  verificationFields: "caAcpVerificationFields",
 };
 
-const { STORAGE_KEYS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+const FALLBACK_STORAGE_HELPERS = {
+  get: (keys) =>
+    new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items || {}))),
+  set: (items) =>
+    new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
+};
+
+const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
   MESSAGE_TYPES: {
     log: "CA_EXTENSION_LOG",
     stepComplete: "CA_EXTENSION_STEP_COMPLETE",
   },
+  STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
 };
 
 // Initial Assessment form field mappings based on the HTML structure
@@ -400,8 +409,8 @@ const logAction = (message) => {
   }
 };
 
-const loadStorage = (keys) =>
-  new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
+const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
+const saveStorage = (items) => STORAGE_HELPERS.set(items);
 
 /**
  * Set value for a text input or textarea
@@ -1385,7 +1394,7 @@ const fillInitialAssessment = async (data, metadata = {}) => {
     
     // Save verification fields to storage for popup access
     try {
-      chrome.storage.local.set({
+      saveStorage({
         [STORAGE_KEYS.verificationFields || 'caAcpVerificationFields']: NEEDS_VERIFICATION
       });
     } catch (e) {
@@ -1397,7 +1406,7 @@ const fillInitialAssessment = async (data, metadata = {}) => {
   } else {
     // Clear verification fields from storage if none needed
     try {
-      chrome.storage.local.set({
+      saveStorage({
         [STORAGE_KEYS.verificationFields || 'caAcpVerificationFields']: []
       });
     } catch (e) {

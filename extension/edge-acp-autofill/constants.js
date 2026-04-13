@@ -63,6 +63,57 @@
     STORAGE_KEYS.verificationFields,
   ].filter(Boolean);
 
+  const sessionStorageKeySet = new Set(SESSION_STORAGE_KEYS.filter(Boolean));
+  const storageApi = globalScope?.chrome?.storage;
+  const sessionStorageArea = storageApi?.session && typeof storageApi.session.get === "function"
+    ? storageApi.session
+    : storageApi?.local || null;
+
+  const STORAGE_HELPERS = {
+    get: (keys) =>
+      new Promise((resolve) => {
+        const keyList = Array.isArray(keys) ? keys.filter(Boolean) : [keys].filter(Boolean);
+        if (!keyList.length || !storageApi?.local) {
+          resolve({});
+          return;
+        }
+
+        const sessionKeys = keyList.filter((key) => sessionStorageKeySet.has(key));
+        const localKeys = keyList.filter((key) => !sessionStorageKeySet.has(key));
+
+        Promise.all([
+          sessionKeys.length && sessionStorageArea
+            ? new Promise((innerResolve) => sessionStorageArea.get(sessionKeys, (items) => innerResolve(items || {})))
+            : Promise.resolve({}),
+          localKeys.length
+            ? new Promise((innerResolve) => storageApi.local.get(localKeys, (items) => innerResolve(items || {})))
+            : Promise.resolve({}),
+        ]).then(([sessionItems, localItems]) => {
+          resolve({ ...localItems, ...sessionItems });
+        });
+      }),
+    set: (items) =>
+      new Promise((resolve) => {
+        const entries = Object.entries(items || {}).filter(([key]) => Boolean(key));
+        if (!entries.length || !storageApi?.local) {
+          resolve();
+          return;
+        }
+
+        const sessionItems = Object.fromEntries(entries.filter(([key]) => sessionStorageKeySet.has(key)));
+        const localItems = Object.fromEntries(entries.filter(([key]) => !sessionStorageKeySet.has(key)));
+
+        Promise.all([
+          Object.keys(sessionItems).length && sessionStorageArea
+            ? new Promise((innerResolve) => sessionStorageArea.set(sessionItems, () => innerResolve()))
+            : Promise.resolve(),
+          Object.keys(localItems).length
+            ? new Promise((innerResolve) => storageApi.local.set(localItems, () => innerResolve()))
+            : Promise.resolve(),
+        ]).then(() => resolve());
+      }),
+  };
+
   /**
    * Shared verification utilities for all content scripts
    */
@@ -242,5 +293,6 @@
     MESSAGE_TYPES,
     VERIFICATION_HELPERS,
     SESSION_STORAGE_KEYS,
+    STORAGE_HELPERS,
   };
 })();

@@ -3,6 +3,8 @@ const EMAR_MESSAGE_TYPE = "CA_SEND_TO_EMAR_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 const STORE_PAYLOAD_TYPE = "CA_EXTENSION_STORE_PAYLOAD";
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
+const EXTENSION_STATUS_TYPE = "CA_EXTENSION_STATUS";
+const EXTENSION_STATUS_REQUEST_TYPE = "CA_EXTENSION_REQUEST_STATUS";
 const REQUEST_ID_HEADER = "X-Request-ID";
 
 console.log("[CA Extension Content] content-app.js loaded on:", window.location.origin);
@@ -16,6 +18,42 @@ const sendAck = (requestId, ok, error) => {
       requestId,
       ok,
       error,
+    },
+    window.location.origin
+  );
+};
+
+const getExtensionStatusPayload = (overrides = {}) => {
+  try {
+    const manifest = chrome.runtime?.getManifest?.() || {};
+    return {
+      detected: true,
+      refreshRequired: false,
+      version: typeof manifest.version === "string" ? manifest.version : null,
+      name: typeof manifest.name === "string" ? manifest.name : null,
+      origin: window.location.origin,
+      lastSeenAt: new Date().toISOString(),
+      ...overrides,
+    };
+  } catch (error) {
+    return {
+      detected: false,
+      refreshRequired: true,
+      version: null,
+      name: null,
+      origin: window.location.origin,
+      error: error instanceof Error ? error.message : "Extension context unavailable",
+      lastSeenAt: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+};
+
+const postExtensionStatus = (overrides = {}) => {
+  window.postMessage(
+    {
+      type: EXTENSION_STATUS_TYPE,
+      payload: getExtensionStatusPayload(overrides),
     },
     window.location.origin
   );
@@ -203,6 +241,13 @@ const notifyReady = (attempt = 0) => {
   });
 };
 notifyReady();
+postExtensionStatus();
+window.addEventListener("focus", () => postExtensionStatus());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    postExtensionStatus();
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WEBPAGE MESSAGE HANDLING
@@ -214,6 +259,10 @@ window.addEventListener("message", (event) => {
   const isAcpMessage = event.data.type === EXTENSION_MESSAGE_TYPE;
   const isEmarMessage = event.data.type === EMAR_MESSAGE_TYPE;
   const isStorePayloadMessage = event.data.type === STORE_PAYLOAD_TYPE;
+  if (event.data.type === EXTENSION_STATUS_REQUEST_TYPE) {
+    postExtensionStatus();
+    return;
+  }
   if (!isAcpMessage && !isEmarMessage && !isStorePayloadMessage) return;
 
   console.log("[CA Extension] Received message:", event.data.type);
@@ -262,6 +311,11 @@ window.addEventListener("message", (event) => {
 
   if (isContextInvalidated()) {
     console.warn("[CA Extension Content] Extension context invalidated — page refresh required.");
+    postExtensionStatus({
+      detected: false,
+      refreshRequired: true,
+      error: "Extension was updated. Refresh this page so the new content script can attach.",
+    });
     sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
     return;
   }
@@ -270,6 +324,11 @@ window.addEventListener("message", (event) => {
   const sendWithRetry = (attempt = 0) => {
     // Stop retrying if extension was reloaded/updated mid-retry
     if (isContextInvalidated()) {
+      postExtensionStatus({
+        detected: false,
+        refreshRequired: true,
+        error: "Extension was updated. Refresh this page so the new content script can attach.",
+      });
       sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
       return;
     }
@@ -282,6 +341,11 @@ window.addEventListener("message", (event) => {
             console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} failed:`, errMsg);
             // "Extension context invalidated" is unrecoverable — don't retry
             if (errMsg.includes("context invalidated") || errMsg.includes("Extension context")) {
+              postExtensionStatus({
+                detected: false,
+                refreshRequired: true,
+                error: "Extension was updated. Refresh this page so the new content script can attach.",
+              });
               sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
               return;
             }
@@ -303,6 +367,11 @@ window.addEventListener("message", (event) => {
       const msg = e?.message || "";
       console.warn(`[CA Extension Content] sendMessage attempt ${attempt + 1} threw:`, msg);
       if (msg.includes("context invalidated") || msg.includes("Extension context")) {
+        postExtensionStatus({
+          detected: false,
+          refreshRequired: true,
+          error: "Extension was updated. Refresh this page so the new content script can attach.",
+        });
         sendAck(requestId, false, "Extension was updated. Please refresh this page (F5) and try again.");
         return;
       }

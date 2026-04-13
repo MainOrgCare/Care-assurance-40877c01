@@ -13,11 +13,22 @@ const FALLBACK_MESSAGE_TYPES = {
   log: "CA_EXTENSION_LOG",
 };
 
-const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+const FALLBACK_STORAGE_HELPERS = {
+  get: (keys) =>
+    new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items || {}))),
+  set: (items) =>
+    new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
+};
+
+const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
   FORM_CONFIGS: FALLBACK_FORM_CONFIGS,
   MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
+  STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
 };
+
+const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
+const saveStorage = (items) => STORAGE_HELPERS.set(items);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -219,15 +230,13 @@ const isEmarFormPage = () => {
 const run = async () => {
   if (!isEmarFormPage()) return;
 
-  const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await new Promise(
-    (resolve) => chrome.storage.local.get([
-      STORAGE_KEYS.payload,
-      STORAGE_KEYS.queueState,
-      STORAGE_KEYS.autoSubmit,
-      STORAGE_KEYS.dryRun,
-      STORAGE_KEYS.interactionMode,
-    ], (items) => resolve(items))
-  );
+  const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
+    STORAGE_KEYS.payload,
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.autoSubmit,
+    STORAGE_KEYS.dryRun,
+    STORAGE_KEYS.interactionMode,
+  ]);
 
   if (!caAcpPayload || caAcpPayload.formType !== "emar") return;
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
@@ -277,7 +286,7 @@ const run = async () => {
 
   const submitButton = document.getElementById("btnSubmitDynamicForm");
   const clearQueue = () => {
-    chrome.storage.local.set({
+    saveStorage({
       [STORAGE_KEYS.queueState]: null,
       [STORAGE_KEYS.payload]: null,
       [STORAGE_KEYS.caseInfo]: null,
