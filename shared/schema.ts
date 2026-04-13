@@ -566,6 +566,28 @@ export const insertAnalyzedServiceUserSchema = createInsertSchema(analyzedServic
 export type InsertAnalyzedServiceUser = z.infer<typeof insertAnalyzedServiceUserSchema>;
 export type AnalyzedServiceUser = typeof analyzedServiceUsers.$inferSelect;
 
+// Access Care Planning Service Users - stable mapping of display names to ACP record IDs
+export const accessCarePlanningServiceUsers = pgTable(
+  "access_care_planning_service_users",
+  {
+    accessCarePlanningId: text("access_care_planning_id").primaryKey(),
+    serviceUserName: text("service_user_name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    nameIdx: index("access_care_planning_service_users_name_idx").on(table.serviceUserName),
+  })
+);
+
+export const insertAccessCarePlanningServiceUserSchema = createInsertSchema(accessCarePlanningServiceUsers).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAccessCarePlanningServiceUser = z.infer<typeof insertAccessCarePlanningServiceUserSchema>;
+export type AccessCarePlanningServiceUser = typeof accessCarePlanningServiceUsers.$inferSelect;
+
 // Analyzed Care Workers - care worker profiles extracted from workbooks  
 export const analyzedCareWorkers = pgTable(
   "analyzed_care_workers",

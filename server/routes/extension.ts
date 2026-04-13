@@ -31,26 +31,25 @@ const EXTENSION_PACKAGE_CANDIDATES = [
 ] as const;
 const EXTENSION_SOURCE_DIR = path.resolve(process.cwd(), "extension", "edge-acp-autofill");
 const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
-const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.py");
+const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.mjs");
 
-/** Attempt to build the zip via the Python script (preferred). */
-async function packageExtensionZipViaPython(): Promise<boolean> {
+/** Attempt to build the zip via the canonical packaging script (preferred). */
+async function packageExtensionZipViaScript(): Promise<boolean> {
   try {
     await fs.access(EXTENSION_PACKAGE_SCRIPT);
   } catch {
     return false;
   }
-  const pythonCandidates = ["python3", "python"] as const;
-  for (const pythonCmd of pythonCandidates) {
-    try {
-      await execFileAsync(pythonCmd, [EXTENSION_PACKAGE_SCRIPT], {
-        cwd: process.cwd(),
-        timeout: 120000,
-      });
-      return true;
-    } catch { /* try next */ }
+  try {
+    await execFileAsync(process.execPath, [EXTENSION_PACKAGE_SCRIPT], {
+      cwd: process.cwd(),
+      timeout: 120000,
+    });
+    return true;
+  } catch (error: unknown) {
+    console.warn("Extension packaging script failed:", error);
+    return false;
   }
-  return false;
 }
 
 /** Fallback: build the zip using the system `zip` command. */
@@ -75,7 +74,7 @@ async function packageExtensionZipViaShell(): Promise<boolean> {
 }
 
 async function packageExtensionZip(): Promise<boolean> {
-  if (await packageExtensionZipViaPython()) return true;
+  if (await packageExtensionZipViaScript()) return true;
   if (await packageExtensionZipViaShell()) return true;
   return false;
 }

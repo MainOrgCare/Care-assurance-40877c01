@@ -121,7 +121,7 @@
 
 ### 🚀 How to Use
 
-1. **Load Extension**: Install from `dist/edge-acp-autofill.zip`
+1. **Load Extension**: Extract `dist/edge-acp-autofill.zip`, then load the extracted folder in Edge/Chrome
 2. **Login**: Ensure you're logged into Care Assurance website
 3. **Navigate**: Go to any ACP page in ACCESS
 4. **Open Extension**: Click extension icon to open popup

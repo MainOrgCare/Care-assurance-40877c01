@@ -19,6 +19,21 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Import ACP Service Users",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "import:acp-service-users",
+        "--",
+        "${workspaceFolder}/newcastle_service_users_CLEANED 2.xlsx"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }

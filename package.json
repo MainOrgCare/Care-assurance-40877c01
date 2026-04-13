@@ -30,7 +30,9 @@
     "quality": "npm run test && npm run check && npm run build",
     "audit:prod": "npm audit --omit=dev",
     "db:push": "drizzle-kit push",
-    "extension":"npm run bump:extension && npm run package:extension"
+    "import:acp-service-users": "tsx script/importAccessCarePlanningServiceUsers.ts",
+    "package:extension": "node script/package-extension.mjs",
+    "extension":"npm run package:extension"
   },
   "engines": {
     "node": ">=20.0.0",

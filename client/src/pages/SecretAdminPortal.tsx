@@ -4968,7 +4968,7 @@ export default function SecretAdminPortal() {
                     Edge Extension Download
                   </CardTitle>
                   <CardDescription>
-                    Download the latest ACP Autofill Edge extension package from CareAssurance.
+                    Download or rebuild the latest ACP Autofill Edge extension ZIP from CareAssurance.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
@@ -5033,7 +5033,7 @@ export default function SecretAdminPortal() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Use this ZIP in Edge via <strong>Extensions</strong> → <strong>Load unpacked</strong> or upload to Edge Add-ons.
+                    This download is a ZIP package. Extract it first for <strong>Extensions</strong> → <strong>Load unpacked</strong>, or upload the ZIP directly to Edge Add-ons.
                   </p>
                 </CardContent>
               </Card>

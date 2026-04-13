@@ -21,6 +21,7 @@ The extension now supports uploading care documents (PDF, Word, text files, imag
 6. **Auto-fill**: Click "Use This Analysis & Continue" to convert results to payload and proceed with autofill
 
 **Workflow:**
+
 - User stays on Access Care Planning page
 - Extension popup remains open
 - Care Assurance backend analyzes documents and identifies risk assessments
@@ -30,6 +31,7 @@ The extension now supports uploading care documents (PDF, Word, text files, imag
 - Normal autofill process continues seamlessly
 
 **Requirements:**
+
 - Must be logged in to Care Assurance (careassurance.uk)
 - Documents should contain care-related information (medical records, assessments, care notes)
 - AI analysis follows NHS England 12 Principles and CQC 2024 standards
@@ -40,11 +42,11 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 
 ## Setup
 
-1. Load unpacked extension from extension/edge-acp-autofill in Edge
-2. **For AI Analysis**: 
+1. Load unpacked extension from `extension/edge-acp-autofill` in Edge
+2. **For AI Analysis**:
    - Log in to Care Assurance first
    - Open extension, upload documents, and click "Analyze with AI"
-3. **For Traditional Method**: 
+3. **For Traditional Method**:
    - Open Care Assurance and use the admin-only "Send to ACP Extension" or "Send to EMAR Extension" button
 4. For custom documents, send a payload with `formType: "custom"`, a `formId` (optional), and `fields`
 5. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup
@@ -60,10 +62,12 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 
 ## Edge Add-ons Publishing (Unlisted Release Process)
 
-1. Bump extension version: `npm run bump:extension`
+1. Update `manifest.json` version if you are preparing a release build
 2. Build package: `npm run package:extension` (outputs `dist/edge-acp-autofill.zip`)
 3. Publish via API: `npm run publish:edge-addon`
 4. Privacy policy URL for listing: `https://careassurance.uk/privacy`
+
+For local installation from the packaged artifact, extract `dist/edge-acp-autofill.zip` to a folder first, then choose that extracted folder in Edge via **Extensions** → **Load unpacked**.
 
 ### Local Publishing Commands
 
@@ -78,6 +82,7 @@ The publish script validates `manifest.json` before upload, including required f
 This repository includes `.github/workflows/edge-addons-publish.yml` for automated publication on pushes to `main` (when extension or publish files change), and manual workflow dispatch.
 
 Required GitHub secrets:
+
 - `EDGE_ADDONS_PRODUCT_ID`
 - `EDGE_ADDONS_CLIENT_ID`
 - `EDGE_ADDONS_API_KEY`
