@@ -7,6 +7,8 @@ const EXTENSION_STATUS_TYPE = "CA_EXTENSION_STATUS";
 const EXTENSION_STATUS_REQUEST_TYPE = "CA_EXTENSION_REQUEST_STATUS";
 const REQUEST_ID_HEADER = "X-Request-ID";
 
+const CA_DEBUG = window.CA_EXTENSION_CONSTANTS?.DEBUG || false;
+
 console.log("[CA Extension Content] content-app.js loaded on:", window.location.origin);
 console.log("[CA Extension Content] Document ready state:", document.readyState);
 
@@ -274,7 +276,7 @@ window.addEventListener("message", (event) => {
   }
   
   // DEBUG: Show raw payload received from webpage
-  console.log("[CA Extension DEBUG] Raw payload received:", JSON.stringify(payload, null, 2));
+  if (CA_DEBUG) console.log("[CA Extension DEBUG] Raw payload received:", JSON.stringify(payload, null, 2));
   const normalizedPayload = { ...payload };
   if (isEmarMessage && !normalizedPayload.formType) {
     normalizedPayload.formType = "emar";
@@ -300,7 +302,7 @@ window.addEventListener("message", (event) => {
   }
 
   // DEBUG: Show normalized payload being sent to storage
-  console.log("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
+  if (CA_DEBUG) console.log("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
   
   // Check if extension context is still valid before attempting to send
   const isContextInvalidated = () => {

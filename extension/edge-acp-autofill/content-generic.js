@@ -1,4 +1,7 @@
 (() => {
+if (window.__CA_GENERIC_INITIALIZED) return;
+window.__CA_GENERIC_INITIALIZED = true;
+
 const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",

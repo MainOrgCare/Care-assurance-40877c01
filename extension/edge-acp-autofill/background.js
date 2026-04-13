@@ -4,6 +4,39 @@ const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, SESSION_STORAGE_KEYS = [] } =
 
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 
+// ============================================================================
+// MV3 SERVICE WORKER KEEP-ALIVE
+// Prevents premature termination during long-running batch autofill operations
+// ============================================================================
+
+const KEEP_ALIVE_INTERVAL_MS = 25_000; // Well under the 5-minute MV3 timeout
+let keepAliveTimer = null;
+
+function startKeepAlive() {
+  if (keepAliveTimer) return;
+  keepAliveTimer = setInterval(() => {
+    // Self-ping to reset the MV3 inactivity timer
+    chrome.runtime.sendMessage({ type: "CA_KEEP_ALIVE_PING" }, () => {
+      if (chrome.runtime.lastError) { /* expected when popup is closed */ }
+    });
+  }, KEEP_ALIVE_INTERVAL_MS);
+  console.log("[CA Extension] Keep-alive started");
+}
+
+function stopKeepAlive() {
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+    console.log("[CA Extension] Keep-alive stopped");
+  }
+}
+
+chrome.runtime.onSuspend?.addListener(() => {
+  stopKeepAlive();
+});
+
+// ============================================================================
+
 // Track tabs with content-app.js ready
 const contentScriptReadyTabs = new Map(); // normalized host -> tabId
 
@@ -247,15 +280,28 @@ const clearBadge = () => {
 };
 
 const startAutofill = async (caseId, serviceDataGroupId) => {
+  startKeepAlive(); // Prevent MV3 worker from dying during batch
+
   const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
   if (!caAcpPayload) {
+    stopKeepAlive();
     throw new Error("No payload stored yet.");
   }
   const formType = caAcpPayload.formType || "acp";
-  if (formType === "acp" && !Array.isArray(caAcpPayload.assessments)) {
-    throw new Error("No assessments payload stored yet.");
+
+  // Validate payload structure before starting
+  if (formType === "acp") {
+    if (!Array.isArray(caAcpPayload.assessments)) {
+      stopKeepAlive();
+      throw new Error("No assessments payload stored yet.");
+    }
+    if (caAcpPayload.assessments.length === 0) {
+      stopKeepAlive();
+      throw new Error("Assessment list is empty — nothing to autofill.");
+    }
   }
   if (formType === "initialAssessment" && !caAcpPayload.initialAssessmentData && !caAcpPayload.data) {
+    stopKeepAlive();
     throw new Error("No initial assessment data stored yet.");
   }
 
@@ -296,6 +342,7 @@ const openNextForm = async () => {
       [STORAGE_KEYS.signatureData]: null,
       [STORAGE_KEYS.signatureBatchId]: null,
     });
+    stopKeepAlive();
     clearBadge();
     return;
   }
@@ -308,6 +355,7 @@ const openNextForm = async () => {
       [STORAGE_KEYS.signatureData]: null,
       [STORAGE_KEYS.signatureBatchId]: null,
     });
+    stopKeepAlive();
     clearBadge();
     return;
   }
@@ -325,6 +373,7 @@ const openNextForm = async () => {
 };
 
 const stopAutofill = async () => {
+  stopKeepAlive();
   // Clear ALL PII-containing data when stopping — not just queueState
   // This prevents sensitive care data from persisting in extension storage
   await setStored({
@@ -563,6 +612,13 @@ const forwardProxyRequest = async (request, sendResponse) => {
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  try {
+  // Keep-alive ping — just acknowledge
+  if (message?.type === "CA_KEEP_ALIVE_PING") {
+    sendResponse({ ok: true });
+    return false;
+  }
+
   markRuntimeActivity(message?.type || "message").catch(() => {});
   // Wrap sendResponse so a disconnected port (MV3 service-worker lifecycle) is silently caught
   const safeSendResponse = (data) => {
@@ -700,6 +756,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   return false;
+  } catch (err) {
+    console.error("[CA Extension] Unhandled error in onMessage:", err);
+    try { sendResponse({ ok: false, error: err?.message || "Internal extension error" }); } catch (_) { /* port closed */ }
+    return false;
+  }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

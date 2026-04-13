@@ -1,4 +1,7 @@
 (() => {
+if (window.__CA_EMAR_INITIALIZED) return;
+window.__CA_EMAR_INITIALIZED = true;
+
 const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",
@@ -167,6 +170,12 @@ const injectOverlayStyles = () => {
 
 const initOverlay = () => {
   if (overlayInitialized) return;
+  if (!document.body) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => initOverlay(), { once: true });
+    }
+    return;
+  }
   overlayInitialized = true;
   injectOverlayStyles();
 
@@ -593,7 +602,7 @@ const run = async () => {
   initOverlay();
   refreshOverlay();
   if (!overlayIntervalId) {
-    overlayIntervalId = setInterval(refreshOverlay, 1500);
+    overlayIntervalId = setInterval(refreshOverlay, 3000);
   }
 
   const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([

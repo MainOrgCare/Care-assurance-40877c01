@@ -1,6 +1,55 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
-## Version 0.3.6 - UX & Productivity Overhaul (Latest)
+## Version 0.3.7 - Reliability & Code Quality Overhaul (Latest)
+
+### MV3 Service Worker Resilience
+
+- Integrated keep-alive mechanism (25-second self-ping) to prevent premature MV3 5-minute timeout during long-running batch autofill operations.
+- Keep-alive automatically starts on autofill begin and stops on completion or manual stop.
+- Added `onSuspend` cleanup listener to gracefully stop keep-alive on worker shutdown.
+- Service worker `onMessage` listener is now wrapped in try-catch to prevent unhandled exceptions from crashing the worker.
+
+### Content Script Stability
+
+- All four content scripts (ACP, EMAR, Initial Assessment, Generic) now have `window.__CA_*_INITIALIZED` guards to prevent double-initialization when scripts are re-injected.
+- Overlay initialization in content-acp.js and content-emar.js now guards against missing `document.body`, deferring to `DOMContentLoaded` when DOM is not ready.
+- Overlay refresh interval reduced from 1.5s to 3s to decrease CPU overhead on long-running pages.
+
+### Storage Key Centralization
+
+- Added `serverUrl`, `lastTab`, and `lastAutofillUser` to `STORAGE_KEYS` in constants.js.
+- Replaced all hardcoded storage key strings in popup.js with proper `STORAGE_KEYS.*` references for consistency and maintainability.
+- Fallback storage key definitions in popup.js updated to include the three new keys.
+
+### Debug & Production Logging
+
+- Added a global `DEBUG` flag to constants.js (default `false`) exported via `CA_EXTENSION_CONSTANTS`.
+- All DEBUG console.log statements in content-app.js and content-initial-assessment.js are now gated behind the `CA_DEBUG` flag — zero console noise in production.
+
+### Pre-Start Validation
+
+- Autofill start now validates: Case ID present, Service Data Group ID present, payload loaded, and assessments non-empty before proceeding.
+- Stale verification fields are cleared before each new autofill start.
+- Background response errors are surfaced to the user with a visible error message.
+
+### Connection Error UX
+
+- Connection badge shows distinct "error" state with red styling when connection fails.
+- "Open CareAssurance in a New Tab" action button appears automatically when no connected tab is found.
+- Skipped files during document analysis now show a visible warning message (mentioning supported .txt/.csv formats).
+
+### Autofill Completion Notification
+
+- Badge text flashes "✓ Complete" for 4 seconds when an autofill batch finishes.
+- 30-minute periodic GDPR cleanup interval runs while the popup is open to remove stale sensitive data.
+
+### Code Cleanup
+
+- Removed unused files: popup-old.js (~600 lines), background-enhanced.js (~210 lines), test-extract-single-value.js.
+
+---
+
+## Version 0.3.6 - UX & Productivity Overhaul
 
 ### Persistent State
 

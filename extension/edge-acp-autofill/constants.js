@@ -17,6 +17,9 @@
     uploadedDocuments: "caAcpUploadedDocuments",
     verificationFields: "caAcpVerificationFields",
     runtimeMetrics: "caAcpRuntimeMetrics",
+    serverUrl: "caAcpServerUrl",
+    lastTab: "caAcpLastTab",
+    lastAutofillUser: "caAcpLastAutofillUser",
   };
 
   const FORM_CONFIGS = {
@@ -53,6 +56,9 @@
     storageGet: "CA_EXTENSION_STORAGE_GET",
     storageSet: "CA_EXTENSION_STORAGE_SET",
   };
+
+  // Global debug flag — set to true during development, false for production
+  const DEBUG = false;
 
   const SESSION_STORAGE_KEYS = [
     STORAGE_KEYS.payload,
@@ -383,5 +389,6 @@
     VERIFICATION_HELPERS,
     SESSION_STORAGE_KEYS,
     STORAGE_HELPERS,
+    DEBUG,
   };
 })();

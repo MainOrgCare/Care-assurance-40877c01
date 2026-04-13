@@ -1,4 +1,7 @@
 (() => {
+if (window.__CA_IA_INITIALIZED) return;
+window.__CA_IA_INITIALIZED = true;
+
 /**
  * Content script for Initial Assessment Form autofill
  * Form ID: 1040788
@@ -23,7 +26,7 @@ const FALLBACK_STORAGE_HELPERS = {
     new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
 };
 
-const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CONSTANTS || {
+const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS, DEBUG: CA_DEBUG } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
   MESSAGE_TYPES: {
     log: "CA_EXTENSION_LOG",
@@ -1798,7 +1801,7 @@ const run = async () => {
   if (!caAcpPayload || caAcpPayload.formType !== "initialAssessment") return;
   
   // DEBUG: Show payload loaded from storage
-  console.log("[CA Extension DEBUG] Payload loaded from storage:", JSON.stringify(caAcpPayload, null, 2));
+  if (CA_DEBUG) console.log("[CA Extension DEBUG] Payload loaded from storage:", JSON.stringify(caAcpPayload, null, 2));
   
   const processedKey = "caIAAutofillProcessed";
   if (sessionStorage.getItem(processedKey)) return;
@@ -1817,13 +1820,17 @@ const run = async () => {
   }
   
   // DEBUG: Show extracted formData before mapping
-  console.log("[CA Extension DEBUG] FormData before mapping:", JSON.stringify(formData, null, 2));
-  console.log("[CA Extension DEBUG] Has thisIsMe property:", !!formData?.thisIsMe);
+  if (CA_DEBUG) {
+    console.log("[CA Extension DEBUG] FormData before mapping:", JSON.stringify(formData, null, 2));
+    console.log("[CA Extension DEBUG] Has thisIsMe property:", !!formData?.thisIsMe);
+  }
   
   // DEBUG: Show mapped data after Plan Enhancer transformation
   const mappedData = formData?.thisIsMe ? mapPlanEnhancerToFormData(formData) : formData;
-  console.log("[CA Extension DEBUG] Data after mapping:", JSON.stringify(mappedData, null, 2));
-  console.log("[CA Extension DEBUG] Mapping was applied:", !!formData?.thisIsMe);
+  if (CA_DEBUG) {
+    console.log("[CA Extension DEBUG] Data after mapping:", JSON.stringify(mappedData, null, 2));
+    console.log("[CA Extension DEBUG] Mapping was applied:", !!formData?.thisIsMe);
+  }
   
   await fillInitialAssessment(formData, {
     assessor: caAcpPayload.assessor,

@@ -121,6 +121,9 @@ const FALLBACK_STORAGE_KEYS = {
   selectedUserId: "caAcpSelectedUserId",
   verificationFields: "caAcpVerificationFields",
   runtimeMetrics: "caAcpRuntimeMetrics",
+  serverUrl: "caAcpServerUrl",
+  lastTab: "caAcpLastTab",
+  lastAutofillUser: "caAcpLastAutofillUser",
 };
 
 const FALLBACK_MESSAGE_TYPES = {
@@ -957,7 +960,7 @@ function switchTab(tabName, { persist = true } = {}) {
   if (tabName === "autofill") { tabAutofillBtn?.classList.add("active"); tabContentAutofill?.classList.add("active"); }
 
   if (persist) {
-    chrome.storage.local.set({ caAcpLastTab: tabName }).catch(() => {});
+    chrome.storage.local.set({ [STORAGE_KEYS.lastTab]: tabName }).catch(() => {});
   }
 }
 
@@ -1032,9 +1035,9 @@ async function connectToCareAssurance() {
   }
   
   // Try to load saved URL first
-  const stored = await loadStorage(['caAcpServerUrl']);
-  if (stored.caAcpServerUrl) {
-    CARE_ASSURANCE_URL = stored.caAcpServerUrl;
+  const stored = await loadStorage([STORAGE_KEYS.serverUrl]);
+  if (stored[STORAGE_KEYS.serverUrl]) {
+    CARE_ASSURANCE_URL = stored[STORAGE_KEYS.serverUrl];
   }
   
   let lastError = null;
@@ -1050,7 +1053,7 @@ async function connectToCareAssurance() {
       
       if (statusRes.ok) {
         const status = statusRes.data;
-        await setStorage({ caAcpServerUrl: targetOrigin });
+        await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
         updateConnectionUI(true, status.user);
         await refreshWorkspaceContext(status.user);
         connected = true;
@@ -1092,7 +1095,7 @@ async function connectToCareAssurance() {
         break;
       } else if (statusRes.status === 401 || statusRes.error === 'Not logged in') {
         // Server found but not logged in
-        await setStorage({ caAcpServerUrl: targetOrigin });
+        await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
         lastError = `Found server but not logged in. Please log in to Care Assurance in your browser first.`;
         break; // Don't try other URLs, just need to log in
       } else if (statusRes.needsTab) {
@@ -1109,17 +1112,28 @@ async function connectToCareAssurance() {
   
   if (!connected) {
     updateConnectionUI(false);
-    const errorMsg = lastError?.includes('not logged in') || lastError?.includes('No Care Assurance tab')
+
+    // Show error badge
+    if (connectionBadge) {
+      connectionBadge.className = "connection-badge error";
+      const text = connectionBadge.querySelector(".connection-text");
+      if (text) text.textContent = "Error";
+    }
+
+    const needsTab = lastError?.includes('No Care Assurance tab') || lastError?.includes('No tab');
+    const needsLogin = lastError?.includes('not logged in');
+    const errorMsg = needsLogin || needsTab
       ? lastError
       : "Connection failed. Please open Care Assurance in a browser tab and log in first.";
     showError(errorMsg);
     
-    // Show help text
+    // Show help text with actionable "Open CareAssurance" button
     if (connectStatus) {
       connectStatus.className = 'status-box';
       connectStatus.innerHTML = `
         <div style="font-size: 11px; line-height: 1.5;">
           <p style="margin-bottom: 6px; color: var(--color-error);">${errorMsg}</p>
+          ${needsTab ? `<button id="open-ca-tab-btn" class="btn btn-primary btn-sm btn-block" style="margin-bottom: 8px;">Open CareAssurance in a New Tab</button>` : ''}
           <p style="margin-bottom: 4px; font-weight: 600;">Steps to connect:</p>
           <ol style="padding-left: 16px; margin: 0; font-size: 10px; color: var(--color-muted-foreground);">
             <li>Open careassurance.uk in a browser tab</li>
@@ -1128,6 +1142,9 @@ async function connectToCareAssurance() {
           </ol>
         </div>
       `;
+      document.getElementById('open-ca-tab-btn')?.addEventListener('click', () => {
+        chrome.tabs.create({ url: 'https://careassurance.uk/dashboard' });
+      });
     }
   }
   
@@ -1258,7 +1275,7 @@ function selectAutofillUser(user) {
   selectedAutofillUser = user || null;
 
   // Persist selection
-  chrome.storage.local.set({ caAcpLastAutofillUser: user || null }).catch(() => {});
+  chrome.storage.local.set({ [STORAGE_KEYS.lastAutofillUser]: user || null }).catch(() => {});
 
   if (autofillUserDropdown) autofillUserDropdown.hidden = true;
   if (autofillUserSearch) autofillUserSearch.value = "";
@@ -1531,10 +1548,11 @@ analyzeButton?.addEventListener("click", async () => {
     
     if (skippedFiles.length > 0 && !content.trim()) {
       throw new Error(
-        `Cannot read ${skippedFiles.join(", ")} directly. Please upload text (.txt) files, or paste the document content into the notes field below.`
+        `Cannot read ${skippedFiles.join(", ")} directly. Only .txt and .csv files are supported. For Word or PDF files, copy the text and paste it into the notes field below.`
       );
     }
     if (skippedFiles.length > 0) {
+      showError(`Skipped unsupported files: ${skippedFiles.join(", ")}. Only text-based files (.txt, .csv) can be read directly.`);
       console.warn(`[CA Extension] Skipped non-text files: ${skippedFiles.join(", ")}`);
     }
     
@@ -1848,11 +1866,35 @@ startButton?.addEventListener("click", async () => {
   const caseId = caseIdInput?.value.trim();
   const serviceDataGroupId = serviceDataGroupInput?.value.trim();
   
-  if (!caseId || !serviceDataGroupId) {
-    if (progressStatus) progressStatus.textContent = "Enter Case ID and Service Data Group ID";
+  // Validate inputs before sending to background
+  if (!caseId) {
+    showError("Case ID is required. Select a service user or enter manually.");
+    if (progressStatus) progressStatus.textContent = "Missing Case ID";
     return;
   }
-  
+  if (!serviceDataGroupId) {
+    showError("Service Data Group ID is required.");
+    if (progressStatus) progressStatus.textContent = "Missing Service Data Group ID";
+    return;
+  }
+
+  // Validate payload exists before starting
+  const payloadCheck = await loadStorage([STORAGE_KEYS.payload]);
+  const payload = payloadCheck[STORAGE_KEYS.payload];
+  if (!payload) {
+    showError("No payload loaded. Upload care data first.");
+    if (progressStatus) progressStatus.textContent = "No payload";
+    return;
+  }
+  if (payload.formType === "acp" && Array.isArray(payload.assessments) && payload.assessments.length === 0) {
+    showError("Assessment list is empty — nothing to autofill.");
+    if (progressStatus) progressStatus.textContent = "Empty assessments";
+    return;
+  }
+
+  // Clear stale verification fields from previous runs
+  await setStorage({ [STORAGE_KEYS.verificationFields]: null });
+
   await setStorage({
     [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
     [STORAGE_KEYS.autoSubmit]: autoSubmitToggle?.checked,
@@ -1865,6 +1907,9 @@ startButton?.addEventListener("click", async () => {
     (response) => {
       if (progressStatus) {
         progressStatus.textContent = response?.ok ? "Autofill started!" : (response?.error || "Failed");
+      }
+      if (!response?.ok && response?.error) {
+        showError(response.error);
       }
     }
   );
@@ -2231,21 +2276,21 @@ async function refreshSignatureStatus() {
   refreshExtensionVersionDisplay();
   
   // Load saved server URL
-  const stored = await loadStorage(['caAcpServerUrl']);
-  if (stored.caAcpServerUrl) {
-    CARE_ASSURANCE_URL = stored.caAcpServerUrl;
+  const stored = await loadStorage([STORAGE_KEYS.serverUrl]);
+  if (stored[STORAGE_KEYS.serverUrl]) {
+    CARE_ASSURANCE_URL = stored[STORAGE_KEYS.serverUrl];
   }
   await refreshWorkspaceContext();
 
-  // Restore last active tab
-  const { caAcpLastTab, caAcpLastAutofillUser } = await new Promise(r => chrome.storage.local.get(["caAcpLastTab", "caAcpLastAutofillUser"], r));
-  if (caAcpLastTab) {
-    switchTab(caAcpLastTab, { persist: false });
+  // Restore last active tab and last selected autofill user
+  const { [STORAGE_KEYS.lastTab]: savedTab, [STORAGE_KEYS.lastAutofillUser]: savedUser } = await new Promise(r => chrome.storage.local.get([STORAGE_KEYS.lastTab, STORAGE_KEYS.lastAutofillUser], r));
+  if (savedTab) {
+    switchTab(savedTab, { persist: false });
   }
 
   // Restore last selected autofill user
-  if (caAcpLastAutofillUser?.acpId) {
-    selectAutofillUser(caAcpLastAutofillUser);
+  if (savedUser?.acpId) {
+    selectAutofillUser(savedUser);
   }
   
   // Auto-detect case ID and service data group from URL if on risk assessment page
@@ -2321,6 +2366,9 @@ async function refreshSignatureStatus() {
     refreshPayloadStatus();
     refreshWorkspaceContext(connectedWorkspaceUser);
   }, 3000);
+
+  // Periodic GDPR cleanup every 30 minutes while popup is open
+  setInterval(autoCleanupStaleData, 30 * 60 * 1000);
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2335,9 +2383,19 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     updateLiveProgress(newState);
     if (!newState) {
       // Queue cleared — autofill finished
-      if (progressStatus) progressStatus.textContent = "Autofill complete!";
-      showSuccess("Autofill complete!");
+      if (progressStatus) progressStatus.textContent = "✓ Autofill complete!";
+      showSuccess("Autofill batch complete! All forms have been filled.");
       refreshPayloadStatus();
+      // Flash the badge to indicate completion
+      if (connectionBadge) {
+        connectionBadge.classList.add("connected");
+        const text = connectionBadge.querySelector(".connection-text");
+        if (text) {
+          const originalText = text.textContent;
+          text.textContent = "✓ Complete";
+          setTimeout(() => { text.textContent = originalText; }, 4000);
+        }
+      }
     } else if (typeof newState.currentIndex === "number" && typeof newState.total === "number") {
       if (progressStatus) {
         progressStatus.textContent = `Filling ${newState.currentIndex + 1} of ${newState.total}...`;
