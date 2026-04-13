@@ -50,6 +50,8 @@
     sendToApp: "CA_EXTENSION_SEND_TO_APP",
     scrollToNextVerification: "CA_EXTENSION_SCROLL_TO_NEXT",
     getVerificationStatus: "CA_EXTENSION_GET_VERIFICATION_STATUS",
+    storageGet: "CA_EXTENSION_STORAGE_GET",
+    storageSet: "CA_EXTENSION_STORAGE_SET",
   };
 
   const SESSION_STORAGE_KEYS = [
@@ -68,6 +70,93 @@
   const sessionStorageArea = storageApi?.session && typeof storageApi.session.get === "function"
     ? storageApi.session
     : storageApi?.local || null;
+  const runtimeApi = globalScope?.chrome?.runtime;
+  const isWebContentContext = Boolean(globalScope?.location && /^https?:$/i.test(globalScope.location.protocol || ""));
+
+  const sendStorageBridgeMessage = (type, payload, fallbackValue) =>
+    new Promise((resolve) => {
+      if (!runtimeApi?.id || typeof runtimeApi.sendMessage !== "function") {
+        resolve(fallbackValue);
+        return;
+      }
+
+      try {
+        runtimeApi.sendMessage({ type, payload }, (response) => {
+          if (runtimeApi.lastError || !response?.ok) {
+            resolve(fallbackValue);
+            return;
+          }
+
+          if (type === MESSAGE_TYPES.storageGet) {
+            resolve(response.items || fallbackValue);
+            return;
+          }
+
+          resolve(response);
+        });
+      } catch {
+        resolve(fallbackValue);
+      }
+    });
+
+  const readStorageArea = (area, keys, bridgeType) =>
+    new Promise((resolve) => {
+      if (!keys.length) {
+        resolve({});
+        return;
+      }
+
+      if (bridgeType && isWebContentContext) {
+        sendStorageBridgeMessage(bridgeType, { keys }, {}).then(resolve);
+        return;
+      }
+
+      if (!area || typeof area.get !== "function") {
+        resolve({});
+        return;
+      }
+
+      area.get(keys, (items) => {
+        if (runtimeApi?.lastError) {
+          if (bridgeType) {
+            sendStorageBridgeMessage(bridgeType, { keys }, {}).then(resolve);
+            return;
+          }
+          resolve({});
+          return;
+        }
+        resolve(items || {});
+      });
+    });
+
+  const writeStorageArea = (area, items, bridgeType) =>
+    new Promise((resolve) => {
+      const keys = Object.keys(items || {});
+      if (!keys.length) {
+        resolve();
+        return;
+      }
+
+      if (bridgeType && isWebContentContext) {
+        sendStorageBridgeMessage(bridgeType, { items }, {}).then(() => resolve());
+        return;
+      }
+
+      if (!area || typeof area.set !== "function") {
+        resolve();
+        return;
+      }
+
+      area.set(items, () => {
+        if (runtimeApi?.lastError) {
+          if (bridgeType) {
+            sendStorageBridgeMessage(bridgeType, { items }, {}).then(() => resolve());
+            return;
+          }
+        }
+        resolve();
+      });
+    });
 
   const STORAGE_HELPERS = {
     get: (keys) =>
@@ -83,10 +172,10 @@
 
         Promise.all([
           sessionKeys.length && sessionStorageArea
-            ? new Promise((innerResolve) => sessionStorageArea.get(sessionKeys, (items) => innerResolve(items || {})))
+            ? readStorageArea(sessionStorageArea, sessionKeys, MESSAGE_TYPES.storageGet)
             : Promise.resolve({}),
           localKeys.length
-            ? new Promise((innerResolve) => storageApi.local.get(localKeys, (items) => innerResolve(items || {})))
+            ? readStorageArea(storageApi.local, localKeys)
             : Promise.resolve({}),
         ]).then(([sessionItems, localItems]) => {
           resolve({ ...localItems, ...sessionItems });
@@ -105,10 +194,10 @@
 
         Promise.all([
           Object.keys(sessionItems).length && sessionStorageArea
-            ? new Promise((innerResolve) => sessionStorageArea.set(sessionItems, () => innerResolve()))
+            ? writeStorageArea(sessionStorageArea, sessionItems, MESSAGE_TYPES.storageSet)
             : Promise.resolve(),
           Object.keys(localItems).length
-            ? new Promise((innerResolve) => storageApi.local.set(localItems, () => innerResolve()))
+            ? writeStorageArea(storageApi.local, localItems)
             : Promise.resolve(),
         ]).then(() => resolve());
       }),

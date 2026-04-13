@@ -1,3 +1,4 @@
+(() => {
 /**
  * Content script for Initial Assessment Form autofill
  * Form ID: 1040788
@@ -1757,3 +1758,4 @@ if (document.readyState === "loading") {
 } else {
   run();
 }
+})();

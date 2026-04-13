@@ -587,6 +587,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === MESSAGE_TYPES.storageGet) {
+    getStored(message?.payload?.keys || [])
+      .then((items) => safeSendResponse({ ok: true, items }))
+      .catch((error) => safeSendResponse({ ok: false, error: error?.message || "Storage read failed" }));
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TYPES.storageSet) {
+    setStored(message?.payload?.items || {})
+      .then(() => safeSendResponse({ ok: true }))
+      .catch((error) => safeSendResponse({ ok: false, error: error?.message || "Storage write failed" }));
+    return true;
+  }
+
   if (message?.type === MESSAGE_TYPES.startAutofill) {
     startAutofill(message.caseId, message.serviceDataGroupId)
       .then(async () => {
@@ -698,7 +712,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") {
+  if (areaName !== "local" && areaName !== "session") {
     return;
   }
   if (!Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.runtimeMetrics)) {

@@ -1,3 +1,4 @@
+(() => {
 const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
   caseInfo: "caAcpCaseInfo",
@@ -323,3 +324,4 @@ const run = async () => {
 };
 
 run();
+})();
