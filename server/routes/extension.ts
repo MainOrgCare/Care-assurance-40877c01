@@ -407,6 +407,34 @@ export function registerExtensionRoutes(
     }
   });
 
+  // ACP service users for extension autofill (non-admin)
+  app.get("/api/extension/acp-service-users", requireAuth, async (_req: any, res) => {
+    try {
+      const serviceUsers = await storage.getAllAccessCarePlanningServiceUsers();
+
+      const users = serviceUsers.map((serviceUser: AccessCarePlanningServiceUser) => {
+        const name = serviceUser.serviceUserName || "Unknown";
+        const initials = name
+          .split(" ")
+          .filter(Boolean)
+          .map((word) => word[0])
+          .join(".") || "??";
+
+        return {
+          acpId: serviceUser.accessCarePlanningId,
+          name,
+          initials,
+          updatedAt: serviceUser.updatedAt,
+        };
+      });
+
+      return res.json({ users });
+    } catch (error: unknown) {
+      console.error("Extension ACP service users error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get ACP service users") });
+    }
+  });
+
   // Get service users list for extension dropdown
   app.get("/api/extension/service-users", requireAuth, async (req: any, res) => {
     try {

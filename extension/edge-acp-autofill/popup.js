@@ -314,6 +314,9 @@ const proceedWithSelection = document.getElementById("proceed-with-selection");
 const caseIdInput = document.getElementById("case-id");
 const serviceDataGroupInput = document.getElementById("service-data-group-id");
 const autoDetectIdsButton = document.getElementById("auto-detect-ids");
+const autofillUserSearch = document.getElementById("autofill-user-search");
+const autofillUserDropdown = document.getElementById("autofill-user-dropdown");
+const autofillSelectedUser = document.getElementById("autofill-selected-user");
 const autoSubmitToggle = document.getElementById("auto-submit");
 const dryRunToggle = document.getElementById("dry-run");
 const interactionModeSelect = document.getElementById("interaction-mode");
@@ -349,7 +352,9 @@ const footerExtensionVersion = document.getElementById("footer-extension-version
 
 let isConnected = false;
 let serviceUsers = [];
+let acpServiceUsers = [];
 let selectedUser = null;
+let selectedAutofillUser = null;
 let selectedFilesList = [];
 let uploadedDocuments = [];
 let currentAnalysisResults = null;
@@ -1029,6 +1034,17 @@ async function connectToCareAssurance() {
         } catch (e) {
           console.warn("Failed to fetch service users:", e);
         }
+
+        // Fetch ACP service users for autofill user picker
+        try {
+          const acpRes = await apiProxy('/api/extension/acp-service-users');
+          if (acpRes.ok) {
+            acpServiceUsers = acpRes.data?.users || [];
+            renderAutofillUserDropdown();
+          }
+        } catch (e) {
+          console.warn("Failed to fetch ACP service users:", e);
+        }
         
         // Fetch recent items
         try {
@@ -1160,6 +1176,111 @@ function displayServiceUsers() {
 }
 
 serviceUserSearch?.addEventListener("input", displayServiceUsers);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOFILL USER PICKER (ACP service users → Case ID auto-fill)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_SERVICE_DATA_GROUP_ID = "1017650";
+
+function escapeAttr(str) {
+  return String(str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderAutofillUserDropdown(filter) {
+  if (!autofillUserDropdown) return;
+
+  const term = (filter || autofillUserSearch?.value || "").trim().toLowerCase();
+  const filtered = acpServiceUsers.filter(u =>
+    u.name?.toLowerCase().includes(term)
+  );
+
+  if (filtered.length === 0) {
+    autofillUserDropdown.innerHTML = '<div class="autofill-user-option" style="pointer-events:none;opacity:0.5;"><span class="autofill-user-option-name">No service users found</span></div>';
+    autofillUserDropdown.hidden = false;
+    return;
+  }
+
+  autofillUserDropdown.innerHTML = filtered.slice(0, 15).map(u => `
+    <div class="autofill-user-option" data-acp-id="${escapeAttr(u.acpId)}" data-name="${escapeAttr(u.name)}">
+      <div class="user-avatar">${escapeHtml(u.initials || "??")}</div>
+      <span class="autofill-user-option-name">${escapeHtml(u.name || "Unknown")}</span>
+      <span class="autofill-user-option-id">ID ${escapeHtml(String(u.acpId))}</span>
+    </div>
+  `).join("");
+
+  autofillUserDropdown.hidden = false;
+
+  autofillUserDropdown.querySelectorAll(".autofill-user-option[data-acp-id]").forEach(option => {
+    option.addEventListener("click", () => {
+      selectAutofillUser({
+        acpId: option.dataset.acpId,
+        name: option.dataset.name,
+        initials: option.querySelector(".user-avatar")?.textContent || "??",
+      });
+    });
+  });
+}
+
+function selectAutofillUser(user) {
+  selectedAutofillUser = user || null;
+
+  if (autofillUserDropdown) autofillUserDropdown.hidden = true;
+  if (autofillUserSearch) autofillUserSearch.value = "";
+
+  if (!user) {
+    if (autofillSelectedUser) autofillSelectedUser.hidden = true;
+    if (caseIdInput) caseIdInput.value = "";
+    return;
+  }
+
+  if (caseIdInput) caseIdInput.value = user.acpId || "";
+  if (serviceDataGroupInput && !serviceDataGroupInput.value.trim()) {
+    serviceDataGroupInput.value = DEFAULT_SERVICE_DATA_GROUP_ID;
+  }
+
+  if (autofillSelectedUser) {
+    autofillSelectedUser.hidden = false;
+    autofillSelectedUser.innerHTML = `
+      <div class="user-avatar">${escapeHtml(user.initials || "??")}</div>
+      <div class="autofill-selected-user-info">
+        <div class="autofill-selected-user-name">${escapeHtml(user.name || "Unknown")}</div>
+        <div class="autofill-selected-user-meta">Case ID ${escapeHtml(String(user.acpId))} &middot; Group ${escapeHtml(serviceDataGroupInput?.value || DEFAULT_SERVICE_DATA_GROUP_ID)}</div>
+      </div>
+      <button type="button" class="autofill-selected-user-clear" title="Clear selection">&times;</button>
+    `;
+
+    autofillSelectedUser.querySelector(".autofill-selected-user-clear")?.addEventListener("click", () => {
+      selectAutofillUser(null);
+    });
+  }
+
+  showSuccess(`${user.name} selected — Case ID ${user.acpId}`);
+}
+
+autofillUserSearch?.addEventListener("input", () => {
+  const term = autofillUserSearch.value.trim();
+  if (term.length === 0 && !selectedAutofillUser) {
+    if (autofillUserDropdown) autofillUserDropdown.hidden = true;
+    return;
+  }
+  renderAutofillUserDropdown(term);
+});
+
+autofillUserSearch?.addEventListener("focus", () => {
+  if (acpServiceUsers.length > 0) {
+    renderAutofillUserDropdown();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (autofillUserDropdown && !autofillUserDropdown.hidden) {
+    const picker = autofillUserSearch?.closest(".autofill-user-picker");
+    if (picker && !picker.contains(event.target)) {
+      autofillUserDropdown.hidden = true;
+    }
+  }
+});
 
 function selectUser(userId) {
   selectedUser = serviceUsers.find(u => u.id === userId);

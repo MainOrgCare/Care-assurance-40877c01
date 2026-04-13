@@ -333,14 +333,22 @@
               <p class="card-description">Tune the workflow for service user records and care worker-related field completion</p>
             </div>
             <div class="card-content">
+              <div class="form-group">
+                <label class="form-label">Service User</label>
+                <div class="autofill-user-picker">
+                  <input id="autofill-user-search" type="text" class="form-input" placeholder="Search service users…" />
+                  <div id="autofill-user-dropdown" class="autofill-user-dropdown" hidden></div>
+                </div>
+                <div id="autofill-selected-user" class="autofill-selected-user" hidden></div>
+              </div>
               <div class="form-row">
                 <div class="form-group half">
                   <label class="form-label">Case ID</label>
-                  <input id="case-id" type="text" class="form-input" placeholder="61758" />
+                  <input id="case-id" type="text" class="form-input" placeholder="Auto-filled from user" />
                 </div>
                 <div class="form-group half">
                   <label class="form-label">Service Data Group</label>
-                  <input id="service-data-group-id" type="text" class="form-input" placeholder="1017650" />
+                  <input id="service-data-group-id" type="text" class="form-input" value="1017650" placeholder="1017650" />
                 </div>
               </div>
               <button id="auto-detect-ids" class="btn btn-secondary btn-sm btn-block" title="Detect from current page URL">🔍 Auto-Detect from Page</button>
