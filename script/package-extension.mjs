@@ -17,7 +17,6 @@ const outputPath = path.resolve(distDir, "edge-acp-autofill.zip");
 const tempOutputPath = `${outputPath}.tmp`;
 
 const excludedPatterns = [
-  "README.md",
   "CHANGELOG.md",
   "TESTING-PLAN-ENHANCER.md",
   "popup-old.js",
