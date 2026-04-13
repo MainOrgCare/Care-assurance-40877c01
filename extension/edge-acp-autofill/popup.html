@@ -18,9 +18,10 @@
             <h1 class="header-title">CareAssurance</h1>
             <p id="header-subtitle" class="header-subtitle">Connected workspace for ACP Autofill</p>
           </div>
-          <div id="connection-badge" class="connection-badge disconnected">
+          <div id="connection-badge" class="connection-badge disconnected" title="Click to see connection details">
             <span class="connection-dot"></span>
             <span class="connection-text">Offline</span>
+            <span class="connection-uptime" id="connection-uptime"></span>
           </div>
         </div>
       </header>
@@ -384,15 +385,49 @@
             </div>
           </section>
 
+          <details id="autofill-live-progress" class="card collapsible" hidden>
+            <summary class="collapsible-header">
+              <span>Live Autofill Progress</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="card-content">
+              <div class="live-progress-bar">
+                <div class="live-progress-track">
+                  <div id="live-progress-fill" class="live-progress-fill"></div>
+                </div>
+                <span id="live-progress-label" class="live-progress-label">Waiting…</span>
+              </div>
+              <div id="live-progress-field" class="live-progress-field">No field active</div>
+              <div id="live-progress-queue" class="live-progress-queue"></div>
+            </div>
+          </details>
+
+          <details id="payload-review-panel" class="card collapsible" hidden>
+            <summary class="collapsible-header">
+              <span>Payload Review</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="card-content">
+              <p class="card-description" style="margin-bottom:10px;">Preview what will be filled before starting autofill</p>
+              <div id="payload-review-list" class="payload-review-list"></div>
+              <button id="confirm-payload-review" class="btn btn-primary btn-sm btn-block" style="margin-top:10px;">Looks Good — Start Autofill</button>
+            </div>
+          </details>
+
           <details class="card collapsible">
             <summary class="collapsible-header">
               <span>Signature & Logs</span>
               <span class="chevron">▼</span>
             </summary>
             <div class="card-content">
-              <input id="signature-file" type="file" accept="image/*" class="file-input" />
-              <button id="upload-signature" class="btn btn-secondary btn-sm btn-block">Upload Signature</button>
-              <div id="signature-filename" class="selected-filename"></div>
+              <div class="signature-manager">
+                <div id="signature-preview" class="signature-preview" hidden></div>
+                <div class="signature-controls">
+                  <input id="signature-file" type="file" accept="image/*" class="file-input" />
+                  <button id="upload-signature" class="btn btn-secondary btn-sm btn-block">Upload Signature</button>
+                  <div id="signature-filename" class="selected-filename"></div>
+                </div>
+              </div>
               <div id="signature-status" class="status-text"></div>
               <hr />
               <div id="log-status" class="status-text">No actions.</div>

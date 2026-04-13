@@ -1,5 +1,39 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.3.6 - UX & Productivity Overhaul (Latest)
+
+### Persistent State
+
+- Popup now remembers the last active tab (Workspace / Intake / Autofill) and restores it on next open.
+- Last selected autofill service user is restored across popup sessions.
+
+### Connection Health Widget
+
+- Connection badge shows four distinct states: Connected (with uptime timer), Connecting (pulsing), Error, and Disconnected.
+- Live uptime counter ticks every second while connected.
+
+### Signature Preview
+
+- Uploaded signature images now show an 80×48 thumbnail preview alongside the upload controls.
+- Preview clears when the signature is removed.
+
+### Keyboard Navigation
+
+- Autofill user dropdown supports Arrow Up/Down, Enter to select, and Escape to close.
+- Active option is visually highlighted as you navigate.
+
+### Payload Review Panel
+
+- New collapsible "Payload Review" card previews the structured data that will be filled (assessment titles, field counts, first few values).
+- "Looks Good — Start Autofill" button confirms and starts directly from the review.
+
+### Live Autofill Progress
+
+- New collapsible "Live Autofill Progress" panel with animated progress bar, percentage label, current-field indicator, and per-field pip indicators (done / active / error states).
+- Driven by storage change events for real-time updates without polling.
+
+---
+
 ## Version 0.3.5 - Connected Session Privacy Update (April 13, 2026)
 
 ### Privacy and Data Handling

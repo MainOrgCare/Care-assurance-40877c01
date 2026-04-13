@@ -948,13 +948,17 @@ const writeToClipboard = async (value) => {
 // TAB NAVIGATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-function switchTab(tabName) {
+function switchTab(tabName, { persist = true } = {}) {
   [tabConnectBtn, tabUploadBtn, tabAutofillBtn].forEach(btn => btn?.classList.remove("active"));
   [tabContentConnect, tabContentUpload, tabContentAutofill].forEach(content => content?.classList.remove("active"));
   
   if (tabName === "connect") { tabConnectBtn?.classList.add("active"); tabContentConnect?.classList.add("active"); }
   if (tabName === "upload") { tabUploadBtn?.classList.add("active"); tabContentUpload?.classList.add("active"); }
   if (tabName === "autofill") { tabAutofillBtn?.classList.add("active"); tabContentAutofill?.classList.add("active"); }
+
+  if (persist) {
+    chrome.storage.local.set({ caAcpLastTab: tabName }).catch(() => {});
+  }
 }
 
 tabConnectBtn?.addEventListener("click", () => switchTab("connect"));
@@ -964,6 +968,9 @@ tabAutofillBtn?.addEventListener("click", () => switchTab("autofill"));
 // ═══════════════════════════════════════════════════════════════════════════
 // CONNECTION MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════
+
+let connectionEstablishedAt = null;
+let connectionUptimeTimer = null;
 
 function updateConnectionUI(connected, user = null) {
   isConnected = connected;
@@ -975,6 +982,24 @@ function updateConnectionUI(connected, user = null) {
     connectionBadge.className = `connection-badge ${connected ? "connected" : "disconnected"}`;
     const text = connectionBadge.querySelector(".connection-text");
     if (text) text.textContent = connected ? (user?.username || "Connected") : "Offline";
+
+    // Manage uptime timer
+    const uptimeEl = document.getElementById("connection-uptime");
+    if (connected) {
+      if (!connectionEstablishedAt) connectionEstablishedAt = Date.now();
+      if (!connectionUptimeTimer && uptimeEl) {
+        connectionUptimeTimer = setInterval(() => {
+          const secs = Math.floor((Date.now() - connectionEstablishedAt) / 1000);
+          const m = Math.floor(secs / 60);
+          const s = secs % 60;
+          uptimeEl.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
+        }, 1000);
+      }
+    } else {
+      connectionEstablishedAt = null;
+      if (connectionUptimeTimer) { clearInterval(connectionUptimeTimer); connectionUptimeTimer = null; }
+      if (uptimeEl) uptimeEl.textContent = "";
+    }
   }
   
   if (connectStatus) {
@@ -998,6 +1023,13 @@ function updateConnectionUI(connected, user = null) {
 async function connectToCareAssurance() {
   if (connectBtn) connectBtn.disabled = true;
   if (connectStatus) connectStatus.innerHTML = "<span>Connecting...</span>";
+
+  // Show connecting state on badge
+  if (connectionBadge) {
+    connectionBadge.className = "connection-badge connecting";
+    const text = connectionBadge.querySelector(".connection-text");
+    if (text) text.textContent = "Connecting…";
+  }
   
   // Try to load saved URL first
   const stored = await loadStorage(['caAcpServerUrl']);
@@ -1225,6 +1257,9 @@ function renderAutofillUserDropdown(filter) {
 function selectAutofillUser(user) {
   selectedAutofillUser = user || null;
 
+  // Persist selection
+  chrome.storage.local.set({ caAcpLastAutofillUser: user || null }).catch(() => {});
+
   if (autofillUserDropdown) autofillUserDropdown.hidden = true;
   if (autofillUserSearch) autofillUserSearch.value = "";
 
@@ -1270,6 +1305,39 @@ autofillUserSearch?.addEventListener("input", () => {
 autofillUserSearch?.addEventListener("focus", () => {
   if (acpServiceUsers.length > 0) {
     renderAutofillUserDropdown();
+  }
+});
+
+// Keyboard navigation for autofill user dropdown
+autofillUserSearch?.addEventListener("keydown", (e) => {
+  if (!autofillUserDropdown || autofillUserDropdown.hidden) return;
+  const options = [...autofillUserDropdown.querySelectorAll(".autofill-user-option[data-acp-id]")];
+  if (!options.length) return;
+
+  const activeClass = "autofill-user-option-active";
+  let current = autofillUserDropdown.querySelector(`.${activeClass}`);
+  let idx = current ? options.indexOf(current) : -1;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (current) current.classList.remove(activeClass);
+    idx = idx < options.length - 1 ? idx + 1 : 0;
+    options[idx].classList.add(activeClass);
+    options[idx].scrollIntoView({ block: "nearest" });
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (current) current.classList.remove(activeClass);
+    idx = idx > 0 ? idx - 1 : options.length - 1;
+    options[idx].classList.add(activeClass);
+    options[idx].scrollIntoView({ block: "nearest" });
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (current && current.dataset.acpId) {
+      current.click();
+    }
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    autofillUserDropdown.hidden = true;
   }
 });
 
@@ -1637,6 +1705,7 @@ async function refreshPayloadStatus() {
   }
 
   renderPayloadInspector(payload, payloadStoredAt);
+  renderPayloadReview(payload);
   
   if (data[STORAGE_KEYS.caseInfo]) {
     if (caseIdInput) caseIdInput.value = data[STORAGE_KEYS.caseInfo].caseId || "";
@@ -1997,15 +2066,130 @@ errorDismissBtn?.addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PAYLOAD REVIEW (structured preview before starting autofill)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderPayloadReview(payload) {
+  const panel = document.getElementById("payload-review-panel");
+  const list = document.getElementById("payload-review-list");
+  const confirmBtn = document.getElementById("confirm-payload-review");
+  if (!panel || !list) return;
+
+  if (!payload) { panel.hidden = true; return; }
+
+  const items = [];
+  if (payload.formType === "acp" && Array.isArray(payload.assessments)) {
+    payload.assessments.forEach((a, i) => {
+      const fieldCount = Object.keys(a.fields || {}).length;
+      items.push({
+        title: a.title || `Assessment ${i + 1}`,
+        badge: `${fieldCount} fields`,
+        detail: Object.entries(a.fields || {}).slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(", "),
+      });
+    });
+  } else if (payload.formType === "initialAssessment") {
+    const sections = payload.sections || [];
+    sections.forEach(s => {
+      const fieldCount = Object.keys(s.fields || {}).length;
+      items.push({
+        title: s.title || "Section",
+        badge: `${fieldCount} fields`,
+        detail: Object.entries(s.fields || {}).slice(0, 3).map(([k, v]) => `${k}: ${String(v).slice(0, 60)}`).join(", "),
+      });
+    });
+  } else if (payload.formType === "emar") {
+    items.push({
+      title: "EMAR Audit",
+      badge: payload.medications?.length ? `${payload.medications.length} meds` : "Ready",
+      detail: payload.serviceUser || "Service user data loaded",
+    });
+  }
+
+  if (items.length === 0 && payload.formType) {
+    items.push({
+      title: payload.formType,
+      badge: "Ready",
+      detail: "Payload loaded and ready for autofill",
+    });
+  }
+
+  if (items.length === 0) { panel.hidden = true; return; }
+
+  list.innerHTML = items.map(item => `
+    <div class="payload-review-item">
+      <div class="payload-review-item-header">
+        <span class="payload-review-item-title">${escapeHtml(item.title)}</span>
+        <span class="payload-review-item-badge">${escapeHtml(item.badge)}</span>
+      </div>
+      <div class="payload-review-item-detail">${escapeHtml(item.detail || "—")}</div>
+    </div>
+  `).join("");
+  panel.hidden = false;
+
+  // Wire confirm button to start autofill
+  if (confirmBtn) {
+    const newBtn = confirmBtn.cloneNode(true);
+    confirmBtn.replaceWith(newBtn);
+    newBtn.addEventListener("click", () => {
+      startButton?.click();
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE AUTOFILL PROGRESS (driven by storage change listener)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateLiveProgress(queueState) {
+  const panel = document.getElementById("autofill-live-progress");
+  const fill = document.getElementById("live-progress-fill");
+  const label = document.getElementById("live-progress-label");
+  const field = document.getElementById("live-progress-field");
+  const queue = document.getElementById("live-progress-queue");
+  if (!panel) return;
+
+  if (!queueState || typeof queueState.total !== "number") {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  const { currentIndex = 0, total, currentField, fieldStates } = queueState;
+  const pct = total > 0 ? Math.round(((currentIndex) / total) * 100) : 0;
+
+  if (fill) fill.style.width = `${pct}%`;
+  if (label) label.textContent = `${currentIndex} / ${total} (${pct}%)`;
+  if (field) field.textContent = currentField ? `Filling: ${currentField}` : "Preparing…";
+
+  // Render pip indicators if we have field states
+  if (queue && Array.isArray(fieldStates)) {
+    queue.innerHTML = fieldStates.map((state, i) => {
+      let cls = "live-progress-pip";
+      if (state === "done") cls += " done";
+      else if (state === "active") cls += " active";
+      else if (state === "error") cls += " error";
+      return `<div class="${cls}" title="Field ${i + 1}: ${state}"></div>`;
+    }).join("");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SIGNATURE STATUS
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function refreshSignatureStatus() {
   const data = await loadStorage([STORAGE_KEYS.signatureData]);
   const signatureData = data.caAcpSignatureData;
+  const signaturePreview = document.getElementById("signature-preview");
   
   if (signatureStatus) {
     if (signatureData?.dataUrl) {
+      // Show thumbnail preview
+      if (signaturePreview) {
+        signaturePreview.hidden = false;
+        signaturePreview.innerHTML = `<img src="${signatureData.dataUrl}" alt="Signature preview" />`;
+      }
+
       signatureStatus.className = 'status-box success';
       const uploadDate = signatureData.uploadedAt 
         ? new Date(signatureData.uploadedAt).toLocaleString() 
@@ -2027,6 +2211,7 @@ async function refreshSignatureStatus() {
         showSuccess("Signature cleared");
       });
     } else {
+      if (signaturePreview) { signaturePreview.hidden = true; signaturePreview.innerHTML = ""; }
       signatureStatus.className = 'status-box';
       signatureStatus.innerHTML = '<span>No signature uploaded</span>';
     }
@@ -2051,6 +2236,17 @@ async function refreshSignatureStatus() {
     CARE_ASSURANCE_URL = stored.caAcpServerUrl;
   }
   await refreshWorkspaceContext();
+
+  // Restore last active tab
+  const { caAcpLastTab, caAcpLastAutofillUser } = await new Promise(r => chrome.storage.local.get(["caAcpLastTab", "caAcpLastAutofillUser"], r));
+  if (caAcpLastTab) {
+    switchTab(caAcpLastTab, { persist: false });
+  }
+
+  // Restore last selected autofill user
+  if (caAcpLastAutofillUser?.acpId) {
+    selectAutofillUser(caAcpLastAutofillUser);
+  }
   
   // Auto-detect case ID and service data group from URL if on risk assessment page
   try {
@@ -2136,6 +2332,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   // Queue state changed — update progress display
   if (changes[STORAGE_KEYS.queueState]) {
     const newState = changes[STORAGE_KEYS.queueState].newValue;
+    updateLiveProgress(newState);
     if (!newState) {
       // Queue cleared — autofill finished
       if (progressStatus) progressStatus.textContent = "Autofill complete!";
