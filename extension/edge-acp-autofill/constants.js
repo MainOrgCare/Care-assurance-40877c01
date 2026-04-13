@@ -4,6 +4,7 @@
 
   const STORAGE_KEYS = {
     payload: "caAcpPayload",
+    dataTimestamp: "caAcpDataTimestamp",
     caseInfo: "caAcpCaseInfo",
     queueState: "caAcpQueueState",
     logs: "caAcpLogs",

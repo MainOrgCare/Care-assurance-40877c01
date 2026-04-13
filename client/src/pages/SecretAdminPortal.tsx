@@ -4238,6 +4238,82 @@ export default function SecretAdminPortal() {
   const [extensionTestMessage, setExtensionTestMessage] = useState("");
   const [opsHealth, setOpsHealth] = useState<OpsHealthSnapshot | null>(null);
 
+  const formatExtensionTestError = (error?: string) => {
+    const base = error?.trim() || "Unknown extension error.";
+
+    if (/updated|refresh this page/i.test(base)) {
+      return `${base} Refresh this admin page so the content script matches the current extension build.`;
+    }
+
+    if (/background service unavailable/i.test(base)) {
+      return `${base} Open the extension popup once, then retry if Edge suspended the background worker.`;
+    }
+
+    if (/invalid|unsupported/i.test(base)) {
+      return `${base} The test payload was rejected before it could be stored in the extension.`;
+    }
+
+    return `Extension responded with error: ${base}`;
+  };
+
+  const sendExtensionTestPayload = async ({
+    messageType,
+    payload,
+    pendingMessage,
+    successMessage,
+    timeoutMessage,
+  }: {
+    messageType: "CA_SEND_TO_ACP_EXTENSION" | "CA_EXTENSION_STORE_PAYLOAD";
+    payload: Record<string, unknown>;
+    pendingMessage: string;
+    successMessage: string;
+    timeoutMessage: string;
+  }) => {
+    if (typeof window === "undefined") return;
+
+    setExtensionTestStatus("testing");
+    setExtensionTestMessage(pendingMessage);
+
+    const requestId =
+      typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      const response = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
+        let handler: ((event: MessageEvent) => void) | null = null;
+        const timeoutId = window.setTimeout(() => {
+          if (handler) window.removeEventListener("message", handler);
+          reject(new Error(timeoutMessage));
+        }, 3000);
+
+        handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
+          if (event.data.requestId !== requestId) return;
+          window.clearTimeout(timeoutId);
+          window.removeEventListener("message", handler!);
+          resolve({ ok: Boolean(event.data.ok), error: event.data.error });
+        };
+
+        window.addEventListener("message", handler);
+        window.postMessage({ type: messageType, requestId, payload }, window.location.origin);
+      });
+
+      if (response.ok) {
+        setExtensionTestStatus("success");
+        setExtensionTestMessage(successMessage);
+        return;
+      }
+
+      setExtensionTestStatus("failed");
+      setExtensionTestMessage(formatExtensionTestError(response.error));
+    } catch (error) {
+      setExtensionTestStatus("failed");
+      setExtensionTestMessage(error instanceof Error ? error.message : timeoutMessage);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     fetchAdminAlerts();
@@ -4983,9 +5059,6 @@ export default function SecretAdminPortal() {
                       data-testid="button-test-extension-connection"
                       disabled={extensionTestStatus === "testing"}
                       onClick={() => {
-                        setExtensionTestStatus("testing");
-                        setExtensionTestMessage("Sending test payload to extension...");
-                        const requestId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                         const testPayload = {
                           formType: "acp" as const,
                           assessments: [{
@@ -5005,33 +5078,13 @@ export default function SecretAdminPortal() {
                           serviceUserDisplayName: "Test Extension",
                         };
 
-                        let handler: ((event: MessageEvent) => void) | null = null;
-                        const timeoutId = window.setTimeout(() => {
-                          if (handler) window.removeEventListener("message", handler);
-                          setExtensionTestStatus("failed");
-                          setExtensionTestMessage("Extension not detected. Ensure the CareAssurance Edge extension is installed and this page has been refreshed after installation.");
-                        }, 3000);
-
-                        handler = (event: MessageEvent) => {
-                          if (event.source !== window) return;
-                          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
-                          if (event.data.requestId !== requestId) return;
-                          window.clearTimeout(timeoutId);
-                          window.removeEventListener("message", handler!);
-                          if (event.data.ok) {
-                            setExtensionTestStatus("success");
-                            setExtensionTestMessage("Extension connected and received the test payload. Data is stored and ready for autofill.");
-                          } else {
-                            setExtensionTestStatus("failed");
-                            setExtensionTestMessage(`Extension responded with error: ${event.data.error || "Unknown error"}`);
-                          }
-                        };
-
-                        window.addEventListener("message", handler);
-                        window.postMessage(
-                          { type: "CA_SEND_TO_ACP_EXTENSION", requestId, payload: testPayload },
-                          window.location.origin
-                        );
+                        void sendExtensionTestPayload({
+                          messageType: "CA_SEND_TO_ACP_EXTENSION",
+                          payload: testPayload,
+                          pendingMessage: "Sending ACP test payload to the extension...",
+                          successMessage: "Extension connected and stored the ACP test payload. Open the extension popup, go to Autofill, and review Latest Payload.",
+                          timeoutMessage: "Extension not detected. Ensure the CareAssurance Edge extension is installed and enabled, then refresh this admin page after any install or update.",
+                        });
                       }}
                     >
                       {extensionTestStatus === "testing" ? (
@@ -5047,9 +5100,6 @@ export default function SecretAdminPortal() {
                       data-testid="button-test-extension-store"
                       disabled={extensionTestStatus === "testing"}
                       onClick={() => {
-                        setExtensionTestStatus("testing");
-                        setExtensionTestMessage("Sending initialAssessment test payload...");
-                        const requestId = `test-ia-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                         const testPayload = {
                           formType: "initialAssessment" as const,
                           initialAssessmentData: {
@@ -5059,33 +5109,13 @@ export default function SecretAdminPortal() {
                           date: new Date().toISOString().split("T")[0],
                         };
 
-                        let handler: ((event: MessageEvent) => void) | null = null;
-                        const timeoutId = window.setTimeout(() => {
-                          if (handler) window.removeEventListener("message", handler);
-                          setExtensionTestStatus("failed");
-                          setExtensionTestMessage("Extension not detected for Initial Assessment payload. Ensure the extension is installed and refresh the page.");
-                        }, 3000);
-
-                        handler = (event: MessageEvent) => {
-                          if (event.source !== window) return;
-                          if (!event.data || event.data.type !== "CA_EXTENSION_ACK") return;
-                          if (event.data.requestId !== requestId) return;
-                          window.clearTimeout(timeoutId);
-                          window.removeEventListener("message", handler!);
-                          if (event.data.ok) {
-                            setExtensionTestStatus("success");
-                            setExtensionTestMessage("Extension connected and received the Initial Assessment test payload.");
-                          } else {
-                            setExtensionTestStatus("failed");
-                            setExtensionTestMessage(`Extension responded with error: ${event.data.error || "Unknown error"}`);
-                          }
-                        };
-
-                        window.addEventListener("message", handler);
-                        window.postMessage(
-                          { type: "CA_EXTENSION_STORE_PAYLOAD", requestId, payload: testPayload },
-                          window.location.origin
-                        );
+                        void sendExtensionTestPayload({
+                          messageType: "CA_EXTENSION_STORE_PAYLOAD",
+                          payload: testPayload,
+                          pendingMessage: "Sending Initial Assessment test payload to the extension...",
+                          successMessage: "Extension connected and stored the Initial Assessment test payload. Open the extension popup, go to Autofill, and review Latest Payload.",
+                          timeoutMessage: "Extension not detected for the Initial Assessment test. Ensure the extension is installed and enabled, then refresh this admin page after any install or update.",
+                        });
                       }}
                     >
                       {extensionTestStatus === "testing" ? (
@@ -5123,7 +5153,7 @@ export default function SecretAdminPortal() {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Tests send a dummy payload via <code>window.postMessage</code> and wait for the extension's ACK. A 3-second timeout indicates the extension is not installed or content script is not loaded.
+                    Tests send a dummy payload via <code>window.postMessage</code> and wait for the extension's ACK. After a successful test, open the extension popup and check <strong>Autofill</strong> → <strong>Latest Payload</strong> to inspect the stored JSON.
                   </p>
                 </CardContent>
               </Card>

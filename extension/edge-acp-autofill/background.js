@@ -532,7 +532,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   };
 
   if (message?.type === MESSAGE_TYPES.storePayload) {
-    setStored({ [STORAGE_KEYS.payload]: message.payload })
+    setStored({
+      [STORAGE_KEYS.payload]: message.payload,
+      [STORAGE_KEYS.dataTimestamp]: Date.now(),
+    })
       .then(clearLastError)
       .then(() => safeSendResponse({ ok: true }))
       .catch((error) => {

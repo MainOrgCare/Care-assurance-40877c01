@@ -766,6 +766,47 @@ html, body {
   border: 1px solid hsl(142, 60%, 82%);
 }
 
+.payload-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payload-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid color-mix(in hsl, var(--color-border) 92%, white);
+  border-radius: 10px;
+  background: color-mix(in hsl, var(--color-muted) 60%, white);
+  padding: 10px 12px;
+}
+
+.payload-summary-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in hsl, var(--color-primary) 70%, white);
+}
+
+.payload-summary-value {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-foreground);
+  word-break: break-word;
+}
+
+.payload-json {
+  max-height: 240px;
+}
+
+.payload-json.empty {
+  font-style: italic;
+  color: var(--color-muted-foreground);
+}
+
 .progress-container {
   display: flex;
   flex-direction: column;

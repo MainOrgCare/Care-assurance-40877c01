@@ -218,6 +218,20 @@
             </div>
           </section>
 
+          <details id="payload-inspector-section" class="card collapsible" hidden open>
+            <summary class="collapsible-header">
+              <span>Latest Payload</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="card-content">
+              <div id="payload-summary" class="payload-summary"></div>
+              <div id="payload-json" class="log-container payload-json empty">No payload stored.</div>
+              <div class="runtime-actions">
+                <button id="copy-payload" class="btn btn-secondary btn-sm">Copy Payload</button>
+              </div>
+            </div>
+          </details>
+
           <section id="selection-section" class="card" hidden>
             <div class="card-header">
               <h2 class="card-title">Select Assessments</h2>

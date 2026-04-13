@@ -105,6 +105,7 @@ async function apiProxy(endpoint, method = 'GET', body = null, options = {}) {
 
 const FALLBACK_STORAGE_KEYS = {
   payload: "caAcpPayload",
+  dataTimestamp: "caAcpDataTimestamp",
   caseInfo: "caAcpCaseInfo",
   queueState: "caAcpQueueState",
   autoSubmit: "caAcpAutoSubmit",
@@ -140,7 +141,7 @@ const setStorage = (items) => new Promise((resolve) => chrome.storage.local.set(
 
 // GDPR: Auto-cleanup stale PII data after 2 hours
 const DATA_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
-const DATA_TIMESTAMP_KEY = "caAcpDataTimestamp";
+const DATA_TIMESTAMP_KEY = STORAGE_KEYS.dataTimestamp || "caAcpDataTimestamp";
 
 async function autoCleanupStaleData() {
   try {
@@ -215,6 +216,10 @@ const clearUploadsBtn = document.getElementById("clear-uploads");
 
 // Autofill tab
 const payloadStatus = document.getElementById("payload-status");
+const payloadInspectorSection = document.getElementById("payload-inspector-section");
+const payloadSummary = document.getElementById("payload-summary");
+const payloadJson = document.getElementById("payload-json");
+const copyPayloadButton = document.getElementById("copy-payload");
 const selectionSection = document.getElementById("selection-section");
 const assessmentList = document.getElementById("assessment-list");
 const selectionCount = document.getElementById("selection-count");
@@ -255,6 +260,15 @@ let selectedUser = null;
 let selectedFilesList = [];
 let uploadedDocuments = [];
 let currentAnalysisResults = null;
+let latestPayloadSnapshot = null;
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 const formatRuntimeTime = (value) => {
   if (!value) return "-";
@@ -262,6 +276,88 @@ const formatRuntimeTime = (value) => {
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleTimeString();
 };
+
+const formatPayloadTimestamp = (value) => {
+  if (!value) return "Unknown";
+  const timestamp = typeof value === "number" ? value : Number(value);
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+};
+
+const buildPayloadSummaryItems = (payload, storedAt) => {
+  if (!payload || typeof payload !== "object") return [];
+
+  const items = [
+    { label: "Form", value: payload.formType || "Unknown" },
+    { label: "Stored", value: formatPayloadTimestamp(storedAt) },
+  ];
+
+  if (payload.formType === "acp") {
+    items.push({ label: "Assessments", value: String(payload.assessments?.length || 0) });
+  } else if (payload.formType === "initialAssessment") {
+    items.push({ label: "Sections", value: String(Object.keys(payload.initialAssessmentData || {}).length) });
+  } else if (payload.formType === "emar") {
+    items.push({ label: "Payload", value: "EMAR audit" });
+  }
+
+  if (payload.serviceUserDisplayName) {
+    items.push({ label: "Service User", value: payload.serviceUserDisplayName });
+  }
+
+  if (payload.serviceUserInitials) {
+    items.push({ label: "Initials", value: payload.serviceUserInitials });
+  }
+
+  if (payload.assessor) {
+    items.push({ label: "Assessor", value: payload.assessor });
+  }
+
+  const firstAssessmentName = Array.isArray(payload.assessments)
+    ? payload.assessments
+        .map((assessment) => assessment?.name || assessment?.assessmentType || assessment?.riskTitle)
+        .find(Boolean)
+    : null;
+  if (firstAssessmentName) {
+    items.push({ label: "First Item", value: firstAssessmentName });
+  }
+
+  return items.slice(0, 6);
+};
+
+function renderPayloadInspector(payload, storedAt) {
+  latestPayloadSnapshot = payload && typeof payload === "object"
+    ? { payload, storedAt }
+    : null;
+
+  if (payloadInspectorSection) {
+    payloadInspectorSection.hidden = !latestPayloadSnapshot;
+  }
+
+  if (!payloadSummary || !payloadJson) return;
+
+  if (!latestPayloadSnapshot) {
+    payloadSummary.innerHTML = "";
+    payloadJson.textContent = "No payload stored.";
+    payloadJson.classList.add("empty");
+    return;
+  }
+
+  const summaryItems = buildPayloadSummaryItems(payload, storedAt);
+  payloadSummary.innerHTML = summaryItems
+    .map(
+      ({ label, value }) => `
+        <div class="payload-summary-item">
+          <span class="payload-summary-label">${escapeHtml(label)}</span>
+          <span class="payload-summary-value">${escapeHtml(value)}</span>
+        </div>
+      `
+    )
+    .join("");
+
+  payloadJson.textContent = JSON.stringify(payload, null, 2);
+  payloadJson.classList.remove("empty");
+}
 
 const formatRuntimeDuration = (startTime) => {
   if (!startTime) return "-";
@@ -794,12 +890,13 @@ let currentVerificationIndex = -1;
 
 async function refreshPayloadStatus() {
   const data = await loadStorage([
-    STORAGE_KEYS.payload, STORAGE_KEYS.caseInfo, STORAGE_KEYS.autoSubmit,
+    STORAGE_KEYS.payload, DATA_TIMESTAMP_KEY, STORAGE_KEYS.caseInfo, STORAGE_KEYS.autoSubmit,
     STORAGE_KEYS.dryRun, STORAGE_KEYS.interactionMode, STORAGE_KEYS.logs,
     STORAGE_KEYS.verificationFields, STORAGE_KEYS.runtimeMetrics
   ]);
   
   const payload = data.caAcpPayload;
+  const payloadStoredAt = data[DATA_TIMESTAMP_KEY];
   const verificationFields = data.caAcpVerificationFields || [];
   
   if (payloadStatus) {
@@ -810,6 +907,12 @@ async function refreshPayloadStatus() {
     } else if (payload?.formType === "acp" && payload?.assessments?.length) {
       payloadStatus.className = 'status-box success';
       statusHTML = `<span>\u2713 ${payload.assessments.length} assessment(s) ready</span>`;
+    } else if (payload?.formType === "emar") {
+      payloadStatus.className = 'status-box success';
+      statusHTML = '<span>\u2713 EMAR audit payload ready</span>';
+    } else if (payload?.formType) {
+      payloadStatus.className = 'status-box success';
+      statusHTML = `<span>\u2713 ${escapeHtml(payload.formType)} payload ready</span>`;
     } else {
       payloadStatus.className = 'status-box';
       statusHTML = '<span>No data loaded</span>';
@@ -850,6 +953,8 @@ async function refreshPayloadStatus() {
       nextBtn.addEventListener('click', () => navigateToVerificationField(1));
     }
   }
+
+  renderPayloadInspector(payload, payloadStoredAt);
   
   if (data.caAcpCaseInfo) {
     if (caseIdInput) caseIdInput.value = data.caAcpCaseInfo.caseId || "";
@@ -975,6 +1080,7 @@ clearButton?.addEventListener("click", async () => {
   // Clear ALL sensitive data including signatures and uploaded documents
   await setStorage({
     [STORAGE_KEYS.payload]: null,
+    [DATA_TIMESTAMP_KEY]: null,
     [STORAGE_KEYS.caseInfo]: null,
     [STORAGE_KEYS.queueState]: null,
     [STORAGE_KEYS.signatureData]: null,
@@ -996,6 +1102,21 @@ clearLogsButton?.addEventListener("click", async () => {
   renderRuntimeDiagnostics(null);
 });
 
+copyPayloadButton?.addEventListener("click", async () => {
+  if (!latestPayloadSnapshot?.payload) {
+    showError("No payload available to copy.");
+    return;
+  }
+
+  try {
+    await writeToClipboard(JSON.stringify(latestPayloadSnapshot.payload, null, 2));
+    showSuccess("Payload copied to clipboard");
+  } catch (error) {
+    console.error("Failed to copy payload:", error);
+    showError("Could not copy payload. Try again.");
+  }
+});
+
 copyDiagnosticsButton?.addEventListener("click", async () => {
   try {
     const data = await loadStorage([
@@ -1005,6 +1126,7 @@ copyDiagnosticsButton?.addEventListener("click", async () => {
       STORAGE_KEYS.queueState,
       STORAGE_KEYS.logs,
       STORAGE_KEYS.payload,
+      DATA_TIMESTAMP_KEY,
     ]);
 
     const logs = Array.isArray(data[STORAGE_KEYS.logs]) ? data[STORAGE_KEYS.logs].slice(-20) : [];
@@ -1015,6 +1137,7 @@ copyDiagnosticsButton?.addEventListener("click", async () => {
       targetOrigin: CARE_ASSURANCE_URL,
       connected: isConnected,
       payloadType,
+      payloadStoredAt: data[DATA_TIMESTAMP_KEY] || null,
       caseInfo: data[STORAGE_KEYS.caseInfo] || null,
       queueState: data[STORAGE_KEYS.queueState] || null,
       lastError: data[STORAGE_KEYS.lastError] || null,
