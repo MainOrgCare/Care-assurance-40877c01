@@ -1282,10 +1282,12 @@ const HIGH_RISK_PII_PATTERNS: Array<{ key: string; regex: RegExp }> = [
   { key: "ADDRESS", regex: PII_PATTERNS.houseName },
 ];
 
+const VAULT_TOKEN_PATTERN = /\{\{PII_(?:[A-Z_]+_\d+|[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_[A-Z_]+_\d+)\}\}/g;
+
 export function detectHighRiskPII(
   text: string,
 ): { total: number; byCategory: Record<string, number> } {
-  const cleaned = text.replace(/\{\{PII_[A-Z_]+_\d+\}\}/g, "");
+  const cleaned = text.replace(VAULT_TOKEN_PATTERN, "");
   const byCategory: Record<string, number> = {};
   let total = 0;
 

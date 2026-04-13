@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   PIIVault,
+  detectHighRiskPII,
   scrubMessagesForLog,
   scrubWithVault,
   withPIIVault,
@@ -400,6 +401,23 @@ describe("scrubMessagesForLog", () => {
     const messages = [{ role: "system", content: null }];
     const scrubbed = scrubMessagesForLog(messages as any);
     assert.strictEqual(scrubbed[0].content, null);
+  });
+});
+
+describe("detectHighRiskPII", () => {
+  it("ignores PIIVault tokens with dynamic prefixes", () => {
+    const findings = detectHighRiskPII(
+      "Masked values: {{PII_mnx987ki_njiw_ADDRESS_1}} and {{PII_mnx987ki_njiw_NAME_2}}.",
+    );
+
+    assert.strictEqual(findings.total, 0);
+    assert.deepStrictEqual(findings.byCategory, {});
+  });
+
+  it("still detects raw address patterns", () => {
+    const findings = detectHighRiskPII("Service user lives at 14 Rosemary Lane.");
+
+    assert((findings.byCategory.ADDRESS ?? 0) >= 1);
   });
 });
 

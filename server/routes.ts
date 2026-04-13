@@ -14548,6 +14548,8 @@ CRITICAL REMINDER:
 `;
       }
 
+  const scrubbedPolicyContext = policyContext ? piiVault.scrub(policyContext) : "";
+
       const privacyRules = allowSensitiveView
         ? `5. Personal data has been tokenized (e.g. {{PII_...}}). Keep these tokens in your output - they will be converted to readable placeholders like [Name].
 6. Keep place names and locations as written. Do not redact places.
@@ -14624,7 +14626,7 @@ YOUR TASK: BUILD A PERSON-CENTRED RISK PROFILE
 2. Extract ONLY information EXPLICITLY documented about THIS service user
 3. Recommend assessments ONLY when you have STRONG DOCUMENTED EVIDENCE
 
-${policyContext}
+${scrubbedPolicyContext}
 FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
 - Never use Oxford commas (the comma before "and" or "or" in a list). Write "apples, oranges and bananas" not "apples, oranges, and bananas".
@@ -15298,6 +15300,8 @@ CRITICAL REMINDER:
 `;
       }
 
+  const scrubbedPolicyContext = policyContext ? piiVault.scrub(policyContext) : "";
+
       const privacyDirective = allowSensitiveView
         ? "Privacy: Personal data in documents has been tokenized (e.g. {{PII_...}}). Keep these tokens in your output - they will be converted to readable placeholders like [Name], [NHS Number]. Never try to guess real values."
         : "Privacy: Personal data has been tokenized. Keep tokens in output for automatic placeholder conversion.";
@@ -15347,8 +15351,10 @@ CRITICAL REMINDER:
           )
         : "";
 
+      const scrubbedProfileContext = profileContext ? piiVault.scrub(profileContext) : "";
+
       const systemPrompt = `You are an expert care risk assessor for a UK care facility. Generate a detailed, comprehensive risk assessment for the specified category.
-${policyContext}
+${scrubbedPolicyContext}
 
 FORMATTING RULES - MUST FOLLOW:
 - Never use m-dashes (—) or en-dashes (–). Use hyphens (-) or commas instead.
@@ -15410,7 +15416,7 @@ EVIDENCE PACK - USE THIS FIRST:
 ${evidencePack ? `- ${evidencePack}` : "- No pre-extracted evidence pack provided. Use only the document content."}
 
 PROFILE CONTEXT (from analysis):
-${profileContext || "Not provided."}
+${scrubbedProfileContext || "Not provided."}
 
 ${privacyDirective}
 
@@ -15463,7 +15469,6 @@ Respond ONLY with valid JSON in this exact format:
       // Pre-scrub content BEFORE AI call for accurate audit logging
       const scrubbedDocumentContent = piiVault.scrub(documentContent);
       const scrubbedEvidencePack = evidencePack;
-      const scrubbedProfileContext = profileContext ? piiVault.scrub(profileContext) : "";
       
       const vaultScrubStats = piiVault.getStats();
       console.log(`[RiskAssessment] PII Vault: Scrubbed ${vaultScrubStats.total} sensitive items (including evidence pack)`);
