@@ -16,7 +16,7 @@
           </div>
           <div>
             <h1 class="header-title">CareAssurance</h1>
-            <p class="header-subtitle">ACP Autofill v0.3.5</p>
+            <p id="header-subtitle" class="header-subtitle">Connected workspace for ACP Autofill</p>
           </div>
           <div id="connection-badge" class="connection-badge disconnected">
             <span class="connection-dot"></span>
@@ -29,11 +29,11 @@
       <div class="tab-navigation">
         <button id="tab-connect" class="tab-btn active" data-tab="connect">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
-          Connect
+          Workspace
         </button>
         <button id="tab-upload" class="tab-btn" data-tab="upload">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-          Upload
+          Intake
         </button>
         <button id="tab-autofill" class="tab-btn" data-tab="autofill">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -79,16 +79,58 @@
           
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">Connection</h2>
-              <p class="card-description">Connect to fetch service users, assessment payloads, and extension-ready records</p>
+              <h2 class="card-title">Session Bridge</h2>
+              <p class="card-description">Sync the authenticated CareAssurance workspace so the extension behaves like part of the same app session</p>
             </div>
             <div class="card-content">
               <div id="connect-status" class="status-box">
                 <span>Not connected</span>
               </div>
               <button id="connect-btn" class="btn btn-primary btn-block">
-                Connect to Care Assurance
+                Sync CareAssurance Session
               </button>
+            </div>
+          </section>
+
+          <section class="card workspace-context-card">
+            <div class="card-header">
+              <div>
+                <span class="section-kicker">Live App Context</span>
+                <h2 class="card-title">Workspace Pulse</h2>
+                <p class="card-description">See the connected CareAssurance page and move the same tab into the next workflow.</p>
+              </div>
+              <button id="refresh-workspace-context" class="btn btn-secondary btn-sm">Refresh</button>
+            </div>
+            <div class="card-content workspace-context-shell">
+              <div id="workspace-context-status" class="workspace-status-card workspace-status-empty">
+                <span class="workspace-status-eyebrow">Current page</span>
+                <strong class="workspace-status-title">No CareAssurance tab detected</strong>
+                <span class="workspace-status-detail">Open CareAssurance in the browser and this panel will reflect the live route, title, and best next actions.</span>
+              </div>
+
+              <div class="workspace-metric-grid">
+                <div class="workspace-metric">
+                  <span class="workspace-metric-label">Page</span>
+                  <strong id="workspace-route-label" class="workspace-metric-value">Waiting for tab</strong>
+                </div>
+                <div class="workspace-metric">
+                  <span class="workspace-metric-label">Path</span>
+                  <code id="workspace-route-path" class="workspace-metric-code">/</code>
+                </div>
+                <div class="workspace-metric">
+                  <span class="workspace-metric-label">Tab Title</span>
+                  <strong id="workspace-tab-title" class="workspace-metric-value">Not available</strong>
+                </div>
+              </div>
+
+              <div class="workspace-actions-grid">
+                <button id="open-connected-workspace" class="btn btn-secondary workspace-action-btn" disabled>Open Current Page</button>
+                <button id="open-dashboard-workspace" class="btn btn-secondary workspace-action-btn">Dashboard</button>
+                <button id="open-care-planning-workspace" class="btn btn-primary workspace-action-btn">Care Planning</button>
+                <button id="open-risk-workspace" class="btn btn-secondary workspace-action-btn">Risk Assessment</button>
+                <button id="open-plan-enhancer-workspace" class="btn btn-secondary workspace-action-btn">Plan Enhancer</button>
+                <button id="open-admin-workspace" class="btn btn-secondary workspace-action-btn" hidden>Admin Portal</button>
+              </div>
             </div>
           </section>
 

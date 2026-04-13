@@ -154,6 +154,8 @@ interface OpsIncident {
 
 interface ExtensionPackageInfo {
   manifestVersion: string | null;
+  previousManifestVersion?: string | null;
+  versionUpdated?: boolean;
   downloadUrl: string;
   package: {
     available: boolean;
@@ -4253,6 +4255,7 @@ export default function SecretAdminPortal() {
   const [extensionInfo, setExtensionInfo] = useState<ExtensionPackageInfo | null>(null);
   const [extensionInfoLoading, setExtensionInfoLoading] = useState(false);
   const [extensionInfoRefreshing, setExtensionInfoRefreshing] = useState(false);
+  const [extensionInfoUpdating, setExtensionInfoUpdating] = useState(false);
   const [extensionTestStatus, setExtensionTestStatus] = useState<"idle" | "testing" | "success" | "failed">("idle");
   const [extensionTestMessage, setExtensionTestMessage] = useState("");
   const [acpServiceUsers, setAcpServiceUsers] = useState<AdminAcpServiceUser[]>([]);
@@ -4414,15 +4417,28 @@ export default function SecretAdminPortal() {
     }
   };
 
-  const fetchExtensionPackageInfo = async (fresh = false) => {
+  const fetchExtensionPackageInfo = async ({
+    fresh = false,
+    updateVersion = false,
+  }: {
+    fresh?: boolean;
+    updateVersion?: boolean;
+  } = {}) => {
     if (!extensionInfo) {
       setExtensionInfoLoading(true);
+    } else if (updateVersion) {
+      setExtensionInfoUpdating(true);
     } else {
       setExtensionInfoRefreshing(true);
     }
 
     try {
-      const response = await fetch(`/api/admin/extension/info${fresh ? "?fresh=1" : ""}`, {
+      const params = new URLSearchParams();
+      if (fresh) params.set("fresh", "1");
+      if (updateVersion) params.set("update", "1");
+      const query = params.toString();
+
+      const response = await fetch(`/api/admin/extension/info${query ? `?${query}` : ""}`, {
         credentials: "include",
       });
       const data = await response.json().catch(() => ({}));
@@ -4431,7 +4447,17 @@ export default function SecretAdminPortal() {
       }
 
       setExtensionInfo(data as ExtensionPackageInfo);
-      if (fresh) {
+      if (updateVersion) {
+        const previousVersion = typeof data.previousManifestVersion === "string" ? data.previousManifestVersion : null;
+        const nextVersion = typeof data.manifestVersion === "string" ? data.manifestVersion : null;
+        toast({
+          title: "Extension updated",
+          description:
+            previousVersion && nextVersion && previousVersion !== nextVersion
+              ? `Manifest version bumped from ${previousVersion} to ${nextVersion}. Download the updated Edge package below.`
+              : "Extension package rebuilt. Download the latest Edge package below.",
+        });
+      } else if (fresh) {
         toast({
           title: "Extension package refreshed",
           description: "Latest Edge extension build is ready to download.",
@@ -4447,6 +4473,7 @@ export default function SecretAdminPortal() {
     } finally {
       setExtensionInfoLoading(false);
       setExtensionInfoRefreshing(false);
+      setExtensionInfoUpdating(false);
     }
   };
 
@@ -5106,8 +5133,8 @@ export default function SecretAdminPortal() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => void fetchExtensionPackageInfo(false)}
-                        disabled={extensionInfoLoading || extensionInfoRefreshing}
+                        onClick={() => void fetchExtensionPackageInfo({ fresh: false })}
+                        disabled={extensionInfoLoading || extensionInfoRefreshing || extensionInfoUpdating}
                         data-testid="button-refresh-edge-extension-status"
                       >
                         {extensionInfoRefreshing ? <Loader2 size={14} className="mr-2 animate-spin" /> : <RefreshCcw size={14} className="mr-2" />}
@@ -5116,21 +5143,25 @@ export default function SecretAdminPortal() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => void fetchExtensionPackageInfo(true)}
-                        disabled={extensionInfoLoading || extensionInfoRefreshing}
+                        onClick={() => void fetchExtensionPackageInfo({ fresh: true, updateVersion: true })}
+                        disabled={extensionInfoLoading || extensionInfoRefreshing || extensionInfoUpdating}
                         data-testid="button-rebuild-edge-extension"
                       >
-                        <Zap size={14} className="mr-2" />
-                        Rebuild Package
+                        {extensionInfoUpdating ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Zap size={14} className="mr-2" />}
+                        Update Extension
                       </Button>
                     </div>
                     <Badge variant="outline" className="border-success/30 text-success bg-success/10">
-                      {extensionInfo?.package?.rebuilt ? "Package rebuilt this refresh" : "Package freshness verified"}
+                      {extensionInfo?.versionUpdated
+                        ? `Updated to v${extensionInfo.manifestVersion || "latest"}`
+                        : extensionInfo?.package?.rebuilt
+                        ? "Package rebuilt this refresh"
+                        : "Package freshness verified"}
                     </Badge>
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    This download is a ZIP package. Extract it first for <strong>Extensions</strong> → <strong>Load unpacked</strong>, or upload the ZIP directly to Edge Add-ons.
+                    The update button bumps the extension manifest version and rebuilds the ZIP package. Extract downloads first for <strong>Extensions</strong> → <strong>Load unpacked</strong>, or upload the ZIP directly to Edge Add-ons.
                   </p>
                 </CardContent>
               </Card>

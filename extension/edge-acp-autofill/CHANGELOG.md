@@ -13,16 +13,20 @@
 - Improved seamless interaction with an open Care Assurance tab through the authenticated content-script proxy.
 - The popup continues to load data and trigger workflows against the connected web page without requiring users to manually copy tokens or re-enter connection details.
 - Background retry handling is more resilient when the MV3 service worker is waking up or the content script needs to reattach after an update.
+- Added a live `Workspace Pulse` panel that detects the current CareAssurance route, tab title, and app host from the connected browser tab.
+- Added integrated quick actions that move the connected CareAssurance tab directly into Dashboard, Care Planning, Risk Assessment, Plan Enhancer, and Admin Portal flows.
 
 ### Popup and Autofill Workflow
 
 - Added a `Latest Payload` inspector in the popup Autofill tab so users can review the current payload summary and raw JSON before starting autofill.
 - Improved payload status handling for ACP, EMAR, custom, and Initial Assessment workflows.
 - Added clearer extension test and refresh guidance when the page and extension are out of sync after an update.
+- Retitled the primary popup navigation around app-native workflows (`Workspace`, `Intake`, `Autofill`) and refreshed the shell styling so the popup reads more like a CareAssurance workspace surface than a standalone browser utility.
 
 ### Packaging and Installation
 
 - Standardized extension packaging on the canonical build script and clarified that downloaded ZIP packages should be extracted before using `Load unpacked` in Edge.
+- The admin `Update Extension` action now bumps the manifest patch version before rebuilding the ZIP, so the update flow produces a real new extension version instead of repackaging the same one.
 - Updated release flow so admins can rebuild and download the current package more reliably from CareAssurance.
 
 ### Notes

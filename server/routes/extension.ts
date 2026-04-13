@@ -107,6 +107,42 @@ async function readExtensionManifestVersion(): Promise<string | null> {
   }
 }
 
+function incrementExtensionPatchVersion(version: string): string {
+  const match = String(version || "").trim().match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) {
+    throw new Error(`Unsupported extension version format: ${version || "unknown"}`);
+  }
+
+  const [, major, minor, patch] = match;
+  return `${major}.${minor}.${Number.parseInt(patch, 10) + 1}`;
+}
+
+async function bumpExtensionManifestVersion(): Promise<{
+  previousVersion: string;
+  nextVersion: string;
+  restore: () => Promise<void>;
+}> {
+  const manifestRaw = await fs.readFile(EXTENSION_MANIFEST_PATH, "utf8");
+  const manifest = JSON.parse(manifestRaw) as Record<string, unknown>;
+  const previousVersion = typeof manifest.version === "string" ? manifest.version : null;
+
+  if (!previousVersion) {
+    throw new Error("Extension manifest version is missing.");
+  }
+
+  const nextVersion = incrementExtensionPatchVersion(previousVersion);
+  manifest.version = nextVersion;
+  await fs.writeFile(EXTENSION_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  return {
+    previousVersion,
+    nextVersion,
+    restore: async () => {
+      await fs.writeFile(EXTENSION_MANIFEST_PATH, manifestRaw, "utf8");
+    },
+  };
+}
+
 async function getLatestSourceMtimeMs(rootDir: string): Promise<number> {
   let latest = 0;
   const ignoredDirs = new Set([".git", "node_modules", "dist", "__pycache__"]);
@@ -184,31 +220,64 @@ async function ensureLatestExtensionPackage(forceBuild: boolean): Promise<{ pack
   return { packagePath, rebuilt };
 }
 
-async function getExtensionPackageMetadata(forceBuild: boolean): Promise<{
+async function getExtensionPackageMetadata(options: { forceBuild: boolean; updateVersion?: boolean }): Promise<{
   packagePath: string;
   filename: string;
   sizeBytes: number;
   sha256: string;
   packagedAt: string;
   manifestVersion: string | null;
+  previousManifestVersion: string | null;
+  versionUpdated: boolean;
   rebuilt: boolean;
 } | null> {
-  const manifestVersion = await readExtensionManifestVersion();
-  const { packagePath, rebuilt } = await ensureLatestExtensionPackage(forceBuild);
-  if (!packagePath) return null;
+  const { forceBuild, updateVersion = false } = options;
+  let manifestVersion = await readExtensionManifestVersion();
+  let previousManifestVersion: string | null = null;
+  let versionUpdated = false;
+  let restoreManifestVersion: (() => Promise<void>) | null = null;
 
-  const [packageStat, packageBuffer] = await Promise.all([fs.stat(packagePath), fs.readFile(packagePath)]);
-  const sha256 = createHash("sha256").update(packageBuffer).digest("hex");
+  try {
+    if (updateVersion) {
+      const bumpedManifest = await bumpExtensionManifestVersion();
+      previousManifestVersion = bumpedManifest.previousVersion;
+      manifestVersion = bumpedManifest.nextVersion;
+      versionUpdated = bumpedManifest.nextVersion !== bumpedManifest.previousVersion;
+      restoreManifestVersion = bumpedManifest.restore;
+    }
 
-  return {
-    packagePath,
-    filename: path.basename(packagePath),
-    sizeBytes: packageStat.size,
-    sha256,
-    packagedAt: packageStat.mtime.toISOString(),
-    manifestVersion,
-    rebuilt,
-  };
+    const { packagePath, rebuilt } = await ensureLatestExtensionPackage(forceBuild || updateVersion);
+    if (!packagePath) {
+      if (restoreManifestVersion) {
+        await restoreManifestVersion().catch((restoreError) => {
+          console.warn("Failed to restore extension manifest version after package miss:", restoreError);
+        });
+      }
+      return null;
+    }
+
+    const [packageStat, packageBuffer] = await Promise.all([fs.stat(packagePath), fs.readFile(packagePath)]);
+    const sha256 = createHash("sha256").update(packageBuffer).digest("hex");
+
+    return {
+      packagePath,
+      filename: path.basename(packagePath),
+      sizeBytes: packageStat.size,
+      sha256,
+      packagedAt: packageStat.mtime.toISOString(),
+      manifestVersion,
+      previousManifestVersion,
+      versionUpdated,
+      rebuilt,
+    };
+  } catch (error) {
+    if (restoreManifestVersion) {
+      await restoreManifestVersion().catch((restoreError) => {
+        console.warn("Failed to restore extension manifest version after packaging error:", restoreError);
+      });
+    }
+    throw error;
+  }
 }
 
 // ── Route Registration ────────────────────────────────────────────────
@@ -252,7 +321,8 @@ export function registerExtensionRoutes(
   app.get("/api/admin/extension/info", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
-      const metadata = await getExtensionPackageMetadata(forceBuild);
+      const updateVersion = String(req.query?.update || "").toLowerCase() === "1";
+      const metadata = await getExtensionPackageMetadata({ forceBuild, updateVersion });
       if (!metadata) {
         return res.status(404).json({
           message:
@@ -263,6 +333,8 @@ export function registerExtensionRoutes(
       res.setHeader("Cache-Control", "no-store");
       return res.json({
         manifestVersion: metadata.manifestVersion,
+        previousManifestVersion: metadata.previousManifestVersion,
+        versionUpdated: metadata.versionUpdated,
         downloadUrl: "/api/admin/extension/package?fresh=1",
         package: {
           available: true,
@@ -283,7 +355,7 @@ export function registerExtensionRoutes(
   app.get("/api/admin/extension/package", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
-      const metadata = await getExtensionPackageMetadata(forceBuild);
+      const metadata = await getExtensionPackageMetadata({ forceBuild });
       if (!metadata) {
         return res.status(404).json({
           message:

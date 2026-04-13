@@ -105,8 +105,10 @@ html, body {
 /* ===== TAB NAVIGATION ===== */
 .tab-navigation {
   display: flex;
-  background: var(--color-card);
-  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+  padding: 10px 12px 8px;
+  background: color-mix(in hsl, var(--color-card) 88%, var(--color-muted));
+  border-bottom: 1px solid color-mix(in hsl, var(--color-border) 92%, white);
   flex: 0 0 auto;
 }
 
@@ -120,8 +122,9 @@ html, body {
   font-size: 12px;
   font-weight: 500;
   color: var(--color-muted-foreground);
-  background: transparent;
-  border: none;
+  background: color-mix(in hsl, var(--color-card) 75%, var(--color-muted));
+  border: 1px solid transparent;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
@@ -134,17 +137,13 @@ html, body {
 
 .tab-btn.active {
   color: var(--color-primary);
-  background: var(--color-card);
+  background: color-mix(in hsl, var(--color-card) 96%, white);
+  border-color: color-mix(in hsl, var(--color-border) 90%, white);
+  box-shadow: var(--shadow-sm);
 }
 
 .tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--color-primary);
+  display: none;
 }
 
 .tab-btn svg {
@@ -256,6 +255,137 @@ html, body {
   border-radius: calc(var(--radius) - 2px);
   background: color-mix(in hsl, var(--color-muted) 56%, white);
   padding: 12px;
+}
+
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-secondary);
+  margin-bottom: 6px;
+}
+
+.workspace-context-card {
+  background:
+    radial-gradient(120px 64px at 100% 0%, color-mix(in hsl, var(--color-secondary) 18%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in hsl, var(--color-card) 96%, white), color-mix(in hsl, var(--color-card) 88%, var(--color-muted)) 100%);
+}
+
+.workspace-context-shell {
+  gap: 14px;
+}
+
+.workspace-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid color-mix(in hsl, var(--color-primary) 18%, var(--color-border));
+  background:
+    linear-gradient(135deg, color-mix(in hsl, var(--color-primary) 10%, white), color-mix(in hsl, var(--color-secondary) 10%, white));
+  box-shadow: var(--shadow-sm);
+}
+
+.workspace-status-empty {
+  border-style: dashed;
+  background: color-mix(in hsl, var(--color-muted) 62%, white);
+}
+
+.workspace-status-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-secondary);
+}
+
+.workspace-status-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-foreground);
+}
+
+.workspace-status-detail {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+.workspace-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.workspace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in hsl, var(--color-border) 86%, white);
+  background: color-mix(in hsl, var(--color-card) 92%, white);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.workspace-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workspace-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid color-mix(in hsl, var(--color-border) 90%, white);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in hsl, var(--color-muted) 44%, white);
+}
+
+.workspace-metric-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.workspace-metric-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-foreground);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.workspace-metric-code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workspace-action-btn {
+  justify-content: center;
 }
 
 .summary-label {

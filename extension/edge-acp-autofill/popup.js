@@ -252,9 +252,21 @@ const tabContentUpload = document.getElementById("tab-content-upload");
 const tabContentAutofill = document.getElementById("tab-content-autofill");
 
 // Connect tab
+const headerSubtitle = document.getElementById("header-subtitle");
 const connectionBadge = document.getElementById("connection-badge");
 const connectStatus = document.getElementById("connect-status");
 const connectBtn = document.getElementById("connect-btn");
+const refreshWorkspaceContextButton = document.getElementById("refresh-workspace-context");
+const workspaceContextStatus = document.getElementById("workspace-context-status");
+const workspaceRouteLabel = document.getElementById("workspace-route-label");
+const workspaceRoutePath = document.getElementById("workspace-route-path");
+const workspaceTabTitle = document.getElementById("workspace-tab-title");
+const openConnectedWorkspaceButton = document.getElementById("open-connected-workspace");
+const openDashboardWorkspaceButton = document.getElementById("open-dashboard-workspace");
+const openCarePlanningWorkspaceButton = document.getElementById("open-care-planning-workspace");
+const openRiskWorkspaceButton = document.getElementById("open-risk-workspace");
+const openPlanEnhancerWorkspaceButton = document.getElementById("open-plan-enhancer-workspace");
+const openAdminWorkspaceButton = document.getElementById("open-admin-workspace");
 const recentSection = document.getElementById("recent-section");
 const recentList = document.getElementById("recent-list");
 const searchSection = document.getElementById("search-section");
@@ -325,6 +337,46 @@ let selectedFilesList = [];
 let uploadedDocuments = [];
 let currentAnalysisResults = null;
 let latestPayloadSnapshot = null;
+let connectedWorkspaceContext = null;
+let connectedWorkspaceUser = null;
+
+const WORKSPACE_ROUTE_DESCRIPTORS = [
+  {
+    match: (pathname) => pathname === "/" || pathname === "/dashboard",
+    label: "Dashboard",
+    detail: "Operational overview, alerts, and live activity.",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/shadow-admin-portal"),
+    label: "Admin Portal",
+    detail: "Platform controls, extension rollout, and admin-only actions.",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/service-users/care-planning"),
+    label: "Care Planning",
+    detail: "Draft and review care planning content in the main app workspace.",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/service-users/risk-assessment"),
+    label: "Risk Assessment",
+    detail: "Generate and refine service-user risk assessments.",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/service-users/plan-enhancer"),
+    label: "Plan Enhancer",
+    detail: "Strengthen care plans and initial assessments with AI support.",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/messages"),
+    label: "Messages",
+    detail: "Team communication and operational follow-up.",
+  },
+  {
+    match: (pathname) => pathname.startsWith("/testing-features"),
+    label: "Testing Features",
+    detail: "Diagnostics and validation tools for extension and app workflows.",
+  },
+];
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -348,6 +400,166 @@ const formatPayloadTimestamp = (value) => {
   if (Number.isNaN(date.getTime())) return "Unknown";
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 };
+
+const normalizeCareAssuranceBaseUrl = (targetOrigin = CARE_ASSURANCE_URL) => {
+  const raw = String(targetOrigin || CARE_ASSURANCE_URLS[0] || "careassurance.uk").trim();
+  if (!raw) return "https://careassurance.uk";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    return raw.replace(/\/+$/, "");
+  }
+  if (raw.includes("localhost") || raw.includes("127.0.0.1")) {
+    return `http://${raw}`;
+  }
+  return `https://${raw}`;
+};
+
+const buildCareAssuranceTabPatterns = (targetOrigin = CARE_ASSURANCE_URL) => {
+  try {
+    const url = new URL(normalizeCareAssuranceBaseUrl(targetOrigin));
+    const host = url.host.toLowerCase();
+    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+      return [`${url.protocol}//${host}/*`];
+    }
+    if (host.startsWith("www.")) {
+      return [`https://${host}/*`, `https://${host.slice(4)}/*`];
+    }
+    return [`https://${host}/*`, `https://www.${host}/*`];
+  } catch {
+    return ["https://careassurance.uk/*", "https://www.careassurance.uk/*"];
+  }
+};
+
+const titleCaseSegment = (value) =>
+  String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const describeWorkspaceRoute = (pathname = "/") => {
+  for (const route of WORKSPACE_ROUTE_DESCRIPTORS) {
+    if (route.match(pathname)) {
+      return route;
+    }
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+  const fallbackLabel = segments.length ? titleCaseSegment(segments[segments.length - 1]) : "CareAssurance";
+  return {
+    label: fallbackLabel,
+    detail: "Live CareAssurance route detected from the connected workspace tab.",
+  };
+};
+
+async function findConnectedWorkspaceTab(targetOrigin = CARE_ASSURANCE_URL) {
+  const patterns = buildCareAssuranceTabPatterns(targetOrigin);
+  for (const pattern of patterns) {
+    const tabs = await chrome.tabs.query({ url: pattern });
+    if (tabs.length > 0) {
+      return tabs.find((tab) => tab.active) || tabs[0];
+    }
+  }
+  return null;
+}
+
+function renderWorkspaceContext(context, user = connectedWorkspaceUser) {
+  connectedWorkspaceContext = context || null;
+  connectedWorkspaceUser = user || connectedWorkspaceUser || null;
+
+  if (headerSubtitle) {
+    headerSubtitle.textContent = context
+      ? `${context.routeLabel} workspace for ACP Autofill`
+      : "Connected workspace for ACP Autofill";
+  }
+
+  if (workspaceContextStatus) {
+    if (!context) {
+      workspaceContextStatus.className = "workspace-status-card workspace-status-empty";
+      workspaceContextStatus.innerHTML = `
+        <span class="workspace-status-eyebrow">Current page</span>
+        <strong class="workspace-status-title">No CareAssurance tab detected</strong>
+        <span class="workspace-status-detail">Open CareAssurance in the browser and this panel will reflect the live route, title, and best next actions.</span>
+      `;
+    } else {
+      const chipMarkup = [
+        `<span class="workspace-chip">${escapeHtml(context.host)}</span>`,
+        connectedWorkspaceUser?.username ? `<span class="workspace-chip">${escapeHtml(connectedWorkspaceUser.username)}</span>` : "",
+        connectedWorkspaceUser?.role ? `<span class="workspace-chip">${escapeHtml(connectedWorkspaceUser.role)}</span>` : "",
+      ].filter(Boolean).join("");
+
+      workspaceContextStatus.className = "workspace-status-card";
+      workspaceContextStatus.innerHTML = `
+        <span class="workspace-status-eyebrow">Current page</span>
+        <strong class="workspace-status-title">${escapeHtml(context.routeLabel)}</strong>
+        <span class="workspace-status-detail">${escapeHtml(context.routeDetail)}</span>
+        <div class="workspace-chip-row">${chipMarkup}</div>
+      `;
+    }
+  }
+
+  if (workspaceRouteLabel) workspaceRouteLabel.textContent = context?.routeLabel || "Waiting for tab";
+  if (workspaceRoutePath) workspaceRoutePath.textContent = context?.path || "/";
+  if (workspaceTabTitle) workspaceTabTitle.textContent = context?.title || "Not available";
+  if (openConnectedWorkspaceButton) openConnectedWorkspaceButton.disabled = !context?.tabId;
+  if (openAdminWorkspaceButton) openAdminWorkspaceButton.hidden = connectedWorkspaceUser?.role !== "admin";
+}
+
+async function refreshWorkspaceContext(user = connectedWorkspaceUser) {
+  if (user) {
+    connectedWorkspaceUser = user;
+  }
+
+  try {
+    const tab = await findConnectedWorkspaceTab(CARE_ASSURANCE_URL);
+    if (!tab?.id || !tab.url) {
+      renderWorkspaceContext(null, connectedWorkspaceUser);
+      return null;
+    }
+
+    const url = new URL(tab.url);
+    const route = describeWorkspaceRoute(url.pathname);
+    const context = {
+      tabId: tab.id,
+      baseUrl: `${url.protocol}//${url.host}`,
+      host: url.host,
+      title: tab.title || route.label,
+      path: `${url.pathname}${url.search}` || "/",
+      routeLabel: route.label,
+      routeDetail: route.detail,
+    };
+    renderWorkspaceContext(context, connectedWorkspaceUser);
+    return context;
+  } catch (error) {
+    console.warn("[CA Extension Popup] Failed to refresh workspace context:", error);
+    renderWorkspaceContext(null, connectedWorkspaceUser);
+    return null;
+  }
+}
+
+async function openCareAssuranceRoute(pathname) {
+  const context = connectedWorkspaceContext || await refreshWorkspaceContext(connectedWorkspaceUser);
+  const baseUrl = context?.baseUrl || normalizeCareAssuranceBaseUrl(CARE_ASSURANCE_URL);
+  const targetUrl = pathname.startsWith("http://") || pathname.startsWith("https://")
+    ? pathname
+    : `${baseUrl}${pathname}`;
+
+  if (context?.tabId) {
+    await chrome.tabs.update(context.tabId, { url: targetUrl, active: true });
+  } else {
+    await chrome.tabs.create({ url: targetUrl });
+  }
+
+  setTimeout(() => {
+    refreshWorkspaceContext(connectedWorkspaceUser).catch(() => {});
+  }, 250);
+}
+
+async function focusConnectedWorkspace() {
+  const context = connectedWorkspaceContext || await refreshWorkspaceContext(connectedWorkspaceUser);
+  if (context?.tabId) {
+    await chrome.tabs.update(context.tabId, { active: true });
+    return;
+  }
+  await openCareAssuranceRoute("/dashboard");
+}
 
 const buildPayloadSummaryItems = (payload, storedAt) => {
   if (!payload || typeof payload !== "object") return [];
@@ -508,6 +720,9 @@ tabAutofillBtn?.addEventListener("click", () => switchTab("autofill"));
 
 function updateConnectionUI(connected, user = null) {
   isConnected = connected;
+  if (user) {
+    connectedWorkspaceUser = user;
+  }
   
   if (connectionBadge) {
     connectionBadge.className = `connection-badge ${connected ? "connected" : "disconnected"}`;
@@ -526,7 +741,7 @@ function updateConnectionUI(connected, user = null) {
   }
   
   if (connectBtn) {
-    connectBtn.textContent = connected ? "Refresh" : "Connect to Care Assurance";
+    connectBtn.textContent = connected ? "Refresh Workspace" : "Sync CareAssurance Session";
   }
   
   if (recentSection) recentSection.hidden = !connected;
@@ -558,6 +773,7 @@ async function connectToCareAssurance() {
         const status = statusRes.data;
         await setStorage({ caAcpServerUrl: targetOrigin });
         updateConnectionUI(true, status.user);
+        await refreshWorkspaceContext(status.user);
         connected = true;
         
         // Fetch service users
@@ -629,6 +845,48 @@ async function connectToCareAssurance() {
 }
 
 connectBtn?.addEventListener("click", connectToCareAssurance);
+refreshWorkspaceContextButton?.addEventListener("click", () => {
+  refreshWorkspaceContext(connectedWorkspaceUser).catch((error) => {
+    console.warn("[CA Extension Popup] Workspace refresh failed:", error);
+    showError("Could not refresh the CareAssurance workspace context.");
+  });
+});
+openConnectedWorkspaceButton?.addEventListener("click", () => {
+  focusConnectedWorkspace().catch((error) => {
+    console.warn("[CA Extension Popup] Failed to focus current workspace:", error);
+    showError("Could not focus the connected CareAssurance page.");
+  });
+});
+openDashboardWorkspaceButton?.addEventListener("click", () => {
+  openCareAssuranceRoute("/dashboard").catch((error) => {
+    console.warn("[CA Extension Popup] Failed to open dashboard:", error);
+    showError("Could not open the CareAssurance dashboard.");
+  });
+});
+openCarePlanningWorkspaceButton?.addEventListener("click", () => {
+  openCareAssuranceRoute("/service-users/care-planning").catch((error) => {
+    console.warn("[CA Extension Popup] Failed to open care planning:", error);
+    showError("Could not open Care Planning.");
+  });
+});
+openRiskWorkspaceButton?.addEventListener("click", () => {
+  openCareAssuranceRoute("/service-users/risk-assessment").catch((error) => {
+    console.warn("[CA Extension Popup] Failed to open risk assessment:", error);
+    showError("Could not open Risk Assessment.");
+  });
+});
+openPlanEnhancerWorkspaceButton?.addEventListener("click", () => {
+  openCareAssuranceRoute("/service-users/plan-enhancer").catch((error) => {
+    console.warn("[CA Extension Popup] Failed to open plan enhancer:", error);
+    showError("Could not open Plan Enhancer.");
+  });
+});
+openAdminWorkspaceButton?.addEventListener("click", () => {
+  openCareAssuranceRoute("/shadow-admin-portal").catch((error) => {
+    console.warn("[CA Extension Popup] Failed to open admin portal:", error);
+    showError("Could not open the Admin Portal.");
+  });
+});
 
 function displayServiceUsers() {
   if (!serviceUserList) return;
@@ -1379,6 +1637,7 @@ async function refreshSignatureStatus() {
   if (stored.caAcpServerUrl) {
     CARE_ASSURANCE_URL = stored.caAcpServerUrl;
   }
+  await refreshWorkspaceContext();
   
   // Auto-detect case ID and service data group from URL if on risk assessment page
   try {
@@ -1422,6 +1681,7 @@ async function refreshSignatureStatus() {
     if (res.ok) {
       const status = res.data;
       updateConnectionUI(true, status.user);
+      await refreshWorkspaceContext(status.user);
       // Do full refresh in background
       connectToCareAssurance();
     } else if (res.needsTab) {
@@ -1443,19 +1703,22 @@ async function refreshSignatureStatus() {
   }
   
   // Check if we have a payload
-  const { caAcpPayload } = await loadStorage([STORAGE_KEYS.payload]);
-  if (caAcpPayload) {
+  const payloadState = await loadStorage([STORAGE_KEYS.payload]);
+  if (payloadState[STORAGE_KEYS.payload]) {
     switchTab("autofill");
   }
   
-  setInterval(refreshPayloadStatus, 3000);
+  setInterval(() => {
+    refreshPayloadStatus();
+    refreshWorkspaceContext(connectedWorkspaceUser);
+  }, 3000);
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIVE STORAGE LISTENER — Detect autofill progress/completion in real-time
 // ═══════════════════════════════════════════════════════════════════════════
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") return;
+  if (areaName !== "local" && areaName !== "session") return;
 
   // Queue state changed — update progress display
   if (changes[STORAGE_KEYS.queueState]) {
