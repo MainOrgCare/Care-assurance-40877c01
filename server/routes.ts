@@ -15229,21 +15229,24 @@ Remember: Extract information ONLY from service user documents above. Templates 
         sendEvent('progress', { percent, status, stage });
       };
 
-      sendProgress(10, "Analyzing documents...", "analyzing");
-
-      if (!isAIEnabled()) {
-        piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
-        sendProgress(35, "Generating rule-based risk assessment...", "rule_based");
-        const scrubbedDocumentContent = piiVault.scrub(documentContent);
+      const sendRuleBasedRiskAssessmentResult = (
+        status: string,
+        percent = 35,
+        auditScrub = false,
+      ) => {
+        if (auditScrub) {
+          piiVault.logAudit('SCRUB', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
+        }
+        sendProgress(percent, status, 'rule_based');
+        const fallbackDocumentContent = piiVault.scrub(documentContent);
         const fallbackResult = buildRuleBasedRiskAssessmentPayload({
-          documentContent: scrubbedDocumentContent,
+          documentContent: fallbackDocumentContent,
           assessmentCategory,
           serviceUserInitials: safeServiceUserInitials,
           performedBy: safePerformedBy,
           performedByJobTitle,
         });
         const templateResult = piiVault.toPlaceholders(fallbackResult);
-        // Always export vault for automatic name restoration
         const vaultExport = piiVault.export();
         const payload = {
           ...templateResult,
@@ -15251,11 +15254,18 @@ Remember: Extract information ONLY from service user documents above. Templates 
           rawWithTokens: fallbackResult,
         };
         piiVault.logAudit('RESTORE', '/api/ai/generate-risk-assessment', aiUserContext.userId, aiUserContext.username);
-        sendProgress(100, "Complete!", "complete");
+        sendProgress(100, 'Complete!', 'complete');
         sendEvent('result', payload);
         piiVault.clear();
+        if (progressInterval) clearInterval(progressInterval);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
+      };
+
+      sendProgress(10, "Analyzing documents...", "analyzing");
+
+      if (!isAIEnabled()) {
+        return sendRuleBasedRiskAssessmentResult("Generating rule-based risk assessment...", 35, true);
       }
 
       const riskAssessmentPolicies = await storage.getPolicyDocumentsByCategory("risk_assessment");
@@ -15525,12 +15535,14 @@ ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : '
         }
       }, 3000);
 
-      const response = await executeSecureTextCompletion({
-        endpoint: "/api/ai/generate-risk-assessment",
-        feature: "risk_assessment",
-        model: getRiskAssessmentGenerationModel(),
-        userContext: aiUserContext,
-        inputText: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+      let response;
+      try {
+        response = await executeSecureTextCompletion({
+          endpoint: "/api/ai/generate-risk-assessment",
+          feature: "risk_assessment",
+          model: getRiskAssessmentGenerationModel(),
+          userContext: aiUserContext,
+          inputText: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
@@ -15552,12 +15564,19 @@ ${scrubbedDocumentContent}
 === END SERVICE USER DOCUMENTS ===
 
 Remember: Extract information ONLY from the service user documents above. Templates contain placeholder/example text that should be ignored.`,
-        systemPrompt,
-        temperature: 0.2,
-        maxCompletionTokens: 12000,
-        responseFormat: { type: "json_object" },
-        useCache: false,
-      });
+          systemPrompt,
+          temperature: 0.2,
+          maxCompletionTokens: 12000,
+          responseFormat: { type: "json_object" },
+          useCache: false,
+        });
+      } catch (error) {
+        console.warn("[RiskAssessment] AI generation failed, switching to rule-based fallback:", error);
+        return sendRuleBasedRiskAssessmentResult(
+          "AI unavailable - switching to secure rule-based generation...",
+          45,
+        );
+      }
 
       if (progressInterval) clearInterval(progressInterval);
       sendProgress(70, "Processing results...", "processing");
@@ -15744,13 +15763,17 @@ Remember: Extract information ONLY from the service user documents above. Templa
         
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         return res.end();
-      } else {
-        piiVault.clear(); // Clear vault on error too
-        sendEvent('error', { message: "Failed to parse AI response" });
-        if (progressInterval) clearInterval(progressInterval);
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        return res.end();
       }
+
+      console.warn(
+        `[RiskAssessment] Failed to parse AI response. finish_reason=${response.finishReason ?? "unknown"}, content_length=${restoredContent.length}`,
+      );
+      return sendRuleBasedRiskAssessmentResult(
+        response.finishReason === "length"
+          ? "AI output was truncated - switching to secure rule-based generation..."
+          : "AI output could not be parsed - switching to secure rule-based generation...",
+        75,
+      );
     } catch (error: any) {
       console.error("Risk Assessment Generation Error:", error);
       piiVault.clear(); // Clear vault on error too
