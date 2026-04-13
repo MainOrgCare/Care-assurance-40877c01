@@ -85,7 +85,13 @@ window.addEventListener("unhandledrejection", (event) => {
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
 const API_REQUEST_TIMEOUT_MS = 30_000;
+const API_STREAM_REQUEST_TIMEOUT_MS = 180_000;
+const EVENT_STREAM_ACCEPT_PATTERN = /\btext\/event-stream\b/i;
 const originalFetch = window.fetch.bind(window);
+
+type ExtendedRequestInit = RequestInit & {
+	timeoutMs?: number;
+};
 
 const withRequestId = (headers?: HeadersInit): Headers => {
 	const finalHeaders = new Headers(headers || undefined);
@@ -119,6 +125,23 @@ const resolveApiUrl = (input: RequestInfo | URL): URL | null => {
 	return null;
 };
 
+const resolveApiRequestTimeoutMs = (input: RequestInfo | URL, init?: RequestInit): number => {
+	const explicitTimeoutMs = (init as ExtendedRequestInit | undefined)?.timeoutMs;
+	if (typeof explicitTimeoutMs === "number" && Number.isFinite(explicitTimeoutMs)) {
+		return Math.max(0, explicitTimeoutMs);
+	}
+
+	const requestHeaders = new Headers(
+		init?.headers ?? (input instanceof Request ? input.headers : undefined),
+	);
+	const acceptHeader = requestHeaders.get("Accept") || "";
+	if (EVENT_STREAM_ACCEPT_PATTERN.test(acceptHeader)) {
+		return API_STREAM_REQUEST_TIMEOUT_MS;
+	}
+
+	return API_REQUEST_TIMEOUT_MS;
+};
+
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 	const apiUrl = resolveApiUrl(input);
 	if (!apiUrl) {
@@ -134,7 +157,13 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 	);
 
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+	const requestTimeoutMs = resolveApiRequestTimeoutMs(input, init);
+	const timeout = requestTimeoutMs > 0
+		? setTimeout(
+				() => controller.abort(new DOMException("Request timed out", "AbortError")),
+				requestTimeoutMs,
+		  )
+		: null;
 
 	const sourceSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
 	let signal: AbortSignal = controller.signal;
@@ -145,7 +174,9 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 	}
 
 	if (sourceSignal?.aborted) {
-		clearTimeout(timeout);
+		if (timeout !== null) {
+			clearTimeout(timeout);
+		}
 		throw sourceSignal.reason ?? new DOMException("Aborted", "AbortError");
 	}
 
@@ -163,7 +194,9 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 		}
 		return response;
 	} finally {
-		clearTimeout(timeout);
+		if (timeout !== null) {
+			clearTimeout(timeout);
+		}
 	}
 };
 

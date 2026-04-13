@@ -19,6 +19,30 @@ import { TemplateFiller } from "@/components/TemplateFiller";
 import { ClientPIIVault, VaultExport } from "@/lib/pii-vault";
 import { consumeJsonSseStream } from "@/lib/sse";
 
+const AI_STREAM_TIMEOUT_MS = 180_000;
+
+function isAbortError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "name" in error &&
+      (error as { name?: string }).name === "AbortError"
+  );
+}
+
+function buildAiStreamRequest(body: unknown): RequestInit & { timeoutMs: number } {
+  return {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    credentials: "include",
+    body: JSON.stringify(body),
+    timeoutMs: AI_STREAM_TIMEOUT_MS,
+  };
+}
+
 /**
  * Count placeholders in text
  */
@@ -342,6 +366,7 @@ export default function RiskAssessment() {
 
   // Throttle progress updates to reduce re-renders during SSE streaming
   const lastProgressUpdateRef = useRef<number>(0);
+  const identityRefreshAttemptedRef = useRef(false);
   const throttledSetProgress = useCallback((percent: number, status: string) => {
     const now = Date.now();
     // Always update at 0%, 100%, or if 100ms has passed
@@ -694,21 +719,27 @@ export default function RiskAssessment() {
   }, [serviceUserData]);
 
   useEffect(() => {
+    identityRefreshAttemptedRef.current = false;
+  }, [serviceUserData]);
+
+  useEffect(() => {
     const hasFullName = Boolean(sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName));
-    if (!isAdmin || hasFullName || isRefreshingIdentity || !hasAllParsed) return;
+    if (!isAdmin || hasFullName || isRefreshingIdentity || !hasAllParsed || identityRefreshAttemptedRef.current) return;
     const refreshSensitiveIdentity = async () => {
+      identityRefreshAttemptedRef.current = true;
       setIsRefreshingIdentity(true);
       try {
         // Use cached document content if available
         const documentContent = cachedDocumentContent || getAllDocumentContent();
         if (!documentContent) return;
+        if (!cachedDocumentContent) {
+          setCachedDocumentContent(documentContent);
+        }
         
-        const response = await fetch("/api/ai/analyze-risks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ documentContent, allowSensitive: true }),
-        });
+        const response = await fetch(
+          "/api/ai/analyze-risks",
+          buildAiStreamRequest({ documentContent, allowSensitive: true })
+        );
         if (!response.ok) return;
         
         let resultRaw: RiskAnalysis | null = null;
@@ -743,6 +774,9 @@ export default function RiskAssessment() {
           setAnalysisVaultExport(resultVaultExport);
         }
       } catch (error) {
+        if (isAbortError(error)) {
+          return;
+        }
         console.error("Sensitive identity refresh failed:", error);
       } finally {
         setIsRefreshingIdentity(false);
@@ -764,16 +798,15 @@ export default function RiskAssessment() {
       
       // Cache document content for reuse when toggling sensitive view
       setCachedDocumentContent(documentContent);
+      identityRefreshAttemptedRef.current = false;
       
       setAnalysisRaw(null);
       setAnalysisScrubbed(null);
 
-      const response = await fetch("/api/ai/analyze-risks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ documentContent, allowSensitive: true }), // Always request vault export
-      });
+      const response = await fetch(
+        "/api/ai/analyze-risks",
+        buildAiStreamRequest({ documentContent, allowSensitive: true })
+      );
 
       if (!response.ok) {
         throw new Error("Failed to analyze documents");
@@ -841,10 +874,14 @@ export default function RiskAssessment() {
       );
       setSelectedAssessments(mandatory);
     } catch (error: any) {
-      console.error("Analysis error:", error);
+      if (!isAbortError(error)) {
+        console.error("Analysis error:", error);
+      }
       
       // Extract error info for better user guidance
-      const errorMsg = error.message || "Could not analyze documents";
+      const errorMsg = isAbortError(error)
+        ? "Risk analysis took too long or was interrupted. Please try again."
+        : error.message || "Could not analyze documents";
       const isGitHubQuota = errorMsg.includes("quota exceeded") || errorMsg.includes("API quota");
       const isGitHubPermission = errorMsg.includes("models") && errorMsg.includes("permission");
       const isGitHubAuth = errorMsg.includes("API authentication");
@@ -1043,11 +1080,9 @@ export default function RiskAssessment() {
               documentSummary: analysis.documentSummary,
             }
           : null;
-        const response = await fetch("/api/ai/generate-risk-assessment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
+        const response = await fetch(
+          "/api/ai/generate-risk-assessment",
+          buildAiStreamRequest({
             documentContent,
             assessmentCategory: assessmentName,
             serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials,
@@ -1063,8 +1098,8 @@ export default function RiskAssessment() {
                 }
               : null,
             analysisContext,
-          }),
-        });
+          })
+        );
 
         if (!response.ok) {
           let message = `Failed to generate ${assessmentName}`;
@@ -1118,8 +1153,14 @@ export default function RiskAssessment() {
           throw new Error(`No result received for ${assessmentName}`);
         }
       } catch (error: any) {
-        console.error(`Failed to generate ${assessmentName}:`, error);
-        errors.push(error?.message || `Failed to generate ${assessmentName}`);
+        if (!isAbortError(error)) {
+          console.error(`Failed to generate ${assessmentName}:`, error);
+        }
+        errors.push(
+          isAbortError(error)
+            ? `${assessmentName} generation took too long or was interrupted.`
+            : error?.message || `Failed to generate ${assessmentName}`
+        );
       } finally {
         inFlightProgress.delete(assessmentName);
         completed += 1;

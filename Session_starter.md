@@ -68,6 +68,7 @@
 - Security posture is explicitly engineered (canonical host controls, CSRF/origin checks via route stack, progressive lockout helpers, request logger middleware).
 - Extension supports two workflows: traditional payload autofill + direct document upload for AI analysis.
 - `server/routes.ts` contains a local `PIIVault` implementation; helper integrations should use structural typing for vault compatibility instead of concrete class coupling.
+- Long-running client AI SSE requests can exceed the default 30-second API timeout. `client/src/main.tsx` now extends any `/api` request that advertises `Accept: text/event-stream` to a 180-second timeout, and `client/src/pages/service-users/RiskAssessment.tsx` explicitly marks its streamed AI analysis/generation requests that way.
 - Risk assessment analysis/generation now strips template/instruction artefacts like "understand the information provided" and residual `PII_*` token fragments on both server and client paths; the analyze-risks cache generation was bumped to `evidence_v5` so stale bad name/evidence payloads are bypassed.
 - `server/utils/secureAiPipeline.ts` now supports both text-only and multimodal user content (scrubs text parts in multipart payloads).
 - Route-level direct `createChatCompletionWithLogging` calls have been eliminated in favor of secure helper wrappers; service-level text extraction paths were also migrated.
@@ -98,6 +99,7 @@
 
 | Date | Summary |
 | ---- | --------- |
+| 2026-04-13 | ✅ Fixed Risk Assessment stream cancellations in `client/src/main.tsx` and `client/src/pages/service-users/RiskAssessment.tsx`: same-origin `/api` fetch now gives `text/event-stream` requests a 180s timeout with a proper abort reason, the page now marks its AI SSE calls accordingly, and sensitive identity refresh will only attempt once per document set instead of retrying indefinitely after an abort/failure. Revalidated with `npm run build`; `npm run check` remains blocked by unrelated existing type errors in `server/worker.ts`. |
 | 2026-04-12 | ✅ Fixed Render blueprint quoting regression in `render.yaml`: removed outer YAML quotes from all `buildCommand` values so Render executes `sh -c ...` directly instead of attempting to run a literal quoted string like `"sh -c ..."`. |
 | 2026-04-12 | ✅ Fixed three service-user workflow regressions and revalidated with `npm run build`: Care Planning now supports a `General` fallback when no DB call types are found, Plan Enhancer pre-analysis now uses the correct combined-string document contract from `TemporaryDataContext`, and Risk Assessment custom assessments now keep canonical selection names aligned with UI state and generation payloads. |
 | 2026-04-12 | ✅ Fixed Render deploy heap scoping in `render.yaml` by changing all build commands to `sh -c 'export NODE_OPTIONS=...; ...'`, ensuring Vite/esbuild inherit the intended build-time heap instead of falling back to the 512 MB runtime `NODE_OPTIONS` env var. |
