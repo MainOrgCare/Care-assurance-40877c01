@@ -1,5 +1,34 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.3.5 - Connected Session Privacy Update (April 13, 2026)
+
+### Privacy and Data Handling
+
+- Sensitive care payloads now stay in transient extension session storage instead of persistent local extension storage.
+- Care plan, risk assessment, initial assessment, signature, uploaded document, and verification payloads are cleared automatically when the session expires or the user clears the workflow.
+- Service-user search results and selected-user state are kept in popup memory only and are no longer persisted in extension storage.
+
+### Connected Page Integration
+
+- Improved seamless interaction with an open Care Assurance tab through the authenticated content-script proxy.
+- The popup continues to load data and trigger workflows against the connected web page without requiring users to manually copy tokens or re-enter connection details.
+- Background retry handling is more resilient when the MV3 service worker is waking up or the content script needs to reattach after an update.
+
+### Popup and Autofill Workflow
+
+- Added a `Latest Payload` inspector in the popup Autofill tab so users can review the current payload summary and raw JSON before starting autofill.
+- Improved payload status handling for ACP, EMAR, custom, and Initial Assessment workflows.
+- Added clearer extension test and refresh guidance when the page and extension are out of sync after an update.
+
+### Packaging and Installation
+
+- Standardized extension packaging on the canonical build script and clarified that downloaded ZIP packages should be extracted before using `Load unpacked` in Edge.
+- Updated release flow so admins can rebuild and download the current package more reliably from CareAssurance.
+
+### Notes
+
+- This release focuses on preserving the live connected-page experience while reducing the chance of sensitive care data being retained by the browser extension beyond the active session.
+
 ## Version 0.2.0 - Major UI Redesign (February 4, 2025)
 
 ### 🎨 Complete UI Redesign
