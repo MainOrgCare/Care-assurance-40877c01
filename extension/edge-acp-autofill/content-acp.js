@@ -38,7 +38,29 @@ const FORM_FIELD_NAMES = {
   assessor: "form_component_5_4",
   assessmentDate: "form_component_6_5",
   reason: "form_component_25_8",
+  trainingNeeds: "form_component_35_26",
 };
+
+const TRAINING_NEEDS_FALSE_PATTERNS = [
+  /\bno(?:\s+additional)?\s+training\s+(?:need(?:s|ed)?|required)\b/i,
+  /\bstandard\s+practi[cs]e\b/i,
+  /\bstandard\s+procedure\b/i,
+  /\bnormal\s+induction\b/i,
+  /\broutine\s+training\b/i,
+];
+
+const TRAINING_NEEDS_TRUE_PATTERNS = [
+  /\bnot\s+standard\s+practi[cs]e\b/i,
+  /\badditional\s+training\b/i,
+  /\bextra\s+training\b/i,
+  /\bfurther\s+training\b/i,
+  /\brefresher\s+training\b/i,
+  /\bspecial(?:ist)?\s+training\b/i,
+  /\btargeted\s+training\b/i,
+  /\bbespoke\s+training\b/i,
+  /\btraining\s+(?:need|needs|needed|required|requirement|gap|gaps)\b/i,
+  /\bcompetenc(?:y|ies)\s+(?:gap|gaps|issue|issues)\b/i,
+];
 
 const SIGNATURE_FIELD_SELECTORS = [
   '[name="form_component_18_19"]',
@@ -870,6 +892,82 @@ const buildSignedLabel = (assessment) => {
   return name || title;
 };
 
+const normalizeTrainingNeedsDecision = (value) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (["yes", "true", "required", "needed"].includes(normalized)) {
+    return true;
+  }
+
+  if (["no", "false", "none", "n/a", "na"].includes(normalized)) {
+    return false;
+  }
+
+  if (TRAINING_NEEDS_FALSE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+
+  if (TRAINING_NEEDS_TRUE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  return null;
+};
+
+const getTrainingNeedsSelectLabel = (assessment) => {
+  if (!assessment || typeof assessment !== "object") {
+    return "No";
+  }
+
+  const explicitCandidates = [
+    assessment.trainingNeeds,
+    assessment.trainingNeed,
+    assessment.trainingRequirement,
+    assessment.trainingRequirements,
+    assessment.requiresTraining,
+    assessment.additionalTrainingRequired,
+    assessment.isStandardPractice,
+  ];
+
+  for (const candidate of explicitCandidates) {
+    const normalized = normalizeTrainingNeedsDecision(candidate);
+    if (normalized !== null) {
+      return normalized ? "Yes" : "No";
+    }
+  }
+
+  const evidenceTexts = [
+    assessment.additionalNotes,
+    ...(Array.isArray(assessment.supportingEvidence) ? assessment.supportingEvidence : []),
+    ...(Array.isArray(assessment.risks)
+      ? assessment.risks.flatMap((risk) => [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures])
+      : []),
+  ]
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  for (const text of evidenceTexts) {
+    if (TRAINING_NEEDS_FALSE_PATTERNS.some((pattern) => pattern.test(text))) {
+      return "No";
+    }
+    if (TRAINING_NEEDS_TRUE_PATTERNS.some((pattern) => pattern.test(text))) {
+      return "Yes";
+    }
+  }
+
+  return "No";
+};
+
 const clickSubmit = () => {
   const buttons = Array.from(document.querySelectorAll("button, input[type=submit]"));
   const submitButton = buttons.find((button) => {
@@ -927,6 +1025,7 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
   await setValue(FORM_FIELD_NAMES.reason, assessment.category || "");
   setSelectByLabel("form_component_40_2", "Yes");
   setSelectByLabel("form_component_19_20", "No");
+  setSelectByLabel(FORM_FIELD_NAMES.trainingNeeds, getTrainingNeedsSelectLabel(assessment));
 
   await wait(500);
 

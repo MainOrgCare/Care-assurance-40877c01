@@ -260,6 +260,42 @@
             </div>
           </section>
 
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">Page Companion</h2>
+              <p class="card-description">Drive the live Mobizio or CareAssurance page from the popup and keep the in-page workflow visible.</p>
+            </div>
+            <div class="card-content page-companion-shell">
+              <div id="page-companion-state" class="page-companion-state is-empty">
+                <span class="page-companion-eyebrow">Current browser page</span>
+                <strong class="page-companion-title">Open a workflow page to attach the companion</strong>
+                <span class="page-companion-detail">The extension will detect ACP, EMAR, Initial Assessment, or CareAssurance workspace tabs and surface the right controls here.</span>
+              </div>
+
+              <div class="page-companion-grid">
+                <div class="page-companion-metric">
+                  <span class="page-companion-label">Detected page</span>
+                  <strong id="page-companion-route" class="page-companion-value">Waiting</strong>
+                </div>
+                <div class="page-companion-metric">
+                  <span class="page-companion-label">Payload</span>
+                  <strong id="page-companion-payload" class="page-companion-value">No payload</strong>
+                </div>
+                <div class="page-companion-metric">
+                  <span class="page-companion-label">Review status</span>
+                  <strong id="page-companion-review" class="page-companion-value">No checks</strong>
+                </div>
+              </div>
+
+              <div class="page-companion-actions">
+                <button id="refresh-page-companion" class="btn btn-secondary btn-sm">Refresh Page</button>
+                <button id="focus-page-companion" class="btn btn-secondary btn-sm">Focus Page</button>
+                <button id="open-page-overlay" class="btn btn-primary btn-sm" disabled>Open In-Page Status</button>
+                <button id="jump-page-verification" class="btn btn-secondary btn-sm" disabled>Next Review Field</button>
+              </div>
+            </div>
+          </section>
+
           <details id="payload-inspector-section" class="card collapsible" hidden open>
             <summary class="collapsible-header">
               <span>Latest Payload</span>
@@ -371,7 +407,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-          <span class="footer-text">CareAssurance Extension v0.3.5</span>
+          <span class="footer-text">CareAssurance Extension <span id="footer-extension-version">v0.3.5</span></span>
         </div>
       </footer>
     </main>

@@ -16,6 +16,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface DataStats {
   serviceUsersCount: number;
@@ -72,10 +73,13 @@ interface WorkbookUploadSummary {
 export const AdminDatabasePanel: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // Fetch data stats
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<DataStats>({
     queryKey: ["/api/admin/rostering/data-stats"],
+    enabled: isAdmin,
   });
 
   const {
@@ -84,11 +88,15 @@ export const AdminDatabasePanel: React.FC = () => {
     refetch: refetchUploads,
   } = useQuery<WorkbookUploadSummary[]>({
     queryKey: ["/api/admin/rostering/workbook-uploads"],
+    enabled: isAdmin,
   });
 
   // Cleanup mutation
   const cleanupMutation = useMutation<CleanupResult, Error, void>({
     mutationFn: async () => {
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
       const response = await fetch("/api/admin/rostering/cleanup-expired", {
         method: "POST",
         credentials: "include",
@@ -119,6 +127,9 @@ export const AdminDatabasePanel: React.FC = () => {
 
   const resetMutation = useMutation<ResetResult, Error, void>({
     mutationFn: async () => {
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
       const confirmed = window.confirm(
         "This will remove ALL rostering and care worker rota data. This cannot be undone. Continue?"
       );
@@ -155,6 +166,9 @@ export const AdminDatabasePanel: React.FC = () => {
 
   const deleteUploadMutation = useMutation<{ success: boolean }, Error, string>({
     mutationFn: async (uploadId: string) => {
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
       const confirmed = window.confirm("Delete this workbook upload? This cannot be undone.");
       if (!confirmed) {
         throw new Error("Delete cancelled");
@@ -194,6 +208,35 @@ export const AdminDatabasePanel: React.FC = () => {
     { label: "Pending Recommendations", value: stats?.pendingRecommendationsCount ?? 0, icon: AlertCircle, color: "bg-orange-500" },
     { label: "Workbook Uploads", value: stats?.workbookUploadsCount ?? 0, icon: Database, color: "bg-zinc-500" },
   ];
+
+  if (!isAdmin) {
+    return (
+      <Card className="border-border/70 bg-background/70 shadow-medium">
+        <CardHeader className="border-b border-border/50 bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Database Management</CardTitle>
+          </div>
+          <CardDescription>
+            Admin access is required to view or manage Postgres-backed database contents.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-muted-foreground">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
+              <div>
+                <p className="font-medium text-foreground">Restricted database access</p>
+                <p className="mt-1">
+                  Only admin users can view workbook metadata, retention statistics, or database cleanup controls.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-border/70 bg-background/70 shadow-medium hover-elevate">

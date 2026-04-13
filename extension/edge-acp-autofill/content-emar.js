@@ -49,10 +49,369 @@ const logAction = (message) => {
     type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
     entry: `[${timestamp}] ${message}`,
   });
+  if (typeof refreshOverlaySoon === "function") {
+    refreshOverlaySoon();
+  }
 };
 
 let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
+let overlayInitialized = false;
+let overlayCollapsed = false;
+let overlayElements = null;
+let overlayRefreshTimer = null;
+let overlayIntervalId = null;
+
+const OVERLAY_STYLE_ID = "ca-emar-overlay-styles";
+
+const getInteractionModeLabel = () => {
+  if (DRY_RUN) return "Dry run";
+  if (INTERACTION_MODE === "manual") return "Manual assist";
+  if (INTERACTION_MODE === "slow") return "Guided";
+  return "Auto";
+};
+
+const injectOverlayStyles = () => {
+  if (document.getElementById(OVERLAY_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = OVERLAY_STYLE_ID;
+  style.textContent = `
+    #ca-emar-overlay {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 2147483647;
+      font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+      pointer-events: none;
+      color: #10233f;
+    }
+    .ca-emar-panel {
+      width: min(360px, calc(100vw - 24px));
+      border-radius: 20px;
+      border: 1px solid rgba(148, 163, 184, 0.26);
+      background: radial-gradient(circle at top right, rgba(20, 184, 166, 0.14), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(240,249,255,0.96));
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.16);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+      pointer-events: auto;
+    }
+    .ca-emar-panel.is-collapsed {
+      width: auto;
+      min-width: 172px;
+      cursor: pointer;
+    }
+    .ca-emar-header {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .ca-emar-panel.is-collapsed .ca-emar-header {
+      align-items: center;
+      border-bottom: 0;
+      padding: 12px 14px;
+    }
+    .ca-emar-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #0f766e, #155e75);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .ca-emar-panel.is-collapsed .ca-emar-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 12px;
+      font-size: 10px;
+    }
+    .ca-emar-heading { min-width: 0; flex: 1; }
+    .ca-emar-kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #5b6c84; margin-bottom: 3px; }
+    .ca-emar-title { font-size: 14px; font-weight: 700; color: #10233f; line-height: 1.2; }
+    .ca-emar-subtitle { margin-top: 4px; font-size: 12px; line-height: 1.45; color: #5b6c84; }
+    .ca-emar-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; }
+    .ca-emar-chip { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid rgba(20,184,166,0.18); background: rgba(255,255,255,0.82); color: #0f766e; }
+    .ca-emar-chip.is-warning { border-color: rgba(185,89,12,0.25); color: #9a3412; }
+    .ca-emar-chip.is-idle { border-color: rgba(148,163,184,0.22); color: #475569; }
+    .ca-emar-toggle { width: 30px; height: 30px; border-radius: 10px; border: 1px solid rgba(148,163,184,0.26); background: rgba(255,255,255,0.9); color: #475569; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+    .ca-emar-body { padding: 0 16px 16px; }
+    .ca-emar-panel.is-collapsed .ca-emar-body, .ca-emar-panel.is-collapsed .ca-emar-kicker, .ca-emar-panel.is-collapsed .ca-emar-subtitle, .ca-emar-panel.is-collapsed .ca-emar-chip { display: none; }
+    .ca-emar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .ca-emar-stat { padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,0.82); border: 1px solid rgba(148,163,184,0.16); }
+    .ca-emar-stat-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+    .ca-emar-stat-value { display: block; font-size: 12px; line-height: 1.45; font-weight: 600; color: #10233f; word-break: break-word; }
+    .ca-emar-progress { padding: 12px 14px; border-radius: 16px; background: rgba(15,23,42,0.035); border: 1px solid rgba(148,163,184,0.16); margin-bottom: 14px; }
+    .ca-emar-progress-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: #10233f; }
+    .ca-emar-progress-note { font-size: 11px; color: #64748b; }
+    .ca-emar-track { height: 8px; border-radius: 999px; background: rgba(148,163,184,0.22); overflow: hidden; }
+    .ca-emar-fill { height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, #0f766e, #0284c7); transition: width 180ms ease; }
+    .ca-emar-logs-label { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #64748b; margin-bottom: 8px; }
+    .ca-emar-logs { max-height: 108px; overflow: auto; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,0.82); border: 1px solid rgba(148,163,184,0.16); font-family: "SFMono-Regular", Menlo, monospace; font-size: 11px; line-height: 1.55; color: #475569; white-space: pre-line; }
+    .ca-emar-footer { margin-top: 12px; font-size: 11px; line-height: 1.5; color: #5b6c84; }
+    @media (max-width: 640px) {
+      #ca-emar-overlay { top: auto; right: 12px; left: 12px; bottom: 12px; }
+      .ca-emar-panel { width: 100%; }
+      .ca-emar-grid { grid-template-columns: 1fr; }
+    }
+  `;
+  document.head.appendChild(style);
+};
+
+const initOverlay = () => {
+  if (overlayInitialized) return;
+  overlayInitialized = true;
+  injectOverlayStyles();
+
+  const container = document.createElement("div");
+  container.id = "ca-emar-overlay";
+  const panel = document.createElement("div");
+  panel.className = "ca-emar-panel";
+
+  const header = document.createElement("div");
+  header.className = "ca-emar-header";
+  const mark = document.createElement("div");
+  mark.className = "ca-emar-mark";
+  mark.textContent = "CA";
+
+  const heading = document.createElement("div");
+  heading.className = "ca-emar-heading";
+  const kicker = document.createElement("div");
+  kicker.className = "ca-emar-kicker";
+  kicker.textContent = "Care Assurance";
+  const title = document.createElement("div");
+  title.className = "ca-emar-title";
+  title.textContent = "EMAR Audit Runtime";
+  const subtitle = document.createElement("div");
+  subtitle.className = "ca-emar-subtitle";
+  subtitle.textContent = "Attach an EMAR audit payload to activate this page companion.";
+  heading.appendChild(kicker);
+  heading.appendChild(title);
+  heading.appendChild(subtitle);
+
+  const actions = document.createElement("div");
+  actions.className = "ca-emar-actions";
+  const chip = document.createElement("div");
+  chip.className = "ca-emar-chip is-idle";
+  chip.textContent = "Waiting";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "ca-emar-toggle";
+  toggle.textContent = "-";
+  toggle.title = "Minimize";
+  actions.appendChild(chip);
+  actions.appendChild(toggle);
+
+  header.appendChild(mark);
+  header.appendChild(heading);
+  header.appendChild(actions);
+
+  const body = document.createElement("div");
+  body.className = "ca-emar-body";
+  const grid = document.createElement("div");
+  grid.className = "ca-emar-grid";
+  const buildStat = (label, value) => {
+    const stat = document.createElement("div");
+    stat.className = "ca-emar-stat";
+    const statLabel = document.createElement("span");
+    statLabel.className = "ca-emar-stat-label";
+    statLabel.textContent = label;
+    const statValue = document.createElement("span");
+    statValue.className = "ca-emar-stat-value";
+    statValue.textContent = value;
+    stat.appendChild(statLabel);
+    stat.appendChild(statValue);
+    return { stat, statValue };
+  };
+  const serviceUser = buildStat("Service user", "Awaiting payload");
+  const mode = buildStat("Mode", "Auto");
+  const period = buildStat("Audit period", "Not set");
+  grid.appendChild(serviceUser.stat);
+  grid.appendChild(mode.stat);
+  grid.appendChild(period.stat);
+
+  const progressCard = document.createElement("div");
+  progressCard.className = "ca-emar-progress";
+  const progressMeta = document.createElement("div");
+  progressMeta.className = "ca-emar-progress-meta";
+  const progress = document.createElement("div");
+  progress.textContent = "Waiting for EMAR audit data";
+  const progressNote = document.createElement("div");
+  progressNote.className = "ca-emar-progress-note";
+  progressNote.textContent = "No audit payload attached yet";
+  progressMeta.appendChild(progress);
+  progressMeta.appendChild(progressNote);
+  const track = document.createElement("div");
+  track.className = "ca-emar-track";
+  const fill = document.createElement("div");
+  fill.className = "ca-emar-fill";
+  track.appendChild(fill);
+  progressCard.appendChild(progressMeta);
+  progressCard.appendChild(track);
+
+  const logsLabel = document.createElement("div");
+  logsLabel.className = "ca-emar-logs-label";
+  logsLabel.textContent = "Recent activity";
+  const logs = document.createElement("div");
+  logs.className = "ca-emar-logs";
+  logs.textContent = "No actions yet.";
+  const footer = document.createElement("div");
+  footer.className = "ca-emar-footer";
+  footer.textContent = "The EMAR workflow now stays visible as part of the same CareAssurance runtime.";
+
+  body.appendChild(grid);
+  body.appendChild(progressCard);
+  body.appendChild(logsLabel);
+  body.appendChild(logs);
+  body.appendChild(footer);
+
+  panel.appendChild(header);
+  panel.appendChild(body);
+  container.appendChild(panel);
+  document.body.appendChild(container);
+
+  overlayElements = {
+    panel,
+    header,
+    title,
+    subtitle,
+    chip,
+    toggle,
+    progress,
+    progressNote,
+    fill,
+    logs,
+    footer,
+    serviceUserValue: serviceUser.statValue,
+    modeValue: mode.statValue,
+    periodValue: period.statValue,
+    collapsedTitle: "EMAR ready",
+  };
+
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOverlayCollapsed(!overlayCollapsed);
+  });
+};
+
+const refreshOverlaySoon = () => {
+  if (!overlayInitialized) return;
+  if (overlayRefreshTimer) return;
+  overlayRefreshTimer = setTimeout(() => {
+    overlayRefreshTimer = null;
+    refreshOverlay();
+  }, 150);
+};
+
+const refreshOverlay = async () => {
+  if (!overlayInitialized || !overlayElements) return;
+  const {
+    caAcpPayload,
+    caAcpQueueState,
+    caAcpLogs,
+    caAcpLastError,
+    caAcpDryRun,
+    caAcpInteractionMode,
+  } = await loadStorage([
+    STORAGE_KEYS.payload,
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.logs,
+    STORAGE_KEYS.lastError,
+    STORAGE_KEYS.dryRun,
+    STORAGE_KEYS.interactionMode,
+  ]);
+
+  const current = caAcpQueueState && typeof caAcpQueueState.currentIndex === "number" ? caAcpQueueState.currentIndex + 1 : 0;
+  const total = caAcpQueueState && typeof caAcpQueueState.total === "number" ? caAcpQueueState.total : 0;
+  const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((current / total) * 100))) : (caAcpPayload?.formType === "emar" ? 100 : 0);
+  const periodText = caAcpPayload?.auditPeriodStart && caAcpPayload?.auditPeriodEnd
+    ? `${caAcpPayload.auditPeriodStart} → ${caAcpPayload.auditPeriodEnd}`
+    : caAcpPayload?.auditDate || "Not set";
+
+  DRY_RUN = Boolean(caAcpDryRun);
+  INTERACTION_MODE = caAcpInteractionMode || INTERACTION_MODE || "auto";
+
+  overlayElements.serviceUserValue.textContent = caAcpPayload?.serviceUserName || "Awaiting payload";
+  overlayElements.modeValue.textContent = getInteractionModeLabel();
+  overlayElements.periodValue.textContent = periodText;
+  overlayElements.subtitle.textContent = caAcpPayload?.purposeOfAudit || "Medication audit workflow";
+  overlayElements.progress.textContent = total > 0
+    ? `Workflow ${current} of ${total}`
+    : caAcpPayload?.formType === "emar"
+    ? "EMAR audit payload attached"
+    : "Waiting for EMAR audit data";
+  overlayElements.progressNote.textContent = caAcpLastError
+    ? String(caAcpLastError)
+    : caAcpPayload?.themesAndTrends || caAcpPayload?.furtherActions || "Attach an EMAR payload to review audit findings here.";
+  overlayElements.fill.style.width = `${percent}%`;
+
+  if (caAcpLastError) {
+    overlayElements.chip.textContent = "Attention";
+    overlayElements.chip.classList.add("is-warning");
+    overlayElements.chip.classList.remove("is-idle");
+    overlayElements.footer.textContent = "Resolve the EMAR workflow issue in CareAssurance before continuing on this page.";
+  } else if (caAcpPayload?.formType === "emar") {
+    overlayElements.chip.textContent = "Live sync";
+    overlayElements.chip.classList.remove("is-warning", "is-idle");
+    overlayElements.footer.textContent = `${getInteractionModeLabel()} mode is active for the current EMAR audit page.`;
+  } else {
+    overlayElements.chip.textContent = "Waiting";
+    overlayElements.chip.classList.remove("is-warning");
+    overlayElements.chip.classList.add("is-idle");
+    overlayElements.footer.textContent = "Open an EMAR audit from CareAssurance to attach this runtime surface.";
+  }
+
+  const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
+  overlayElements.logs.textContent = logs.length ? logs.slice(-6).join("\n") : "No actions yet.";
+  overlayElements.collapsedTitle = caAcpPayload?.formType === "emar" ? "EMAR live" : "EMAR ready";
+  if (overlayCollapsed) {
+    overlayElements.title.textContent = overlayElements.collapsedTitle;
+  }
+};
+
+const setOverlayCollapsed = (collapsed) => {
+  overlayCollapsed = collapsed;
+  if (!overlayElements) return;
+  if (collapsed) {
+    overlayElements.panel.classList.add("is-collapsed");
+    overlayElements.title.textContent = overlayElements.collapsedTitle || "EMAR live";
+    overlayElements.toggle.textContent = "+";
+    overlayElements.toggle.title = "Expand";
+    overlayElements.header.onclick = (event) => {
+      if (event.target === overlayElements.toggle) return;
+      setOverlayCollapsed(false);
+    };
+  } else {
+    overlayElements.panel.classList.remove("is-collapsed");
+    overlayElements.title.textContent = "EMAR Audit Runtime";
+    overlayElements.toggle.textContent = "-";
+    overlayElements.toggle.title = "Minimize";
+    overlayElements.header.onclick = null;
+    refreshOverlay();
+  }
+};
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== (MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY")) return false;
+  initOverlay();
+  if (message?.payload?.open) {
+    setOverlayCollapsed(false);
+  } else if (message?.payload?.minimize) {
+    setOverlayCollapsed(true);
+  } else {
+    setOverlayCollapsed(!overlayCollapsed);
+  }
+  sendResponse?.({ ok: true });
+  return true;
+});
 
 const highlightField = (field) => {
   if (!field) return;
@@ -230,6 +589,12 @@ const isEmarFormPage = () => {
 
 const run = async () => {
   if (!isEmarFormPage()) return;
+
+  initOverlay();
+  refreshOverlay();
+  if (!overlayIntervalId) {
+    overlayIntervalId = setInterval(refreshOverlay, 1500);
+  }
 
   const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
     STORAGE_KEYS.payload,

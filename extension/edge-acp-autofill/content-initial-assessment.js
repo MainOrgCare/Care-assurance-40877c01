@@ -28,6 +28,7 @@ const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CON
   MESSAGE_TYPES: {
     log: "CA_EXTENSION_LOG",
     stepComplete: "CA_EXTENSION_STEP_COMPLETE",
+    toggleOverlay: "CA_EXTENSION_TOGGLE_OVERLAY",
   },
   STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
 };
@@ -1523,6 +1524,17 @@ const showVerificationSummary = (fields) => {
   const counterEl = document.getElementById('ca-nav-counter');
   const currentFieldEl = document.getElementById('ca-current-field');
   const contentEl = document.getElementById('ca-summary-content');
+
+  const setSummaryMinimized = (minimized) => {
+    summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
+    contentEl.style.display = minimized ? 'none' : 'block';
+    summary.style.minWidth = minimized ? '150px' : '300px';
+    const minimizeButton = document.getElementById('ca-minimize-summary');
+    if (minimizeButton) {
+      minimizeButton.textContent = minimized ? '+' : '_';
+      minimizeButton.title = minimized ? 'Expand' : 'Minimize';
+    }
+  };
   
   const updateCounter = () => {
     counterEl.textContent = `${currentIndex + 1} / ${fields.length}`;
@@ -1566,10 +1578,11 @@ const showVerificationSummary = (fields) => {
   });
   
   document.getElementById('ca-minimize-summary').addEventListener('click', () => {
-    const isMinimized = contentEl.style.display === 'none';
-    contentEl.style.display = isMinimized ? 'block' : 'none';
-    summary.style.minWidth = isMinimized ? '300px' : '150px';
+    const isMinimized = summary.dataset.caSummaryMinimized === 'true';
+    setSummaryMinimized(!isMinimized);
   });
+
+  setSummaryMinimized(false);
   
   // Keyboard shortcuts
   const keyHandler = (e) => {
@@ -1595,6 +1608,50 @@ const showVerificationSummary = (fields) => {
   
   // Don't auto-close - let user close manually
   logAction(`Verification panel ready. ${fields.length} fields to review.`);
+};
+
+const getVerificationSummaryFields = () => {
+  if (NEEDS_VERIFICATION.length > 0) {
+    return NEEDS_VERIFICATION;
+  }
+
+  return Array.from(document.querySelectorAll('[data-ca-verification]')).map((field, index) => ({
+    field: field.getAttribute('name') || field.getAttribute('id') || `Field ${index + 1}`,
+    reason: field.dataset.caVerification || 'missing',
+  }));
+};
+
+const setVerificationSummaryMinimized = (minimized) => {
+  const summary = document.getElementById('ca-verification-summary');
+  if (!summary) return false;
+  const content = document.getElementById('ca-summary-content');
+  const minimizeButton = document.getElementById('ca-minimize-summary');
+  summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
+  summary.style.minWidth = minimized ? '150px' : '300px';
+  if (content) {
+    content.style.display = minimized ? 'none' : 'block';
+  }
+  if (minimizeButton) {
+    minimizeButton.textContent = minimized ? '+' : '_';
+    minimizeButton.title = minimized ? 'Expand' : 'Minimize';
+  }
+  return true;
+};
+
+const ensureVerificationSummaryVisible = () => {
+  const existing = document.getElementById('ca-verification-summary');
+  if (existing) {
+    setVerificationSummaryMinimized(false);
+    return true;
+  }
+
+  const fields = getVerificationSummaryFields();
+  if (!fields.length) {
+    return false;
+  }
+
+  showVerificationSummary(fields);
+  return true;
 };
 
 /**
@@ -1695,6 +1752,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       ambiguous: Array.from(fields).filter(f => f.dataset.caVerification === 'ambiguous').length
     };
     sendResponse(status);
+    return true;
+  }
+
+  if (message?.type === (MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY")) {
+    const hasSummary = ensureVerificationSummaryVisible();
+    if (!hasSummary) {
+      sendResponse({ ok: false, error: 'No verification summary available on this page.' });
+      return true;
+    }
+
+    const summary = document.getElementById('ca-verification-summary');
+    const currentlyMinimized = summary?.dataset?.caSummaryMinimized === 'true';
+
+    if (message?.payload?.open) {
+      setVerificationSummaryMinimized(false);
+    } else if (message?.payload?.minimize) {
+      setVerificationSummaryMinimized(true);
+    } else {
+      setVerificationSummaryMinimized(!currentlyMinimized);
+    }
+
+    sendResponse({ ok: true });
     return true;
   }
   

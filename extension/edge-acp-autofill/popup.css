@@ -602,6 +602,91 @@ html, body {
   flex: 1;
 }
 
+.page-companion-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.page-companion-state {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: linear-gradient(180deg, hsl(210, 20%, 99%), hsl(210, 30%, 97%));
+}
+
+.page-companion-state.is-live {
+  border-color: hsl(215, 45%, 70%);
+  background: linear-gradient(180deg, hsl(215, 75%, 97%), hsl(210, 60%, 96%));
+}
+
+.page-companion-state.is-warning {
+  border-color: hsl(38, 75%, 72%);
+  background: linear-gradient(180deg, hsl(45, 100%, 97%), hsl(38, 100%, 95%));
+}
+
+.page-companion-state.is-empty {
+  background: var(--color-muted);
+}
+
+.page-companion-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.page-companion-title {
+  font-size: 13px;
+  color: var(--color-foreground);
+}
+
+.page-companion-detail {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+.page-companion-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.page-companion-metric {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--color-muted);
+  min-width: 0;
+}
+
+.page-companion-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+  margin-bottom: 4px;
+}
+
+.page-companion-value {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-foreground);
+  word-break: break-word;
+}
+
+.page-companion-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .doc-icon.indigo {
   background: hsl(240, 70%, 92%);
   color: hsl(240, 60%, 55%);
@@ -1639,6 +1724,13 @@ html, body {
 .verification-nav {
   display: flex;
   gap: 6px;
+}
+
+@media (max-width: 520px) {
+  .page-companion-grid,
+  .page-companion-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== UTILITIES ===== */

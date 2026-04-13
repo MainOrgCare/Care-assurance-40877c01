@@ -129,11 +129,19 @@ const FALLBACK_MESSAGE_TYPES = {
   clearError: "CA_EXTENSION_CLEAR_ERROR",
   analyzeRisks: "CA_EXTENSION_ANALYZE_RISKS",
   storePayload: "CA_EXTENSION_STORE_PAYLOAD",
+  toggleOverlay: "CA_EXTENSION_TOGGLE_OVERLAY",
 };
 
-const { STORAGE_KEYS, MESSAGE_TYPES, SESSION_STORAGE_KEYS: SHARED_SESSION_STORAGE_KEYS } = window.CA_EXTENSION_CONSTANTS || {
+const FALLBACK_FORM_CONFIGS = {
+  acp: { formId: "1048191" },
+  initialAssessment: { formId: "1040788" },
+  emar: { formId: "1044009" },
+};
+
+const { STORAGE_KEYS, MESSAGE_TYPES, FORM_CONFIGS, SESSION_STORAGE_KEYS: SHARED_SESSION_STORAGE_KEYS } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
   MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
+  FORM_CONFIGS: FALLBACK_FORM_CONFIGS,
 };
 
 const sessionStorageKeySet = new Set(
@@ -309,6 +317,14 @@ const autoDetectIdsButton = document.getElementById("auto-detect-ids");
 const autoSubmitToggle = document.getElementById("auto-submit");
 const dryRunToggle = document.getElementById("dry-run");
 const interactionModeSelect = document.getElementById("interaction-mode");
+const pageCompanionState = document.getElementById("page-companion-state");
+const pageCompanionRoute = document.getElementById("page-companion-route");
+const pageCompanionPayload = document.getElementById("page-companion-payload");
+const pageCompanionReview = document.getElementById("page-companion-review");
+const refreshPageCompanionButton = document.getElementById("refresh-page-companion");
+const focusPageCompanionButton = document.getElementById("focus-page-companion");
+const openPageOverlayButton = document.getElementById("open-page-overlay");
+const jumpPageVerificationButton = document.getElementById("jump-page-verification");
 const progressStatus = document.getElementById("progress-status");
 const startButton = document.getElementById("start-autofill");
 const stopButton = document.getElementById("stop-autofill");
@@ -325,6 +341,7 @@ const runtimeDiagnostics = document.getElementById("runtime-diagnostics");
 const logList = document.getElementById("log-list");
 const copyDiagnosticsButton = document.getElementById("copy-diagnostics");
 const clearLogsButton = document.getElementById("clear-logs");
+const footerExtensionVersion = document.getElementById("footer-extension-version");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATE
@@ -339,6 +356,7 @@ let currentAnalysisResults = null;
 let latestPayloadSnapshot = null;
 let connectedWorkspaceContext = null;
 let connectedWorkspaceUser = null;
+let pageCompanionContext = null;
 
 const WORKSPACE_ROUTE_DESCRIPTORS = [
   {
@@ -448,6 +466,220 @@ const describeWorkspaceRoute = (pathname = "/") => {
     detail: "Live CareAssurance route detected from the connected workspace tab.",
   };
 };
+
+const FORM_WORKFLOW_DESCRIPTORS = {
+  [FORM_CONFIGS?.acp?.formId || "1048191"]: {
+    key: "acp",
+    label: "Risk Assessment Form",
+    detail: "CareAssurance risk assessment autofill is ready on the current Mobizio page.",
+  },
+  [FORM_CONFIGS?.emar?.formId || "1044009"]: {
+    key: "emar",
+    label: "EMAR Audit Form",
+    detail: "Medication audit findings can flow straight into the EMAR page runtime surface.",
+  },
+  [FORM_CONFIGS?.initialAssessment?.formId || "1040788"]: {
+    key: "initialAssessment",
+    label: "Initial Assessment Form",
+    detail: "Verification-heavy initial assessment review is active on this page.",
+  },
+};
+
+const getPayloadWorkflowLabel = (payload) => {
+  if (!payload?.formType) return "No payload";
+  if (payload.formType === "acp") {
+    return `${payload.assessments?.length || 0} risk assessment${payload.assessments?.length === 1 ? "" : "s"}`;
+  }
+  if (payload.formType === "emar") {
+    return "EMAR audit payload";
+  }
+  if (payload.formType === "initialAssessment") {
+    return "Initial assessment payload";
+  }
+  return `${payload.formType} payload`;
+};
+
+const getMobizioFormDescriptor = (formId, payload) => {
+  if (formId && FORM_WORKFLOW_DESCRIPTORS[formId]) {
+    return FORM_WORKFLOW_DESCRIPTORS[formId];
+  }
+  if (payload?.formType === "acp") return FORM_WORKFLOW_DESCRIPTORS[FORM_CONFIGS?.acp?.formId || "1048191"];
+  if (payload?.formType === "emar") return FORM_WORKFLOW_DESCRIPTORS[FORM_CONFIGS?.emar?.formId || "1044009"];
+  if (payload?.formType === "initialAssessment") return FORM_WORKFLOW_DESCRIPTORS[FORM_CONFIGS?.initialAssessment?.formId || "1040788"];
+  return {
+    key: "mobizio",
+    label: "Mobizio Workflow Page",
+    detail: "A Mobizio page is active, but the workflow type could not be identified automatically.",
+  };
+};
+
+const isLikelyCareAssuranceUrl = (url) => {
+  const value = String(url || "").toLowerCase();
+  return (
+    value.includes("careassurance.uk") ||
+    value.includes("care-assurance") ||
+    value.includes("localhost:5000") ||
+    value.includes("localhost:3000") ||
+    value.includes("127.0.0.1")
+  );
+};
+
+function renderPageCompanion(context) {
+  pageCompanionContext = context || null;
+  if (!pageCompanionState) return;
+
+  if (!context) {
+    pageCompanionState.className = "page-companion-state is-empty";
+    pageCompanionState.innerHTML = `
+      <span class="page-companion-eyebrow">Current browser page</span>
+      <strong class="page-companion-title">Open a workflow page to attach the companion</strong>
+      <span class="page-companion-detail">The extension will detect ACP, EMAR, Initial Assessment, or CareAssurance workspace tabs and surface the right controls here.</span>
+    `;
+    if (pageCompanionRoute) pageCompanionRoute.textContent = "Waiting";
+    if (pageCompanionPayload) pageCompanionPayload.textContent = "No payload";
+    if (pageCompanionReview) pageCompanionReview.textContent = "No checks";
+    if (focusPageCompanionButton) focusPageCompanionButton.disabled = true;
+    if (openPageOverlayButton) {
+      openPageOverlayButton.disabled = true;
+      openPageOverlayButton.textContent = "Open In-Page Status";
+    }
+    if (jumpPageVerificationButton) jumpPageVerificationButton.disabled = true;
+    return;
+  }
+
+  pageCompanionState.className = `page-companion-state ${context.stateClass || "is-live"}`;
+  pageCompanionState.innerHTML = `
+    <span class="page-companion-eyebrow">${escapeHtml(context.eyebrow || "Current browser page")}</span>
+    <strong class="page-companion-title">${escapeHtml(context.title || "Workflow attached")}</strong>
+    <span class="page-companion-detail">${escapeHtml(context.detail || "The popup is linked to the live workflow page.")}</span>
+  `;
+
+  if (pageCompanionRoute) pageCompanionRoute.textContent = context.routeLabel || "Detected";
+  if (pageCompanionPayload) pageCompanionPayload.textContent = context.payloadLabel || "No payload";
+  if (pageCompanionReview) pageCompanionReview.textContent = context.reviewLabel || "No checks";
+  if (focusPageCompanionButton) focusPageCompanionButton.disabled = !context.tabId;
+  if (openPageOverlayButton) {
+    openPageOverlayButton.disabled = !context.canOverlay;
+    openPageOverlayButton.textContent = context.overlayButtonLabel || "Open In-Page Status";
+  }
+  if (jumpPageVerificationButton) {
+    jumpPageVerificationButton.disabled = !context.canVerify;
+  }
+}
+
+async function refreshPageCompanion(snapshot) {
+  const nextSnapshot = snapshot || await loadStorage([
+    STORAGE_KEYS.payload,
+    STORAGE_KEYS.verificationFields,
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.lastError,
+  ]);
+
+  const payload = nextSnapshot?.[STORAGE_KEYS.payload] || snapshot?.payload || null;
+  const verificationFields = nextSnapshot?.[STORAGE_KEYS.verificationFields] || snapshot?.verificationFields || [];
+  const queueState = nextSnapshot?.[STORAGE_KEYS.queueState] || snapshot?.queueState || null;
+  const lastError = nextSnapshot?.[STORAGE_KEYS.lastError] || snapshot?.lastError || null;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) {
+    renderPageCompanion(null);
+    return null;
+  }
+
+  try {
+    const url = new URL(tab.url);
+    if (url.host.toLowerCase().includes("mobizio.com")) {
+      const descriptor = getMobizioFormDescriptor(url.searchParams.get("formId"), payload);
+      const current = queueState && typeof queueState.currentIndex === "number" ? queueState.currentIndex + 1 : null;
+      const total = queueState && typeof queueState.total === "number" ? queueState.total : null;
+      const reviewLabel = descriptor.key === "initialAssessment"
+        ? verificationFields.length > 0
+          ? `${verificationFields.length} flagged field${verificationFields.length === 1 ? "" : "s"}`
+          : "No flagged fields"
+        : current && total
+        ? `${current} of ${total} active`
+        : payload?.formType === descriptor.key
+        ? "Payload ready"
+        : "Awaiting payload";
+
+      const context = {
+        tabId: tab.id,
+        routeLabel: descriptor.label,
+        payloadLabel: getPayloadWorkflowLabel(payload),
+        reviewLabel,
+        stateClass: lastError ? "is-warning" : payload ? "is-live" : "is-empty",
+        eyebrow: "Live Mobizio workflow",
+        title: descriptor.label,
+        detail: lastError ? String(lastError) : descriptor.detail,
+        canOverlay: ["acp", "emar", "initialAssessment"].includes(descriptor.key),
+        canVerify: descriptor.key === "initialAssessment" && verificationFields.length > 0,
+        overlayButtonLabel: descriptor.key === "initialAssessment" ? "Open Review Panel" : "Open In-Page Status",
+      };
+      renderPageCompanion(context);
+      return context;
+    }
+
+    if (isLikelyCareAssuranceUrl(tab.url)) {
+      const route = describeWorkspaceRoute(url.pathname);
+      const context = {
+        tabId: tab.id,
+        routeLabel: route.label,
+        payloadLabel: getPayloadWorkflowLabel(payload),
+        reviewLabel: payload ? "Workspace connected" : "No payload",
+        stateClass: "is-live",
+        eyebrow: "CareAssurance workspace",
+        title: route.label,
+        detail: route.detail,
+        canOverlay: false,
+        canVerify: false,
+      };
+      renderPageCompanion(context);
+      return context;
+    }
+  } catch (error) {
+    console.warn("[CA Extension Popup] Failed to describe current page companion:", error);
+  }
+
+  renderPageCompanion({
+    tabId: tab.id,
+    routeLabel: "Unsupported page",
+    payloadLabel: getPayloadWorkflowLabel(payload),
+    reviewLabel: "Open Mobizio or CareAssurance",
+    stateClass: "is-empty",
+    eyebrow: "Current browser page",
+    title: tab.title || "Unsupported page",
+    detail: "This tab is outside the CareAssurance and Mobizio workflow surfaces used by the extension.",
+    canOverlay: false,
+    canVerify: false,
+  });
+  return null;
+}
+
+async function focusPageCompanion() {
+  const context = pageCompanionContext || await refreshPageCompanion();
+  if (!context?.tabId) {
+    showError("No live workflow page is attached yet.");
+    return;
+  }
+  await chrome.tabs.update(context.tabId, { active: true });
+}
+
+async function sendMessageToPageCompanion(message) {
+  const context = pageCompanionContext || await refreshPageCompanion();
+  if (!context?.tabId) {
+    throw new Error("No live workflow page is attached yet.");
+  }
+
+  return await new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(context.tabId, message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message || "Could not reach the workflow page."));
+        return;
+      }
+      resolve(response || null);
+    });
+  });
+}
 
 async function findConnectedWorkspaceTab(targetOrigin = CARE_ASSURANCE_URL) {
   const patterns = buildCareAssuranceTabPatterns(targetOrigin);
@@ -676,6 +908,16 @@ function renderRuntimeDiagnostics(metrics) {
     `<div class="runtime-row"><span class="runtime-key">Updated</span><span class="runtime-value muted">${formatRuntimeTime(metrics.lastUpdatedAt)}</span></div>`,
     `<div class="runtime-row"><span class="runtime-key">Error</span><span class="runtime-value ${hasError ? "error" : "muted"}">${lastErrorText}</span></div>`,
   ].join("");
+}
+
+function refreshExtensionVersionDisplay() {
+  if (!footerExtensionVersion) return;
+  try {
+    const manifest = chrome.runtime?.getManifest?.();
+    footerExtensionVersion.textContent = manifest?.version ? `v${manifest.version}` : footerExtensionVersion.textContent;
+  } catch {
+    // Ignore runtime manifest lookup failures.
+  }
 }
 
 const writeToClipboard = async (value) => {
@@ -1289,6 +1531,12 @@ async function refreshPayloadStatus() {
   }
 
   renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);
+  await refreshPageCompanion({
+    payload,
+    verificationFields,
+    queueState: data[STORAGE_KEYS.queueState],
+    lastError: data[STORAGE_KEYS.lastError],
+  });
 }
 
 /**
@@ -1296,19 +1544,25 @@ async function refreshPayloadStatus() {
  */
 async function navigateToVerificationField(direction) {
   try {
-    // Get current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return;
+    const context = pageCompanionContext || await refreshPageCompanion();
+    if (!context?.tabId) {
+      showError("No verification-enabled page is attached yet.");
+      return;
+    }
     
     // Update index based on direction
     currentVerificationIndex += direction;
     if (currentVerificationIndex < 0) currentVerificationIndex = 0;
     
     // Send message to content script
-    chrome.tabs.sendMessage(tab.id, {
+    chrome.tabs.sendMessage(context.tabId, {
       type: 'CA_EXTENSION_SCROLL_TO_NEXT',
       payload: { index: currentVerificationIndex }
     }, (response) => {
+      if (chrome.runtime.lastError) {
+        showError(chrome.runtime.lastError.message || "Could not reach the current page.");
+        return;
+      }
       if (response?.found) {
         currentVerificationIndex = response.index;
         showSuccess(`Field ${response.index + 1} of ${response.total}`);
@@ -1320,6 +1574,43 @@ async function navigateToVerificationField(direction) {
     console.error("Navigation error:", e);
   }
 }
+
+refreshPageCompanionButton?.addEventListener("click", async () => {
+  try {
+    await refreshPageCompanion();
+    showSuccess("Page companion refreshed");
+  } catch (error) {
+    console.error("Failed to refresh page companion:", error);
+    showError("Could not refresh the current page companion.");
+  }
+});
+
+focusPageCompanionButton?.addEventListener("click", () => {
+  focusPageCompanion().catch((error) => {
+    console.error("Failed to focus workflow page:", error);
+    showError(error.message || "Could not focus the workflow page.");
+  });
+});
+
+openPageOverlayButton?.addEventListener("click", async () => {
+  try {
+    await sendMessageToPageCompanion({
+      type: MESSAGE_TYPES.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY",
+      payload: { open: true },
+    });
+    showSuccess("In-page status opened");
+  } catch (error) {
+    console.error("Failed to open in-page status:", error);
+    showError(error.message || "Could not open the in-page status surface.");
+  }
+});
+
+jumpPageVerificationButton?.addEventListener("click", () => {
+  navigateToVerificationField(1).catch((error) => {
+    console.error("Failed to navigate verification fields:", error);
+    showError(error.message || "Could not move to the next review field.");
+  });
+});
 
 // Auto-detect case ID and service data group from active tab URL
 async function autoDetectIds() {
@@ -1631,6 +1922,7 @@ async function refreshSignatureStatus() {
   
   await refreshPayloadStatus();
   await refreshSignatureStatus();
+  refreshExtensionVersionDisplay();
   
   // Load saved server URL
   const stored = await loadStorage(['caAcpServerUrl']);
@@ -1737,6 +2029,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
   // Payload cleared — update payload status
   if (changes[STORAGE_KEYS.payload]) {
+    refreshPayloadStatus();
+  }
+
+  if (changes[STORAGE_KEYS.verificationFields] || changes[STORAGE_KEYS.runtimeMetrics]) {
     refreshPayloadStatus();
   }
 
