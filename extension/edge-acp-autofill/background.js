@@ -1,6 +1,6 @@
 importScripts("constants.js");
 
-const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES } = self.CA_EXTENSION_CONSTANTS;
+const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, SESSION_STORAGE_KEYS = [] } = self.CA_EXTENSION_CONSTANTS;
 
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 
@@ -33,11 +33,54 @@ const getReadyHostCandidates = (targetOrigin) => {
   return Array.from(new Set(candidates));
 };
 
+const sessionStorageKeySet = new Set(SESSION_STORAGE_KEYS.filter(Boolean));
+const sessionStorageArea = chrome.storage?.session && typeof chrome.storage.session.get === "function"
+  ? chrome.storage.session
+  : chrome.storage.local;
+
 const getStored = (keys) =>
-  new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items)));
+  new Promise((resolve) => {
+    const keyList = Array.isArray(keys) ? keys.filter(Boolean) : [keys].filter(Boolean);
+    if (!keyList.length) {
+      resolve({});
+      return;
+    }
+
+    const sessionKeys = keyList.filter((key) => sessionStorageKeySet.has(key));
+    const localKeys = keyList.filter((key) => !sessionStorageKeySet.has(key));
+
+    Promise.all([
+      sessionKeys.length
+        ? new Promise((innerResolve) => sessionStorageArea.get(sessionKeys, (items) => innerResolve(items || {})))
+        : Promise.resolve({}),
+      localKeys.length
+        ? new Promise((innerResolve) => chrome.storage.local.get(localKeys, (items) => innerResolve(items || {})))
+        : Promise.resolve({}),
+    ]).then(([sessionItems, localItems]) => {
+      resolve({ ...localItems, ...sessionItems });
+    });
+  });
 
 const setStored = (items) =>
-  new Promise((resolve) => chrome.storage.local.set(items, () => resolve()));
+  new Promise((resolve) => {
+    const entries = Object.entries(items || {}).filter(([key]) => Boolean(key));
+    if (!entries.length) {
+      resolve();
+      return;
+    }
+
+    const sessionItems = Object.fromEntries(entries.filter(([key]) => sessionStorageKeySet.has(key)));
+    const localItems = Object.fromEntries(entries.filter(([key]) => !sessionStorageKeySet.has(key)));
+
+    Promise.all([
+      Object.keys(sessionItems).length
+        ? new Promise((innerResolve) => sessionStorageArea.set(sessionItems, () => innerResolve()))
+        : Promise.resolve(),
+      Object.keys(localItems).length
+        ? new Promise((innerResolve) => chrome.storage.local.set(localItems, () => innerResolve()))
+        : Promise.resolve(),
+    ]).then(() => resolve());
+  });
 
 const RUNTIME_METRICS_FLUSH_DELAY_MS = 900;
 const WORKER_HEARTBEAT_INTERVAL_MS = 30_000;

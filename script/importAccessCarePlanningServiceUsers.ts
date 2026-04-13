@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { drizzle } from "drizzle-orm/node-postgres";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import pkg from "pg";
 import * as XLSX from "xlsx";
 
@@ -22,6 +22,8 @@ type ParsedRecord = {
 };
 
 const DEFAULT_WORKBOOK_CANDIDATES = [
+  "dist/newcastle_service_users_CLEANED 2.csv",
+  "newcastle_service_users_CLEANED 2.csv",
   "newcastle_service_users_CLEANED 2.xlsx",
   "newcastle_service_users_CLEANED.xlsx",
 ];
@@ -54,8 +56,13 @@ async function ensureDatabaseUrl(): Promise<string> {
   return databaseUrl;
 }
 
-function looksLikeUrl(value: string | null | undefined): boolean {
-  return /^https?:\/\//i.test(String(value || "").trim());
+function looksLikeDashboardLink(value: string | null | undefined): boolean {
+  const normalized = String(value || "").trim();
+  return (
+    /^https?:\/\//i.test(normalized)
+    || normalized.startsWith("/")
+    || /(?:\?|&)id=\d+/i.test(normalized)
+  );
 }
 
 function normalizeName(value: string | null | undefined): string {
@@ -74,14 +81,14 @@ function getCellLink(cell?: WorksheetCell): string {
   if (!cell) return "";
 
   const directTarget = normalizeName(cell.l?.Target);
-  if (looksLikeUrl(directTarget)) return directTarget;
+  if (looksLikeDashboardLink(directTarget)) return directTarget;
 
   const textValue = getCellText(cell);
-  if (looksLikeUrl(textValue)) return textValue;
+  if (looksLikeDashboardLink(textValue)) return textValue;
 
   const formula = normalizeName(cell.f);
   const formulaMatch = formula.match(HYPERLINK_FORMULA_REGEX);
-  if (formulaMatch?.[1] && looksLikeUrl(formulaMatch[1])) {
+  if (formulaMatch?.[1] && looksLikeDashboardLink(formulaMatch[1])) {
     return formulaMatch[1];
   }
 
@@ -143,7 +150,7 @@ function parseWorksheet(sheet: XLSX.WorkSheet): ParsedRecord[] {
 
     const nameCell = [...cells]
       .reverse()
-      .find((cell) => cell.column < linkCell.column && cell.text && !looksLikeUrl(cell.text));
+      .find((cell) => cell.column < linkCell.column && cell.text && !looksLikeDashboardLink(cell.text));
 
     if (!nameCell) continue;
 
@@ -151,6 +158,35 @@ function parseWorksheet(sheet: XLSX.WorkSheet): ParsedRecord[] {
     if (!serviceUserName || HEADER_NAME_REGEX.test(serviceUserName)) continue;
 
     const accessCarePlanningId = extractAccessCarePlanningId(linkCell.link);
+    if (!accessCarePlanningId) continue;
+
+    records.set(accessCarePlanningId, {
+      accessCarePlanningId,
+      serviceUserName,
+    });
+  }
+
+  return Array.from(records.values());
+}
+
+function parseCsvRecords(rawCsv: string): ParsedRecord[] {
+  const records = new Map<string, ParsedRecord>();
+  const lines = rawCsv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(",");
+    if (separatorIndex <= 0) continue;
+
+    const serviceUserName = normalizeName(line.slice(0, separatorIndex));
+    const href = normalizeName(line.slice(separatorIndex + 1));
+
+    if (!serviceUserName || HEADER_NAME_REGEX.test(serviceUserName)) continue;
+    if (!looksLikeDashboardLink(href)) continue;
+
+    const accessCarePlanningId = extractAccessCarePlanningId(href);
     if (!accessCarePlanningId) continue;
 
     records.set(accessCarePlanningId, {
@@ -176,7 +212,7 @@ async function resolveWorkbookPath(rawArg?: string): Promise<string> {
   }
 
   throw new Error(
-    `Workbook not found. Provide a path, e.g. \`npm run import:acp-service-users -- ./service-users.xlsx\`, or place one of these files in the repo root: ${DEFAULT_WORKBOOK_CANDIDATES.join(", ")}.`
+    `Workbook not found. Provide a path, e.g. \`npm run import:acp-service-users -- ./service-users.csv\`, or place one of these files in the workspace: ${DEFAULT_WORKBOOK_CANDIDATES.join(", ")}.`
   );
 }
 
@@ -199,8 +235,12 @@ async function main() {
   const workbookPath = await resolveWorkbookPath(process.argv[2]);
   const databaseUrl = await ensureDatabaseUrl();
 
-  const workbook = XLSX.readFile(workbookPath, { cellFormula: true, cellHTML: false, cellNF: false });
-  const records = workbook.SheetNames.flatMap((sheetName) => parseWorksheet(workbook.Sheets[sheetName]));
+  const records = workbookPath.toLowerCase().endsWith(".csv")
+    ? parseCsvRecords(await fs.readFile(workbookPath, "utf8"))
+    : (() => {
+        const workbook = XLSX.readFile(workbookPath, { cellFormula: true, cellHTML: false, cellNF: false });
+        return workbook.SheetNames.flatMap((sheetName) => parseWorksheet(workbook.Sheets[sheetName]));
+      })();
   const deduped = Array.from(new Map(records.map((record) => [record.accessCarePlanningId, record])).values())
     .sort((left, right) => left.serviceUserName.localeCompare(right.serviceUserName));
 
@@ -224,8 +264,21 @@ async function main() {
         },
       });
 
+    const [summary] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(accessCarePlanningServiceUsers);
+    const [knownRecord] = await db
+      .select()
+      .from(accessCarePlanningServiceUsers)
+      .where(eq(accessCarePlanningServiceUsers.accessCarePlanningId, "144173"))
+      .limit(1);
+
     console.log(`Imported ${deduped.length} ACP service user records from ${path.basename(workbookPath)}.`);
     console.log(`Example: ${deduped[0].serviceUserName} -> ${deduped[0].accessCarePlanningId}`);
+    console.log(`Table now contains ${Number(summary?.count ?? 0)} ACP service user records.`);
+    if (knownRecord) {
+      console.log(`Verified: ${knownRecord.serviceUserName} -> ${knownRecord.accessCarePlanningId}`);
+    }
   } finally {
     await pool.end();
   }

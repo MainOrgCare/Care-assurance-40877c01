@@ -59,6 +59,7 @@ import {
   type InsertRosteringScheduleTemplate,
   // New extracted data types
   type AnalyzedServiceUser,
+  type AccessCarePlanningServiceUser,
   type InsertAnalyzedServiceUser,
   type AnalyzedCareWorker,
   type InsertAnalyzedCareWorker,
@@ -100,6 +101,7 @@ import {
   rosteringScheduleTemplates,
   // New extracted data tables
   analyzedServiceUsers,
+  accessCarePlanningServiceUsers,
   analyzedCareWorkers,
   serviceOrders,
   templateAssignments,
@@ -439,6 +441,9 @@ export interface IStorage {
   getAllAnalyzedServiceUsers(): Promise<AnalyzedServiceUser[]>;
   deleteAnalyzedServiceUser(id: string): Promise<void>;
   cleanupExpiredServiceUsers(): Promise<number>;
+
+  // Access Care Planning Service Users
+  getAllAccessCarePlanningServiceUsers(): Promise<AccessCarePlanningServiceUser[]>;
 
   // Analyzed Care Workers
   upsertAnalyzedCareWorker(careWorker: InsertAnalyzedCareWorker): Promise<AnalyzedCareWorker>;
@@ -2283,6 +2288,13 @@ export class DatabaseStorage implements IStorage {
       .where(lte(analyzedServiceUsers.expiresAt, new Date()))
       .returning({ id: analyzedServiceUsers.id });
     return deleted.length;
+  }
+
+  async getAllAccessCarePlanningServiceUsers(): Promise<AccessCarePlanningServiceUser[]> {
+    return await this.db
+      .select()
+      .from(accessCarePlanningServiceUsers)
+      .orderBy(accessCarePlanningServiceUsers.serviceUserName);
   }
 
   // Analyzed Care Workers

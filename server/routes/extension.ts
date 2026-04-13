@@ -19,7 +19,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { storage } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
-import type { RiskAssessmentLog, AnalyzedServiceUser } from "@shared/schema";
+import type { RiskAssessmentLog, AnalyzedServiceUser, AccessCarePlanningServiceUser } from "@shared/schema";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,6 +32,11 @@ const EXTENSION_PACKAGE_CANDIDATES = [
 const EXTENSION_SOURCE_DIR = path.resolve(process.cwd(), "extension", "edge-acp-autofill");
 const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
 const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.mjs");
+const ACP_DASHBOARD_BASE_URL = "https://clece.mobizio.com/eoutcomeservice/branch/case_dashboard?id=";
+
+function buildAcpDashboardUrl(accessCarePlanningId: string): string {
+  return `${ACP_DASHBOARD_BASE_URL}${encodeURIComponent(accessCarePlanningId)}`;
+}
 
 /** Attempt to build the zip via the canonical packaging script (preferred). */
 async function packageExtensionZipViaScript(): Promise<boolean> {
@@ -299,6 +304,34 @@ export function registerExtensionRoutes(
     } catch (error: unknown) {
       console.error("Extension package lookup error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to prepare extension package") });
+    }
+  });
+
+  app.get("/api/admin/extension/acp-service-users", requireAuth, requireAdmin, async (_req: any, res) => {
+    try {
+      const serviceUsers = await storage.getAllAccessCarePlanningServiceUsers();
+
+      const users = serviceUsers.map((serviceUser: AccessCarePlanningServiceUser) => {
+        const name = serviceUser.serviceUserName || "Unknown";
+        const initials = name
+          .split(" ")
+          .filter(Boolean)
+          .map((word) => word[0])
+          .join(".") || "??";
+
+        return {
+          accessCarePlanningId: serviceUser.accessCarePlanningId,
+          serviceUserName: name,
+          initials,
+          dashboardUrl: buildAcpDashboardUrl(serviceUser.accessCarePlanningId),
+          updatedAt: serviceUser.updatedAt,
+        };
+      });
+
+      return res.json({ users });
+    } catch (error: unknown) {
+      console.error("Admin ACP service users error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get ACP service users") });
     }
   });
 

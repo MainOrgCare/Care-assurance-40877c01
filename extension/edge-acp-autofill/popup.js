@@ -131,15 +131,79 @@ const FALLBACK_MESSAGE_TYPES = {
   storePayload: "CA_EXTENSION_STORE_PAYLOAD",
 };
 
-const { STORAGE_KEYS, MESSAGE_TYPES } = window.CA_EXTENSION_CONSTANTS || {
+const { STORAGE_KEYS, MESSAGE_TYPES, SESSION_STORAGE_KEYS: SHARED_SESSION_STORAGE_KEYS } = window.CA_EXTENSION_CONSTANTS || {
   STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
   MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
 };
 
-const loadStorage = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
-const setStorage = (items) => new Promise((resolve) => chrome.storage.local.set(items, resolve));
+const sessionStorageKeySet = new Set(
+  (SHARED_SESSION_STORAGE_KEYS || [
+    STORAGE_KEYS.payload,
+    STORAGE_KEYS.dataTimestamp,
+    STORAGE_KEYS.caseInfo,
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.signatureData,
+    STORAGE_KEYS.signatureBatchId,
+    STORAGE_KEYS.uploadedDocuments,
+    STORAGE_KEYS.verificationFields,
+  ]).filter(Boolean)
+);
 
-// GDPR: Auto-cleanup stale PII data after 2 hours
+const sessionStorageArea = chrome.storage?.session && typeof chrome.storage.session.get === "function"
+  ? chrome.storage.session
+  : chrome.storage.local;
+
+const splitStorageKeys = (keys) => {
+  const keyList = Array.isArray(keys) ? keys.filter(Boolean) : [keys].filter(Boolean);
+  return {
+    keyList,
+    sessionKeys: keyList.filter((key) => sessionStorageKeySet.has(key)),
+    localKeys: keyList.filter((key) => !sessionStorageKeySet.has(key)),
+  };
+};
+
+const loadStorage = (keys) =>
+  new Promise((resolve) => {
+    const { keyList, sessionKeys, localKeys } = splitStorageKeys(keys);
+    if (!keyList.length) {
+      resolve({});
+      return;
+    }
+
+    Promise.all([
+      sessionKeys.length
+        ? new Promise((innerResolve) => sessionStorageArea.get(sessionKeys, (items) => innerResolve(items || {})))
+        : Promise.resolve({}),
+      localKeys.length
+        ? new Promise((innerResolve) => chrome.storage.local.get(localKeys, (items) => innerResolve(items || {})))
+        : Promise.resolve({}),
+    ]).then(([sessionItems, localItems]) => {
+      resolve({ ...localItems, ...sessionItems });
+    });
+  });
+
+const setStorage = (items) =>
+  new Promise((resolve) => {
+    const entries = Object.entries(items || {}).filter(([key]) => Boolean(key));
+    if (!entries.length) {
+      resolve();
+      return;
+    }
+
+    const sessionItems = Object.fromEntries(entries.filter(([key]) => sessionStorageKeySet.has(key)));
+    const localItems = Object.fromEntries(entries.filter(([key]) => !sessionStorageKeySet.has(key)));
+
+    Promise.all([
+      Object.keys(sessionItems).length
+        ? new Promise((innerResolve) => sessionStorageArea.set(sessionItems, () => innerResolve()))
+        : Promise.resolve(),
+      Object.keys(localItems).length
+        ? new Promise((innerResolve) => chrome.storage.local.set(localItems, () => innerResolve()))
+        : Promise.resolve(),
+    ]).then(() => resolve());
+  });
+
+// GDPR: keep care payloads in transient session storage and auto-clean stale session data after 2 hours
 const DATA_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
 const DATA_TIMESTAMP_KEY = STORAGE_KEYS.dataTimestamp || "caAcpDataTimestamp";
 
@@ -150,7 +214,7 @@ async function autoCleanupStaleData() {
 
     const storedAt = stored[DATA_TIMESTAMP_KEY];
     if (!storedAt || (Date.now() - storedAt) > DATA_MAX_AGE_MS) {
-      console.log('[CA Extension] Auto-cleaning stale PII data (>2h old)');
+      console.log('[CA Extension] Auto-cleaning stale transient care data (>2h old)');
       await setStorage({
         [STORAGE_KEYS.payload]: null,
         [STORAGE_KEYS.caseInfo]: null,
@@ -502,7 +566,6 @@ async function connectToCareAssurance() {
           if (usersRes.ok) {
             const data = usersRes.data;
             serviceUsers = data.users || [];
-            await setStorage({ [STORAGE_KEYS.serviceUsers]: serviceUsers });
             displayServiceUsers();
           }
         } catch (e) {
@@ -615,8 +678,6 @@ function selectUser(userId) {
   
   if (loadCarePlanBtn) loadCarePlanBtn.disabled = !selectedUser.hasCarePlan;
   if (loadRiskBtn) loadRiskBtn.disabled = !selectedUser.hasRiskAssessment;
-  
-  setStorage({ [STORAGE_KEYS.selectedUserId]: userId });
 }
 
 loadCarePlanBtn?.addEventListener("click", async () => {
@@ -895,9 +956,9 @@ async function refreshPayloadStatus() {
     STORAGE_KEYS.verificationFields, STORAGE_KEYS.runtimeMetrics
   ]);
   
-  const payload = data.caAcpPayload;
+  const payload = data[STORAGE_KEYS.payload];
   const payloadStoredAt = data[DATA_TIMESTAMP_KEY];
-  const verificationFields = data.caAcpVerificationFields || [];
+  const verificationFields = data[STORAGE_KEYS.verificationFields] || [];
   
   if (payloadStatus) {
     let statusHTML = '';
@@ -956,17 +1017,17 @@ async function refreshPayloadStatus() {
 
   renderPayloadInspector(payload, payloadStoredAt);
   
-  if (data.caAcpCaseInfo) {
-    if (caseIdInput) caseIdInput.value = data.caAcpCaseInfo.caseId || "";
-    if (serviceDataGroupInput) serviceDataGroupInput.value = data.caAcpCaseInfo.serviceDataGroupId || "";
+  if (data[STORAGE_KEYS.caseInfo]) {
+    if (caseIdInput) caseIdInput.value = data[STORAGE_KEYS.caseInfo].caseId || "";
+    if (serviceDataGroupInput) serviceDataGroupInput.value = data[STORAGE_KEYS.caseInfo].serviceDataGroupId || "";
   }
   
-  if (autoSubmitToggle) autoSubmitToggle.checked = data.caAcpAutoSubmit !== false;
-  if (dryRunToggle) dryRunToggle.checked = data.caAcpDryRun === true;
-  if (interactionModeSelect) interactionModeSelect.value = data.caAcpInteractionMode || "auto";
+  if (autoSubmitToggle) autoSubmitToggle.checked = data[STORAGE_KEYS.autoSubmit] !== false;
+  if (dryRunToggle) dryRunToggle.checked = data[STORAGE_KEYS.dryRun] === true;
+  if (interactionModeSelect) interactionModeSelect.value = data[STORAGE_KEYS.interactionMode] || "auto";
   
-  if (logList && data.caAcpLogs) {
-    logList.textContent = data.caAcpLogs.join("\n");
+  if (logList && data[STORAGE_KEYS.logs]) {
+    logList.textContent = data[STORAGE_KEYS.logs].join("\n");
   }
 
   renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);

@@ -28,12 +28,20 @@
         "run",
         "import:acp-service-users",
         "--",
-        "${workspaceFolder}/newcastle_service_users_CLEANED 2.xlsx"
+        "${input:acpWorkbookPath}"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "acpWorkbookPath",
+      "type": "promptString",
+      "description": "Absolute path to the ACP workbook or CSV file to import",
+      "default": "/workspaces/Care-assurance-40877c01/dist/newcastle_service_users_CLEANED 2.csv"
     }
   ]
 }

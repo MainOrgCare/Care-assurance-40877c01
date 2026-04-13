@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 
@@ -162,6 +164,22 @@ interface ExtensionPackageInfo {
     rebuilt?: boolean;
   };
 }
+
+interface AdminAcpServiceUser {
+  accessCarePlanningId: string;
+  serviceUserName: string;
+  initials: string;
+  dashboardUrl: string;
+  updatedAt: string;
+}
+
+type AdminAcpWorkflow = "risk" | "emar" | "care-plan";
+
+const ADMIN_ACP_WORKFLOWS: Record<AdminAcpWorkflow, { label: string; path: string; icon: typeof Shield }> = {
+  risk: { label: "Risk Assess", path: "/service-users/risk-assessment", icon: Shield },
+  emar: { label: "EMAR", path: "/care-workers/emar-audit", icon: FileCheck },
+  "care-plan": { label: "Care Plan", path: "/service-users/care-planning", icon: FileText },
+};
 
 function formatCost(microDollars: number): string {
   const dollars = microDollars / 1000000;
@@ -4191,6 +4209,7 @@ interface EditingUser {
 export default function SecretAdminPortal() {
   usePageTitle("Admin Portal");
   const { users, approveUser, rejectUser, auditLogs, fetchUsers } = useAuth();
+  const [, navigate] = useLocation();
   const [mounted, setMounted] = useState(false);
   const [adminAlerts, setAdminAlerts] = useState<AdminAlert[]>([]);
   const { toast } = useToast();
@@ -4236,6 +4255,10 @@ export default function SecretAdminPortal() {
   const [extensionInfoRefreshing, setExtensionInfoRefreshing] = useState(false);
   const [extensionTestStatus, setExtensionTestStatus] = useState<"idle" | "testing" | "success" | "failed">("idle");
   const [extensionTestMessage, setExtensionTestMessage] = useState("");
+  const [acpServiceUsers, setAcpServiceUsers] = useState<AdminAcpServiceUser[]>([]);
+  const [acpServiceUsersLoading, setAcpServiceUsersLoading] = useState(false);
+  const [acpServiceUserPickerOpen, setAcpServiceUserPickerOpen] = useState(false);
+  const [selectedAcpServiceUser, setSelectedAcpServiceUser] = useState<AdminAcpServiceUser | null>(null);
   const [opsHealth, setOpsHealth] = useState<OpsHealthSnapshot | null>(null);
 
   const formatExtensionTestError = (error?: string) => {
@@ -4427,10 +4450,84 @@ export default function SecretAdminPortal() {
     }
   };
 
+  const fetchAcpServiceUsers = async () => {
+    setAcpServiceUsersLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/extension/acp-service-users", {
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to load ACP service users.");
+      }
+
+      const nextUsers = Array.isArray(data.users) ? data.users as AdminAcpServiceUser[] : [];
+      setAcpServiceUsers(nextUsers);
+      setSelectedAcpServiceUser((current) => {
+        if (!current) return null;
+        return nextUsers.find((user) => user.accessCarePlanningId === current.accessCarePlanningId) ?? null;
+      });
+    } catch (error) {
+      console.error("Failed to fetch ACP service users:", error);
+      toast({
+        title: "ACP service users unavailable",
+        description: error instanceof Error ? error.message : "Could not load the ACP service user launcher.",
+        variant: "destructive",
+      });
+    } finally {
+      setAcpServiceUsersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!mounted) return;
     void fetchExtensionPackageInfo();
+    void fetchAcpServiceUsers();
   }, [mounted]);
+
+  const openAcpDashboard = (serviceUser: AdminAcpServiceUser) => {
+    if (typeof window === "undefined") return;
+
+    const popup = window.open(serviceUser.dashboardUrl, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      toast({
+        title: "Dashboard tab blocked",
+        description: `Allow pop-ups for CareAssurance, then retry opening ${serviceUser.serviceUserName}.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSelectAcpServiceUser = (serviceUser: AdminAcpServiceUser) => {
+    setSelectedAcpServiceUser(serviceUser);
+    setAcpServiceUserPickerOpen(false);
+    openAcpDashboard(serviceUser);
+    toast({
+      title: "ACP dashboard opened",
+      description: `${serviceUser.serviceUserName} (${serviceUser.accessCarePlanningId}) was opened in a new tab.`,
+    });
+  };
+
+  const handleLaunchAcpWorkflow = (workflow: AdminAcpWorkflow) => {
+    if (!selectedAcpServiceUser) {
+      toast({
+        title: "Select a service user",
+        description: "Choose an ACP service user first to launch a workflow.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const params = new URLSearchParams({
+      serviceUserName: selectedAcpServiceUser.serviceUserName,
+      acpId: selectedAcpServiceUser.accessCarePlanningId,
+      launchSource: "admin-portal",
+    });
+
+    navigate(`${ADMIN_ACP_WORKFLOWS[workflow].path}?${params.toString()}`);
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -5154,6 +5251,145 @@ export default function SecretAdminPortal() {
                   )}
                   <p className="text-xs text-muted-foreground">
                     Tests send a dummy payload via <code>window.postMessage</code> and wait for the extension's ACK. After a successful test, open the extension popup and check <strong>Autofill</strong> → <strong>Latest Payload</strong> to inspect the stored JSON.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card data-testid="card-admin-acp-quick-launch" className="border-border/60 bg-background/70 shadow-medium hover-elevate">
+                <CardHeader className="border-b border-border/30">
+                  <CardTitle className="flex items-center gap-3 text-[0.8125rem]">
+                    <div className="h-7 w-7 rounded-md bg-primary/8 flex items-center justify-center">
+                      <Search className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    ACP Service User Quick Launch
+                  </CardTitle>
+                  <CardDescription>
+                    Search imported service users, open their Mobizio dashboard automatically, then jump into Risk Assess, EMAR, or Care Plan workflows.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <Popover open={acpServiceUserPickerOpen} onOpenChange={setAcpServiceUserPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={acpServiceUserPickerOpen}
+                          className="w-full justify-between xl:max-w-xl"
+                          disabled={acpServiceUsersLoading}
+                          data-testid="button-admin-acp-service-user-picker"
+                        >
+                          <span className="truncate text-left">
+                            {selectedAcpServiceUser
+                              ? `${selectedAcpServiceUser.serviceUserName} (${selectedAcpServiceUser.accessCarePlanningId})`
+                              : acpServiceUsersLoading
+                              ? "Loading ACP service users..."
+                              : "Search service user or ACP ID..."}
+                          </span>
+                          {acpServiceUsersLoading ? <Loader2 size={14} className="ml-2 shrink-0 animate-spin" /> : <ChevronDown size={14} className="ml-2 shrink-0" />}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] max-w-[calc(100vw-2rem)] p-0" align="start">
+                        <Command shouldFilter>
+                          <CommandInput placeholder="Search by service user name or ACP ID..." />
+                          <CommandList>
+                            <CommandEmpty>No ACP service users found.</CommandEmpty>
+                            <CommandGroup heading={`Imported Users (${acpServiceUsers.length})`}>
+                              {acpServiceUsers.map((serviceUser) => (
+                                <CommandItem
+                                  key={serviceUser.accessCarePlanningId}
+                                  value={`${serviceUser.serviceUserName} ${serviceUser.accessCarePlanningId} ${serviceUser.initials}`}
+                                  onSelect={() => handleSelectAcpServiceUser(serviceUser)}
+                                  className="items-start gap-3 py-3"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate font-medium text-foreground">{serviceUser.serviceUserName}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      ACP ID {serviceUser.accessCarePlanningId}
+                                    </div>
+                                  </div>
+                                  <Check
+                                    size={14}
+                                    className={selectedAcpServiceUser?.accessCarePlanningId === serviceUser.accessCarePlanningId ? "opacity-100 text-primary" : "opacity-0"}
+                                  />
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
+                        {acpServiceUsers.length} imported ACP users
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void fetchAcpServiceUsers()}
+                        disabled={acpServiceUsersLoading}
+                        data-testid="button-refresh-admin-acp-service-users"
+                      >
+                        {acpServiceUsersLoading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <RefreshCcw size={14} className="mr-2" />}
+                        Refresh Users
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => selectedAcpServiceUser && openAcpDashboard(selectedAcpServiceUser)}
+                        disabled={!selectedAcpServiceUser}
+                        data-testid="button-open-selected-acp-dashboard"
+                      >
+                        <ExternalLink size={14} className="mr-2" />
+                        Open ACP Dashboard
+                      </Button>
+                    </div>
+                  </div>
+
+                  {selectedAcpServiceUser ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-lg border border-border bg-muted/30 p-3">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Service User</p>
+                          <p className="mt-1 text-sm font-semibold text-foreground">{selectedAcpServiceUser.serviceUserName}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-3">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">ACP ID</p>
+                          <p className="mt-1 text-sm font-semibold text-foreground">{selectedAcpServiceUser.accessCarePlanningId}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/30 p-3">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Last Synced</p>
+                          <p className="mt-1 text-sm font-semibold text-foreground">{new Date(selectedAcpServiceUser.updatedAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {(Object.entries(ADMIN_ACP_WORKFLOWS) as Array<[AdminAcpWorkflow, (typeof ADMIN_ACP_WORKFLOWS)[AdminAcpWorkflow]]>).map(([workflowKey, workflow]) => {
+                          const WorkflowIcon = workflow.icon;
+                          return (
+                            <Button
+                              key={workflowKey}
+                              type="button"
+                              onClick={() => handleLaunchAcpWorkflow(workflowKey)}
+                              data-testid={`button-admin-acp-workflow-${workflowKey}`}
+                            >
+                              <WorkflowIcon size={14} className="mr-2" />
+                              {workflow.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                      Pick a service user to open their ACP case dashboard and enable the workflow buttons.
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    Selecting a service user opens <code>case_dashboard?id=&lt;ACP ID&gt;</code> on Mobizio in a new tab using the imported ACP mapping. The workflow buttons keep you in CareAssurance while working that record.
                   </p>
                 </CardContent>
               </Card>

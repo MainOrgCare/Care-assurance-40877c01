@@ -52,6 +52,17 @@
     getVerificationStatus: "CA_EXTENSION_GET_VERIFICATION_STATUS",
   };
 
+  const SESSION_STORAGE_KEYS = [
+    STORAGE_KEYS.payload,
+    STORAGE_KEYS.dataTimestamp,
+    STORAGE_KEYS.caseInfo,
+    STORAGE_KEYS.queueState,
+    STORAGE_KEYS.signatureData,
+    STORAGE_KEYS.signatureBatchId,
+    STORAGE_KEYS.uploadedDocuments,
+    STORAGE_KEYS.verificationFields,
+  ].filter(Boolean);
+
   /**
    * Shared verification utilities for all content scripts
    */
@@ -225,5 +236,11 @@
     },
   };
 
-  globalScope.CA_EXTENSION_CONSTANTS = { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, VERIFICATION_HELPERS };
+  globalScope.CA_EXTENSION_CONSTANTS = {
+    STORAGE_KEYS,
+    FORM_CONFIGS,
+    MESSAGE_TYPES,
+    VERIFICATION_HELPERS,
+    SESSION_STORAGE_KEYS,
+  };
 })();
