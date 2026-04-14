@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.5.4
+ * CareAssurance Extension v0.5.5
  */
 
 import {
@@ -1034,7 +1034,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.4</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.5</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1148,17 +1148,23 @@ function bindStorageListener() {
 
   try {
     const res = await apiProxy("/api/extension/status");
-    console.log("[CA Extension] Quick check raw response keys:", Object.keys(res || {}), "data keys:", Object.keys(res?.data || {}), "data:", JSON.stringify(res?.data)?.substring(0, 300));
+    console.log("[CA Extension] Quick check response:", JSON.stringify(res)?.substring(0, 400));
     // The proxy wraps server JSON as { ok, data: <serverJson> }
     // The server returns { connected, user: { id, username, role }, ... }
-    // So user is at res.data.user — but if data is absent, fall back to res itself
     const payload = res.data || res;
     const user = payload.user || null;
-    if (res.ok) {
+    if (res.ok && user) {
       console.log("[CA Extension] Quick check user:", JSON.stringify(user));
       updateConnectionUI(true, user);
       await refreshWorkspaceContext(user);
       fetchConnectedData(user); // Fetch service users + recent items (no reconnect)
+    } else if (res.ok && !user) {
+      // Got a 200 OK but no user object — likely HTML response or malformed data
+      console.warn("[CA Extension] Quick check OK but no user — running full connection flow");
+      connectToCareAssurance();
+    } else if (res.error === "Not logged in") {
+      updateConnectionUI(false);
+      if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Please log in to Care Assurance first, then click Connect</span>';
     } else if (res.needsTab) {
       updateConnectionUI(false);
       if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Open Care Assurance in a tab, then click Connect</span>';

@@ -158,6 +158,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Cache-Control': 'no-cache',
       ...(requestId ? { [REQUEST_ID_HEADER]: String(requestId) } : {}),
     }
   };
@@ -171,7 +173,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   fetch(fullUrl, fetchOptions)
     .then(async (res) => {
-      console.log(`[CA Extension Content] Fetch response: ${res.status} ${res.statusText}`);
+      console.log(`[CA Extension Content] Fetch response: ${res.status} ${res.statusText} content-type: ${res.headers.get("content-type")}`);
       if (!res.ok) {
         const errorText = await res.text().catch(() => 'Unknown error');
         console.error(`[CA Extension Content] Request failed:`, errorText);
@@ -183,7 +185,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return;
       }
+
+      // Detect HTML responses on API paths — means session expired or SPA catch-all served
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (contentType.includes("text/html") && endpoint.startsWith("/api")) {
+        console.warn(`[CA Extension Content] Got HTML instead of JSON for ${endpoint} — session likely expired`);
+        sendResponse({
+          ok: false,
+          status: 401,
+          requestId: requestId || res.headers.get(REQUEST_ID_HEADER) || null,
+          error: "Not logged in",
+          htmlFallback: true,
+        });
+        return;
+      }
+
       if (contentType.includes("text/event-stream")) {
         const streamed = await parseSseStream(res);
         sendResponse({

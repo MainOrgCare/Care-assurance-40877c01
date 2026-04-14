@@ -526,6 +526,8 @@ const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, reque
 
   const headers = {
     "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Cache-Control": "no-cache",
     ...(requestId ? { "X-Request-ID": String(requestId) } : {}),
     ...(cookieHeader ? { Cookie: cookieHeader } : {}),
   };
@@ -547,7 +549,19 @@ const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, reque
     };
   }
 
+  // Detect HTML response on API endpoints (session expired / SPA catch-all)
   const ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (ct.includes("text/html") && endpoint.startsWith("/api")) {
+    console.warn("[CA Extension] Direct fetch got HTML instead of JSON for", endpoint);
+    return {
+      ok: false,
+      status: 401,
+      requestId: requestId || res.headers.get("X-Request-ID") || null,
+      error: "Not logged in",
+      directFetch: true,
+    };
+  }
+
   const rawText = await res.text();
   let data = null;
   try {
@@ -628,6 +642,23 @@ const forwardProxyRequest = async (request, sendResponse) => {
         lastError: response?.ok ? metrics.lastError : response?.error || metrics.lastError,
         lastErrorAt: response?.ok ? metrics.lastErrorAt : new Date().toISOString(),
       }));
+
+      // If content-script got HTML instead of JSON (session expired in page context),
+      // fall through to direct fetch which uses chrome.cookies
+      if (response?.htmlFallback) {
+        console.warn("[CA Extension] Content-script relay got HTML — falling back to direct fetch with cookies");
+        try {
+          const directResult = await directFetch(request);
+          sendResponse(directResult);
+          return;
+        } catch (directError) {
+          console.warn("[CA Extension] Direct fetch fallback also failed:", directError?.message);
+          // Return the original HTML-fallback response (treated as 401)
+          sendResponse(response);
+          return;
+        }
+      }
+
       sendResponse(response);
     } catch (forwardError) {
       console.warn("[CA Extension] Error forwarding to content script (will retry after inject):", forwardError?.message);
