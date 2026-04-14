@@ -60,11 +60,13 @@ export const DEFAULT_SERVICE_DATA_GROUP_ID = "1017650";
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const CARE_ASSURANCE_URLS = [
-  "https://careassurance.uk",
-  "https://www.careassurance.uk",
-  "https://care-assurance.onrender.com",
-  "http://localhost:5000",
-  "http://127.0.0.1:5000",
+  "careassurance.uk",
+  "www.careassurance.uk",
+  "care-assurance.onrender.com",
+  "care-assurance-api.onrender.com",
+  "care-assurance-web.onrender.com",
+  "localhost:5000",
+  "localhost:3000",
 ];
 
 // Mutable current URL — exported as getter/setter
@@ -268,30 +270,41 @@ export function formatPayloadTimestamp(ts) {
 }
 
 export function normalizeCareAssuranceBaseUrl(url) {
-  try {
-    const u = new URL(url);
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return url.replace(/\/+$/, "");
+  const raw = String(url || "").trim().replace(/\/+$/, "");
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    try { const u = new URL(raw); return `${u.protocol}//${u.host}`; } catch { /* fall through */ }
   }
+  // Bare hostname — add scheme
+  if (raw.includes("localhost") || raw.includes("127.0.0.1")) {
+    return `http://${raw}`;
+  }
+  return `https://${raw}`;
 }
 
 export function buildCareAssuranceTabPatterns(origin) {
-  try {
-    const u = new URL(origin);
-    return [`${u.protocol}//${u.host}/*`];
-  } catch {
-    return [`${origin}/*`];
+  const raw = String(origin || "").trim();
+  if (!raw) return ["https://careassurance.uk/*", "https://www.careassurance.uk/*"];
+  // If it already has a scheme, use it directly
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    try { const u = new URL(raw); return [`${u.protocol}//${u.host}/*`]; } catch { /* fall through */ }
   }
+  // Bare hostname — match what background.js buildTargetPatterns does
+  if (raw.includes("localhost") || raw.includes("127.0.0.1")) {
+    return [`http://${raw}/*`];
+  }
+  if (raw.includes("onrender.com")) {
+    return [`https://${raw}/*`];
+  }
+  return [`https://${raw}/*`, `https://www.${raw}/*`];
 }
 
 export function isLikelyCareAssuranceUrl(url) {
   if (!url) return false;
   return CARE_ASSURANCE_URLS.some(u => {
     try {
-      const base = new URL(u);
       const target = new URL(url);
-      return target.host === base.host;
+      const baseHost = u.replace(/^(https?:\/\/)?/, "").replace(/\/.*$/, "").toLowerCase();
+      return target.host.toLowerCase() === baseHost || target.host.toLowerCase() === `www.${baseHost}`;
     } catch {
       return false;
     }
