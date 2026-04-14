@@ -1829,6 +1829,7 @@ body {
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -3055,4 +3056,358 @@ fieldset legend {
 
 .payload-size-warning svg {
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.5.0 — DARK MODE (auto via prefers-color-scheme)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Primary palette — lighter navy for dark backgrounds */
+    --color-primary: hsl(214, 48%, 42%);
+    --color-primary-hover: hsl(214, 50%, 50%);
+    --color-primary-foreground: hsl(0, 0%, 100%);
+    --color-primary-ghost: hsl(214, 30%, 18%);
+
+    /* Secondary — caring teal adjusted */
+    --color-secondary: hsl(172, 34%, 38%);
+    --color-secondary-ghost: hsl(172, 20%, 16%);
+
+    /* Accent — slightly desaturated for dark */
+    --color-accent: hsl(215, 70%, 62%);
+    --color-accent-light: hsl(215, 40%, 16%);
+
+    /* Surface & text */
+    --color-background: hsl(222, 20%, 10%);
+    --color-foreground: hsl(220, 15%, 90%);
+    --color-card: hsl(222, 18%, 14%);
+    --color-muted: hsl(222, 14%, 18%);
+    --color-muted-foreground: hsl(220, 12%, 58%);
+    --color-border: hsl(222, 14%, 22%);
+    --color-border-hover: hsl(215, 20%, 34%);
+
+    /* Feedback colors — brighter for dark surfaces */
+    --color-success: hsl(152, 50%, 44%);
+    --color-success-light: hsl(152, 30%, 14%);
+    --color-error: hsl(0, 62%, 56%);
+    --color-error-light: hsl(0, 40%, 14%);
+    --color-warning: hsl(38, 80%, 54%);
+    --color-warning-light: hsl(38, 40%, 14%);
+    --color-destructive: hsl(0, 62%, 56%);
+
+    /* Shadows — darker, more transparent */
+    --shadow-xs: 0 1px 2px hsla(0, 0%, 0%, 0.2);
+    --shadow-sm: 0 1px 3px hsla(0, 0%, 0%, 0.25), 0 1px 2px hsla(0, 0%, 0%, 0.15);
+    --shadow-md: 0 4px 12px hsla(0, 0%, 0%, 0.3), 0 2px 4px hsla(0, 0%, 0%, 0.15);
+    --shadow-lg: 0 10px 30px hsla(0, 0%, 0%, 0.35), 0 4px 8px hsla(0, 0%, 0%, 0.2);
+    --shadow-focus: 0 0 0 3px hsla(215, 70%, 62%, 0.25);
+    --shadow-card-hover: 0 8px 24px hsla(0, 0%, 0%, 0.3), 0 2px 6px hsla(0, 0%, 0%, 0.15);
+
+    color-scheme: dark;
+  }
+
+  /* Header gradient — darker */
+  .popup-header {
+    background: linear-gradient(135deg, hsl(214, 40%, 18%) 0%, hsl(214, 50%, 22%) 100%);
+    border-bottom-color: hsl(214, 20%, 26%);
+  }
+
+  /* Tab bar bottom border */
+  .tab-bar {
+    border-bottom-color: var(--color-border);
+    background: var(--color-card);
+  }
+
+  /* Status boxes */
+  .status-box {
+    background: var(--color-muted);
+    border-color: var(--color-border);
+  }
+
+  .status-box.success {
+    background: var(--color-success-light);
+    border-color: hsl(152, 30%, 24%);
+    color: hsl(152, 50%, 64%);
+  }
+
+  .status-box.warning {
+    background: var(--color-warning-light);
+    border-color: hsl(38, 30%, 24%);
+    color: hsl(38, 70%, 64%);
+  }
+
+  .status-box.error {
+    background: var(--color-error-light);
+    border-color: hsl(0, 30%, 24%);
+    color: hsl(0, 60%, 64%);
+  }
+
+  /* Cards */
+  .card,
+  .glass-card {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  .glass-card {
+    backdrop-filter: blur(12px);
+    background: hsla(222, 18%, 14%, 0.85);
+  }
+
+  /* Inputs & selects */
+  input, select, textarea {
+    background: var(--color-muted);
+    color: var(--color-foreground);
+    border-color: var(--color-border);
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--color-accent);
+    background: hsl(222, 16%, 16%);
+  }
+
+  /* Log area */
+  .log-container {
+    background: hsl(222, 20%, 8%);
+    color: hsl(220, 15%, 75%);
+    border-color: var(--color-border);
+  }
+
+  .log-entry {
+    border-bottom-color: hsl(222, 14%, 16%);
+  }
+
+  /* Code / pre */
+  pre, code {
+    background: hsl(222, 20%, 10%);
+    color: hsl(215, 60%, 72%);
+    border-color: var(--color-border);
+  }
+
+  /* Payload inspector */
+  .payload-inspector {
+    background: hsl(222, 20%, 8%);
+    border-color: var(--color-border);
+  }
+
+  /* Footer */
+  .popup-footer {
+    background: var(--color-card);
+    border-top-color: var(--color-border);
+  }
+
+  /* Skeleton shimmer dark */
+  .skeleton {
+    background: var(--color-muted);
+  }
+
+  .skeleton::after {
+    background: linear-gradient(90deg, transparent, hsla(220, 15%, 90%, 0.04), transparent);
+  }
+
+  /* Toast dark */
+  .toast-container .toast {
+    background: hsl(222, 18%, 18%);
+    border-color: var(--color-border);
+    color: var(--color-foreground);
+  }
+
+  /* Dialog dark */
+  .dialog-overlay {
+    background: hsla(0, 0%, 0%, 0.6);
+  }
+
+  .dialog-box {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  /* Info panel dark */
+  .info-panel {
+    background: hsl(215, 30%, 14%);
+    border-color: hsl(215, 30%, 22%);
+    color: hsl(215, 40%, 70%);
+  }
+
+  .info-panel strong {
+    color: hsl(215, 50%, 78%);
+  }
+
+  /* Workspace context card dark */
+  .workspace-context-card {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  /* Button ghost dark */
+  .btn-ghost {
+    color: var(--color-muted-foreground);
+  }
+
+  .btn-ghost:hover {
+    background: var(--color-muted);
+    color: var(--color-foreground);
+  }
+
+  /* Service user item */
+  .service-user-item {
+    border-color: var(--color-border);
+  }
+
+  .service-user-item:hover {
+    background: var(--color-muted);
+    border-color: var(--color-border-hover);
+  }
+
+  .service-user-item.selected {
+    background: var(--color-accent-light);
+    border-color: var(--color-accent);
+  }
+
+  /* File upload dark */
+  .file-upload-label {
+    background: var(--color-muted);
+    border-color: var(--color-border);
+  }
+
+  .file-upload-label:hover {
+    border-color: var(--color-border-hover);
+    background: hsl(222, 14%, 16%);
+  }
+
+  /* Autofill user picker dropdown */
+  .autofill-user-dropdown {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  .autofill-user-option:hover,
+  .autofill-user-option-active {
+    background: var(--color-muted);
+  }
+
+  /* Scrollbar dark */
+  .popup-content::-webkit-scrollbar-track,
+  .log-container::-webkit-scrollbar-track {
+    background: var(--color-background);
+  }
+
+  .popup-content::-webkit-scrollbar-thumb,
+  .log-container::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+  }
+
+  /* Recent items */
+  .recent-item {
+    border-color: var(--color-border);
+  }
+
+  .recent-item:hover {
+    background: var(--color-muted);
+    border-color: var(--color-border-hover);
+  }
+
+  /* Connection badge dark */
+  .connection-badge.connected {
+    background: var(--color-success-light);
+    color: var(--color-success);
+    border-color: hsl(152, 30%, 24%);
+  }
+
+  .connection-badge.error {
+    background: var(--color-error-light);
+    color: var(--color-error);
+    border-color: hsl(0, 30%, 24%);
+  }
+
+  /* Page companion card */
+  .page-companion-card {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  /* Verification panel dark */
+  .verification-panel {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  /* Admin-only visibility (body.is-admin) */
+  body:not(.is-admin) .admin-only { display: none !important; }
+
+  /* Kbd hints dark */
+  .kbd {
+    background: hsl(222, 14%, 20%);
+    border-color: hsl(222, 14%, 28%);
+  }
+
+  /* Assessment checkbox cards */
+  .assessment-card {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+
+  /* Runtime diagnostics */
+  .runtime-diagnostics {
+    background: var(--color-muted);
+    border-color: var(--color-border);
+  }
+
+  /* SVG icon safety (dark mode) */
+  svg:not([width]):not([height]) {
+    max-width: 1em;
+    max-height: 1em;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.5.0 — ENHANCED SKELETON LOADERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--color-muted);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, hsla(0, 0%, 100%, 0.06), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.w-full { width: 100%; }
+.skeleton-line.w-3-4 { width: 75%; }
+.skeleton-line.w-1-2 { width: 50%; }
+.skeleton-line.w-1-4 { width: 25%; }
+.skeleton-line.h-lg { height: 16px; }
+.skeleton-line.h-sm { height: 8px; }
+
+/* Transition for skeleton → content */
+[data-skeleton] {
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+[data-skeleton="loading"] > :not(.skeleton-group) {
+  display: none;
+}
+
+[data-skeleton="ready"] > .skeleton-group {
+  display: none;
 }
