@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.5.5
+ * CareAssurance Extension v0.5.6
  */
 
 import {
@@ -1034,7 +1034,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.5</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.6</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1128,6 +1128,10 @@ function bindStorageListener() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.url) {
       const url = new URL(tab.url);
+      if (isLikelyCareAssuranceUrl(tab.url)) {
+        setCareAssuranceUrl(url.host);
+        await setStorage({ [STORAGE_KEYS.serverUrl]: url.host });
+      }
       if (url.pathname.includes("new_case_form") || url.pathname.includes("edit_case_form")) {
         const caseId = url.searchParams.get("caseId");
         const serviceDataGroupId = url.searchParams.get("serviceDataGroupId");

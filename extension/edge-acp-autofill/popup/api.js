@@ -1,13 +1,13 @@
 /**
  * api.js — API proxy and network communication layer
- * CareAssurance Extension v0.5.5
+ * CareAssurance Extension v0.5.6
  */
 
 import {
   getCareAssuranceUrl,
-  CARE_ASSURANCE_URLS,
   buildCareAssuranceTabPatterns,
   createRequestId,
+  resolveCareAssuranceApiOrigin,
   state,
 } from "./state.js";
 
@@ -52,7 +52,8 @@ export async function apiProxy(endpoint, method = "GET", body = null, options = 
   const maxRetries = Number.isInteger(options.maxRetries) ? Math.max(0, options.maxRetries) : 2;
   const retryDelayMs = typeof options.retryDelayMs === "number" ? Math.max(100, options.retryDelayMs) : 700;
   const requestId = createRequestId();
-  const targetOrigin = getCareAssuranceUrl();
+  const workspaceOrigin = getCareAssuranceUrl();
+  const apiOrigin = resolveCareAssuranceApiOrigin(workspaceOrigin);
 
   let lastResponse = { ok: false, error: "Unknown proxy error" };
 
@@ -78,7 +79,8 @@ export async function apiProxy(endpoint, method = "GET", body = null, options = 
           method,
           body,
           requestId,
-          targetOrigin,
+          targetOrigin: workspaceOrigin,
+          apiOrigin,
         },
         (innerResponse) => {
           if (settled) return;

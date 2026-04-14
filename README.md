@@ -86,7 +86,7 @@ Care Assurance helps care organisations stay CQC-ready by automating EMAR audits
 | AI | OpenAI GPT-4.1-mini (default), GitHub Models, or local Ollama |
 | Auth | Cookie-based sessions, bcrypt, NIST password policy |
 | Security | Helmet CSP, CSRF protection, rate limiting, request correlation IDs |
-| Deployment | Render.com (static + API split), worker process |
+| Deployment | Render.com (static + API split, API-owned maintenance scheduler) |
 | Extension | Edge browser extension for care system auto-fill |
 
 ## Getting Started
@@ -127,6 +127,8 @@ See [`.env.example`](.env.example) for a fully documented list. Key variables:
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | Production | — | PostgreSQL connection string |
 | `SESSION_SECRET` | Production | — | Session cookie signing secret |
+| `ENABLE_BACKGROUND_MAINTENANCE` | No | `false` | Runs scheduled cleanup inside the API process when set to `true` |
+| `CLEANUP_INTERVAL_MS` | No | `21600000` | Maintenance cadence in milliseconds when background maintenance is enabled |
 | `AI_ENABLED` | No | `true` | Master toggle for all AI features |
 | `OPENAI_API_KEY` | When AI on | — | OpenAI API key |
 | `GITHUB_TOKEN` | When GitHub AI | — | GitHub PAT with `models` scope |
@@ -137,7 +139,7 @@ See [`.env.example`](.env.example) for a fully documented list. Key variables:
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start dev server (API + Vite HMR) |
-| `npm run build` | Production build (client + server + worker) |
+| `npm run build` | Production build (client + server) |
 | `npm start` | Start production API server |
 | `npm test` | Run all tests (server + client) |
 | `npm run check` | TypeScript type checking |
@@ -163,7 +165,7 @@ See [`.env.example`](.env.example) for a fully documented list. Key variables:
 │   ├── utils/             # Shared utilities (security audit, password policy, etc.)
 │   ├── config/            # Configuration (AI pricing)
 │   ├── storage.ts         # Database layer (Drizzle ORM)
-│   └── worker.ts          # Background processing
+│   └── maintenance.ts     # Scheduled background maintenance loop
 ├── shared/                # Shared types & Drizzle schema
 ├── extension/             # Edge browser extension
 ├── migrations/            # Database migration files
@@ -179,7 +181,7 @@ The platform deploys as a **split architecture** on [Render.com](https://render.
 
 - **Static site** — pre-built Vite output served via Render's CDN
 - **API service** — Node.js Express server with health checks at `/healthz` and `/readyz`
-- **Worker** — background process for scheduled tasks
+- **Background maintenance** — scheduled cleanup runs inside the API service when `ENABLE_BACKGROUND_MAINTENANCE=true`
 
 See [`render.yaml`](render.yaml) for the full blueprint.
 

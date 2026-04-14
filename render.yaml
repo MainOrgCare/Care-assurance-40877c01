@@ -7,7 +7,6 @@ version: "1"
 #   Development    : Care-assurance-development  (Node, Frankfurt — single service)
 #   Production     : Care-assurance-web  (Static, Global CDN)
 #                    Care-assurance-api  (Node, Frankfurt)
-#                    Care-assurance-worker  (Node, Frankfurt)
 #                    CORS  (Env Group — 2 vars shared by api + web)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -77,7 +76,7 @@ services:
   #
   # Monitoring:
   #   - Visit /status endpoint regularly from a monitoring service to catch degradation
-  #   - Check logs for "[worker]" messages if worker tasks fail (see Care-assurance-worker)
+  #   - Check API logs for "[maintenance]" messages if scheduled cleanup fails
   #   - Monitor DATABASE_URL connectivity — /readyz will return 503 on connection loss
   #
   - type: web
@@ -99,6 +98,12 @@ services:
         value: production
       - key: NODE_OPTIONS
         value: --max-old-space-size=512
+      - key: ENABLE_BACKGROUND_MAINTENANCE
+        value: "true"
+      - key: CLEANUP_INTERVAL_MS
+        sync: false
+        # Optional maintenance interval in milliseconds.
+        # Default: 21600000 (6 hours). Runs immediately on startup, then periodically.
 
       # ── Network ───────────────────────────────────────────────────────────
       - key: SERVE_STATIC
@@ -165,48 +170,6 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
-
-  # ── Production — Background worker ───────────────────────────────────────
-  # Autonomous background job processor running on a separate process to handle
-  # scheduled maintenance tasks without impacting API performance.
-  #
-  # Current responsibilities (runs every CLEANUP_INTERVAL_MS):
-  #   1. Data cleanup: Removes expired service users, care workers, calls, orders, templates, recommendations
-  #   2. Session cleanup: Removes stale active sessions (inactive 7+ days)
-  #   3. Suspension reset: Auto-reinstates users whose suspension period has expired
-  #   4. IP block cleanup: Removes expired IP blocks (older than 30 days)
-  #   5. System log archival: Identifies system logs eligible for long-term archive (90+ days old)
-  #
-  # Design: Sequential task execution (not parallel) to minimize database contention.
-  # Logs detailed progress for each task — monitor logs to verify maintenance is running.
-  #
-  - type: worker
-    name: care-assurance-worker
-    runtime: node
-    region: frankfurt
-    plan: starter
-    buildCommand: sh -c 'export NODE_OPTIONS=--max-old-space-size=1024; npm ci --include=dev --legacy-peer-deps && npm run build:worker'
-    startCommand: npm run start:worker
-    autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: CLEANUP_INTERVAL_MS
-        sync: false
-        # How often the worker runs all maintenance tasks, in milliseconds.
-        # Default: 21600000 (6 hours). Runs immediately on startup, then periodically.
-        # Common values:
-        #   - 3600000 = 1 hour (frequent, for active platforms)
-        #   - 21600000 = 6 hours (balanced, default)
-        #   - 86400000 = 24 hours (low-frequency, for off-peak times)
-      - key: DATABASE_URL
-        fromDatabase:
-          name: Care-Assurance-Database
-          property: connectionString
-      - key: PGSSLMODE
-        value: require
-      - key: PGSSLREJECTUNAUTHORIZED
-        value: "false"
 
   # ── Development — Single-service (API + static client) ───────────────────
   #- type: web

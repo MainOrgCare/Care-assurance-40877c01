@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { startBackgroundMaintenance, stopBackgroundMaintenance } from "./maintenance";
 import { registerRoutes } from "./routes";
 
 import { serveStatic } from "./static";
@@ -532,11 +533,16 @@ const DEFAULT_ADMIN_USERNAME = "admin";
     },
   );
 
+  if (process.env.ENABLE_BACKGROUND_MAINTENANCE === "true") {
+    void startBackgroundMaintenance({ source: "maintenance" });
+  }
+
   let isShuttingDown = false;
   const shutdown = (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     log(`${signal} received. Starting graceful shutdown...`);
+    stopBackgroundMaintenance("maintenance");
 
     server.close((closeErr) => {
       if (closeErr) {

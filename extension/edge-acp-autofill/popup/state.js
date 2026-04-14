@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.5.5
+ * CareAssurance Extension v0.5.6
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -73,6 +73,12 @@ export const CARE_ASSURANCE_URLS = [
 let _currentUrl = CARE_ASSURANCE_URLS[0];
 export function getCareAssuranceUrl() { return _currentUrl; }
 export function setCareAssuranceUrl(url) { _currentUrl = url; }
+
+const WORKSPACE_TO_API_HOSTS = {
+  "careassurance.uk": "care-assurance-api.onrender.com",
+  "www.careassurance.uk": "care-assurance-api.onrender.com",
+  "care-assurance-web.onrender.com": "care-assurance-api.onrender.com",
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STORAGE HELPERS
@@ -280,6 +286,26 @@ export function normalizeCareAssuranceBaseUrl(url) {
     return `http://${raw}`;
   }
   return `https://${raw}`;
+}
+
+export function normalizeCareAssuranceOriginHost(url) {
+  const raw = String(url || "").trim().replace(/\/+$/, "");
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    try { return new URL(raw).host.toLowerCase(); } catch { /* fall through */ }
+  }
+  return raw.replace(/^\/+/, "").toLowerCase();
+}
+
+export function resolveCareAssuranceApiOrigin(origin) {
+  const host = normalizeCareAssuranceOriginHost(origin);
+  if (!host) return "care-assurance-api.onrender.com";
+  if (host === "localhost:3000") return "localhost:5000";
+  if (host === "127.0.0.1:3000") return "127.0.0.1:5000";
+  if (host.endsWith("-web.onrender.com")) {
+    return host.replace(/-web\.onrender\.com$/i, "-api.onrender.com");
+  }
+  return WORKSPACE_TO_API_HOSTS[host] || host;
 }
 
 export function buildCareAssuranceTabPatterns(origin) {

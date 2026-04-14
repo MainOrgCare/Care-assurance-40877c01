@@ -266,9 +266,11 @@
 ## Version 0.2.0 - Major UI Redesign (February 4, 2025)
 
 ### 🎨 Complete UI Redesign
+
 **Objective**: Match the professional look and feel of the Care Assurance website
 
 #### Design System Overhaul
+
 - **Color Scheme**: Implemented exact website HSL color values
   - Primary Blue: `hsl(215, 45%, 40%)`
   - Background: `hsl(210, 20%, 98%)`
@@ -292,8 +294,10 @@
 ### 📝 Files Completely Rewritten
 
 #### 1. popup.html (11KB)
+
 **New Structure**: 4-section workflow
-- **Upload Section**: 
+
+- **Upload Section**:
   - Professional card with gradient header
   - File input with custom styling
   - "Analyze with AI" button with ShieldAlert icon
@@ -316,7 +320,9 @@
   - Status displays
 
 #### 2. popup.css (12KB, 850+ lines)
+
 **Complete Redesign**: Professional styling matching website
+
 - Root CSS variables for consistent theming
 - Card component system (headers, bodies, footers)
 - Badge components (primary, success, warning, danger)
@@ -328,9 +334,11 @@
 - Responsive layout (fixed 500px width)
 
 #### 3. popup.js (30KB, 700+ lines)
+
 **Complete Rewrite**: Enhanced workflow and state management
 
 **Key Functions**:
+
 - `showSection(sectionName)`: UI state transitions
 - `readFilesAsText(files)`: File reading with PDF support
 - `analyzeDocuments()`: Main AI analysis workflow
@@ -342,6 +350,7 @@
 - Professional error handling and user feedback
 
 **Workflow Implementation**:
+
 1. **Upload Phase**: User selects care documents
 2. **Analysis Phase**: SSE streaming with live progress updates
 3. **Results Phase**: Display assessments with selection UI
@@ -350,17 +359,20 @@
 ### 🔧 Technical Enhancements
 
 #### Authentication
+
 - Uses Chrome Cookies API to extract session token
 - Seamless integration with Care Assurance backend
 - No manual token input required
 
 #### API Integration
+
 - SSE (Server-Sent Events) streaming for real-time progress
 - Endpoint: `https://careassurance.uk/api/ai/analyze-risks`
 - Progress events displayed in animated progress bar
 - Error handling with user-friendly messages
 
 #### State Management
+
 - `UI_STATES` constant for clean state transitions
 - `currentAnalysisResults` stores analysis data
 - Preserved original autofill functionality
@@ -378,6 +390,7 @@
 8. **Smooth Transitions**: Fade effects and hover states throughout
 
 ### 📦 Packaging
+
 - Extension packaged to: `dist/edge-acp-autofill.zip`
 - Ready for installation in Edge/Chrome browsers
 - All assets included and optimized
@@ -400,6 +413,7 @@
 ### 🎨 Before & After
 
 **Before (v0.1.2)**:
+
 - Basic form layout
 - Generic styling
 - Simple text inputs
@@ -407,6 +421,7 @@
 - Disconnected from website design
 
 **After (v0.2.0)**:
+
 - Professional card-based layout
 - Website-matching color scheme
 - Gradient headers and buttons
@@ -430,12 +445,14 @@
 ## Version 0.1.2 - File Upload Feature (February 3, 2025)
 
 ### New Features
+
 - Added file upload capability
 - Basic AI analysis integration
 - Document content parsing
 - Initial risk assessment workflow
 
 ### Files Modified
+
 - manifest.json: Added cookies permission
 - background.js: Added analyzeRisks handler
 - constants.js: Added message types

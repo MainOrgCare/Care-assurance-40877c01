@@ -66,6 +66,12 @@ const getReadyHostCandidates = (targetOrigin) => {
   return Array.from(new Set(candidates));
 };
 
+const shouldBypassContentRelay = (workspaceOrigin, apiOrigin) => {
+  const workspaceHost = normalizeOriginHost(workspaceOrigin);
+  const apiHost = normalizeOriginHost(apiOrigin);
+  return Boolean(workspaceHost && apiHost && workspaceHost !== apiHost);
+};
+
 const sessionStorageKeySet = new Set(SESSION_STORAGE_KEYS.filter(Boolean));
 const sessionStorageArea = chrome.storage?.session && typeof chrome.storage.session.get === "function"
   ? chrome.storage.session
@@ -508,8 +514,8 @@ const resolveBaseUrl = (hostname) => {
   return `https://${h}`;
 };
 
-const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, requestId }) => {
-  const baseUrl = resolveBaseUrl(targetOrigin);
+const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, apiOrigin, requestId }) => {
+  const baseUrl = resolveBaseUrl(apiOrigin || targetOrigin);
   const fullUrl = `${baseUrl}${endpoint}`;
   console.log(`[CA Extension] Direct fetch fallback: ${method} ${fullUrl}`);
 
@@ -579,9 +585,10 @@ const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, reque
 };
 
 const forwardProxyRequest = async (request, sendResponse) => {
-  const { endpoint, method = "GET", body, targetOrigin, requestId } = request || {};
+  const { endpoint, method = "GET", body, targetOrigin, apiOrigin, requestId } = request || {};
   const resolvedTargetOrigin = targetOrigin || "careassurance.uk";
-  console.log(`[CA Extension] API proxy request: ${method} ${endpoint} for ${resolvedTargetOrigin}`);
+  const resolvedApiOrigin = apiOrigin || resolvedTargetOrigin;
+  console.log(`[CA Extension] API proxy request: ${method} ${endpoint} workspace=${resolvedTargetOrigin} api=${resolvedApiOrigin}`);
   await updateRuntimeMetrics((metrics) => ({
     ...metrics,
     proxyRequests: (metrics.proxyRequests || 0) + 1,
@@ -589,14 +596,22 @@ const forwardProxyRequest = async (request, sendResponse) => {
     lastProxyMethod: method,
     lastRequestId: requestId || null,
     lastTargetOrigin: resolvedTargetOrigin,
+    lastApiOrigin: resolvedApiOrigin,
   }));
   try {
+    if (shouldBypassContentRelay(resolvedTargetOrigin, resolvedApiOrigin)) {
+      console.log(`[CA Extension] Bypassing content-script relay for split deployment: workspace=${resolvedTargetOrigin} api=${resolvedApiOrigin}`);
+      const directResult = await directFetch({ ...request, targetOrigin: resolvedTargetOrigin, apiOrigin: resolvedApiOrigin });
+      sendResponse(directResult);
+      return;
+    }
+
     const tabId = await findContentScriptTab(resolvedTargetOrigin);
     if (!tabId) {
       // ── Fallback: direct fetch from service worker ──
       console.log(`[CA Extension] No content-script tab for ${resolvedTargetOrigin}, trying direct fetch`);
       try {
-        const directResult = await directFetch(request);
+        const directResult = await directFetch({ ...request, targetOrigin: resolvedTargetOrigin, apiOrigin: resolvedApiOrigin });
         await updateRuntimeMetrics((metrics) => ({
           ...metrics,
           directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
@@ -648,7 +663,7 @@ const forwardProxyRequest = async (request, sendResponse) => {
       if (response?.htmlFallback) {
         console.warn("[CA Extension] Content-script relay got HTML — falling back to direct fetch with cookies");
         try {
-          const directResult = await directFetch(request);
+          const directResult = await directFetch({ ...request, targetOrigin: resolvedTargetOrigin, apiOrigin: resolvedApiOrigin });
           sendResponse(directResult);
           return;
         } catch (directError) {
@@ -707,7 +722,7 @@ const forwardProxyRequest = async (request, sendResponse) => {
         // Content-script relay exhausted — try direct fetch as last resort
         console.warn("[CA Extension] Content-script retries exhausted, trying direct fetch fallback");
         try {
-          const directResult = await directFetch(request);
+          const directResult = await directFetch({ ...request, targetOrigin: resolvedTargetOrigin, apiOrigin: resolvedApiOrigin });
           await updateRuntimeMetrics((metrics) => ({
             ...metrics,
             directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
@@ -735,7 +750,7 @@ const forwardProxyRequest = async (request, sendResponse) => {
     console.error("[CA Extension] API proxy error, trying direct fetch:", error);
     // Last-ditch: try direct fetch if the entire proxy chain threw
     try {
-      const directResult = await directFetch(request);
+      const directResult = await directFetch({ ...request, targetOrigin: resolvedTargetOrigin, apiOrigin: resolvedApiOrigin });
       await updateRuntimeMetrics((metrics) => ({
         ...metrics,
         directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
