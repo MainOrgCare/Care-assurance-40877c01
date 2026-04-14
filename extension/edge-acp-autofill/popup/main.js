@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.8
+ * CareAssurance Extension v0.6.9
  */
 
 import {
@@ -71,6 +71,7 @@ import {
 const POPUP_REFRESH_DEBOUNCE_MS = 180;
 const POPUP_PERIODIC_REFRESH_MS = 12000;
 const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
+const POPUP_DRAGGABLE_WINDOW_TYPES = new Set(["popup", "normal"]);
 
 let popupRefreshTimer = null;
 let popupRefreshInFlight = false;
@@ -136,6 +137,12 @@ let uploadSyncInFlight = false;
 let uploadSyncQueued = false;
 let uploadSyncForceQueued = false;
 let lastUploadSyncSignature = "";
+
+let popupWindowDragState = null;
+let popupWindowDragWindowId = null;
+let popupWindowMoveQueued = null;
+let popupWindowMoveInFlight = false;
+let popupWindowDragHandles = [];
 
 const createEmptyUploadBuckets = () => ({
   socialWork: [],
@@ -231,6 +238,134 @@ const updateUploadPendingStatus = () => {
   }
 
   updateUploadSyncStatus(`Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. Click Send to transfer.`);
+};
+
+const getCurrentWindow = () =>
+  new Promise((resolve) => {
+    if (!chrome.windows?.getCurrent) {
+      resolve(null);
+      return;
+    }
+    chrome.windows.getCurrent({}, (windowInfo) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      resolve(windowInfo || null);
+    });
+  });
+
+const updateWindowPosition = (windowId, left, top) =>
+  new Promise((resolve, reject) => {
+    chrome.windows.update(
+      windowId,
+      { left: Math.round(left), top: Math.round(top) },
+      () => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || "Failed to move popup window."));
+          return;
+        }
+        resolve();
+      }
+    );
+  });
+
+const queuePopupWindowMove = (left, top) => {
+  popupWindowMoveQueued = { left, top };
+  if (popupWindowMoveInFlight || popupWindowDragWindowId == null) return;
+
+  popupWindowMoveInFlight = true;
+  const flush = async () => {
+    while (popupWindowMoveQueued && popupWindowDragWindowId != null) {
+      const next = popupWindowMoveQueued;
+      popupWindowMoveQueued = null;
+      try {
+        await updateWindowPosition(popupWindowDragWindowId, next.left, next.top);
+      } catch {
+        popupWindowDragWindowId = null;
+        popupWindowMoveQueued = null;
+        break;
+      }
+    }
+    popupWindowMoveInFlight = false;
+  };
+
+  void flush();
+};
+
+const stopPopupWindowDrag = () => {
+  popupWindowDragState = null;
+  document.body.style.userSelect = "";
+  popupWindowDragHandles.forEach((handle) => handle.classList.remove("is-window-dragging"));
+  window.removeEventListener("pointermove", handlePopupWindowDragMove);
+  window.removeEventListener("pointerup", stopPopupWindowDrag);
+  window.removeEventListener("pointercancel", stopPopupWindowDrag);
+};
+
+function handlePopupWindowDragMove(event) {
+  if (!popupWindowDragState || popupWindowDragWindowId == null) return;
+  event.preventDefault();
+
+  const deltaX = event.screenX - popupWindowDragState.startScreenX;
+  const deltaY = event.screenY - popupWindowDragState.startScreenY;
+  const nextLeft = popupWindowDragState.originLeft + deltaX;
+  const nextTop = popupWindowDragState.originTop + deltaY;
+  queuePopupWindowMove(nextLeft, nextTop);
+}
+
+const isWindowDragBlockedTarget = (target) =>
+  target instanceof Element &&
+  Boolean(target.closest("button, input, select, textarea, a, summary, [role='tab'], [data-no-window-drag]"));
+
+const beginPopupWindowDrag = (event) => {
+  if (popupWindowDragWindowId == null) return;
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  if (isWindowDragBlockedTarget(event.target)) return;
+
+  stopPopupWindowDrag();
+
+  popupWindowDragState = {
+    startScreenX: event.screenX,
+    startScreenY: event.screenY,
+    originLeft: Number.isFinite(window.screenX) ? window.screenX : 0,
+    originTop: Number.isFinite(window.screenY) ? window.screenY : 0,
+  };
+
+  const currentState = popupWindowDragState;
+  getCurrentWindow().then((currentWindow) => {
+    if (!popupWindowDragState || popupWindowDragState !== currentState) return;
+    const fallbackLeft = Number.isFinite(window.screenX) ? window.screenX : 0;
+    const fallbackTop = Number.isFinite(window.screenY) ? window.screenY : 0;
+    popupWindowDragState.originLeft = Number.isFinite(currentWindow?.left) ? currentWindow.left : fallbackLeft;
+    popupWindowDragState.originTop = Number.isFinite(currentWindow?.top) ? currentWindow.top : fallbackTop;
+  });
+
+  document.body.style.userSelect = "none";
+  popupWindowDragHandles.forEach((handle) => handle.classList.add("is-window-dragging"));
+  window.addEventListener("pointermove", handlePopupWindowDragMove);
+  window.addEventListener("pointerup", stopPopupWindowDrag);
+  window.addEventListener("pointercancel", stopPopupWindowDrag);
+};
+
+const initMainMenuDragging = async () => {
+  if (!chrome.windows?.getCurrent || !chrome.windows?.update) return;
+
+  const manifestPermissions = chrome.runtime?.getManifest?.()?.permissions || [];
+  if (!manifestPermissions.includes("windows")) return;
+
+  const currentWindow = await getCurrentWindow();
+  if (!currentWindow?.id || !POPUP_DRAGGABLE_WINDOW_TYPES.has(currentWindow.type || "")) return;
+
+  popupWindowDragWindowId = currentWindow.id;
+  popupWindowDragHandles = [
+    document.querySelector(".popup-header"),
+    document.querySelector(".tab-navigation"),
+  ].filter(Boolean);
+
+  popupWindowDragHandles.forEach((handle) => {
+    handle.classList.add("is-window-drag-handle");
+    handle.addEventListener("pointerdown", beginPopupWindowDrag);
+  });
 };
 
 const renderUploadBuckets = () => {
@@ -1740,7 +1875,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.8</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.9</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1824,6 +1959,7 @@ function bindStorageListener() {
 (async function init() {
   cacheDomElements();
   bindEvents();
+  await initMainMenuDragging();
   bindStorageListener();
   ensureUploadBuckets();
   renderUploadBuckets();

@@ -1,5 +1,18 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.9 - Draggable Main Menu
+
+### Popup Main Menu Dragging
+
+- Added draggable behavior for the popup main menu surfaces (header and tab navigation) so operators can reposition the extension popup window while it is open.
+- Implemented guarded pointer handling to avoid interfering with interactive controls (tab buttons, inputs, and action buttons) while dragging.
+- Added robust window-move queuing/cleanup in `popup/main.js` to keep drag interactions smooth and resilient.
+
+### Permissions and Versioning
+
+- Added the `windows` permission in `manifest.json` to support popup window repositioning.
+- Bumped extension version to `0.6.9` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.8 - Drag/Resize Reliability Fix
 
 ### Runtime Panel Interaction Fixes

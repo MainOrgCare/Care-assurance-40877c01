@@ -107,6 +107,23 @@ body {
   z-index: 10;
 }
 
+.popup-header.is-window-drag-handle,
+.tab-navigation.is-window-drag-handle {
+  cursor: grab;
+}
+
+.popup-header.is-window-dragging,
+.tab-navigation.is-window-dragging {
+  cursor: grabbing;
+}
+
+.popup-header.is-window-drag-handle button,
+.tab-navigation.is-window-drag-handle button,
+.popup-header.is-window-drag-handle .btn-help,
+.popup-header.is-window-drag-handle .btn-overlay-pin {
+  cursor: pointer;
+}
+
 .popup-header::before {
   content: "";
   position: absolute;
