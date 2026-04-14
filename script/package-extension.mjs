@@ -17,6 +17,8 @@ const outputPath = path.resolve(distDir, "edge-acp-autofill.zip");
 const tempOutputPath = `${outputPath}.tmp`;
 const crxOutputPath = path.resolve(distDir, "edge-acp-autofill.crx");
 const keyPath = path.resolve(distDir, "extension-key.pem");
+const cliArgs = new Set(process.argv.slice(2));
+const requireCrx = cliArgs.has("--require-crx") || process.env.CA_EXTENSION_REQUIRE_CRX === "1";
 
 // Chromium places the .crx and .pem next to the source directory by default
 const chromiumCrxPath = path.resolve(path.dirname(sourceDir), "edge-acp-autofill.crx");
@@ -33,6 +35,14 @@ const excludedPatterns = [
 
 function normalizePath(value) {
   return String(value || "").replace(/^\.\//, "");
+}
+
+function buildCrxUnavailableResult(reason, message) {
+  return {
+    available: false,
+    reason,
+    message,
+  };
 }
 
 async function ensurePathExists(baseDir, relativePath) {
@@ -114,8 +124,13 @@ async function findChromiumBin() {
 async function buildCrx() {
   const chromiumBin = await findChromiumBin();
   if (!chromiumBin) {
-    console.warn("Chromium not found — skipping .crx build.");
-    return null;
+    if (requireCrx) {
+      throw new Error("Chromium was not found, so the required .crx package could not be built.");
+    }
+    return buildCrxUnavailableResult(
+      "chromium-not-found",
+      "CRX build skipped because Chromium is not installed in this environment."
+    );
   }
 
   await fs.unlink(chromiumCrxPath).catch(() => {});
@@ -135,21 +150,42 @@ async function buildCrx() {
     args.push(`--pack-extension-key=${keyPath}`);
   }
 
-  await execFileAsync(chromiumBin, args, { timeout: 60000 });
+  try {
+    await execFileAsync(chromiumBin, args, { timeout: 60000 });
 
-  // Move Chromium's output from the extension parent directory into dist/.
-  await fs.rename(chromiumCrxPath, crxOutputPath);
+    // Move Chromium's output from the extension parent directory into dist/.
+    await fs.rename(chromiumCrxPath, crxOutputPath);
 
-  if (!keyExists) {
-    // Persist the generated key so future runs produce the same extension ID.
-    await fs.rename(chromiumPemPath, keyPath).catch(() => {});
+    if (!keyExists) {
+      // Persist the generated key so future runs produce the same extension ID.
+      await fs.rename(chromiumPemPath, keyPath).catch(() => {});
+    }
+
+    // Clean up any stray .pem left next to the source directory.
+    await fs.unlink(chromiumPemPath).catch(() => {});
+
+    const stats = await fs.stat(crxOutputPath);
+    return {
+      available: true,
+      outputPath: crxOutputPath,
+      sizeBytes: stats.size,
+      packagedAt: stats.mtime.toISOString(),
+    };
+  } catch (error) {
+    await fs.unlink(chromiumCrxPath).catch(() => {});
+    await fs.unlink(crxOutputPath).catch(() => {});
+    await fs.unlink(chromiumPemPath).catch(() => {});
+
+    const message = error instanceof Error ? error.message : String(error);
+    if (requireCrx) {
+      throw new Error(`Chromium failed to build the required .crx package: ${message}`);
+    }
+
+    return buildCrxUnavailableResult(
+      "crx-build-failed",
+      `CRX build skipped after a Chromium packaging failure: ${message}`
+    );
   }
-
-  // Clean up any stray .pem left next to the source directory.
-  await fs.unlink(chromiumPemPath).catch(() => {});
-
-  const stats = await fs.stat(crxOutputPath);
-  return { outputPath: crxOutputPath, sizeBytes: stats.size, packagedAt: stats.mtime.toISOString() };
 }
 
 async function buildArchive() {
@@ -175,7 +211,7 @@ async function buildArchive() {
       sizeBytes: zipStats.size,
       packagedAt: zipStats.mtime.toISOString(),
     },
-    crx: crxResult ?? null,
+    crx: crxResult,
   }));
 }
 

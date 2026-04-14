@@ -405,8 +405,8 @@ export function registerExtensionRoutes(
     try {
       const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
       if (forceBuild) {
-        // packageExtensionZip invokes the canonical packaging script which produces
-        // both the ZIP and the CRX (via Chromium --pack-extension) in a single run.
+        // packageExtensionZip invokes the canonical packaging script which always
+        // rebuilds the ZIP and attempts a CRX when Chromium is available.
         await packageExtensionZip();
       }
 
