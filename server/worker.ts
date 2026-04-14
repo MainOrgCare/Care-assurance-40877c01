@@ -49,7 +49,7 @@ const runSessionCleanup = async () => {
     let removedCount = 0;
 
     for (const session of allSessions) {
-      const lastActivityTime = new Date(session.lastActivityAt).getTime();
+      const lastActivityTime = new Date(session.lastActivity).getTime();
       const ageMs = now - lastActivityTime;
 
       if (ageMs > SESSION_CLEANUP_THRESHOLD_MS) {
@@ -77,9 +77,9 @@ const runSuspensionReset = async () => {
     let reinstatedCount = 0;
 
     for (const suspension of suspensions) {
-      if (suspension.reinstatedAt) continue; // Already reinstated
+      if (suspension.reinstatedEarly) continue; // Already reinstated
 
-      const suspendedUntil = new Date(suspension.suspendedUntil);
+      const suspendedUntil = new Date(suspension.endsAt);
       if (now > suspendedUntil) {
         // Auto-reinstate the user
         const user = await storage.getUser(suspension.userId);
@@ -139,10 +139,8 @@ const runSystemLogArchival = async () => {
     let archivedCount = 0;
 
     for (const log of logs) {
-      // Only attempt to archive if no archive status is set yet
-      if (log.archivedAt) continue;
-
-      const logTime = new Date(log.timestamp).getTime();
+      // Only attempt to archive if created recently enough to skip
+      const logTime = new Date(log.createdAt).getTime();
       const ageMs = now - logTime;
 
       if (ageMs > archiveThreshold) {

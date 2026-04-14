@@ -1023,6 +1023,10 @@ function updateConnectionUI(connected, user = null) {
   if (recentSection) recentSection.hidden = !connected;
   if (searchSection) searchSection.hidden = !connected;
 
+  // Toggle admin class on body for CSS-gated admin-only elements
+  const isAdmin = connected && (user?.role === "admin" || connectedWorkspaceUser?.role === "admin");
+  document.body.classList.toggle("is-admin", isAdmin);
+
   // Header user chip + footer live dot
   updateHeaderUserChip(connected ? (user || connectedWorkspaceUser) : null);
   updateFooterLiveDot(connected);
@@ -1082,13 +1086,8 @@ async function connectToCareAssurance() {
           serviceUsers = [...analyzedUsers, ...acpOnlyUsers];
           displayServiceUsers();
           renderAutofillUserDropdown();
-          
-          if (serviceUsers.length === 0) {
-            showInfo("No service users found. Upload workbook data or ensure ACP records are imported in Care Assurance.");
-          }
         } catch (e) {
           console.warn("Failed to fetch service users:", e);
-          showError("Could not load service users. Please check your connection.");
         }
         
         // Fetch recent items

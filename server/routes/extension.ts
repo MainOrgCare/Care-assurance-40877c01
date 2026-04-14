@@ -440,7 +440,11 @@ export function registerExtensionRoutes(
     try {
       const serviceUsers = await storage.getAllAnalyzedServiceUsers();
 
-      const users = serviceUsers.map((su: AnalyzedServiceUser) => {
+      const users: Array<{
+        id: string; name: string; initials: string; lastUpdated: Date | null;
+        hasCarePlan: boolean; hasRiskAssessment: boolean; riskAssessmentId?: any;
+        source: "analyzed" | "derived";
+      }> = serviceUsers.map((su: AnalyzedServiceUser) => {
         const metadata = (su.metadata || {}) as Record<string, any>;
         const name = su.serviceUserName || "Unknown";
         const initials = name.split(" ").map((w: string) => w[0]).join(".") || "??";
@@ -452,9 +456,43 @@ export function registerExtensionRoutes(
           lastUpdated: su.updatedAt,
           hasCarePlan: !!metadata.enhancedPlan,
           hasRiskAssessment: !!metadata.riskAssessmentId,
-          riskAssessmentId: metadata.riskAssessmentId
+          riskAssessmentId: metadata.riskAssessmentId,
+          source: "analyzed" as const
         };
       });
+
+      // If no analyzed users, aggregate unique names from audits and service orders
+      if (users.length === 0) {
+        const knownNames = new Set<string>();
+        try {
+          const [audits, orders] = await Promise.all([
+            storage.getAllAudits().catch(() => []),
+            storage.getAllServiceOrders().catch(() => [])
+          ]);
+          for (const a of audits) {
+            const n = (a as any).serviceUserName;
+            if (n && typeof n === "string" && n.trim()) knownNames.add(n.trim());
+          }
+          for (const o of orders) {
+            const n = (o as any).serviceUserName;
+            if (n && typeof n === "string" && n.trim()) knownNames.add(n.trim());
+          }
+        } catch { /* non-critical */ }
+
+        for (const name of knownNames) {
+          const initials = name.split(" ").map((w: string) => w[0]).join(".") || "??";
+          users.push({
+            id: name.toLowerCase().replace(/\s+/g, "-"),
+            name,
+            initials,
+            lastUpdated: null as any,
+            hasCarePlan: false,
+            hasRiskAssessment: false,
+            riskAssessmentId: undefined as any,
+            source: "derived" as const
+          });
+        }
+      }
 
       return res.json({ users });
     } catch (error: unknown) {
