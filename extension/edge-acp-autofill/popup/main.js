@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.10
+ * CareAssurance Extension v0.6.12
  */
 
 import {
@@ -71,7 +71,6 @@ import {
 const POPUP_REFRESH_DEBOUNCE_MS = 180;
 const POPUP_PERIODIC_REFRESH_MS = 12000;
 const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
-const POPUP_DRAGGABLE_WINDOW_TYPES = new Set(["popup"]);
 
 let popupRefreshTimer = null;
 let popupRefreshInFlight = false;
@@ -91,6 +90,14 @@ const buildLogFingerprint = (logs) => {
 const MAX_UPLOAD_SYNC_BYTES = 35 * 1024 * 1024;
 const UPLOAD_SYNC_DEBOUNCE_MS = 450;
 const MAX_UPLOAD_SYNC_ATTEMPTS = 6;
+const URL_UPLOAD_EXTENSION_BY_MIME = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "application/csv": "csv",
+};
 
 const UPLOAD_SECTION_CONFIG = [
   {
@@ -138,12 +145,11 @@ let uploadSyncQueued = false;
 let uploadSyncForceQueued = false;
 let lastUploadSyncSignature = "";
 
-let popupWindowDragState = null;
-let popupWindowDragWindowId = null;
-let popupWindowMoveQueued = null;
-let popupWindowMoveInFlight = false;
-let popupWindowDragHandles = [];
-let popupWindowDetachInFlight = false;
+let popupMenuDragWindowId = null;
+let popupMenuDragState = null;
+let popupMenuDragHandles = [];
+let popupMenuMoveQueued = null;
+let popupMenuMoveInFlight = false;
 
 const createEmptyUploadBuckets = () => ({
   socialWork: [],
@@ -247,11 +253,13 @@ const getCurrentWindow = () =>
       resolve(null);
       return;
     }
+
     chrome.windows.getCurrent({}, (windowInfo) => {
       if (chrome.runtime.lastError) {
         resolve(null);
         return;
       }
+
       resolve(windowInfo || null);
     });
   });
@@ -263,145 +271,138 @@ const updateWindowPosition = (windowId, left, top) =>
       { left: Math.round(left), top: Math.round(top) },
       () => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message || "Failed to move popup window."));
+          reject(new Error(chrome.runtime.lastError.message || "Failed to move extension window."));
           return;
         }
+
         resolve();
       }
     );
   });
 
-const openDetachedPopupWindow = (currentWindow) =>
-  new Promise((resolve) => {
-    if (!chrome.windows?.create) {
-      resolve(false);
-      return;
-    }
+const queuePopupMenuWindowMove = (left, top) => {
+  popupMenuMoveQueued = { left, top };
+  if (popupMenuMoveInFlight || popupMenuDragWindowId == null) return;
 
-    const createData = {
-      url: chrome.runtime.getURL("popup.html"),
-      type: "popup",
-      focused: true,
-      width: Math.max(430, Math.round(window.outerWidth || 430)),
-      height: Math.max(680, Math.round(window.outerHeight || 680)),
-    };
-
-    if (Number.isFinite(currentWindow?.left) && Number.isFinite(currentWindow?.top)) {
-      createData.left = Math.round(currentWindow.left + 24);
-      createData.top = Math.round(currentWindow.top + 24);
-    }
-
-    chrome.windows.create(createData, (createdWindow) => {
-      if (chrome.runtime.lastError || !createdWindow?.id) {
-        resolve(false);
-        return;
-      }
-
-      resolve(true);
-    });
-  });
-
-const launchDetachedPopupWindow = async () => {
-  if (popupWindowDetachInFlight) return;
-
-  popupWindowDetachInFlight = true;
-  try {
-    const currentWindow = await getCurrentWindow();
-    const opened = await openDetachedPopupWindow(currentWindow);
-    if (opened) {
-      window.close();
-      return;
-    }
-
-    showInfo("Open the extension in a detached popup window to drag and resize it.");
-  } finally {
-    popupWindowDetachInFlight = false;
-  }
-};
-
-const queuePopupWindowMove = (left, top) => {
-  popupWindowMoveQueued = { left, top };
-  if (popupWindowMoveInFlight || popupWindowDragWindowId == null) return;
-
-  popupWindowMoveInFlight = true;
+  popupMenuMoveInFlight = true;
   const flush = async () => {
-    while (popupWindowMoveQueued && popupWindowDragWindowId != null) {
-      const next = popupWindowMoveQueued;
-      popupWindowMoveQueued = null;
+    while (popupMenuMoveQueued && popupMenuDragWindowId != null) {
+      const next = popupMenuMoveQueued;
+      popupMenuMoveQueued = null;
+
       try {
-        await updateWindowPosition(popupWindowDragWindowId, next.left, next.top);
+        await updateWindowPosition(popupMenuDragWindowId, next.left, next.top);
       } catch {
-        popupWindowDragWindowId = null;
-        popupWindowMoveQueued = null;
+        popupMenuDragWindowId = null;
+        popupMenuMoveQueued = null;
         break;
       }
     }
-    popupWindowMoveInFlight = false;
+
+    popupMenuMoveInFlight = false;
   };
 
   void flush();
 };
 
-const stopPopupWindowDrag = () => {
-  popupWindowDragState = null;
-  document.body.style.userSelect = "";
-  popupWindowDragHandles.forEach((handle) => handle.classList.remove("is-window-dragging"));
-  window.removeEventListener("pointermove", handlePopupWindowDragMove);
-  window.removeEventListener("pointerup", stopPopupWindowDrag);
-  window.removeEventListener("pointercancel", stopPopupWindowDrag);
-};
-
-function handlePopupWindowDragMove(event) {
-  if (!popupWindowDragState || popupWindowDragWindowId == null) return;
-  event.preventDefault();
-
-  const deltaX = event.screenX - popupWindowDragState.startScreenX;
-  const deltaY = event.screenY - popupWindowDragState.startScreenY;
-  const nextLeft = popupWindowDragState.originLeft + deltaX;
-  const nextTop = popupWindowDragState.originTop + deltaY;
-  queuePopupWindowMove(nextLeft, nextTop);
-}
-
 const isWindowDragBlockedTarget = (target) =>
   target instanceof Element &&
   Boolean(target.closest("button, input, select, textarea, a, summary, [role='tab'], [data-no-window-drag]"));
 
-const beginPopupWindowDrag = (event) => {
-  if (popupWindowDragWindowId == null) return;
+const stopPopupMainMenuDrag = () => {
+  const activeState = popupMenuDragState;
+  popupMenuDragState = null;
+
+  document.body.style.userSelect = "";
+  popupMenuDragHandles.forEach((handle) => handle.classList.remove("is-window-dragging"));
+
+  if (
+    activeState?.captureElement &&
+    Number.isFinite(activeState.pointerId) &&
+    typeof activeState.captureElement.releasePointerCapture === "function"
+  ) {
+    try {
+      if (
+        typeof activeState.captureElement.hasPointerCapture !== "function" ||
+        activeState.captureElement.hasPointerCapture(activeState.pointerId)
+      ) {
+        activeState.captureElement.releasePointerCapture(activeState.pointerId);
+      }
+    } catch {
+      // Ignore stale pointer capture release errors.
+    }
+  }
+
+  window.removeEventListener("pointermove", handlePopupMainMenuDragMove);
+  window.removeEventListener("pointerup", stopPopupMainMenuDrag);
+  window.removeEventListener("pointercancel", stopPopupMainMenuDrag);
+};
+
+function handlePopupMainMenuDragMove(event) {
+  if (!popupMenuDragState || popupMenuDragWindowId == null) return;
+  if (
+    Number.isFinite(popupMenuDragState.pointerId) &&
+    Number.isFinite(event.pointerId) &&
+    event.pointerId !== popupMenuDragState.pointerId
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const deltaX = event.screenX - popupMenuDragState.startScreenX;
+  const deltaY = event.screenY - popupMenuDragState.startScreenY;
+  const nextLeft = popupMenuDragState.originLeft + deltaX;
+  const nextTop = popupMenuDragState.originTop + deltaY;
+  queuePopupMenuWindowMove(nextLeft, nextTop);
+}
+
+const beginPopupMainMenuDrag = (event) => {
+  if (popupMenuDragWindowId == null) return;
   if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
   if (isWindowDragBlockedTarget(event.target)) return;
 
-  stopPopupWindowDrag();
+  stopPopupMainMenuDrag();
 
-  popupWindowDragState = {
+  const captureElement = event.currentTarget instanceof Element ? event.currentTarget : null;
+  if (
+    captureElement &&
+    Number.isFinite(event.pointerId) &&
+    typeof captureElement.setPointerCapture === "function"
+  ) {
+    try {
+      captureElement.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture can fail silently in some popup contexts.
+    }
+  }
+
+  popupMenuDragState = {
+    pointerId: Number.isFinite(event.pointerId) ? event.pointerId : null,
+    captureElement,
     startScreenX: event.screenX,
     startScreenY: event.screenY,
     originLeft: Number.isFinite(window.screenX) ? window.screenX : 0,
     originTop: Number.isFinite(window.screenY) ? window.screenY : 0,
   };
 
-  const currentState = popupWindowDragState;
+  const currentState = popupMenuDragState;
   getCurrentWindow().then((currentWindow) => {
-    if (!popupWindowDragState || popupWindowDragState !== currentState) return;
+    if (!popupMenuDragState || popupMenuDragState !== currentState) return;
+
     const fallbackLeft = Number.isFinite(window.screenX) ? window.screenX : 0;
     const fallbackTop = Number.isFinite(window.screenY) ? window.screenY : 0;
-    popupWindowDragState.originLeft = Number.isFinite(currentWindow?.left) ? currentWindow.left : fallbackLeft;
-    popupWindowDragState.originTop = Number.isFinite(currentWindow?.top) ? currentWindow.top : fallbackTop;
+    popupMenuDragState.originLeft = Number.isFinite(currentWindow?.left) ? currentWindow.left : fallbackLeft;
+    popupMenuDragState.originTop = Number.isFinite(currentWindow?.top) ? currentWindow.top : fallbackTop;
   });
 
   document.body.style.userSelect = "none";
-  popupWindowDragHandles.forEach((handle) => handle.classList.add("is-window-dragging"));
-  window.addEventListener("pointermove", handlePopupWindowDragMove);
-  window.addEventListener("pointerup", stopPopupWindowDrag);
-  window.addEventListener("pointercancel", stopPopupWindowDrag);
-};
-
-const beginDetachedPopupWindowDrag = (event) => {
-  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
-  if (isWindowDragBlockedTarget(event.target)) return;
+  popupMenuDragHandles.forEach((handle) => handle.classList.add("is-window-dragging"));
 
   event.preventDefault();
-  void launchDetachedPopupWindow();
+  window.addEventListener("pointermove", handlePopupMainMenuDragMove);
+  window.addEventListener("pointerup", stopPopupMainMenuDrag);
+  window.addEventListener("pointercancel", stopPopupMainMenuDrag);
 };
 
 const initMainMenuDragging = async () => {
@@ -413,23 +414,15 @@ const initMainMenuDragging = async () => {
   const currentWindow = await getCurrentWindow();
   if (!currentWindow?.id) return;
 
-  popupWindowDragHandles = [
+  popupMenuDragWindowId = currentWindow.id;
+  popupMenuDragHandles = [
     document.querySelector(".popup-header"),
     document.querySelector(".tab-navigation"),
-  ].filter(Boolean);
+  ].filter((node) => node instanceof Element);
 
-  if (!POPUP_DRAGGABLE_WINDOW_TYPES.has(currentWindow.type || "")) {
-    popupWindowDragHandles.forEach((handle) => {
-      handle.classList.add("is-window-drag-handle");
-      handle.addEventListener("pointerdown", beginDetachedPopupWindowDrag);
-    });
-    return;
-  }
-
-  popupWindowDragWindowId = currentWindow.id;
-  popupWindowDragHandles.forEach((handle) => {
+  popupMenuDragHandles.forEach((handle) => {
     handle.classList.add("is-window-drag-handle");
-    handle.addEventListener("pointerdown", beginPopupWindowDrag);
+    handle.addEventListener("pointerdown", beginPopupMainMenuDrag);
   });
 };
 
@@ -503,6 +496,138 @@ const renderUploadBuckets = () => {
 const isSupportedUploadFile = (file) => {
   const name = String(file?.name || "").toLowerCase();
   return /\.(pdf|doc|docx|txt|csv)$/.test(name);
+};
+
+const getSectionDisplayName = (sectionKey) => {
+  const section = UPLOAD_SECTION_CONFIG.find((item) => item.key === sectionKey);
+  const heading = String(section?.heading || sectionKey);
+  return heading.replace(/^===\s*/u, "").replace(/\s*===$/u, "").trim();
+};
+
+const inferExtensionFromMimeType = (mimeType) => {
+  const normalized = String(mimeType || "").split(";")[0].trim().toLowerCase();
+  return URL_UPLOAD_EXTENSION_BY_MIME[normalized] || "";
+};
+
+const getContentDispositionFileName = (headerValue) => {
+  const value = String(headerValue || "");
+  if (!value) return "";
+
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+
+  const quotedMatch = value.match(/filename="([^"]+)"/i);
+  if (quotedMatch?.[1]) return quotedMatch[1].trim();
+
+  const plainMatch = value.match(/filename=([^;]+)/i);
+  if (plainMatch?.[1]) return plainMatch[1].trim();
+
+  return "";
+};
+
+const getUrlFileName = (rawUrl) => {
+  try {
+    const parsed = new URL(rawUrl);
+    const pathname = parsed.pathname || "";
+    const tail = pathname.split("/").filter(Boolean).pop() || "";
+    if (!tail) return "";
+    return decodeURIComponent(tail);
+  } catch {
+    return "";
+  }
+};
+
+const normalizeDownloadedFileName = (baseName, mimeType) => {
+  const cleaned = String(baseName || "").trim().replace(/[\\/:*?"<>|]+/g, "_");
+  const extension = inferExtensionFromMimeType(mimeType);
+
+  if (!cleaned) {
+    return extension ? `downloaded-file.${extension}` : "downloaded-file";
+  }
+
+  if (/\.(pdf|doc|docx|txt|csv)$/i.test(cleaned)) {
+    return cleaned;
+  }
+
+  return extension ? `${cleaned}.${extension}` : cleaned;
+};
+
+const extractDroppedUrls = (dataTransfer) => {
+  if (!dataTransfer) return [];
+
+  const values = [
+    dataTransfer.getData("text/uri-list"),
+    dataTransfer.getData("text/plain"),
+    dataTransfer.getData("URL"),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (!values) return [];
+
+  const uriListValues = values
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  const inlineMatches = values.match(/https?:\/\/[^\s<>"']+/gi) || [];
+  const candidates = [...uriListValues, ...inlineMatches];
+  const unique = [];
+
+  candidates.forEach((candidate) => {
+    try {
+      const parsed = new URL(candidate);
+      if (!/^https?:$/i.test(parsed.protocol)) return;
+      const normalized = parsed.toString();
+      if (!unique.includes(normalized)) {
+        unique.push(normalized);
+      }
+    } catch {
+      // Ignore non-URL dropped text.
+    }
+  });
+
+  return unique;
+};
+
+const downloadDroppedUrlFile = async (url) => {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("The dropped link is not a valid URL.");
+  }
+
+  if (!/^https?:$/i.test(parsed.protocol)) {
+    throw new Error("Only http/https links can be downloaded.");
+  }
+
+  const response = await fetch(parsed.toString(), { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Download failed (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const mimeType = response.headers.get("content-type") || blob.type || "application/octet-stream";
+  const suggestedName =
+    getContentDispositionFileName(response.headers.get("content-disposition")) ||
+    getUrlFileName(parsed.toString()) ||
+    "downloaded-file";
+  const fileName = normalizeDownloadedFileName(suggestedName, mimeType);
+
+  if (!/\.(pdf|doc|docx|txt|csv)$/i.test(fileName)) {
+    throw new Error("Only PDF, DOC, DOCX, TXT, or CSV links are supported.");
+  }
+
+  return new File([blob], fileName, {
+    type: mimeType,
+    lastModified: Date.now(),
+  });
 };
 
 const applyUploadFiles = (sectionKey, files) => {
@@ -743,10 +868,50 @@ const bindUploadDropzones = () => {
       dropzone.classList.remove("is-dragover");
     });
 
-    dropzone.addEventListener("drop", (event) => {
+    dropzone.addEventListener("drop", async (event) => {
       event.preventDefault();
       dropzone.classList.remove("is-dragover");
-      applyUploadFiles(section, event.dataTransfer?.files || []);
+
+      const droppedFiles = Array.from(event.dataTransfer?.files || []);
+      if (droppedFiles.length > 0) {
+        applyUploadFiles(section, droppedFiles);
+        return;
+      }
+
+      const droppedUrls = extractDroppedUrls(event.dataTransfer);
+      if (droppedUrls.length === 0) {
+        return;
+      }
+
+      const sectionConfig = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
+      if (sectionConfig?.single && droppedUrls.length > 1) {
+        showInfo(`${getSectionDisplayName(section)} accepts one file. Only the first link will be downloaded.`);
+      }
+
+      const urlsToDownload = sectionConfig?.single ? droppedUrls.slice(0, 1) : droppedUrls;
+      dropzone.classList.add("is-downloading");
+      updateUploadSyncStatus(`Downloading link into ${getSectionDisplayName(section)}...`);
+
+      try {
+        const downloadedFiles = [];
+        for (const droppedUrl of urlsToDownload) {
+          const file = await downloadDroppedUrlFile(droppedUrl);
+          downloadedFiles.push(file);
+        }
+
+        if (downloadedFiles.length === 0) {
+          showError("No downloadable files were found in the dropped links.");
+          return;
+        }
+
+        applyUploadFiles(section, downloadedFiles);
+        showSuccess(`Downloaded ${downloadedFiles.length} file${downloadedFiles.length === 1 ? "" : "s"} into ${getSectionDisplayName(section)}.`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not download the dropped link.";
+        showError(message);
+      } finally {
+        dropzone.classList.remove("is-downloading");
+      }
     });
   });
 };
@@ -1940,7 +2105,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.10</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.12</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }

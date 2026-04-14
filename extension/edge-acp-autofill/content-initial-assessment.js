@@ -1645,12 +1645,7 @@ const showVerificationSummary = (fields) => {
         color: hsl(200, 85%, 34%);
       }
       .ca-summary-header {
-        cursor: grab;
-        user-select: none;
-        touch-action: none;
-      }
-      .ca-summary-header.is-dragging {
-        cursor: grabbing;
+        cursor: default;
       }
       .ca-summary-resize-handle {
         position: absolute;
@@ -1739,7 +1734,6 @@ const showVerificationSummary = (fields) => {
   const summaryResizeHandle = document.createElement('div');
   summaryResizeHandle.className = 'ca-summary-resize-handle';
   summaryResizeHandle.title = 'Resize panel';
-  summary.appendChild(summaryResizeHandle);
   
   const counterEl = document.getElementById('ca-nav-counter');
   const currentFieldEl = document.getElementById('ca-current-field');
@@ -1887,53 +1881,7 @@ const showVerificationSummary = (fields) => {
     keepSummaryInViewport();
   };
 
-  if (headerEl) {
-    headerEl.addEventListener('pointerdown', (event) => {
-      if (!isPrimaryPointer(event)) return;
-      const target = event.target;
-      if (target instanceof Element && target.closest('button')) return;
-
-      stopPointerInteraction();
-
-      const rect = summary.getBoundingClientRect();
-      dragState = {
-        startX: event.clientX,
-        startY: event.clientY,
-        originLeft: rect.left,
-        originTop: rect.top,
-      };
-
-      document.body.style.userSelect = 'none';
-      headerEl.classList.add('is-dragging');
-  capturePointer(headerEl, event);
-      event.preventDefault();
-      window.addEventListener('pointermove', handleDragMove);
-      window.addEventListener('pointerup', stopPointerInteraction);
-      window.addEventListener('pointercancel', stopPointerInteraction);
-    });
-  }
-
-  summaryResizeHandle.addEventListener('pointerdown', (event) => {
-    if (!isPrimaryPointer(event) || summary.dataset.caSummaryMinimized === 'true') return;
-
-    stopPointerInteraction();
-    const rect = summary.getBoundingClientRect();
-    resizeState = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originWidth: rect.width,
-      originHeight: rect.height,
-    };
-
-    document.body.style.userSelect = 'none';
-    summaryResizeHandle.classList.add('is-resizing');
-  capturePointer(summaryResizeHandle, event);
-    event.preventDefault();
-    event.stopPropagation();
-    window.addEventListener('pointermove', handleResizeMove);
-    window.addEventListener('pointerup', stopPointerInteraction);
-    window.addEventListener('pointercancel', stopPointerInteraction);
-  });
+  // Drag and resize interactions are intentionally disabled.
 
   window.addEventListener('resize', keepSummaryInViewport);
 

@@ -1131,6 +1131,14 @@ body {
   transform: scale(0.99);
 }
 
+.upload-bucket-dropzone.is-downloading {
+  border-style: solid;
+  border-color: hsl(196, 82%, 42%);
+  background: hsl(200, 100%, 97%);
+  color: hsl(197, 84%, 30%);
+  cursor: progress;
+}
+
 .upload-bucket-files {
   display: grid;
   gap: 6px;

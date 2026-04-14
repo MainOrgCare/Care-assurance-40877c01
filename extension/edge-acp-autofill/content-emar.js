@@ -125,12 +125,7 @@ const injectOverlayStyles = () => {
       align-items: flex-start;
       padding: 16px;
       border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-      cursor: grab;
-      user-select: none;
-      touch-action: none;
-    }
-    .ca-emar-header.is-dragging {
-      cursor: grabbing;
+      cursor: default;
     }
     .ca-emar-panel.is-collapsed .ca-emar-header {
       align-items: center;
@@ -337,7 +332,6 @@ const initOverlay = () => {
 
   panel.appendChild(header);
   panel.appendChild(body);
-  panel.appendChild(resizeHandle);
   container.appendChild(panel);
   document.body.appendChild(container);
 
@@ -357,7 +351,6 @@ const initOverlay = () => {
     serviceUserValue: serviceUser.statValue,
     modeValue: mode.statValue,
     periodValue: period.statValue,
-    resizeHandle,
     collapsedTitle: "EMAR ready",
   };
 
@@ -493,51 +486,7 @@ const initOverlay = () => {
     keepOverlayInViewport();
   }
 
-  header.addEventListener("pointerdown", (event) => {
-    if (!isPrimaryPointer(event)) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest("button")) return;
-
-    stopPointerInteraction();
-
-    const rect = container.getBoundingClientRect();
-    dragState = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originLeft: rect.left,
-      originTop: rect.top,
-    };
-
-    document.body.style.userSelect = "none";
-    header.classList.add("is-dragging");
-  capturePointer(header, event);
-    event.preventDefault();
-    window.addEventListener("pointermove", handleDragMove);
-    window.addEventListener("pointerup", stopPointerInteraction);
-    window.addEventListener("pointercancel", stopPointerInteraction);
-  });
-
-  resizeHandle.addEventListener("pointerdown", (event) => {
-    if (!isPrimaryPointer(event) || overlayCollapsed) return;
-
-    stopPointerInteraction();
-    const panelRect = panel.getBoundingClientRect();
-    resizeState = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originWidth: panelRect.width,
-      originHeight: panelRect.height,
-    };
-
-    document.body.style.userSelect = "none";
-    resizeHandle.classList.add("is-resizing");
-  capturePointer(resizeHandle, event);
-    event.preventDefault();
-    event.stopPropagation();
-    window.addEventListener("pointermove", handleResizeMove);
-    window.addEventListener("pointerup", stopPointerInteraction);
-    window.addEventListener("pointercancel", stopPointerInteraction);
-  });
+  // Drag and resize interactions are intentionally disabled.
 
   window.addEventListener("resize", keepOverlayInViewport);
 

@@ -1,5 +1,33 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.12 - Main Menu Drag Reintroduced
+
+### Popup Main Menu Dragging
+
+- Reintroduced draggable behavior for the main extension popup menu using the same click-and-drag pointer interaction model used by risk-assessment autofill overlays.
+- Drag handles are applied to the popup header and tab-navigation surfaces, with guardrails to avoid dragging when interacting with buttons, inputs, or tabs.
+
+### Versioning and Permissions
+
+- Restored the `windows` permission in `manifest.json` for popup window reposition updates.
+- Bumped extension version to `0.6.12` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.11 - Simplified Overlay Controls + URL Drop Downloads
+
+### Interaction Simplification
+
+- Removed draggable behavior from popup and in-page ACP/EMAR/Initial Assessment panels to prevent unstable movement interactions.
+- Removed panel resize interactions and hidden resize handles while preserving existing pin and minimize controls.
+
+### Upload Dropzone Enhancement
+
+- Added dropped-link upload support in extension dropzones: dragging an `http`/`https` file URL into a section now downloads the file and stages it in that specific upload bucket.
+- Added validation and feedback for unsupported link types or failed downloads.
+
+### Versioning
+
+- Bumped extension version to `0.6.11`, removed the no-longer-required `windows` permission, and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.10 - Drag/Resize Runtime Fixes
 
 ### In-Page Overlay Reliability
