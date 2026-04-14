@@ -580,6 +580,8 @@ const initOverlay = () => {
 
 let overlayRefreshTimer = null;
 let overlayIntervalId = null;
+let overlayVisibilityListenerBound = false;
+const OVERLAY_REFRESH_INTERVAL_MS = 9000;
 const refreshOverlaySoon = () => {
   if (!overlayInitialized) return;
   if (overlayCollapsed) return;
@@ -1487,7 +1489,19 @@ const run = async () => {
   initOverlay();
   refreshOverlay();
   if (!overlayIntervalId) {
-    overlayIntervalId = setInterval(refreshOverlay, 3000);
+    overlayIntervalId = setInterval(() => {
+      if (document.hidden || overlayCollapsed) return;
+      refreshOverlay();
+    }, OVERLAY_REFRESH_INTERVAL_MS);
+  }
+
+  if (!overlayVisibilityListenerBound) {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        refreshOverlaySoon();
+      }
+    });
+    overlayVisibilityListenerBound = true;
   }
 
   const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([

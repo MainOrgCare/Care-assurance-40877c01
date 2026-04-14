@@ -1,6 +1,6 @@
 /**
  * api.js — API proxy and network communication layer
- * CareAssurance Extension v0.6.0
+ * CareAssurance Extension v0.6.2
  */
 
 import {

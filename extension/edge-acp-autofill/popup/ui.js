@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.0
+ * CareAssurance Extension v0.6.2
  */
 
 import {
@@ -580,6 +580,9 @@ export function selectAutofillUser(user) {
 // PAYLOAD RENDERING
 // ═══════════════════════════════════════════════════════════════════════════
 
+let lastInspectorRenderKey = "";
+let lastReviewRenderKey = "";
+
 const buildPayloadSummaryItems = (payload, storedAt) => {
   if (!payload || typeof payload !== "object") return [];
 
@@ -611,6 +614,15 @@ const buildPayloadSummaryItems = (payload, storedAt) => {
 export function renderPayloadInspector(payload, storedAt) {
   state.latestPayloadSnapshot = payload && typeof payload === "object" ? { payload, storedAt } : null;
 
+  const inspectorRenderKey = state.latestPayloadSnapshot
+    ? `${storedAt || "none"}:${payload?.formType || "unknown"}`
+    : "none";
+
+  if (inspectorRenderKey === lastInspectorRenderKey) {
+    return;
+  }
+  lastInspectorRenderKey = inspectorRenderKey;
+
   if (dom.payloadInspectorSection) {
     dom.payloadInspectorSection.hidden = !state.latestPayloadSnapshot;
   }
@@ -640,11 +652,20 @@ export function renderPayloadInspector(payload, storedAt) {
   dom.payloadJson.classList.remove("empty");
 }
 
-export function renderPayloadReview(payload) {
+export function renderPayloadReview(payload, storedAt) {
   const panel = dom.payloadReviewPanel;
   const list = dom.payloadReviewList;
   const confirmBtn = dom.confirmPayloadReview;
   if (!panel || !list) return;
+
+  const reviewRenderKey = payload
+    ? `${storedAt || "none"}:${payload.formType || "unknown"}:${Array.isArray(payload.assessments) ? payload.assessments.length : 0}:${Array.isArray(payload.sections) ? payload.sections.length : 0}`
+    : "none";
+
+  if (reviewRenderKey === lastReviewRenderKey) {
+    return;
+  }
+  lastReviewRenderKey = reviewRenderKey;
 
   if (!payload) { panel.hidden = true; return; }
 

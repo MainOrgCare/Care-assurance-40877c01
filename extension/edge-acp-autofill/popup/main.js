@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.0
+ * CareAssurance Extension v0.6.2
  */
 
 import {
@@ -66,6 +66,96 @@ import {
   showSkeleton,
   hideSkeleton,
 } from "./ui.js";
+
+const POPUP_REFRESH_DEBOUNCE_MS = 180;
+const POPUP_PERIODIC_REFRESH_MS = 12000;
+const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
+
+let popupRefreshTimer = null;
+let popupRefreshInFlight = false;
+let popupRefreshQueued = false;
+let popupRefreshPayloadRequested = false;
+let popupRefreshWorkspaceRequested = false;
+let popupRefreshForceWorkspace = false;
+let lastWorkspaceRefreshAt = 0;
+let lastLogFingerprint = "";
+
+const buildLogFingerprint = (logs) => {
+  if (!Array.isArray(logs) || logs.length === 0) return "0";
+  const lastEntry = logs[logs.length - 1] || "";
+  return `${logs.length}:${String(lastEntry)}`;
+};
+
+async function flushScheduledPopupRefresh() {
+  if (popupRefreshInFlight) {
+    popupRefreshQueued = true;
+    return;
+  }
+
+  const shouldRefreshPayload = popupRefreshPayloadRequested;
+  const shouldRefreshWorkspace = popupRefreshWorkspaceRequested;
+  const forceWorkspace = popupRefreshForceWorkspace;
+
+  popupRefreshPayloadRequested = false;
+  popupRefreshWorkspaceRequested = false;
+  popupRefreshForceWorkspace = false;
+
+  if (!shouldRefreshPayload && !shouldRefreshWorkspace) return;
+
+  popupRefreshInFlight = true;
+  try {
+    if (shouldRefreshPayload) {
+      await refreshPayloadStatus();
+    }
+
+    if (shouldRefreshWorkspace && !document.hidden) {
+      const now = Date.now();
+      const canRefreshWorkspace =
+        forceWorkspace ||
+        now - lastWorkspaceRefreshAt >= POPUP_WORKSPACE_REFRESH_COOLDOWN_MS;
+
+      if (canRefreshWorkspace) {
+        await refreshWorkspaceContext(state.connectedWorkspaceUser);
+        lastWorkspaceRefreshAt = Date.now();
+      }
+    }
+  } catch (error) {
+    console.warn("[CA Extension Popup] Scheduled refresh failed:", error);
+  } finally {
+    popupRefreshInFlight = false;
+    if (popupRefreshQueued || popupRefreshPayloadRequested || popupRefreshWorkspaceRequested) {
+      popupRefreshQueued = false;
+      schedulePopupRefresh({
+        payload: popupRefreshPayloadRequested,
+        workspace: popupRefreshWorkspaceRequested,
+        forceWorkspace: popupRefreshForceWorkspace,
+        immediate: true,
+      });
+    }
+  }
+}
+
+function schedulePopupRefresh({ payload = false, workspace = false, forceWorkspace = false, immediate = false } = {}) {
+  if (payload) popupRefreshPayloadRequested = true;
+  if (workspace) popupRefreshWorkspaceRequested = true;
+  if (forceWorkspace) popupRefreshForceWorkspace = true;
+
+  if (!popupRefreshPayloadRequested && !popupRefreshWorkspaceRequested) return;
+
+  if (popupRefreshInFlight) {
+    popupRefreshQueued = true;
+    return;
+  }
+
+  if (popupRefreshTimer) {
+    clearTimeout(popupRefreshTimer);
+  }
+
+  popupRefreshTimer = setTimeout(() => {
+    popupRefreshTimer = null;
+    flushScheduledPopupRefresh();
+  }, immediate ? 0 : POPUP_REFRESH_DEBOUNCE_MS);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WORKSPACE CONTEXT
@@ -320,7 +410,7 @@ async function refreshPayloadStatus() {
   }
 
   renderPayloadInspector(payload, payloadStoredAt);
-  renderPayloadReview(payload);
+  renderPayloadReview(payload, payloadStoredAt);
   updateTabBadges(payload, state.selectedFilesList.length);
   checkPayloadSize(payload);
 
@@ -333,8 +423,11 @@ async function refreshPayloadStatus() {
   if (dom.dryRun) dom.dryRun.checked = data[STORAGE_KEYS.dryRun] === true;
   if (dom.interactionMode) dom.interactionMode.value = data[STORAGE_KEYS.interactionMode] || "auto";
 
-  if (dom.logList && data[STORAGE_KEYS.logs]) {
-    renderLogs(data[STORAGE_KEYS.logs]);
+  const logs = Array.isArray(data[STORAGE_KEYS.logs]) ? data[STORAGE_KEYS.logs] : [];
+  const logsFingerprint = buildLogFingerprint(logs);
+  if (dom.logList && logsFingerprint !== lastLogFingerprint) {
+    renderLogs(logs);
+    lastLogFingerprint = logsFingerprint;
   }
 
   renderCommandCenter({
@@ -347,12 +440,14 @@ async function refreshPayloadStatus() {
     dryRun: data[STORAGE_KEYS.dryRun],
   });
   renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);
-  await refreshPageCompanion({
-    payload,
-    verificationFields,
-    queueState,
-    lastError,
-  });
+  if (!document.hidden) {
+    await refreshPageCompanion({
+      payload,
+      verificationFields,
+      queueState,
+      lastError,
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -577,7 +672,7 @@ async function loadRecentItem(id, type) {
     await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
     showSuccess("Data loaded!");
     switchTab("autofill");
-    refreshPayloadStatus();
+    schedulePopupRefresh({ payload: true, immediate: true });
   } catch (error) {
     showError(error.message);
   }
@@ -598,7 +693,7 @@ function bindEvents() {
 
   // Workspace context
   dom.refreshWorkspaceContext?.addEventListener("click", () => {
-    refreshWorkspaceContext(state.connectedWorkspaceUser).catch(() => showError("Could not refresh the CareAssurance workspace context."));
+    schedulePopupRefresh({ workspace: true, forceWorkspace: true, immediate: true });
   });
   dom.openConnectedWorkspace?.addEventListener("click", () => focusConnectedWorkspace().catch(() => showError("Could not focus the connected CareAssurance page.")));
   dom.openDashboardWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/dashboard").catch(() => showError("Could not open the CareAssurance dashboard.")));
@@ -633,7 +728,7 @@ function bindEvents() {
       await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
       showSuccess("Care plan loaded! Go to Autofill tab.");
       switchTab("autofill");
-      refreshPayloadStatus();
+      schedulePopupRefresh({ payload: true, immediate: true });
     } catch (error) { showError(error.message); } finally { setButtonLoading(dom.loadCarePlanBtn, false); }
   });
 
@@ -646,7 +741,7 @@ function bindEvents() {
       await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
       showSuccess("Risk assessment loaded! Go to Autofill tab.");
       switchTab("autofill");
-      refreshPayloadStatus();
+      schedulePopupRefresh({ payload: true, immediate: true });
     } catch (error) { showError(error.message); } finally { setButtonLoading(dom.loadRiskBtn, false); }
   });
 
@@ -759,7 +854,7 @@ function bindEvents() {
     };
 
     await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
-    refreshPayloadStatus();
+    schedulePopupRefresh({ payload: true, immediate: true });
     if (dom.selectionSection) dom.selectionSection.hidden = true;
   });
 
@@ -841,7 +936,7 @@ function bindEvents() {
           [STORAGE_KEYS.uploadedDocuments]: null,
           [STORAGE_KEYS.verificationFields]: null,
         });
-        refreshPayloadStatus();
+        schedulePopupRefresh({ payload: true, immediate: true });
         if (dom.progressStatus) dom.progressStatus.textContent = "Cleared";
         showSuccess("All data cleared");
       },
@@ -859,7 +954,7 @@ function bindEvents() {
   });
 
   dom.opsRefresh?.addEventListener("click", async () => {
-    await refreshPayloadStatus();
+    schedulePopupRefresh({ payload: true, workspace: true, forceWorkspace: true, immediate: true });
     showSuccess("Command center synced");
   });
 
@@ -901,7 +996,7 @@ function bindEvents() {
 
   dom.opsClearIncident?.addEventListener("click", async () => {
     await setStorage({ [STORAGE_KEYS.lastError]: null });
-    await refreshPayloadStatus();
+    schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
     showInfo("Incident state cleared");
   });
 
@@ -937,6 +1032,7 @@ function bindEvents() {
 
   dom.clearLogs?.addEventListener("click", async () => {
     await setStorage({ [STORAGE_KEYS.logs]: [], [STORAGE_KEYS.runtimeMetrics]: null });
+    lastLogFingerprint = "0";
     if (dom.logList) dom.logList.textContent = "";
     if (dom.logStatus) dom.logStatus.textContent = "No actions.";
     renderCommandCenter({});
@@ -1095,7 +1191,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.0</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.2</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1119,7 +1215,7 @@ function bindStorageListener() {
           if (!newState) {
             if (dom.progressStatus) dom.progressStatus.textContent = "\u2713 Autofill complete!";
             showSuccess("Autofill batch complete! All forms have been filled.");
-            refreshPayloadStatus();
+            schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
             if (dom.connectionBadge) {
               dom.connectionBadge.classList.add("connected");
               const text = dom.connectionBadge.querySelector(".connection-text");
@@ -1128,20 +1224,27 @@ function bindStorageListener() {
           } else if (typeof newState.currentIndex === "number" && typeof newState.total === "number") {
             if (dom.progressStatus) dom.progressStatus.textContent = `Filling ${newState.currentIndex + 1} of ${newState.total}...`;
           }
-          refreshPayloadStatus();
+          schedulePopupRefresh({ payload: true });
         } catch (e) { console.warn("[CA Extension] queueState handler error:", e); }
       }
 
       if (changes[STORAGE_KEYS.payload]) {
-        try { refreshPayloadStatus(); } catch (e) { console.warn("[CA Extension] payload handler error:", e); }
+        try { schedulePopupRefresh({ payload: true }); } catch (e) { console.warn("[CA Extension] payload handler error:", e); }
       }
 
       if (changes[STORAGE_KEYS.verificationFields] || changes[STORAGE_KEYS.runtimeMetrics]) {
-        try { refreshPayloadStatus(); } catch (e) { console.warn("[CA Extension] verification handler error:", e); }
+        try { schedulePopupRefresh({ payload: true }); } catch (e) { console.warn("[CA Extension] verification handler error:", e); }
       }
 
       if (changes[STORAGE_KEYS.logs]) {
-        try { const logs = changes[STORAGE_KEYS.logs].newValue; if (Array.isArray(logs) && logs.length > 0) renderLogs(logs); }
+        try {
+          const logs = changes[STORAGE_KEYS.logs].newValue;
+          const logFingerprint = buildLogFingerprint(logs);
+          if (logFingerprint !== lastLogFingerprint) {
+            renderLogs(Array.isArray(logs) ? logs : []);
+            lastLogFingerprint = logFingerprint;
+          }
+        }
         catch (e) { console.warn("[CA Extension] logs handler error:", e); }
       }
 
@@ -1149,7 +1252,7 @@ function bindStorageListener() {
         try {
           const err = changes[STORAGE_KEYS.lastError].newValue;
           if (err) showError(typeof err === "string" ? err : err.message || "Unknown error");
-          refreshPayloadStatus();
+          schedulePopupRefresh({ payload: true, workspace: true });
         }
         catch (e) { console.warn("[CA Extension] error handler error:", e); }
       }
@@ -1251,11 +1354,16 @@ function bindStorageListener() {
   const payloadState = await loadStorage([STORAGE_KEYS.payload]);
   if (payloadState[STORAGE_KEYS.payload]) switchTab("autofill");
 
-  // Periodic refresh
+  // Periodic refresh (throttled)
   setInterval(() => {
-    refreshPayloadStatus();
-    refreshWorkspaceContext(state.connectedWorkspaceUser);
-  }, 3000);
+    schedulePopupRefresh({ payload: true, workspace: true });
+  }, POPUP_PERIODIC_REFRESH_MS);
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      schedulePopupRefresh({ payload: true, workspace: true, forceWorkspace: true, immediate: true });
+    }
+  });
 
   // GDPR periodic cleanup
   setInterval(autoCleanupStaleData, 30 * 60 * 1000);

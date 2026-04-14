@@ -104,6 +104,14 @@ type PlanEnhancerResult = {
   scrubbed: CarePlanTemplate;
 };
 
+const IA_ASSESSMENT_TYPE_OPTIONS = [
+  "Initial Visit / Service Setup",
+  "6 Monthly Review",
+  "Annual Review",
+] as const;
+
+type InitialAssessmentTypeOption = (typeof IA_ASSESSMENT_TYPE_OPTIONS)[number];
+
 const CopyButton = memo(function CopyButton({ text, label }: { text: string; label?: string }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -213,6 +221,9 @@ export default function PlanEnhancer() {
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
   const [updateNotes, setUpdateNotes] = useState("");
+  const [initialAssessmentType, setInitialAssessmentType] = useState<InitialAssessmentTypeOption>(
+    "Initial Visit / Service Setup"
+  );
   
   // Pre-analysis state (rule-based, no AI cost)
   const [preAnalysis, setPreAnalysis] = useState<{
@@ -1051,7 +1062,11 @@ export default function PlanEnhancer() {
       // because it checks for data.thisIsMe to determine if mapping is needed
       const payload = {
         formType: "initialAssessment",
-        initialAssessmentData: displayResult, // Send the raw displayResult with nested structure
+        assessmentType: initialAssessmentType,
+        initialAssessmentData: {
+          ...displayResult,
+          assessmentType: initialAssessmentType,
+        },
         assessor: user?.firstName && user?.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user?.username || "",
@@ -1115,11 +1130,12 @@ export default function PlanEnhancer() {
       });
 
       if (response.ok) {
+        const selectionNote = `Plan data ready for ${initialAssessmentType}.`;
         toast({
           title: "Sent to Extension",
           description: pendingFields > 0 
-            ? `Plan data ready. ${pendingFields} field(s) will need verification.`
-            : "Plan data is ready. Open the extension on the form to autofill.",
+            ? `${selectionNote} ${pendingFields} field(s) will need verification.`
+            : `${selectionNote} Open the extension on the form to autofill.`,
         });
       } else {
         toast({
@@ -1557,6 +1573,30 @@ export default function PlanEnhancer() {
                 <Download size={14} />
                 Export PDF
               </Button>
+              <div
+                className="flex items-center gap-2 rounded-lg border border-border/60 bg-background px-2 py-1"
+                data-testid="initial-assessment-type-picker"
+              >
+                <label
+                  htmlFor="ia-assessment-type"
+                  className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  IA Type
+                </label>
+                <select
+                  id="ia-assessment-type"
+                  value={initialAssessmentType}
+                  onChange={(event) => setInitialAssessmentType(event.target.value as InitialAssessmentTypeOption)}
+                  disabled={!displayResult}
+                  className="h-8 min-w-[210px] rounded-md border border-border/70 bg-background px-2 text-xs font-medium text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {IA_ASSESSMENT_TYPE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Button
                 variant="secondary"
                 size="sm"

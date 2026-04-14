@@ -59,6 +59,10 @@ const IA_FIELD_MAPPINGS = {
   
   // Section 13: Assessment Information
   assessmentInfo: {
+    assessmentType: "form_component_1277_1",
+    initialVisitReviewDate: "form_component_1283_1",
+    sixMonthlyReviewDate: "form_component_1284_1",
+    annualReviewDate: "form_component_1285_1",
     assessor: "form_component_449_18",
     dateOfAssessment: "form_component_450_19",
     representativesTable: "Table_967_20",
@@ -307,6 +311,32 @@ const IA_FIELD_MAPPINGS = {
 // Initial Assessment Form ID
 const INITIAL_ASSESSMENT_FORM_ID = "1040788";
 
+const IA_ASSESSMENT_TYPE_OPTIONS = {
+  initial: "Initial Visit / Service Setup",
+  sixMonthly: "6 Monthly Review",
+  annual: "Annual Review",
+};
+
+const IA_ASSESSMENT_REVIEW_DATE_FIELDS = {
+  [IA_ASSESSMENT_TYPE_OPTIONS.initial]: IA_FIELD_MAPPINGS.assessmentInfo.initialVisitReviewDate,
+  [IA_ASSESSMENT_TYPE_OPTIONS.sixMonthly]: IA_FIELD_MAPPINGS.assessmentInfo.sixMonthlyReviewDate,
+  [IA_ASSESSMENT_TYPE_OPTIONS.annual]: IA_FIELD_MAPPINGS.assessmentInfo.annualReviewDate,
+};
+
+const normalizeAssessmentType = (value) => {
+  if (!value || typeof value !== "string") return "";
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized.includes("annual")) return IA_ASSESSMENT_TYPE_OPTIONS.annual;
+  if (normalized.includes("6") || normalized.includes("six") || normalized.includes("monthly")) {
+    return IA_ASSESSMENT_TYPE_OPTIONS.sixMonthly;
+  }
+  if (normalized.includes("initial") || normalized.includes("setup") || normalized.includes("service")) {
+    return IA_ASSESSMENT_TYPE_OPTIONS.initial;
+  }
+  return value.trim();
+};
+
 let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
 
@@ -314,6 +344,68 @@ let INTERACTION_MODE = "auto";
 const NEEDS_VERIFICATION = [];
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const FIELD_LOOKUP_CACHE = new Map();
+const GROUP_LOOKUP_CACHE = new Map();
+
+const isConnectedElement = (element) => Boolean(element && element.isConnected && document.contains(element));
+
+const resolveCachedElement = (cacheKey, resolver) => {
+  const cached = FIELD_LOOKUP_CACHE.get(cacheKey);
+  if (isConnectedElement(cached)) return cached;
+  const resolved = resolver();
+  if (isConnectedElement(resolved)) {
+    FIELD_LOOKUP_CACHE.set(cacheKey, resolved);
+    return resolved;
+  }
+  FIELD_LOOKUP_CACHE.delete(cacheKey);
+  return null;
+};
+
+const resolveCachedGroup = (cacheKey, resolver) => {
+  const cached = GROUP_LOOKUP_CACHE.get(cacheKey);
+  if (Array.isArray(cached) && cached.length > 0 && cached.every(isConnectedElement)) {
+    return cached;
+  }
+  const resolved = resolver();
+  if (Array.isArray(resolved) && resolved.length > 0) {
+    GROUP_LOOKUP_CACHE.set(cacheKey, resolved);
+    return resolved;
+  }
+  GROUP_LOOKUP_CACHE.delete(cacheKey);
+  return [];
+};
+
+const resolveTextField = (fieldName) =>
+  resolveCachedElement(`text:${fieldName}`, () =>
+    document.querySelector(`[name="${fieldName}"]`) ||
+    document.querySelector(`#${fieldName}`) ||
+    document.querySelector(`#textarea_${fieldName}`)
+  );
+
+const resolveNamedField = (fieldName) =>
+  resolveCachedElement(`named:${fieldName}`, () =>
+    document.querySelector(`[name="${fieldName}"]`) ||
+    document.querySelector(`#${fieldName}`)
+  );
+
+const resolveRadioGroup = (fieldName) =>
+  resolveCachedGroup(`radio:${fieldName}`, () =>
+    Array.from(document.querySelectorAll(`[name="${fieldName}"]`))
+  );
+
+const resolveCheckboxGroup = (fieldName) =>
+  resolveCachedGroup(`checkbox:${fieldName}`, () =>
+    Array.from(document.querySelectorAll(`[name="${fieldName}"]`))
+  );
+
+const resolveTable = (tableId) =>
+  resolveCachedElement(`table:${tableId}`, () =>
+    document.querySelector(`#${tableId}_Table`) || document.querySelector(`#${tableId}`)
+  );
+
+const resolveTableAddButton = (tableId) =>
+  resolveCachedElement(`tableAdd:${tableId}`, () => document.querySelector(`a#${tableId}`));
 
 const setNativeFieldValue = (field, value) => {
   if (!field) return;
@@ -469,10 +561,8 @@ const saveStorage = (items) => STORAGE_HELPERS.set(items);
  */
 const setTextValue = async (fieldName, value) => {
   if (!value && value !== 0) return false;
-  
-  const field = document.querySelector(`[name="${fieldName}"]`) ||
-                document.querySelector(`#${fieldName}`) ||
-                document.querySelector(`#textarea_${fieldName}`);
+
+  const field = resolveTextField(fieldName);
   if (!field) {
     logAction(`Field not found: ${fieldName}`);
     return false;
@@ -514,8 +604,7 @@ const setTextValue = async (fieldName, value) => {
  */
 const setSelectValue = async (fieldName, value) => {
   if (!value) return false;
-  const field = document.querySelector(`[name="${fieldName}"]`) ||
-                document.querySelector(`#${fieldName}`);
+  const field = resolveNamedField(fieldName);
   if (!field || field.tagName !== "SELECT") {
     logAction(`Select field not found: ${fieldName}`);
     return false;
@@ -553,8 +642,7 @@ const setSelectValue = async (fieldName, value) => {
  */
 const setMultiSelectValue = async (fieldName, values) => {
   if (!values || !Array.isArray(values) || values.length === 0) return false;
-  const field = document.querySelector(`[name="${fieldName}"]`) ||
-                document.querySelector(`#${fieldName}`);
+  const field = resolveNamedField(fieldName);
   if (!field || field.tagName !== "SELECT") {
     logAction(`Multi-select field not found: ${fieldName}`);
     return false;
@@ -590,8 +678,8 @@ const setMultiSelectValue = async (fieldName, values) => {
  */
 const setRadioValue = async (fieldName, value) => {
   if (!value) return false;
-  
-  const radios = document.querySelectorAll(`[name="${fieldName}"]`);
+
+  const radios = resolveRadioGroup(fieldName);
   if (radios.length === 0) {
     logAction(`Radio field not found: ${fieldName}`);
     return false;
@@ -644,8 +732,8 @@ const setCheckboxValue = async (fieldName, values) => {
   if (!values) return false;
   const valuesArray = Array.isArray(values) ? values : [values];
   const normalizedValues = valuesArray.map((v) => String(v).trim().toLowerCase());
-  
-  const checkboxes = document.querySelectorAll(`[name="${fieldName}"]`);
+
+  const checkboxes = resolveCheckboxGroup(fieldName);
   if (checkboxes.length === 0) {
     logAction(`Checkbox field not found: ${fieldName}`);
     return false;
@@ -675,8 +763,7 @@ const setCheckboxValue = async (fieldName, values) => {
  * use a table with one row: [Label | Select | Details Textarea]
  */
 const fillAssessmentTable = async (tableId, selectValue, detailsValue) => {
-  // Try both ID variants
-  const table = document.querySelector(`#${tableId}_Table`) || document.querySelector(`#${tableId}`);
+  const table = resolveTable(tableId);
   if (!table) {
     logAction(`Assessment table not found: ${tableId}`);
     return false;
@@ -744,14 +831,14 @@ const fillAssessmentTable = async (tableId, selectValue, detailsValue) => {
  */
 const fillTableRows = async (tableId, rows) => {
   if (!rows || !Array.isArray(rows) || rows.length === 0) return false;
-  
-  const table = document.querySelector(`#${tableId}_Table`);
+
+  const table = resolveTable(tableId);
   if (!table) {
     logAction(`Table not found: ${tableId}`);
     return false;
   }
-  
-  const addButton = document.querySelector(`a#${tableId}`);
+
+  const addButton = resolveTableAddButton(tableId);
   const existingRows = table.querySelectorAll("tbody tr");
   
   // Add more rows if needed
@@ -817,6 +904,11 @@ const mapPlanEnhancerToFormData = (planData) => {
     // Strip any "EXACTLY ONE OF:" prefix the AI might echo back
     return val.replace(/^EXACTLY ONE OF:\s*/i, '').trim();
   };
+
+  const normalizedAssessmentType = normalizeAssessmentType(planData.assessmentType);
+  if (normalizedAssessmentType) {
+    formData.assessmentType = normalizedAssessmentType;
+  }
   
   // === This Is Me Section ===
   if (planData.thisIsMe) {
@@ -1155,11 +1247,24 @@ const fillInitialAssessment = async (data, metadata = {}) => {
   logAction("Basic info section complete");
   
   // Assessment Info Section
+  const selectedAssessmentType = normalizeAssessmentType(data.assessmentType || metadata.assessmentType);
+  if (selectedAssessmentType) {
+    await setSelectValue(IA_FIELD_MAPPINGS.assessmentInfo.assessmentType, selectedAssessmentType);
+    await wait(150);
+  }
+
   if (data.assessor || metadata.assessor) {
     await setTextValue(IA_FIELD_MAPPINGS.assessmentInfo.assessor, data.assessor || metadata.assessor);
   }
-  if (data.dateOfAssessment || metadata.date) {
-    await setTextValue(IA_FIELD_MAPPINGS.assessmentInfo.dateOfAssessment, data.dateOfAssessment || metadata.date);
+  const assessmentDate = data.dateOfAssessment || metadata.date;
+  if (assessmentDate) {
+    await setTextValue(IA_FIELD_MAPPINGS.assessmentInfo.dateOfAssessment, assessmentDate);
+    const conditionalDateField = selectedAssessmentType
+      ? IA_ASSESSMENT_REVIEW_DATE_FIELDS[selectedAssessmentType]
+      : null;
+    if (conditionalDateField) {
+      await setTextValue(conditionalDateField, assessmentDate);
+    }
   }
   if (data.presentAtAssessment) await setTextValue(IA_FIELD_MAPPINGS.assessmentInfo.presentAtAssessment, data.presentAtAssessment);
   if (data.funder) await setRadioValue(IA_FIELD_MAPPINGS.assessmentInfo.funder, data.funder);
@@ -1885,9 +1990,10 @@ const run = async () => {
     console.log("[CA Extension DEBUG] Mapping was applied:", !!formData?.thisIsMe);
   }
   
-  await fillInitialAssessment(formData, {
+  await fillInitialAssessment(mappedData, {
     assessor: caAcpPayload.assessor,
     date: caAcpPayload.date,
+    assessmentType: caAcpPayload.assessmentType,
   });
 };
 

@@ -1,5 +1,32 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.2 - Popup Performance + UI Refresh
+
+### Performance Improvements
+
+- Replaced popup's fixed 3-second full refresh loop with a debounced scheduler in `popup/main.js` to prevent overlapping refresh calls and reduce repeated storage/tab query load.
+- Added workspace refresh cooldown logic and visibility-aware refresh behavior so heavy companion/workspace updates are skipped while the popup is hidden.
+- Added log-render fingerprinting to avoid re-rendering the log panel when nothing changed.
+- Reduced in-page overlay polling load for ACP and EMAR workflows by increasing interval cadence and skipping refreshes when the page is hidden or overlay is collapsed.
+- Added field/table lookup caching in `content-initial-assessment.js` so large IA forms do not re-run expensive selectors for every fill operation.
+
+### Design Refresh
+
+- Updated popup typography to a local-first stack (no remote font dependency) for faster first paint.
+- Applied visual hierarchy upgrades in `popup.css` with stronger card depth, sticky frosted tab navigation, clearer status rails, and a more prominent primary Autofill action style.
+
+## Version 0.6.1 - Initial Assessment Review Type Selection
+
+### Initial Assessment Workflow
+
+- Added support for the Mobizio assessment-type selector (`form_component_1277_1`) with explicit values for `Initial Visit / Service Setup`, `6 Monthly Review`, and `Annual Review`.
+- Initial Assessment autofill now applies the selected review type before filling section 13 details and writes the matching conditional review-date field (`form_component_1283_1`, `form_component_1284_1`, or `form_component_1285_1`) when an assessment date is present.
+- Plan Enhancer "Send to IA Form" payloads can now include the selected assessment type so the extension fills the correct branch automatically.
+
+### Runtime Mapping Fix
+
+- Fixed auto-run payload handling in `content-initial-assessment.js` so mapped Plan Enhancer data is used during autofill execution instead of the unmapped nested source object.
+
 ## Version 0.6.0 - Command Center Foundations
 
 ### Runtime Stability Gate

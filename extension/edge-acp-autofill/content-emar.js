@@ -64,6 +64,8 @@ let overlayCollapsed = false;
 let overlayElements = null;
 let overlayRefreshTimer = null;
 let overlayIntervalId = null;
+let overlayVisibilityListenerBound = false;
+const OVERLAY_REFRESH_INTERVAL_MS = 9000;
 
 const OVERLAY_STYLE_ID = "ca-emar-overlay-styles";
 
@@ -313,6 +315,7 @@ const initOverlay = () => {
 
 const refreshOverlaySoon = () => {
   if (!overlayInitialized) return;
+  if (overlayCollapsed) return;
   if (overlayRefreshTimer) return;
   overlayRefreshTimer = setTimeout(() => {
     overlayRefreshTimer = null;
@@ -639,7 +642,19 @@ const run = async () => {
   initOverlay();
   refreshOverlay();
   if (!overlayIntervalId) {
-    overlayIntervalId = setInterval(refreshOverlay, 3000);
+    overlayIntervalId = setInterval(() => {
+      if (document.hidden || overlayCollapsed) return;
+      refreshOverlay();
+    }, OVERLAY_REFRESH_INTERVAL_MS);
+  }
+
+  if (!overlayVisibilityListenerBound) {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        refreshOverlaySoon();
+      }
+    });
+    overlayVisibilityListenerBound = true;
   }
 
   const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
