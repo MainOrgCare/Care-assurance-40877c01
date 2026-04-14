@@ -2,7 +2,7 @@
  * Policy Document Routes
  *
  * CRUD endpoints for organisational policy documents.  Supports direct
- * creation, PDF/DOCX file upload with automatic text extraction, and
+ * creation, PDF/DOC/DOCX file upload with automatic text extraction, and
  * category-based filtering.
  *
  * @module server/routes/policyDocuments
@@ -12,6 +12,7 @@ import { z } from "zod";
 import mammoth from "mammoth";
 import { storage } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
+import { tryConvertOfficeToPdf } from "../utils/officeToPdf";
 import { insertPolicyDocumentSchema } from "@shared/schema";
 
 export interface PolicyDocumentRouteDeps {
@@ -103,15 +104,39 @@ export function registerPolicyDocumentRoutes(
         return res.status(400).json({ message: "Name and category are required" });
       }
 
-      const isDocx = req.file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || req.file.originalname.toLowerCase().endsWith(".docx");
+      const lowerName = req.file.originalname.toLowerCase();
+      const mime = (req.file.mimetype || "").toLowerCase();
+      const isPdf = mime === "application/pdf" || lowerName.endsWith(".pdf");
+      const isDocx =
+        mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        lowerName.endsWith(".docx");
+      const isDoc = (mime === "application/msword" || lowerName.endsWith(".doc")) && !isDocx;
       let content = "";
 
       if (isDocx) {
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
         content = result.value;
-      } else {
+        if (!content.trim()) {
+          const pdfBuffer = await tryConvertOfficeToPdf(req.file.buffer, req.file.originalname);
+          if (pdfBuffer) {
+            const extracted = await extractPdfTextWithPdfjs(pdfBuffer);
+            content = extracted.text;
+          }
+        }
+      } else if (isDoc) {
+        const pdfBuffer = await tryConvertOfficeToPdf(req.file.buffer, req.file.originalname);
+        if (!pdfBuffer) {
+          return res.status(422).json({
+            message: "Could not convert .doc file for text extraction. Please save/export the document as PDF or DOCX and try again.",
+          });
+        }
+        const extracted = await extractPdfTextWithPdfjs(pdfBuffer);
+        content = extracted.text;
+      } else if (isPdf) {
         const extracted = await extractPdfTextWithPdfjs(req.file.buffer);
         content = extracted.text;
+      } else {
+        return res.status(400).json({ message: "Unsupported file type" });
       }
 
       if (!content || content.trim().length === 0) {

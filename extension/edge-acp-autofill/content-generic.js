@@ -56,20 +56,45 @@ const findField = ({ selector, name, label, type } = {}) => {
   }
   if (name) {
     const el = document.querySelector(`[name="${name}"]`);
+  const setNativeFieldValue = (field, value) => {
+    if (!field) return;
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
+    if (descriptor?.set) {
+      descriptor.set.call(field, value);
+      return;
+    }
+    field.value = value;
+  };
+  const dispatchInputEvent = (field, data = null) => {
+    if (typeof InputEvent === "function") {
+      field.dispatchEvent(new InputEvent("input", {
+        bubbles: true,
+        data,
+        inputType: data == null ? "insertReplacementText" : "insertText",
+      }));
+      return;
+    }
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const buildProcessedKey = (queueState) => {
+    const batchId = queueState?.batchId || "legacy";
+    const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : "single";
+    return `caCustomAutofillProcessed_${batchId}_${currentIndex}`;
+  };
     if (el) return el;
   }
-  if (label) {
+    dispatchInputEvent(field, null);
     const labels = Array.from(document.querySelectorAll("label"));
     const match = labels.find(
       (node) => (node.textContent || "").trim().toLowerCase() === label.trim().toLowerCase()
     );
     if (match) {
       const forId = match.getAttribute("for");
-      if (forId) {
-        const byFor = document.getElementById(forId);
+    setNativeFieldValue(field, "");
+    dispatchInputEvent(field, null);
         if (byFor) return byFor;
-      }
-      const nested = match.querySelector("input, textarea, select");
+      setNativeFieldValue(field, `${field.value}${char}`);
+      dispatchInputEvent(field, char);
       if (nested) return nested;
     }
   }
@@ -113,7 +138,7 @@ const setTextValue = async (field, value) => {
     await typeLikeHuman(field, value);
     return true;
   }
-  field.value = value;
+  setNativeFieldValue(field, String(value));
   dispatchEvents(field);
   return true;
 };
@@ -277,6 +302,7 @@ const run = async () => {
   }
 
   const processedKey = `caCustomAutofillProcessed_${caAcpQueueState.currentIndex}`;
+  const processedKey = buildProcessedKey(caAcpQueueState);
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
 

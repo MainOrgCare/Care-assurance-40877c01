@@ -79,16 +79,32 @@
   const runtimeApi = globalScope?.chrome?.runtime;
   const isWebContentContext = Boolean(globalScope?.location && /^https?:$/i.test(globalScope.location.protocol || ""));
 
+  const getRuntimeLastErrorMessage = () => {
+    try {
+      return runtimeApi?.lastError?.message || "";
+    } catch {
+      return "";
+    }
+  };
+
+  const hasLiveRuntimeContext = () => {
+    try {
+      return Boolean(runtimeApi?.id);
+    } catch {
+      return false;
+    }
+  };
+
   const sendStorageBridgeMessage = (type, payload, fallbackValue) =>
     new Promise((resolve) => {
-      if (!runtimeApi?.id || typeof runtimeApi.sendMessage !== "function") {
+      if (!hasLiveRuntimeContext() || typeof runtimeApi?.sendMessage !== "function") {
         resolve(fallbackValue);
         return;
       }
 
       try {
         runtimeApi.sendMessage({ type, payload }, (response) => {
-          if (runtimeApi.lastError || !response?.ok) {
+          if (getRuntimeLastErrorMessage() || !response?.ok) {
             resolve(fallbackValue);
             return;
           }
@@ -122,17 +138,26 @@
         return;
       }
 
-      area.get(keys, (items) => {
-        if (runtimeApi?.lastError) {
-          if (bridgeType) {
-            sendStorageBridgeMessage(bridgeType, { keys }, {}).then(resolve);
+      try {
+        area.get(keys, (items) => {
+          if (getRuntimeLastErrorMessage()) {
+            if (bridgeType) {
+              sendStorageBridgeMessage(bridgeType, { keys }, {}).then(resolve);
+              return;
+            }
+            resolve({});
             return;
           }
-          resolve({});
+
+          resolve(items || {});
+        });
+      } catch {
+        if (bridgeType) {
+          sendStorageBridgeMessage(bridgeType, { keys }, {}).then(resolve);
           return;
         }
-        resolve(items || {});
-      });
+        resolve({});
+      }
     });
 
   const writeStorageArea = (area, items, bridgeType) =>
@@ -153,15 +178,23 @@
         return;
       }
 
-      area.set(items, () => {
-        if (runtimeApi?.lastError) {
-          if (bridgeType) {
-            sendStorageBridgeMessage(bridgeType, { items }, {}).then(() => resolve());
-            return;
+      try {
+        area.set(items, () => {
+          if (getRuntimeLastErrorMessage()) {
+            if (bridgeType) {
+              sendStorageBridgeMessage(bridgeType, { items }, {}).then(() => resolve());
+              return;
+            }
           }
+          resolve();
+        });
+      } catch {
+        if (bridgeType) {
+          sendStorageBridgeMessage(bridgeType, { items }, {}).then(() => resolve());
+          return;
         }
         resolve();
-      });
+      }
     });
 
   const STORAGE_HELPERS = {
@@ -183,9 +216,11 @@
           localKeys.length
             ? readStorageArea(storageApi.local, localKeys)
             : Promise.resolve({}),
-        ]).then(([sessionItems, localItems]) => {
-          resolve({ ...localItems, ...sessionItems });
-        });
+        ])
+          .then(([sessionItems, localItems]) => {
+            resolve({ ...localItems, ...sessionItems });
+          })
+          .catch(() => resolve({}));
       }),
     set: (items) =>
       new Promise((resolve) => {
@@ -205,7 +240,9 @@
           Object.keys(localItems).length
             ? writeStorageArea(storageApi.local, localItems)
             : Promise.resolve(),
-        ]).then(() => resolve());
+        ])
+          .then(() => resolve())
+          .catch(() => resolve());
       }),
   };
 

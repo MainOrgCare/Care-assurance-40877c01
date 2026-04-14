@@ -315,6 +315,52 @@ const NEEDS_VERIFICATION = [];
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const setNativeFieldValue = (field, value) => {
+  if (!field) return;
+  const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
+  if (descriptor?.set) {
+    descriptor.set.call(field, value);
+    return;
+  }
+  field.value = value;
+};
+
+const dispatchInputEvent = (field, data = null) => {
+  if (typeof InputEvent === "function") {
+    field.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data,
+      inputType: data == null ? "insertReplacementText" : "insertText",
+    }));
+    return;
+  }
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
+const dispatchCommitEvents = (field) => {
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+  field.dispatchEvent(new Event("blur", { bubbles: true }));
+};
+
+const typeLikeHuman = async (field, value) => {
+  if (!field) return false;
+  field.focus();
+  setNativeFieldValue(field, "");
+  dispatchInputEvent(field, null);
+  for (const char of String(value)) {
+    setNativeFieldValue(field, `${field.value}${char}`);
+    dispatchInputEvent(field, char);
+    await wait(25 + Math.random() * 30);
+  }
+  dispatchCommitEvents(field);
+  return true;
+};
+
+const buildProcessedKey = (queueState, payload) => {
+  const batchId = queueState?.batchId || payload?.metadata?.batchId || payload?.batchId || payload?.caseId || "legacy";
+  return `caIAAutofillProcessed_${batchId}`;
+};
+
 /**
  * Check if a value indicates missing or ambiguous information
  * Returns: 'missing' | 'ambiguous' | 'valid'
@@ -445,18 +491,21 @@ const setTextValue = async (fieldName, value) => {
   if (valueStatus === 'missing') {
     highlightField(field, 'missing');
     // Still set the value so user can see what was provided, but highlighted
-    field.value = String(value);
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-    field.dispatchEvent(new Event("change", { bubbles: true }));
-    field.dispatchEvent(new Event("blur", { bubbles: true }));
+    setNativeFieldValue(field, String(value));
+    dispatchInputEvent(field, null);
+    dispatchCommitEvents(field);
     NEEDS_VERIFICATION.push({ field: fieldName, reason: 'missing' });
     return true;
   }
-  
-  field.value = String(value);
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  field.dispatchEvent(new Event("change", { bubbles: true }));
-  field.dispatchEvent(new Event("blur", { bubbles: true }));
+
+  if (INTERACTION_MODE === "slow") {
+    await typeLikeHuman(field, String(value));
+    return true;
+  }
+
+  setNativeFieldValue(field, String(value));
+  dispatchInputEvent(field, null);
+  dispatchCommitEvents(field);
   return true;
 };
 
@@ -675,10 +724,13 @@ const fillAssessmentTable = async (tableId, selectValue, detailsValue) => {
       if (DRY_RUN) {
         textarea.style.outline = "2px solid #1ea97a";
       } else {
-        textarea.value = String(detailsValue);
-        textarea.dispatchEvent(new Event("input", { bubbles: true }));
-        textarea.dispatchEvent(new Event("change", { bubbles: true }));
-        textarea.dispatchEvent(new Event("blur", { bubbles: true }));
+        if (INTERACTION_MODE === "slow") {
+          await typeLikeHuman(textarea, String(detailsValue));
+        } else {
+          setNativeFieldValue(textarea, String(detailsValue));
+          dispatchInputEvent(textarea, null);
+          dispatchCommitEvents(textarea);
+        }
       }
       filled = true;
     }
@@ -1791,8 +1843,9 @@ const run = async () => {
   
   logAction("Initial Assessment form detected");
   
-  const { caAcpPayload, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
+  const { caAcpPayload, caAcpQueueState, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
     STORAGE_KEYS.payload,
+    STORAGE_KEYS.queueState,
     STORAGE_KEYS.dryRun,
     STORAGE_KEYS.interactionMode,
   ]);
@@ -1804,6 +1857,7 @@ const run = async () => {
   if (CA_DEBUG) console.log("[CA Extension DEBUG] Payload loaded from storage:", JSON.stringify(caAcpPayload, null, 2));
   
   const processedKey = "caIAAutofillProcessed";
+  const processedKey = buildProcessedKey(caAcpQueueState, caAcpPayload);
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
   

@@ -16,9 +16,6 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import os from "node:os";
-import { promises as fs } from "node:fs";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -54,6 +51,7 @@ import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
 import multer from "multer";
 import { upload, uploadExcel, uploadImages } from "./utils/uploadConfig";
+import { tryConvertOfficeToPdf } from "./utils/officeToPdf";
 import {
   BILLING_DAY_KEYS,
   type BillingDayKey,
@@ -99,8 +97,6 @@ import {
   clearLoginFailures,
 } from "./utils/passwordPolicy";
 // Vision-based extraction for improved EMAR accuracy
-
-const execFileAsync = promisify(execFile);
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
@@ -189,40 +185,6 @@ async function extractPdfTextWithPdfjs(pdfBuffer: Buffer): Promise<{ text: strin
   const combined = pageTexts.join("\n\n--- PAGE BREAK ---\n\n");
   return { text: combined, pageCount: pdf.numPages, pageCharCounts, pageTexts };
 }
-
-const tryConvertOfficeToPdf = async (buffer: Buffer, originalName: string): Promise<Buffer | null> => {
-  const ext = path.extname(originalName).toLowerCase();
-  if (![".doc", ".docx"].includes(ext)) return null;
-
-  let tempDir: string | null = null;
-  try {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "support-plan-"));
-    const inputPath = path.join(tempDir, `input${ext || ".docx"}`);
-    await fs.writeFile(inputPath, buffer);
-
-    const runConversion = async (command: string): Promise<Buffer | null> => {
-      try {
-        await execFileAsync(command, ["--headless", "--convert-to", "pdf", "--outdir", tempDir!, inputPath], {
-          timeout: 15000,
-        });
-        const pdfPath = path.join(tempDir!, "input.pdf");
-        const pdfBuffer = await fs.readFile(pdfPath);
-        return pdfBuffer;
-      } catch {
-        return null;
-      }
-    };
-
-    const pdfBuffer = (await runConversion("soffice")) || (await runConversion("libreoffice"));
-    return pdfBuffer;
-  } catch {
-    return null;
-  } finally {
-    if (tempDir) {
-      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
-    }
-  }
-};
 
 // Virus scanning helper - scans file, logs result, creates admin alert if threat detected
 async function scanAndLogFile(

@@ -442,10 +442,47 @@ const setValue = async (fieldName, value) => {
     logAction(`Manual assist: please fill ${fieldName}.`);
     return true;
   }
-  field.value = value;
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  field.dispatchEvent(new Event("change", { bubbles: true }));
-  field.dispatchEvent(new Event("blur", { bubbles: true }));
+  const setNativeFieldValue = (target, nextValue) => {
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target) || {}, "value");
+    if (descriptor?.set) {
+      descriptor.set.call(target, nextValue);
+      return;
+    }
+    target.value = nextValue;
+  };
+  const dispatchInputEvent = (target, data = null) => {
+    if (typeof InputEvent === "function") {
+      target.dispatchEvent(new InputEvent("input", {
+        bubbles: true,
+        data,
+        inputType: data == null ? "insertReplacementText" : "insertText",
+      }));
+      return;
+    }
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const dispatchCommitEvents = (target) => {
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    target.dispatchEvent(new Event("blur", { bubbles: true }));
+  };
+  const typeLikeHuman = async (target, nextValue) => {
+    target.focus();
+    setNativeFieldValue(target, "");
+    dispatchInputEvent(target, null);
+    for (const char of String(nextValue)) {
+      setNativeFieldValue(target, `${target.value}${char}`);
+      dispatchInputEvent(target, char);
+      await wait(25 + Math.random() * 30);
+    }
+    dispatchCommitEvents(target);
+  };
+  if (INTERACTION_MODE === "slow") {
+    await typeLikeHuman(field, value);
+    return true;
+  }
+  setNativeFieldValue(field, String(value));
+  dispatchInputEvent(field, null);
+  dispatchCommitEvents(field);
   return true;
 };
 
@@ -617,6 +654,8 @@ const run = async () => {
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
 
   const processedKey = `caEmarAutofillProcessed_${caAcpQueueState.currentIndex}`;
+  const batchId = caAcpQueueState?.batchId || "legacy";
+  const processedKey = `caEmarAutofillProcessed_${batchId}_${caAcpQueueState.currentIndex}`;
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
 

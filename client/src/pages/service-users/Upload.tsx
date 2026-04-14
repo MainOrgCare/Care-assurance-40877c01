@@ -245,7 +245,7 @@ export default function ServiceUserUpload() {
                      <li>- Cognition, communication, capacity</li>
                    </ul>
                    <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70">
-                     Formats: PDF or DOCX
+                     Formats: PDF, DOC, or DOCX
                    </p>
                  </div>
                </div>

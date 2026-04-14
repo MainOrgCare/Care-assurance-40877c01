@@ -1,6 +1,33 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
-## Version 0.4.2 - Accessibility, Code Quality & UX Polish (Latest)
+## Version 0.5.9 - Invalidated Context Guard
+
+### Runtime Resilience
+
+- Fixed an unhandled promise path after extension reloads or updates by making the shared storage helper catch synchronous `chrome.storage` and runtime bridge failures and resolve safe fallbacks instead of throwing into content scripts.
+- This prevents ACP and other content scripts from crashing their overlay refresh path with `Extension context invalidated` while the page is waiting for the user to refresh and attach the new extension context.
+
+## Version 0.5.8 - ACP Risk Form Auto-Detection
+
+### Risk Assessment Autofill
+
+- Replaced the ACP risk-assessment hardcoded table id and fixed `form_component_10*` to `form_component_16*` row mapping with automatic table, row, and field discovery based on labels, headers, and nearby form context.
+- Added fallbacks that can identify top-level service-user, assessor, assessment-date, reason, training-needs, and per-risk row fields even when Mobizio layout details drift between forms.
+- Kept the runtime fail-safe behavior: if the script cannot confidently detect the risk form structure, it now logs the mapping failure and stops instead of writing into the wrong fields.
+
+## Version 0.5.7 - Batch Autofill Reliability & Realistic Typing
+
+### Batch Autofill Reliability
+
+- Fixed reused Mobizio tabs skipping later autofill runs for different people by making content-script processed guards batch-specific instead of reusing only the queue index.
+- Applied the batch-specific processed-key fix across ACP, EMAR, Initial Assessment, and generic custom-form autofill flows.
+
+### Realistic Typing
+
+- Fixed `Realistic Typing` mode so it is honored on Initial Assessment and EMAR flows instead of silently falling back to instant value assignment.
+- Switched slow and instant text entry paths to safer native value-setting plus input/change/blur dispatching so Mobizio form listeners are more likely to register typed values consistently.
+
+## Version 0.4.2 - Accessibility, Code Quality & UX Polish
 
 ### Accessibility (A11Y)
 

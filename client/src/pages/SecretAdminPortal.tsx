@@ -2933,7 +2933,7 @@ const PolicyDocumentsSection = memo(function PolicyDocumentsSection() {
             <div className="relative">
               <input
                 type="file"
-                accept=".pdf,.docx"
+                accept=".pdf,.doc,.docx"
                 onChange={handleUpload}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 disabled={uploading || !uploadName || !uploadCategory}

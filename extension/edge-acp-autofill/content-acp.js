@@ -768,63 +768,112 @@ const highlightField = (field) => {
   field.style.outline = "2px solid #1ea97a";
   field.style.outlineOffset = "2px";
 };
+const setNativeFieldValue = (field, value) => {
+  if (!field) return;
+  const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
+  if (descriptor?.set) {
+    descriptor.set.call(field, value);
+    return;
+  }
+  field.value = value;
+};
+const dispatchInputEvent = (field, data = null) => {
+  if (typeof InputEvent === "function") {
+    field.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data,
+      inputType: data == null ? "insertReplacementText" : "insertText",
+    }));
+    return;
+  }
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+};
+const dispatchCommitEvents = (field) => {
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+  field.dispatchEvent(new Event("blur", { bubbles: true }));
+};
+const buildProcessedKey = (queueState) => {
+  const batchId = queueState?.batchId || "legacy";
+  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : "single";
+  return `caAutofillProcessed_${batchId}_${currentIndex}`;
+};
 
 const typeLikeHuman = async (field, value) => {
   if (!field) return false;
   field.focus();
-  field.value = "";
-  field.dispatchEvent(new Event("input", { bubbles: true }));
+  setNativeFieldValue(field, "");
+  dispatchInputEvent(field, null);
   for (const char of String(value)) {
-    field.value += char;
-    field.dispatchEvent(new Event("input", { bubbles: true }));
+    setNativeFieldValue(field, `${field.value}${char}`);
+    dispatchInputEvent(field, char);
     await wait(25 + Math.random() * 30);
   }
-  field.dispatchEvent(new Event("change", { bubbles: true }));
-  field.dispatchEvent(new Event("blur", { bubbles: true }));
+  dispatchCommitEvents(field);
   return true;
 };
 
 const setValue = async (fieldName, value) => {
-  if (!value) return false;
   const field = document.querySelector(`[name="${fieldName}"]`);
+  if (!value) return false;
   if (!field) return false;
+  return setFieldValue(field, value, fieldName);
+};
+
+const setFieldValue = async (field, value, fieldLabel = "field") => {
+  if (!field || !value) return false;
   if (DRY_RUN) {
     highlightField(field);
-    logAction(`Dry run: would set ${fieldName}.`);
+    logAction(`Dry run: would set ${fieldLabel}.`);
     return true;
   }
   if (INTERACTION_MODE === "manual") {
     highlightField(field);
-    logAction(`Manual assist: please fill ${fieldName}.`);
+    logAction(`Manual assist: please fill ${fieldLabel}.`);
     return true;
   }
   if (INTERACTION_MODE === "slow") {
     await typeLikeHuman(field, value);
     return true;
   }
-  field.value = value;
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  field.dispatchEvent(new Event("change", { bubbles: true }));
-  field.dispatchEvent(new Event("blur", { bubbles: true }));
+  setNativeFieldValue(field, String(value));
+  dispatchInputEvent(field, null);
+  dispatchCommitEvents(field);
   return true;
 };
 
 const setMultiSelect = async (fieldName, values) => {
-  if (!values || values.length === 0) return false;
   const field = document.querySelector(`[name="${fieldName}"]`);
+  if (!values || values.length === 0) return false;
   if (!field || field.tagName !== "SELECT") return false;
+  return setFieldMultiSelect(field, values, fieldName);
+};
+
+const setFieldMultiSelect = async (field, values, fieldLabel = "field") => {
+  if (!field || field.tagName !== "SELECT" || !values || values.length === 0) return false;
   if (DRY_RUN) {
     highlightField(field);
-    logAction(`Dry run: would select ${values.length} options for ${fieldName}.`);
+    logAction(`Dry run: would select ${values.length} options for ${fieldLabel}.`);
     return true;
   }
   if (INTERACTION_MODE === "manual") {
     highlightField(field);
-    logAction(`Manual assist: please select options for ${fieldName}.`);
+    logAction(`Manual assist: please select options for ${fieldLabel}.`);
+    return true;
+  }
+  const normalizedValues = values.map((value) => value.trim().toLowerCase());
+  if (!field.multiple) {
+    const option = Array.from(field.options).find((candidate) => {
+      const optionValue = (candidate.value || "").trim().toLowerCase();
+      const optionLabel = (candidate.textContent || "").trim().toLowerCase();
+      return normalizedValues.includes(optionValue) || normalizedValues.includes(optionLabel);
+    });
+    if (!option) return false;
+    field.value = option.value;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    field.dispatchEvent(new Event("input", { bubbles: true }));
     return true;
   }
   let matched = 0;
-  const normalizedValues = values.map((value) => value.trim().toLowerCase());
   Array.from(field.options).forEach((option) => {
     const optionValue = (option.value || "").trim().toLowerCase();
     const optionLabel = (option.textContent || "").trim().toLowerCase();
@@ -837,12 +886,164 @@ const setMultiSelect = async (fieldName, values) => {
   return matched > 0;
 };
 
-const getRiskRows = () =>
-  Array.from(document.querySelectorAll("#Table_9_9_Table tbody tr"));
+const normalizeText = (value) => String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
 
-const addRiskRows = async (count) => {
+const TOP_LEVEL_FIELD_PATTERNS = {
+  serviceUser: [/\bservice user\b/i, /\bclient name\b/i, /\bperson supported\b/i],
+  assessor: [/\bassessor\b/i, /\bcompleted by\b/i, /\bassessed by\b/i, /\bstaff member\b/i],
+  assessmentDate: [/\bassessment date\b/i, /\bdate of assessment\b/i],
+  reason: [/\breason(?: for assessment)?\b/i, /\bpurpose of assessment\b/i],
+  trainingNeeds: [/\btraining needs?\b/i, /\badditional training\b/i],
+};
+
+const RISK_FIELD_PATTERNS = {
+  identified: [/\bidentified\b/i, /\brisk identified\b/i, /\brisk description\b/i, /\bwhat(?:'s| is)? the risk\b/i, /\bhazard\b/i],
+  harmed: [/\bwho.*harm(?:ed)?\b/i, /\bwho.*affected\b/i, /\bperson.*harm\b/i, /\bwho may be harmed\b/i, /\bat risk\b/i],
+  define: [/\bhow.*risk\b/i, /\bwhy.*risk\b/i, /\bdetails of risk\b/i, /\bdefine.*risk\b/i, /\bnature of risk\b/i],
+  rating: [/\binitial.*rating\b/i, /\brisk rating\b/i, /\blevel of risk\b/i, /^rating$/i, /\bscore\b/i],
+  control: [/\bcontrol measures?\b/i, /\bcontrols? in place\b/i, /\bmitigation\b/i, /\bactions? to reduce\b/i, /\breduce risk\b/i],
+  residual: [/\bafter controls\b/i, /\bresidual\b/i, /\bremaining.*rating\b/i, /\brating after\b/i, /\bpost[- ]control\b/i],
+  signed: [/\bsigned\b/i, /\bassessor\b/i, /\bcompleted by\b/i, /\bstaff member\b/i],
+};
+
+const getStaticCellText = (field) => {
+  const cell = field?.closest("td, th");
+  if (!cell) return "";
+  const clone = cell.cloneNode(true);
+  clone.querySelectorAll("input, textarea, select, button").forEach((element) => element.remove());
+  return clone.textContent || "";
+};
+
+const getHeaderTextForField = (table, row, field) => {
+  if (!table || !row || !field) return "";
+  const cell = field.closest("td, th");
+  if (!cell) return "";
+  const cells = Array.from(row.children).filter((child) => child.matches("td, th"));
+  const cellIndex = cells.findIndex((child) => child === cell || child.contains(field));
+  if (cellIndex < 0) return "";
+
+  const headerRows = Array.from(table.querySelectorAll("thead tr"));
+  for (let index = headerRows.length - 1; index >= 0; index -= 1) {
+    const headers = Array.from(headerRows[index].children).filter((child) => child.matches("th, td"));
+    if (headers[cellIndex]) {
+      return headers[cellIndex].textContent || "";
+    }
+  }
+
+  return "";
+};
+
+const getFieldContextText = (field, table) => {
+  const row = field?.closest("tr");
+  return normalizeText([
+    getLabelTextForInput(field),
+    field?.getAttribute("placeholder") || "",
+    field?.name || "",
+    field?.id || "",
+    getStaticCellText(field),
+    getHeaderTextForField(table, row, field),
+  ].join(" "));
+};
+
+const findBestFieldMatch = (fields, patterns, table) => {
+  const scored = fields
+    .map((field) => {
+      const text = getFieldContextText(field, table);
+      const score = patterns.reduce((total, pattern) => total + (pattern.test(text) ? 1 : 0), 0);
+      return { field, score };
+    })
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score);
+
+  return scored[0]?.field || null;
+};
+
+const getInteractiveRiskFields = (row) =>
+  Array.from(row.querySelectorAll('textarea, select, input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])'))
+    .filter((field) => !field.disabled);
+
+const scoreRiskTable = (table) => {
+  if (!table) return 0;
+
+  let score = table.id === "Table_9_9_Table" ? 50 : 0;
+  const headerText = normalizeText(table.querySelector("thead")?.textContent || table.caption?.textContent || "");
+  if (headerText.includes("risk")) score += 8;
+  if (headerText.includes("control")) score += 3;
+  if (headerText.includes("rating")) score += 3;
+  if (headerText.includes("harm")) score += 2;
+
+  const rowScores = Array.from(table.querySelectorAll("tbody tr"))
+    .slice(0, 4)
+    .map((row) => {
+      const fields = getInteractiveRiskFields(row);
+      const textareas = fields.filter((field) => field.tagName === "TEXTAREA").length;
+      const selects = fields.filter((field) => field.tagName === "SELECT").length;
+      const inputs = fields.filter((field) => field.tagName === "INPUT").length;
+
+      let rowScore = 0;
+      if (fields.length >= 5) rowScore += 5;
+      if (textareas >= 2) rowScore += 4;
+      if (selects >= 2) rowScore += 3;
+      if (inputs >= 1) rowScore += 1;
+      return rowScore;
+    });
+
+  return score + Math.max(0, ...rowScores);
+};
+
+const findRiskTable = () => {
+  const tables = Array.from(document.querySelectorAll("table"));
+  const ranked = tables
+    .map((table) => ({ table, score: scoreRiskTable(table) }))
+    .sort((left, right) => right.score - left.score);
+
+  return ranked[0] && ranked[0].score >= 8 ? ranked[0].table : null;
+};
+
+const waitForRiskTable = async (timeoutMs = 15000, intervalMs = 200) => {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const table = findRiskTable();
+    if (table) return table;
+    await wait(intervalMs);
+  }
+  return null;
+};
+
+const getRiskRows = (table = findRiskTable()) =>
+  table
+    ? Array.from(table.querySelectorAll("tbody tr")).filter((row) => getInteractiveRiskFields(row).length >= 3)
+    : [];
+
+const findRiskAddButton = (table) => {
+  if (!table) return null;
+  const tableId = table.id || "";
+  const baseId = tableId.replace(/_Table$/, "");
+  if (baseId) {
+    const directMatch = document.querySelector(`a#${baseId}, button#${baseId}, input[type="button"]#${baseId}`);
+    if (directMatch) return directMatch;
+  }
+
+  const roots = [table.parentElement, table.parentElement?.parentElement, table.closest("form"), document].filter(Boolean);
+  const seen = new Set();
+  for (const root of roots) {
+    if (!root || seen.has(root)) continue;
+    seen.add(root);
+    const buttons = Array.from(root.querySelectorAll('a, button, input[type="button"], input[type="submit"]'));
+    const match = buttons.find((button) => {
+      if (table.contains(button)) return false;
+      const text = normalizeText(button.textContent || button.value || "");
+      return /\badd\b/.test(text) && (root !== document || text.includes("risk"));
+    });
+    if (match) return match;
+  }
+
+  return null;
+};
+
+const addRiskRows = async (count, table = findRiskTable()) => {
   if (count <= 0) return;
-  const addButton = document.querySelector("a#Table_9_9");
+  const addButton = findRiskAddButton(table);
   if (!addButton) return;
 
   for (let i = 0; i < count; i += 1) {
@@ -879,19 +1080,76 @@ const parseWhoHarmed = (value) => {
   return Array.from(results);
 };
 
-const setSelectByLabel = (fieldName, label) => {
-  if (!label) return false;
-  const field = document.querySelector(`[name="${fieldName}"]`);
-  if (!field || field.tagName !== "SELECT") return false;
+const findRiskFormField = (riskTable, { name, labelPatterns = [], tagNames = ["input", "textarea", "select"] } = {}) => {
+  if (name) {
+    const direct = document.querySelector(`[name="${name}"]`);
+    if (direct && (!riskTable || !riskTable.contains(direct))) return direct;
+  }
+
+  if (!labelPatterns.length) return null;
+
+  const candidates = Array.from(document.querySelectorAll(tagNames.join(",")))
+    .filter((field) => !riskTable || !riskTable.contains(field));
+  return findBestFieldMatch(candidates, labelPatterns, null);
+};
+
+const mapRiskRowFields = (row, table) => {
+  const fields = getInteractiveRiskFields(row);
+  const textareas = fields.filter((field) => field.tagName === "TEXTAREA");
+  const selects = fields.filter((field) => field.tagName === "SELECT");
+  const textInputs = fields.filter((field) => field.tagName === "INPUT");
+
+  const harmedField =
+    findBestFieldMatch(selects, RISK_FIELD_PATTERNS.harmed, table) ||
+    selects.find((field) => field.multiple || Number(field.size || 0) > 1) ||
+    null;
+
+  const remainingSelects = selects.filter((field) => field !== harmedField);
+  const residualField = findBestFieldMatch(remainingSelects, RISK_FIELD_PATTERNS.residual, table);
+  const ratingField =
+    findBestFieldMatch(remainingSelects.filter((field) => field !== residualField), RISK_FIELD_PATTERNS.rating, table) ||
+    remainingSelects.find((field) => field !== residualField) ||
+    null;
+  const fallbackResidualField = remainingSelects.find((field) => field !== ratingField) || residualField || null;
+
+  const identifiedField = findBestFieldMatch(textareas, RISK_FIELD_PATTERNS.identified, table) || textareas[0] || null;
+  const defineField =
+    findBestFieldMatch(textareas.filter((field) => field !== identifiedField), RISK_FIELD_PATTERNS.define, table) ||
+    textareas.find((field) => field !== identifiedField) ||
+    null;
+  const controlField =
+    findBestFieldMatch(textareas.filter((field) => field !== identifiedField && field !== defineField), RISK_FIELD_PATTERNS.control, table) ||
+    textareas.find((field) => field !== identifiedField && field !== defineField) ||
+    null;
+  const signedField = findBestFieldMatch(textInputs, RISK_FIELD_PATTERNS.signed, table) || textInputs[0] || null;
+
+  return {
+    identifiedField,
+    harmedField,
+    defineField,
+    ratingField,
+    controlField,
+    residualField: residualField || fallbackResidualField,
+    signedField,
+  };
+};
+
+const setSelectFieldByLabel = (field, label) => {
+  if (!label || !field || field.tagName !== "SELECT") return false;
   const target = label.trim().toLowerCase();
-  const option = Array.from(field.options).find((opt) =>
-    (opt.textContent || "").trim().toLowerCase() === target
+  const option = Array.from(field.options).find((candidate) =>
+    (candidate.textContent || "").trim().toLowerCase() === target
   );
   if (!option) return false;
   field.value = option.value;
   field.dispatchEvent(new Event("change", { bubbles: true }));
   field.dispatchEvent(new Event("input", { bubbles: true }));
   return true;
+};
+
+const setSelectByLabel = (fieldName, label) => {
+  const field = document.querySelector(`[name="${fieldName}"]`);
+  return setSelectFieldByLabel(field, label);
 };
 
 const buildSignedLabel = (assessment) => {
@@ -1029,50 +1287,92 @@ const attachManualSubmitListener = (onComplete) => {
 };
 
 const fillRiskAssessment = async (assessment, serviceUserLabel) => {
-  await setValue(FORM_FIELD_NAMES.serviceUser, serviceUserLabel);
-  await setValue(FORM_FIELD_NAMES.assessor, buildSignedLabel(assessment));
-  await setValue(FORM_FIELD_NAMES.assessmentDate, assessment.assessmentDate || "");
-  await setValue(FORM_FIELD_NAMES.reason, assessment.category || "");
+  const riskTable = findRiskTable();
+  if (!riskTable) {
+    logAction("Risk form layout could not be detected automatically.");
+    return false;
+  }
+
+  const serviceUserField = findRiskFormField(riskTable, {
+    name: FORM_FIELD_NAMES.serviceUser,
+    labelPatterns: TOP_LEVEL_FIELD_PATTERNS.serviceUser,
+    tagNames: ["input", "textarea"],
+  });
+  const assessorField = findRiskFormField(riskTable, {
+    name: FORM_FIELD_NAMES.assessor,
+    labelPatterns: TOP_LEVEL_FIELD_PATTERNS.assessor,
+    tagNames: ["input", "textarea"],
+  });
+  const assessmentDateField = findRiskFormField(riskTable, {
+    name: FORM_FIELD_NAMES.assessmentDate,
+    labelPatterns: TOP_LEVEL_FIELD_PATTERNS.assessmentDate,
+    tagNames: ["input"],
+  });
+  const reasonField = findRiskFormField(riskTable, {
+    name: FORM_FIELD_NAMES.reason,
+    labelPatterns: TOP_LEVEL_FIELD_PATTERNS.reason,
+    tagNames: ["input", "textarea"],
+  });
+  const trainingNeedsField = findRiskFormField(riskTable, {
+    name: FORM_FIELD_NAMES.trainingNeeds,
+    labelPatterns: TOP_LEVEL_FIELD_PATTERNS.trainingNeeds,
+    tagNames: ["select"],
+  });
+
+  await setFieldValue(serviceUserField, serviceUserLabel, "service user");
+  await setFieldValue(assessorField, buildSignedLabel(assessment), "assessor");
+  await setFieldValue(assessmentDateField, assessment.assessmentDate || "", "assessment date");
+  await setFieldValue(reasonField, assessment.category || "", "reason");
   setSelectByLabel("form_component_40_2", "Yes");
   setSelectByLabel("form_component_19_20", "No");
-  setSelectByLabel(FORM_FIELD_NAMES.trainingNeeds, getTrainingNeedsSelectLabel(assessment));
+  setSelectFieldByLabel(trainingNeedsField, getTrainingNeedsSelectLabel(assessment));
 
   await wait(500);
 
   const rowsNeeded = assessment.risks.length;
-  const existingRows = getRiskRows().length;
+  const existingRows = getRiskRows(riskTable).length;
   if (rowsNeeded > existingRows) {
-    await addRiskRows(rowsNeeded - existingRows);
+    await addRiskRows(rowsNeeded - existingRows, riskTable);
     await wait(500);
   }
 
-  const rows = getRiskRows();
+  const resolvedRiskTable = findRiskTable() || riskTable;
+  const rows = getRiskRows(resolvedRiskTable);
+  if (!rows.length) {
+    logAction("Risk rows could not be detected automatically.");
+    return false;
+  }
+
   for (let index = 0; index < assessment.risks.length; index += 1) {
     const risk = assessment.risks[index];
     const row = rows[index];
-    if (!row) return;
+    if (!row) return false;
 
-    const identifiedField = row.querySelector('textarea[name^="form_component_10"]');
-    const harmedField = row.querySelector('select[name^="form_component_11"]');
-    const defineField = row.querySelector('textarea[name^="form_component_12"]');
-    const ratingField = row.querySelector('select[name^="form_component_13"]');
-    const controlField = row.querySelector('textarea[name^="form_component_14"]');
-    const residualField = row.querySelector('select[name^="form_component_15"]');
-    const signedField = row.querySelector('input[name^="form_component_16"]');
+    const {
+      identifiedField,
+      harmedField,
+      defineField,
+      ratingField,
+      controlField,
+      residualField,
+      signedField,
+    } = mapRiskRowFields(row, resolvedRiskTable);
 
-    if (identifiedField) await setValue(identifiedField.name, risk.riskDefinition);
-    if (defineField) await setValue(defineField.name, risk.howItsARisk);
-    if (controlField) await setValue(controlField.name, risk.controlMeasures);
-    if (ratingField) await setValue(ratingField.name, risk.initialRating);
-    if (residualField) await setValue(residualField.name, risk.ratingAfterControls);
+    if (identifiedField) await setFieldValue(identifiedField, risk.riskDefinition, "identified risk");
+    if (defineField) await setFieldValue(defineField, risk.howItsARisk, "risk detail");
+    if (controlField) await setFieldValue(controlField, risk.controlMeasures, "control measures");
+    if (ratingField) await setSelectFieldByLabel(ratingField, risk.initialRating);
+    if (residualField) await setSelectFieldByLabel(residualField, risk.ratingAfterControls);
     if (signedField) {
-      await setValue(signedField.name, buildSignedLabel(assessment));
+      await setFieldValue(signedField, buildSignedLabel(assessment), "signed by");
     }
     if (harmedField) {
       const harmedValues = parseWhoHarmed(risk.whoWillBeHarmed);
-      await setMultiSelect(harmedField.name, harmedValues);
+      await setFieldMultiSelect(harmedField, harmedValues, "who will be harmed");
     }
   }
+
+  return true;
 };
 
 const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
@@ -1081,7 +1381,7 @@ const saveStorage = (items) => STORAGE_HELPERS.set(items);
 const notifyStepComplete = () =>
   chrome.runtime.sendMessage({ type: MESSAGE_TYPES?.stepComplete || "CA_EXTENSION_STEP_COMPLETE" });
 
-const isRiskFormPage = () => Boolean(document.querySelector("#Table_9_9_Table"));
+const isRiskFormPage = () => Boolean(findRiskTable());
 
 const uploadSignature = async () => {
   const signatureField = await waitForSignatureField();
@@ -1202,10 +1502,10 @@ const run = async () => {
   if (!Array.isArray(caAcpPayload.assessments)) return;
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
 
-  const processedKey = `caAutofillProcessed_${caAcpQueueState.currentIndex}`;
+  const processedKey = buildProcessedKey(caAcpQueueState);
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
-  const formReady = await waitForSelector("#Table_9_9_Table");
+  const formReady = await waitForRiskTable();
   if (!formReady || !isRiskFormPage()) {
     logAction("Risk form table not found. Autofill skipped.");
     return;
@@ -1229,7 +1529,11 @@ const run = async () => {
     return;
   }
 
-  await fillRiskAssessment(assessment, serviceUserLabel);
+  const didFillAssessment = await fillRiskAssessment(assessment, serviceUserLabel);
+  if (!didFillAssessment) {
+    logAction("Risk assessment fields could not be mapped on this page. Autofill stopped.");
+    return;
+  }
 
   await uploadSignature();
   await wait(1000);
