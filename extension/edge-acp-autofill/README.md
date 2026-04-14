@@ -59,6 +59,8 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - EMAR autofill uses the EMAR Quality Assurance formId and fills core audit fields when available.
 - Custom autofill uses `fields` with `selector`, `name`, or `label` plus a `value`, and can target any formId.
 - If the ACP form URL or selectors change, update content-acp.js.
+- In-page ACP/EMAR/Initial Assessment overlays are draggable and resizable from the header/resize handle.
+- The browser toolbar popup itself cannot be resized in-place; drag from the popup header to open a detached popup window, then move/resize that detached window normally.
 
 ## Edge Add-ons Publishing (Unlisted Release Process)
 

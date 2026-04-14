@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.9
+ * CareAssurance Extension v0.6.10
  */
 
 import {
@@ -71,7 +71,7 @@ import {
 const POPUP_REFRESH_DEBOUNCE_MS = 180;
 const POPUP_PERIODIC_REFRESH_MS = 12000;
 const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
-const POPUP_DRAGGABLE_WINDOW_TYPES = new Set(["popup", "normal"]);
+const POPUP_DRAGGABLE_WINDOW_TYPES = new Set(["popup"]);
 
 let popupRefreshTimer = null;
 let popupRefreshInFlight = false;
@@ -143,6 +143,7 @@ let popupWindowDragWindowId = null;
 let popupWindowMoveQueued = null;
 let popupWindowMoveInFlight = false;
 let popupWindowDragHandles = [];
+let popupWindowDetachInFlight = false;
 
 const createEmptyUploadBuckets = () => ({
   socialWork: [],
@@ -270,6 +271,54 @@ const updateWindowPosition = (windowId, left, top) =>
     );
   });
 
+const openDetachedPopupWindow = (currentWindow) =>
+  new Promise((resolve) => {
+    if (!chrome.windows?.create) {
+      resolve(false);
+      return;
+    }
+
+    const createData = {
+      url: chrome.runtime.getURL("popup.html"),
+      type: "popup",
+      focused: true,
+      width: Math.max(430, Math.round(window.outerWidth || 430)),
+      height: Math.max(680, Math.round(window.outerHeight || 680)),
+    };
+
+    if (Number.isFinite(currentWindow?.left) && Number.isFinite(currentWindow?.top)) {
+      createData.left = Math.round(currentWindow.left + 24);
+      createData.top = Math.round(currentWindow.top + 24);
+    }
+
+    chrome.windows.create(createData, (createdWindow) => {
+      if (chrome.runtime.lastError || !createdWindow?.id) {
+        resolve(false);
+        return;
+      }
+
+      resolve(true);
+    });
+  });
+
+const launchDetachedPopupWindow = async () => {
+  if (popupWindowDetachInFlight) return;
+
+  popupWindowDetachInFlight = true;
+  try {
+    const currentWindow = await getCurrentWindow();
+    const opened = await openDetachedPopupWindow(currentWindow);
+    if (opened) {
+      window.close();
+      return;
+    }
+
+    showInfo("Open the extension in a detached popup window to drag and resize it.");
+  } finally {
+    popupWindowDetachInFlight = false;
+  }
+};
+
 const queuePopupWindowMove = (left, top) => {
   popupWindowMoveQueued = { left, top };
   if (popupWindowMoveInFlight || popupWindowDragWindowId == null) return;
@@ -347,6 +396,14 @@ const beginPopupWindowDrag = (event) => {
   window.addEventListener("pointercancel", stopPopupWindowDrag);
 };
 
+const beginDetachedPopupWindowDrag = (event) => {
+  if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  if (isWindowDragBlockedTarget(event.target)) return;
+
+  event.preventDefault();
+  void launchDetachedPopupWindow();
+};
+
 const initMainMenuDragging = async () => {
   if (!chrome.windows?.getCurrent || !chrome.windows?.update) return;
 
@@ -354,14 +411,22 @@ const initMainMenuDragging = async () => {
   if (!manifestPermissions.includes("windows")) return;
 
   const currentWindow = await getCurrentWindow();
-  if (!currentWindow?.id || !POPUP_DRAGGABLE_WINDOW_TYPES.has(currentWindow.type || "")) return;
+  if (!currentWindow?.id) return;
 
-  popupWindowDragWindowId = currentWindow.id;
   popupWindowDragHandles = [
     document.querySelector(".popup-header"),
     document.querySelector(".tab-navigation"),
   ].filter(Boolean);
 
+  if (!POPUP_DRAGGABLE_WINDOW_TYPES.has(currentWindow.type || "")) {
+    popupWindowDragHandles.forEach((handle) => {
+      handle.classList.add("is-window-drag-handle");
+      handle.addEventListener("pointerdown", beginDetachedPopupWindowDrag);
+    });
+    return;
+  }
+
+  popupWindowDragWindowId = currentWindow.id;
   popupWindowDragHandles.forEach((handle) => {
     handle.classList.add("is-window-drag-handle");
     handle.addEventListener("pointerdown", beginPopupWindowDrag);
@@ -1875,7 +1940,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.9</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.10</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }

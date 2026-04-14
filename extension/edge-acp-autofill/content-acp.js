@@ -326,6 +326,8 @@ const injectOverlayStyles = () => {
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(203, 213, 225, 0.9));
       cursor: nwse-resize;
       pointer-events: auto;
+      touch-action: none;
+      user-select: none;
       box-shadow: 0 6px 12px rgba(15, 23, 42, 0.15);
     }
 
@@ -709,10 +711,49 @@ const initOverlay = () => {
 
   let dragState = null;
   let resizeState = null;
+  let activePointerId = null;
+  let activePointerCaptureElement = null;
+
+  const capturePointer = (element, event) => {
+    if (!(element instanceof Element)) return;
+    if (!Number.isFinite(event.pointerId)) return;
+    if (typeof element.setPointerCapture !== "function") return;
+
+    try {
+      element.setPointerCapture(event.pointerId);
+      activePointerId = event.pointerId;
+      activePointerCaptureElement = element;
+    } catch {
+      activePointerId = null;
+      activePointerCaptureElement = null;
+    }
+  };
+
+  const releaseCapturedPointer = () => {
+    if (
+      activePointerCaptureElement &&
+      Number.isFinite(activePointerId) &&
+      typeof activePointerCaptureElement.releasePointerCapture === "function"
+    ) {
+      try {
+        if (typeof activePointerCaptureElement.hasPointerCapture !== "function" || activePointerCaptureElement.hasPointerCapture(activePointerId)) {
+          activePointerCaptureElement.releasePointerCapture(activePointerId);
+        }
+      } catch {
+        // Ignore release errors from stale pointer captures.
+      }
+    }
+
+    activePointerId = null;
+    activePointerCaptureElement = null;
+  };
+
+  const isTrackedPointerEvent = (event) => !Number.isFinite(activePointerId) || !Number.isFinite(event.pointerId) || event.pointerId === activePointerId;
 
   const stopPointerInteraction = () => {
     dragState = null;
     resizeState = null;
+    releaseCapturedPointer();
     header.classList.remove("is-dragging");
     resizeHandle.classList.remove("is-resizing");
     document.body.style.userSelect = "";
@@ -729,7 +770,7 @@ const initOverlay = () => {
   };
 
   function handleDragMove(event) {
-    if (!dragState) return;
+    if (!dragState || !isTrackedPointerEvent(event)) return;
     event.preventDefault();
     const nextLeft = dragState.originLeft + (event.clientX - dragState.startX);
     const nextTop = dragState.originTop + (event.clientY - dragState.startY);
@@ -737,7 +778,7 @@ const initOverlay = () => {
   }
 
   function handleResizeMove(event) {
-    if (!resizeState || overlayCollapsed) return;
+    if (!resizeState || overlayCollapsed || !isTrackedPointerEvent(event)) return;
     event.preventDefault();
     const nextWidth = resizeState.originWidth + (event.clientX - resizeState.startX);
     const nextHeight = resizeState.originHeight + (event.clientY - resizeState.startY);
@@ -762,6 +803,7 @@ const initOverlay = () => {
 
     document.body.style.userSelect = "none";
     header.classList.add("is-dragging");
+  capturePointer(header, event);
     event.preventDefault();
     window.addEventListener("pointermove", handleDragMove);
     window.addEventListener("pointerup", stopPointerInteraction);
@@ -782,6 +824,7 @@ const initOverlay = () => {
 
     document.body.style.userSelect = "none";
     resizeHandle.classList.add("is-resizing");
+  capturePointer(resizeHandle, event);
     event.preventDefault();
     event.stopPropagation();
     window.addEventListener("pointermove", handleResizeMove);

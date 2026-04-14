@@ -1,5 +1,21 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.10 - Drag/Resize Runtime Fixes
+
+### In-Page Overlay Reliability
+
+- Hardened ACP, EMAR, and Initial Assessment panel drag/resize interactions with explicit pointer-capture tracking so drag/resize continues to work even when pointer events are noisy or move across nested frame boundaries.
+- Added `touch-action: none` + user-select guards on resize handles to prevent gesture conflicts that could leave the resize icon visible but non-responsive.
+
+### Popup Dragging Behavior
+
+- Native popup-window dragging is now only enabled when the extension is already running in a detached popup window.
+- Dragging from the toolbar popup now launches a detached popup window automatically, which can then be moved and resized normally at the OS/window-manager level.
+
+### Versioning
+
+- Bumped extension version to `0.6.10` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.9 - Draggable Main Menu
 
 ### Popup Main Menu Dragging

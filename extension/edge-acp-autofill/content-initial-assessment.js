@@ -1662,6 +1662,8 @@ const showVerificationSummary = (fields) => {
         border: 1px solid hsl(214, 25%, 76%);
         background: linear-gradient(135deg, hsl(210, 20%, 98%), hsl(214, 24%, 87%));
         cursor: nwse-resize;
+        touch-action: none;
+        user-select: none;
         box-shadow: 0 6px 12px rgba(15, 23, 42, 0.15);
       }
       .ca-summary-resize-handle.is-resizing {
@@ -1801,6 +1803,51 @@ const showVerificationSummary = (fields) => {
 
   let dragState = null;
   let resizeState = null;
+  let activePointerId = null;
+  let activePointerCaptureElement = null;
+
+  const capturePointer = (element, event) => {
+    if (!(element instanceof Element)) return;
+    if (!Number.isFinite(event.pointerId)) return;
+    if (typeof element.setPointerCapture !== 'function') return;
+
+    try {
+      element.setPointerCapture(event.pointerId);
+      activePointerId = event.pointerId;
+      activePointerCaptureElement = element;
+    } catch {
+      activePointerId = null;
+      activePointerCaptureElement = null;
+    }
+  };
+
+  const releaseCapturedPointer = () => {
+    if (
+      activePointerCaptureElement &&
+      Number.isFinite(activePointerId) &&
+      typeof activePointerCaptureElement.releasePointerCapture === 'function'
+    ) {
+      try {
+        if (
+          typeof activePointerCaptureElement.hasPointerCapture !== 'function' ||
+          activePointerCaptureElement.hasPointerCapture(activePointerId)
+        ) {
+          activePointerCaptureElement.releasePointerCapture(activePointerId);
+        }
+      } catch {
+        // Ignore release errors from stale pointer captures.
+      }
+    }
+
+    activePointerId = null;
+    activePointerCaptureElement = null;
+  };
+
+  const isTrackedPointerEvent = (event) => (
+    !Number.isFinite(activePointerId) ||
+    !Number.isFinite(event.pointerId) ||
+    event.pointerId === activePointerId
+  );
 
   const isPrimaryPointer = (event) => {
     if (!event.isPrimary) return false;
@@ -1811,6 +1858,7 @@ const showVerificationSummary = (fields) => {
   const stopPointerInteraction = () => {
     dragState = null;
     resizeState = null;
+    releaseCapturedPointer();
     if (headerEl) {
       headerEl.classList.remove('is-dragging');
     }
@@ -1823,7 +1871,7 @@ const showVerificationSummary = (fields) => {
   };
 
   const handleDragMove = (event) => {
-    if (!dragState) return;
+    if (!dragState || !isTrackedPointerEvent(event)) return;
     event.preventDefault();
     const nextLeft = dragState.originLeft + (event.clientX - dragState.startX);
     const nextTop = dragState.originTop + (event.clientY - dragState.startY);
@@ -1831,7 +1879,7 @@ const showVerificationSummary = (fields) => {
   };
 
   const handleResizeMove = (event) => {
-    if (!resizeState || summary.dataset.caSummaryMinimized === 'true') return;
+    if (!resizeState || summary.dataset.caSummaryMinimized === 'true' || !isTrackedPointerEvent(event)) return;
     event.preventDefault();
     const nextWidth = resizeState.originWidth + (event.clientX - resizeState.startX);
     const nextHeight = resizeState.originHeight + (event.clientY - resizeState.startY);
@@ -1857,6 +1905,7 @@ const showVerificationSummary = (fields) => {
 
       document.body.style.userSelect = 'none';
       headerEl.classList.add('is-dragging');
+  capturePointer(headerEl, event);
       event.preventDefault();
       window.addEventListener('pointermove', handleDragMove);
       window.addEventListener('pointerup', stopPointerInteraction);
@@ -1878,6 +1927,7 @@ const showVerificationSummary = (fields) => {
 
     document.body.style.userSelect = 'none';
     summaryResizeHandle.classList.add('is-resizing');
+  capturePointer(summaryResizeHandle, event);
     event.preventDefault();
     event.stopPropagation();
     window.addEventListener('pointermove', handleResizeMove);
