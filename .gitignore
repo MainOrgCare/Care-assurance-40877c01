@@ -6,6 +6,10 @@ tmp/
 dist/
 *.tsbuildinfo
 
+# Extension packaging artefacts (generated, must not be committed)
+extension/*.crx
+extension/*.pem
+
 # Environment & secrets
 .env
 .env.local
