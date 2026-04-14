@@ -1,5 +1,33 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.0 - Command Center Foundations
+
+### Runtime Stability Gate
+
+- Rebuilt the custom-form adapter in `content-generic.js` to remove malformed helper placement and restore a deterministic field-resolution pipeline.
+- Removed duplicate processed-key declarations in `content-emar.js` and `content-initial-assessment.js` so batch-aware dedup guards execute safely on every run.
+- Standardized custom-form dedup behavior with batch-aware processed keys (`batchId + currentIndex`) to prevent stale session guards from skipping new queue runs.
+
+### Popup Command Center (Phase 1)
+
+- Added a new `Operations Command Center` panel to the Autofill workspace with:
+  - Live health posture (`Idle`, `Ready`, `Running`, `Incident`)
+  - Reliability score based on runtime proxy metrics
+  - Queue progress snapshot and active mode indicator
+  - Timeline feed for runtime activity, queue progression, and incidents
+  - Actionable recommendations based on payload, verification, reliability, and error state
+- Added `Sync`, `Copy Ops Snapshot`, and `Clear Incident` controls for faster operational handling during live autofill sessions.
+- Wired command-center state updates to queue, payload, metrics, and incident changes so operators see status shifts immediately.
+
+### Diagnostics Improvements
+
+- `refreshPayloadStatus` now includes queue and incident keys in its storage load path, ensuring popup state and companion context stay aligned.
+- Storage listeners now trigger payload/command-center refresh on queue and incident updates, improving telemetry coherence.
+
+### Versioning
+
+- Bumped extension version to `0.6.0` and synchronized popup module headers and inline version references.
+
 ## Version 0.5.9 - Invalidated Context Guard
 
 ### Runtime Resilience

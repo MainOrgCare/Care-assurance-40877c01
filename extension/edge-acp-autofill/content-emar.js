@@ -653,7 +653,6 @@ const run = async () => {
   if (!caAcpPayload || caAcpPayload.formType !== "emar") return;
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
 
-  const processedKey = `caEmarAutofillProcessed_${caAcpQueueState.currentIndex}`;
   const batchId = caAcpQueueState?.batchId || "legacy";
   const processedKey = `caEmarAutofillProcessed_${batchId}_${caAcpQueueState.currentIndex}`;
   if (sessionStorage.getItem(processedKey)) return;

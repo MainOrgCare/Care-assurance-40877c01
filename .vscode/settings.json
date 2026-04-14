@@ -84,4 +84,7 @@
   "github.copilot.chat.codesearch.enabled": true,
   "github.copilot.chat.agent.autoFix": true,
   "livePreview.portNumber": 5173,
+  "animations.CursorAnimation": true,
+  "animations.Focus-Dimming-Mode": "Everything But Editor",
+  "animations.UseCursorColorForCursorAnimation": true,
 }

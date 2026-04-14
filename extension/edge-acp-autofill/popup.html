@@ -310,6 +310,58 @@
         <!-- ========== TAB 3: AUTOFILL ========== -->
         <div id="tab-content-autofill" class="tab-content" role="tabpanel" aria-labelledby="tab-autofill">
 
+          <section class="card ops-command-center-card">
+            <div class="card-header">
+              <div>
+                <span class="section-kicker">Operations</span>
+                <h2 class="card-title">Command Center</h2>
+                <p class="card-description">Live extension health, queue posture, and incident controls for fast operator decisions.</p>
+              </div>
+              <button id="ops-refresh" class="btn btn-secondary btn-sm">Sync</button>
+            </div>
+            <div class="card-content ops-command-center-shell">
+              <div id="ops-health" class="ops-health is-idle">
+                <span class="ops-health-eyebrow">System health</span>
+                <strong class="ops-health-title">Idle</strong>
+                <span class="ops-health-detail">Load a payload or start a queue to activate command telemetry.</span>
+              </div>
+
+              <div class="ops-metric-grid">
+                <div class="ops-metric">
+                  <span class="ops-metric-label">Reliability</span>
+                  <strong id="ops-reliability" class="ops-metric-value">-</strong>
+                </div>
+                <div class="ops-metric">
+                  <span class="ops-metric-label">Queue</span>
+                  <strong id="ops-queue" class="ops-metric-value">-</strong>
+                </div>
+                <div class="ops-metric">
+                  <span class="ops-metric-label">Mode</span>
+                  <strong id="ops-mode" class="ops-metric-value">-</strong>
+                </div>
+              </div>
+
+              <div>
+                <div class="ops-subtitle">Timeline</div>
+                <div id="ops-timeline" class="ops-timeline">
+                  <div class="ops-timeline-item muted">Waiting for runtime activity</div>
+                </div>
+              </div>
+
+              <div>
+                <div class="ops-subtitle">Recommendations</div>
+                <div id="ops-recommendations" class="ops-recommendations">
+                  <div class="ops-recommendation">Load payload data to begin an autofill session.</div>
+                </div>
+              </div>
+
+              <div class="runtime-actions">
+                <button id="ops-copy-snapshot" class="btn btn-secondary btn-sm">Copy Ops Snapshot</button>
+                <button id="ops-clear-incident" class="btn btn-ghost btn-sm">Clear Incident</button>
+              </div>
+            </div>
+          </section>
+
           <section class="card">
             <div class="card-header">
               <h2 class="card-title">Payload Status</h2>

@@ -10,6 +10,7 @@ const FALLBACK_STORAGE_KEYS = {
   dryRun: "caAcpDryRun",
   interactionMode: "caAcpInteractionMode",
 };
+
 const FALLBACK_MESSAGE_TYPES = {
   log: "CA_EXTENSION_LOG",
 };
@@ -29,8 +30,10 @@ const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CON
 
 const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
 const saveStorage = (items) => STORAGE_HELPERS.set(items);
-
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let DRY_RUN = false;
+let INTERACTION_MODE = "auto";
 
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
@@ -40,68 +43,32 @@ const logAction = (message) => {
   });
 };
 
-let DRY_RUN = false;
-let INTERACTION_MODE = "auto";
-
 const highlightField = (field) => {
   if (!field) return;
   field.style.outline = "2px solid #1ea97a";
   field.style.outlineOffset = "2px";
 };
 
-const findField = ({ selector, name, label, type } = {}) => {
-  if (selector) {
-    const el = document.querySelector(selector);
-    if (el) return el;
+const setNativeFieldValue = (field, value) => {
+  if (!field) return;
+  const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
+  if (descriptor?.set) {
+    descriptor.set.call(field, value);
+    return;
   }
-  if (name) {
-    const el = document.querySelector(`[name="${name}"]`);
-  const setNativeFieldValue = (field, value) => {
-    if (!field) return;
-    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
-    if (descriptor?.set) {
-      descriptor.set.call(field, value);
-      return;
-    }
-    field.value = value;
-  };
-  const dispatchInputEvent = (field, data = null) => {
-    if (typeof InputEvent === "function") {
-      field.dispatchEvent(new InputEvent("input", {
-        bubbles: true,
-        data,
-        inputType: data == null ? "insertReplacementText" : "insertText",
-      }));
-      return;
-    }
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-  };
-  const buildProcessedKey = (queueState) => {
-    const batchId = queueState?.batchId || "legacy";
-    const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : "single";
-    return `caCustomAutofillProcessed_${batchId}_${currentIndex}`;
-  };
-    if (el) return el;
+  field.value = value;
+};
+
+const dispatchInputEvent = (field, data = null) => {
+  if (typeof InputEvent === "function") {
+    field.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data,
+      inputType: data == null ? "insertReplacementText" : "insertText",
+    }));
+    return;
   }
-    dispatchInputEvent(field, null);
-    const labels = Array.from(document.querySelectorAll("label"));
-    const match = labels.find(
-      (node) => (node.textContent || "").trim().toLowerCase() === label.trim().toLowerCase()
-    );
-    if (match) {
-      const forId = match.getAttribute("for");
-    setNativeFieldValue(field, "");
-    dispatchInputEvent(field, null);
-        if (byFor) return byFor;
-      setNativeFieldValue(field, `${field.value}${char}`);
-      dispatchInputEvent(field, char);
-      if (nested) return nested;
-    }
-  }
-  if (type === "radio" && name) {
-    return document.querySelector(`input[type="radio"][name="${name}"]`);
-  }
-  return null;
+  field.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 const dispatchEvents = (field) => {
@@ -112,14 +79,65 @@ const dispatchEvents = (field) => {
 
 const typeLikeHuman = async (field, value) => {
   field.focus();
-  field.value = "";
-  field.dispatchEvent(new Event("input", { bubbles: true }));
+  setNativeFieldValue(field, "");
+  dispatchInputEvent(field, null);
   for (const char of String(value)) {
-    field.value += char;
-    field.dispatchEvent(new Event("input", { bubbles: true }));
+    setNativeFieldValue(field, `${field.value}${char}`);
+    dispatchInputEvent(field, char);
     await wait(25 + Math.random() * 30);
   }
   dispatchEvents(field);
+};
+
+const buildProcessedKey = (queueState) => {
+  const batchId = queueState?.batchId || "legacy";
+  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : "single";
+  return `caCustomAutofillProcessed_${batchId}_${currentIndex}`;
+};
+
+const findField = ({ selector, name, label, type } = {}) => {
+  if (selector) {
+    const el = document.querySelector(selector);
+    if (el) return el;
+  }
+
+  if (name) {
+    const byName = document.querySelector(`[name="${name}"]`);
+    if (byName) return byName;
+  }
+
+  if (label) {
+    const loweredLabel = String(label).trim().toLowerCase();
+    const labels = Array.from(document.querySelectorAll("label"));
+    const match = labels.find((node) => {
+      const text = (node.textContent || "").trim().toLowerCase();
+      return text === loweredLabel || text.includes(loweredLabel);
+    });
+
+    if (match) {
+      const forId = match.getAttribute("for");
+      if (forId) {
+        const safeId = window.CSS?.escape ? window.CSS.escape(forId) : forId;
+        const byFor = document.querySelector(`#${safeId}`);
+        if (byFor) return byFor;
+      }
+
+      const nested = match.querySelector("input, textarea, select");
+      if (nested) return nested;
+
+      const container = match.parentElement;
+      if (container) {
+        const siblingInput = container.querySelector("input, textarea, select");
+        if (siblingInput) return siblingInput;
+      }
+    }
+  }
+
+  if (type === "radio" && name) {
+    return document.querySelector(`input[type="radio"][name="${name}"]`);
+  }
+
+  return null;
 };
 
 const setTextValue = async (field, value) => {
@@ -155,12 +173,14 @@ const setSelectValue = async (field, value) => {
     logAction("Manual assist: please select value.");
     return true;
   }
+
   const target = String(value).trim().toLowerCase();
   const option = Array.from(field.options).find((opt) => {
     const optValue = String(opt.value || "").trim().toLowerCase();
     const optLabel = String(opt.textContent || "").trim().toLowerCase();
     return optValue === target || optLabel === target;
   });
+
   if (!option) return false;
   field.value = option.value;
   dispatchEvents(field);
@@ -180,6 +200,7 @@ const setMultiSelectValue = async (field, values) => {
     logAction("Manual assist: please select multiple values.");
     return true;
   }
+
   const normalized = values.map((val) => String(val).trim().toLowerCase());
   Array.from(field.options).forEach((opt) => {
     const optValue = String(opt.value || "").trim().toLowerCase();
@@ -208,7 +229,8 @@ const setCheckboxValue = async (field, value) => {
   return true;
 };
 
-const setRadioValue = async (field, value, name) => {
+const setRadioValue = async (value, name) => {
+  if (!name) return false;
   const targetValue = String(value).trim().toLowerCase();
   const radios = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
   const match = radios.find((radio) => String(radio.value).trim().toLowerCase() === targetValue);
@@ -261,6 +283,7 @@ const fillField = async (fieldSpec) => {
     logAction(`Field not found: ${selector || name || label || "unknown"}`);
     return false;
   }
+
   const fieldType = type || fieldSpec.fieldType || field.type || field.tagName?.toLowerCase();
   if (fieldType === "select-multiple" || fieldSpec.multi === true) {
     return setMultiSelectValue(field, Array.isArray(value) ? value : [value]);
@@ -272,7 +295,7 @@ const fillField = async (fieldSpec) => {
     return setCheckboxValue(field, value);
   }
   if (fieldType === "radio") {
-    return setRadioValue(field, value, name || field.name);
+    return setRadioValue(value, name || field.name);
   }
   return setTextValue(field, value);
 };
@@ -287,12 +310,13 @@ const run = async () => {
   ]);
 
   if (!caAcpPayload) return;
-  if (caAcpPayload.formType === "acp" || caAcpPayload.formType === "emar") return;
+  if (caAcpPayload.formType === "acp" || caAcpPayload.formType === "emar" || caAcpPayload.formType === "initialAssessment") return;
   if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
   if (!Array.isArray(caAcpPayload.fields)) {
     logAction("Custom payload missing fields array.");
     return;
   }
+
   if (caAcpPayload.formId) {
     const params = new URLSearchParams(window.location.search);
     const currentFormId = params.get("formId");
@@ -301,7 +325,6 @@ const run = async () => {
     }
   }
 
-  const processedKey = `caCustomAutofillProcessed_${caAcpQueueState.currentIndex}`;
   const processedKey = buildProcessedKey(caAcpQueueState);
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
@@ -326,12 +349,14 @@ const run = async () => {
     }
   }
 
-  saveStorage({
+  await saveStorage({
     [STORAGE_KEYS.queueState]: null,
     [STORAGE_KEYS.payload]: null,
     [STORAGE_KEYS.caseInfo]: null,
   });
 };
 
-run();
+run().catch((error) => {
+  logAction(`Custom form autofill failed: ${error?.message || "Unknown error"}`);
+});
 })();

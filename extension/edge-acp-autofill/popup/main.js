@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.5.9
+ * CareAssurance Extension v0.6.0
  */
 
 import {
@@ -50,6 +50,7 @@ import {
   selectAutofillUser,
   renderPayloadInspector,
   renderPayloadReview,
+  renderCommandCenter,
   renderRuntimeDiagnostics,
   renderLogs,
   updateLiveProgress,
@@ -265,11 +266,14 @@ async function refreshPayloadStatus() {
     STORAGE_KEYS.payload, DATA_TIMESTAMP_KEY, STORAGE_KEYS.caseInfo, STORAGE_KEYS.autoSubmit,
     STORAGE_KEYS.dryRun, STORAGE_KEYS.interactionMode, STORAGE_KEYS.logs,
     STORAGE_KEYS.verificationFields, STORAGE_KEYS.runtimeMetrics,
+    STORAGE_KEYS.queueState, STORAGE_KEYS.lastError,
   ]);
 
   const payload = data[STORAGE_KEYS.payload];
   const payloadStoredAt = data[DATA_TIMESTAMP_KEY];
   const verificationFields = data[STORAGE_KEYS.verificationFields] || [];
+  const queueState = data[STORAGE_KEYS.queueState] || null;
+  const lastError = data[STORAGE_KEYS.lastError] || null;
 
   if (dom.payloadStatus) {
     let statusHTML = "";
@@ -333,12 +337,21 @@ async function refreshPayloadStatus() {
     renderLogs(data[STORAGE_KEYS.logs]);
   }
 
+  renderCommandCenter({
+    payload,
+    queueState,
+    verificationFields,
+    metrics: data[STORAGE_KEYS.runtimeMetrics],
+    lastError,
+    interactionMode: data[STORAGE_KEYS.interactionMode],
+    dryRun: data[STORAGE_KEYS.dryRun],
+  });
   renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);
   await refreshPageCompanion({
     payload,
     verificationFields,
-    queueState: data[STORAGE_KEYS.queueState],
-    lastError: data[STORAGE_KEYS.lastError],
+    queueState,
+    lastError,
   });
 }
 
@@ -845,6 +858,53 @@ function bindEvents() {
     );
   });
 
+  dom.opsRefresh?.addEventListener("click", async () => {
+    await refreshPayloadStatus();
+    showSuccess("Command center synced");
+  });
+
+  dom.opsCopySnapshot?.addEventListener("click", async () => {
+    try {
+      const data = await loadStorage([
+        STORAGE_KEYS.runtimeMetrics,
+        STORAGE_KEYS.lastError,
+        STORAGE_KEYS.caseInfo,
+        STORAGE_KEYS.queueState,
+        STORAGE_KEYS.payload,
+        STORAGE_KEYS.verificationFields,
+        STORAGE_KEYS.interactionMode,
+        STORAGE_KEYS.dryRun,
+        DATA_TIMESTAMP_KEY,
+      ]);
+
+      const snapshot = {
+        capturedAt: new Date().toISOString(),
+        requestId: createRequestId(),
+        targetOrigin: getCareAssuranceUrl(),
+        payloadType: data?.[STORAGE_KEYS.payload]?.formType || null,
+        payloadStoredAt: data?.[DATA_TIMESTAMP_KEY] || null,
+        queueState: data?.[STORAGE_KEYS.queueState] || null,
+        caseInfo: data?.[STORAGE_KEYS.caseInfo] || null,
+        verificationCount: Array.isArray(data?.[STORAGE_KEYS.verificationFields]) ? data[STORAGE_KEYS.verificationFields].length : 0,
+        interactionMode: data?.[STORAGE_KEYS.interactionMode] || "auto",
+        dryRun: Boolean(data?.[STORAGE_KEYS.dryRun]),
+        lastError: data?.[STORAGE_KEYS.lastError] || null,
+        runtimeMetrics: data?.[STORAGE_KEYS.runtimeMetrics] || null,
+      };
+
+      await writeToClipboard(JSON.stringify(snapshot, null, 2));
+      showSuccess("Ops snapshot copied");
+    } catch {
+      showError("Could not copy ops snapshot. Try again.");
+    }
+  });
+
+  dom.opsClearIncident?.addEventListener("click", async () => {
+    await setStorage({ [STORAGE_KEYS.lastError]: null });
+    await refreshPayloadStatus();
+    showInfo("Incident state cleared");
+  });
+
   // Payload & diagnostics actions
   dom.copyPayload?.addEventListener("click", async () => {
     if (!state.latestPayloadSnapshot?.payload) { showError("No payload available to copy."); return; }
@@ -879,6 +939,7 @@ function bindEvents() {
     await setStorage({ [STORAGE_KEYS.logs]: [], [STORAGE_KEYS.runtimeMetrics]: null });
     if (dom.logList) dom.logList.textContent = "";
     if (dom.logStatus) dom.logStatus.textContent = "No actions.";
+    renderCommandCenter({});
     renderRuntimeDiagnostics(null);
   });
 
@@ -1034,7 +1095,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.9</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.0</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1067,6 +1128,7 @@ function bindStorageListener() {
           } else if (typeof newState.currentIndex === "number" && typeof newState.total === "number") {
             if (dom.progressStatus) dom.progressStatus.textContent = `Filling ${newState.currentIndex + 1} of ${newState.total}...`;
           }
+          refreshPayloadStatus();
         } catch (e) { console.warn("[CA Extension] queueState handler error:", e); }
       }
 
@@ -1084,7 +1146,11 @@ function bindStorageListener() {
       }
 
       if (changes[STORAGE_KEYS.lastError]) {
-        try { const err = changes[STORAGE_KEYS.lastError].newValue; if (err) showError(typeof err === "string" ? err : err.message || "Unknown error"); }
+        try {
+          const err = changes[STORAGE_KEYS.lastError].newValue;
+          if (err) showError(typeof err === "string" ? err : err.message || "Unknown error");
+          refreshPayloadStatus();
+        }
         catch (e) { console.warn("[CA Extension] error handler error:", e); }
       }
     } catch (outerErr) {

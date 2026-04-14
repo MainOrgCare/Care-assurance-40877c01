@@ -1856,7 +1856,6 @@ const run = async () => {
   // DEBUG: Show payload loaded from storage
   if (CA_DEBUG) console.log("[CA Extension DEBUG] Payload loaded from storage:", JSON.stringify(caAcpPayload, null, 2));
   
-  const processedKey = "caIAAutofillProcessed";
   const processedKey = buildProcessedKey(caAcpQueueState, caAcpPayload);
   if (sessionStorage.getItem(processedKey)) return;
   sessionStorage.setItem(processedKey, "1");
