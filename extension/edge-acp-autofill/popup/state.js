@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.6.2
+ * CareAssurance Extension v0.6.4
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -24,6 +24,7 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   uploadedDocuments: "caAcpUploadedDocuments",
   verificationFields: "caAcpVerificationFields",
   runtimeMetrics: "caAcpRuntimeMetrics",
+  overlayPinned: "caAcpOverlayPinned",
   serverUrl: "caAcpServerUrl",
   lastTab: "caAcpLastTab",
   lastAutofillUser: "caAcpLastAutofillUser",
@@ -195,6 +196,13 @@ export const state = {
   acpServiceUsers: [],
   selectedUser: null,
   selectedAutofillUser: null,
+  uploadBuckets: {
+    socialWork: [],
+    initialAssessment: [],
+    carePlan: [],
+    movingHandling: [],
+    additionalDocuments: [],
+  },
   selectedFilesList: [],
   currentAnalysisResults: null,
   latestPayloadSnapshot: null,
@@ -349,6 +357,291 @@ export function getPayloadWorkflowLabel(payload) {
   if (!payload) return "No payload";
   const desc = FORM_WORKFLOW_DESCRIPTORS.find(d => d.key === payload.formType);
   return desc ? desc.label : payload.formType || "Unknown";
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getPayloadAgeSeconds(payloadStoredAt) {
+  if (!payloadStoredAt) return null;
+  const parsed = new Date(payloadStoredAt);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+}
+
+export function getInteractionModeDisplay(mode, dryRun) {
+  if (dryRun) return "Dry run";
+  if (mode === "manual") return "Manual";
+  if (mode === "slow") return "Guided";
+  return "Auto";
+}
+
+export function buildCommandCenterState(snapshot = {}) {
+  const metrics = snapshot.metrics && typeof snapshot.metrics === "object" ? snapshot.metrics : {};
+  const queueState = snapshot.queueState && typeof snapshot.queueState === "object" ? snapshot.queueState : null;
+  const payload = snapshot.payload && typeof snapshot.payload === "object" ? snapshot.payload : null;
+  const verificationFields = Array.isArray(snapshot.verificationFields) ? snapshot.verificationFields : [];
+  const lastError = snapshot.lastError ? String(snapshot.lastError) : "";
+  const interactionMode = snapshot.interactionMode || "auto";
+  const dryRun = Boolean(snapshot.dryRun);
+  const payloadStoredAt = snapshot.payloadStoredAt || null;
+
+  const proxyRequests = toFiniteNumber(metrics.proxyRequests);
+  const proxySuccesses = toFiniteNumber(metrics.proxySuccesses);
+  const proxyRetries = toFiniteNumber(metrics.proxyRetries);
+  const reliability = proxyRequests > 0
+    ? clamp(Math.round((proxySuccesses / proxyRequests) * 100), 0, 100)
+    : (lastError ? 0 : 100);
+
+  const hasQueue = queueState && typeof queueState.total === "number";
+  const queueCurrent = hasQueue ? toFiniteNumber(queueState.currentIndex) + 1 : 0;
+  const queueTotal = hasQueue ? Math.max(0, toFiniteNumber(queueState.total)) : 0;
+
+  let healthClass = "is-idle";
+  let healthTitle = "Idle";
+  let healthDetail = "Load a payload or start a queue to activate command telemetry.";
+  if (lastError) {
+    healthClass = "is-critical";
+    healthTitle = "Incident";
+    healthDetail = lastError;
+  } else if (hasQueue) {
+    healthClass = "is-live";
+    healthTitle = `Running ${Math.max(1, queueCurrent)}/${Math.max(1, queueTotal)}`;
+    healthDetail = `Workflow ${queueState.formType || payload?.formType || "autofill"} is active.`;
+  } else if (payload) {
+    healthClass = "is-ready";
+    healthTitle = "Ready";
+    healthDetail = `${getPayloadWorkflowLabel(payload)} payload is staged and awaiting run.`;
+  }
+
+  const timeline = [];
+  if (payloadStoredAt) {
+    const payloadAgeSeconds = getPayloadAgeSeconds(payloadStoredAt);
+    timeline.push({
+      tone: payloadAgeSeconds != null && payloadAgeSeconds > 3600 ? "warn" : "normal",
+      text: `Payload snapshot: ${formatPayloadTimestamp(payloadStoredAt)}`,
+    });
+  }
+  if (metrics.lastActivityAt || metrics.lastActivityType) {
+    timeline.push({
+      tone: "normal",
+      text: `Last activity: ${metrics.lastActivityType || "unknown"} at ${formatRuntimeTime(metrics.lastActivityAt)}`,
+    });
+  }
+  if (hasQueue) {
+    const normalizedTotal = Math.max(1, queueTotal);
+    const normalizedCurrent = clamp(queueCurrent, 1, normalizedTotal);
+    timeline.push({
+      tone: "normal",
+      text: `Queue progress is ${normalizedCurrent}/${normalizedTotal} (${Math.round((normalizedCurrent / normalizedTotal) * 100)}%)`,
+    });
+  }
+  if (verificationFields.length > 0) {
+    timeline.push({
+      tone: "warn",
+      text: `${verificationFields.length} field${verificationFields.length === 1 ? "" : "s"} flagged for review`,
+    });
+  }
+  if (lastError) {
+    timeline.push({ tone: "error", text: `Incident: ${lastError}` });
+  }
+  if (!timeline.length) {
+    timeline.push({ tone: "muted", text: "Waiting for runtime activity" });
+  }
+
+  const recommendations = [];
+  if (!payload) recommendations.push("Load care data from Workspace or Intake to stage payload.");
+  if (payload && !hasQueue) recommendations.push("Run a dry run first to verify fields before submitting live.");
+  if (verificationFields.length > 0) recommendations.push("Use Next Review Field to resolve flagged values before final submission.");
+  if (proxyRequests > 0 && reliability < 90) recommendations.push("Proxy reliability dipped below 90%; inspect diagnostics and network conditions.");
+  if (proxyRetries > 0) recommendations.push(`Runtime has retried ${proxyRetries} request${proxyRetries === 1 ? "" : "s"}; confirm host connectivity.`);
+  if (lastError) recommendations.push("Clear the incident after resolving the issue, then retry from the current queue item.");
+  if (!recommendations.length) recommendations.push("System is healthy. Continue monitoring queue and verification status.");
+
+  const flags = [];
+  if (payload?.formType) flags.push({ tone: "normal", label: `Payload ${String(payload.formType).toUpperCase()}` });
+  if (hasQueue) flags.push({ tone: "normal", label: `Queue ${Math.max(1, queueCurrent)}/${Math.max(1, queueTotal)}` });
+  if (verificationFields.length > 0) flags.push({ tone: "warn", label: `Review ${verificationFields.length}` });
+  if (dryRun) flags.push({ tone: "normal", label: "Dry run" });
+  if (interactionMode === "manual") flags.push({ tone: "warn", label: "Manual assist" });
+  else if (interactionMode === "slow") flags.push({ tone: "normal", label: "Guided typing" });
+  if (proxyRetries > 0) flags.push({ tone: proxyRetries > 2 ? "warn" : "normal", label: `Retries ${proxyRetries}` });
+  if (payloadStoredAt) {
+    const age = getPayloadAgeSeconds(payloadStoredAt);
+    if (age != null) {
+      const ageMinutes = Math.max(1, Math.floor(age / 60));
+      flags.push({ tone: age > 3600 ? "warn" : "muted", label: `Payload age ${ageMinutes}m` });
+    }
+  }
+
+  return {
+    healthClass,
+    healthTitle,
+    healthDetail,
+    reliability,
+    reliabilityLabel: `${reliability}%`,
+    queueLabel: hasQueue ? `${Math.max(1, queueCurrent)}/${Math.max(1, queueTotal)}` : payload ? "Queued" : "-",
+    modeLabel: getInteractionModeDisplay(interactionMode, dryRun),
+    timeline,
+    recommendations,
+    flags,
+  };
+}
+
+export function buildRuntimeDiagnosticsState(snapshot = {}) {
+  const metrics = snapshot.metrics && typeof snapshot.metrics === "object" ? snapshot.metrics : null;
+  const lastError = snapshot.lastError ? String(snapshot.lastError) : "";
+  const queueState = snapshot.queueState && typeof snapshot.queueState === "object" ? snapshot.queueState : null;
+  const payload = snapshot.payload && typeof snapshot.payload === "object" ? snapshot.payload : null;
+  const payloadStoredAt = snapshot.payloadStoredAt || null;
+
+  if (!metrics && !lastError) return null;
+
+  const runtimeMetrics = metrics || {};
+  const proxyRequests = toFiniteNumber(runtimeMetrics.proxyRequests);
+  const proxySuccesses = toFiniteNumber(runtimeMetrics.proxySuccesses);
+  const proxyFailures = toFiniteNumber(runtimeMetrics.proxyFailures);
+  const proxyRetries = toFiniteNumber(runtimeMetrics.proxyRetries);
+  const reliability = proxyRequests > 0
+    ? clamp(Math.round((proxySuccesses / proxyRequests) * 100), 0, 100)
+    : (lastError ? 0 : 100);
+  const retryRate = proxyRequests > 0 ? Math.round((proxyRetries / proxyRequests) * 100) : 0;
+
+  let heartbeatLagSeconds = null;
+  if (runtimeMetrics.lastHeartbeatAt) {
+    const parsedHeartbeat = new Date(runtimeMetrics.lastHeartbeatAt);
+    if (!Number.isNaN(parsedHeartbeat.getTime())) {
+      heartbeatLagSeconds = Math.max(0, Math.floor((Date.now() - parsedHeartbeat.getTime()) / 1000));
+    }
+  }
+
+  const hasQueue = queueState && typeof queueState.total === "number";
+  const queueText = hasQueue
+    ? `${toFiniteNumber(queueState.currentIndex) + 1}/${Math.max(1, toFiniteNumber(queueState.total))}`
+    : payload
+    ? "Queued"
+    : "Idle";
+
+  let severity = "idle";
+  let summary = "Runtime telemetry is waiting for the next request.";
+  if (lastError) {
+    severity = "critical";
+    summary = "Active runtime incident detected. Review and clear when resolved.";
+  } else if (proxyRequests === 0 && !hasQueue && !payload) {
+    severity = "idle";
+  } else if (reliability < 80 || (heartbeatLagSeconds != null && heartbeatLagSeconds > 120)) {
+    severity = "critical";
+    summary = "Telemetry indicates unstable runtime behavior.";
+  } else if (reliability < 95 || proxyRetries > 0 || (heartbeatLagSeconds != null && heartbeatLagSeconds > 45)) {
+    severity = "degraded";
+    summary = "Runtime is active with minor degradation signals.";
+  } else {
+    severity = "healthy";
+    summary = "Runtime health is stable.";
+  }
+
+  const cards = [
+    {
+      label: "Reliability",
+      value: `${reliability}%`,
+      tone: reliability >= 95 ? "good" : reliability >= 80 ? "warn" : "error",
+    },
+    {
+      label: "Retry Rate",
+      value: `${retryRate}%`,
+      tone: retryRate === 0 ? "good" : retryRate < 10 ? "warn" : "error",
+    },
+    {
+      label: "Heartbeat Lag",
+      value: heartbeatLagSeconds == null ? "-" : `${heartbeatLagSeconds}s`,
+      tone: heartbeatLagSeconds == null ? "muted" : heartbeatLagSeconds <= 45 ? "good" : heartbeatLagSeconds <= 120 ? "warn" : "error",
+    },
+    {
+      label: "Queue",
+      value: queueText,
+      tone: hasQueue ? "normal" : payload ? "warn" : "muted",
+    },
+  ];
+
+  const rows = [
+    {
+      key: "Proxy",
+      value: `${proxySuccesses}/${proxyRequests} ok${proxyFailures ? ` (${proxyFailures} failed)` : ""}`,
+      muted: proxyRequests === 0,
+    },
+    {
+      key: "Retries / Starts / Stops",
+      value: `${proxyRetries} / ${toFiniteNumber(runtimeMetrics.autofillStarts)} / ${toFiniteNumber(runtimeMetrics.autofillStops)}`,
+      muted: false,
+    },
+    {
+      key: "Heartbeat",
+      value: `${toFiniteNumber(runtimeMetrics.heartbeatCount)} at ${formatRuntimeTime(runtimeMetrics.lastHeartbeatAt)}`,
+      muted: false,
+    },
+    {
+      key: "Activity",
+      value: `${runtimeMetrics.lastActivityType || "-"} at ${formatRuntimeTime(runtimeMetrics.lastActivityAt)}`,
+      muted: !runtimeMetrics.lastActivityType,
+    },
+    {
+      key: "Uptime",
+      value: formatRuntimeDuration(runtimeMetrics.workerStartedAt),
+      muted: false,
+    },
+    {
+      key: "Request ID",
+      value: runtimeMetrics.lastRequestId || "-",
+      muted: !runtimeMetrics.lastRequestId,
+    },
+    {
+      key: "Target",
+      value: runtimeMetrics.lastTargetOrigin || "-",
+      muted: !runtimeMetrics.lastTargetOrigin,
+    },
+    {
+      key: "Payload Stored",
+      value: payloadStoredAt ? formatPayloadTimestamp(payloadStoredAt) : "-",
+      muted: !payloadStoredAt,
+    },
+    {
+      key: "Updated",
+      value: formatRuntimeTime(runtimeMetrics.lastUpdatedAt),
+      muted: !runtimeMetrics.lastUpdatedAt,
+    },
+    {
+      key: "Error",
+      value: lastError || runtimeMetrics.lastError || "None",
+      error: Boolean(lastError || runtimeMetrics.lastError),
+      muted: !(lastError || runtimeMetrics.lastError),
+    },
+  ];
+
+  const alerts = [];
+  if (lastError) alerts.push({ tone: "error", text: lastError });
+  if (proxyRequests > 0 && reliability < 90) {
+    alerts.push({ tone: "warn", text: `Proxy reliability is ${reliability}% across ${proxyRequests} requests.` });
+  }
+  if (heartbeatLagSeconds != null && heartbeatLagSeconds > 120) {
+    alerts.push({ tone: "warn", text: `Heartbeat is stale (${heartbeatLagSeconds}s). Check worker responsiveness.` });
+  }
+  if (!alerts.length && severity === "healthy") {
+    alerts.push({ tone: "normal", text: "No runtime alerts detected." });
+  }
+
+  return {
+    severity,
+    summary,
+    cards,
+    rows,
+    alerts,
+  };
 }
 
 export function createRequestId() {

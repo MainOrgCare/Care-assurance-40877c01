@@ -15,6 +15,15 @@ interface FileData {
 
 type UploadSection = "socialWork" | "initialAssessment" | "carePlan" | "movingHandling" | "additionalDocuments";
 
+interface ExtensionUploadItem {
+  section: UploadSection;
+  name: string;
+  type?: string;
+  size?: number;
+  lastModified?: number;
+  base64Data: string;
+}
+
 type ServiceUserDataState = {
   socialWork?: FileData;
   initialAssessment?: FileData;
@@ -27,6 +36,7 @@ type ServiceUserDataState = {
 interface TemporaryDataContextType {
   serviceUserData: ServiceUserDataState;
   uploadFile: (section: UploadSection, file: File) => Promise<void>;
+  importExtensionUploads: (payload: { uploads: ExtensionUploadItem[]; additionalNotes?: string }) => Promise<{ imported: number; failed: number }>;
   removeAdditionalDocument: (id: string) => void;
   clearServiceUserData: () => void;
   startTimer: () => void;
@@ -51,7 +61,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const isTimerActive = timeLeft !== null;
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const demoDataLoadedRef = useRef(false);
   const uploadTokensRef = useRef<Record<UploadSection, symbol>>({
     socialWork: Symbol("socialWork"),
@@ -302,6 +312,83 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     }
   }, [readServerErrorMessage, resetTimer]);
 
+  const decodeExtensionUploadFile = useCallback((item: ExtensionUploadItem): File => {
+    const raw = String(item?.base64Data || "").replace(/^data:[^,]*,/, "");
+    const binary = atob(raw);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new File([bytes], item.name || `extension-upload-${Date.now()}`, {
+      type: item.type || "application/octet-stream",
+      lastModified: item.lastModified || Date.now(),
+    });
+  }, []);
+
+  const importExtensionUploads = useCallback(async (payload: { uploads: ExtensionUploadItem[]; additionalNotes?: string }) => {
+    const uploads = Array.isArray(payload?.uploads) ? payload.uploads : [];
+    if (uploads.length === 0) {
+      return { imported: 0, failed: 0 };
+    }
+
+    let imported = 0;
+    let failed = 0;
+
+    for (const item of uploads) {
+      if (!item || !item.section || !item.base64Data) {
+        failed += 1;
+        continue;
+      }
+
+      try {
+        const file = decodeExtensionUploadFile(item);
+        await uploadFile(item.section, file);
+        imported += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    if (typeof payload.additionalNotes === "string") {
+      const notes = payload.additionalNotes.trim();
+      if (notes.length > 0) {
+        setServiceUserData((prev) => ({
+          ...prev,
+          additionalNotes: notes,
+        }));
+        resetTimer();
+      }
+    }
+
+    return { imported, failed };
+  }, [decodeExtensionUploadFile, resetTimer, uploadFile]);
+
+  useEffect(() => {
+    const handleExtensionUploadSync = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || event.data.type !== "CA_EXTENSION_SEND_TO_APP") return;
+
+      const payload = event.data.payload as { uploads?: ExtensionUploadItem[]; additionalNotes?: string } | undefined;
+      if (!payload || !Array.isArray(payload.uploads) || payload.uploads.length === 0) return;
+
+      void (async () => {
+        if (!location.startsWith("/service-users")) {
+          setLocation("/service-users/upload");
+          await new Promise((resolve) => setTimeout(resolve, 80));
+        }
+        await importExtensionUploads({
+          uploads: payload.uploads,
+          additionalNotes: payload.additionalNotes,
+        });
+      })();
+    };
+
+    window.addEventListener("message", handleExtensionUploadSync);
+    return () => window.removeEventListener("message", handleExtensionUploadSync);
+  }, [importExtensionUploads, location, setLocation]);
+
   const removeAdditionalDocument = useCallback((id: string) => {
     setServiceUserData(prev => ({
       ...prev,
@@ -391,6 +478,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => ({
     serviceUserData,
     uploadFile,
+    importExtensionUploads,
     removeAdditionalDocument,
     clearServiceUserData,
     startTimer,
@@ -399,7 +487,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     isAnyParsing,
     loadDemoData,
     setAdditionalNotes,
-  }), [serviceUserData, uploadFile, removeAdditionalDocument, clearServiceUserData, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
+  }), [serviceUserData, uploadFile, importExtensionUploads, removeAdditionalDocument, clearServiceUserData, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
 
   const timerContextValue = useMemo(() => ({
     timeLeft,

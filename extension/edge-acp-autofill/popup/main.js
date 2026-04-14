@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.2
+ * CareAssurance Extension v0.6.4
  */
 
 import {
@@ -23,6 +23,8 @@ import {
   getPayloadWorkflowLabel,
   createRequestId,
   writeToClipboard,
+  buildCommandCenterState,
+  buildRuntimeDiagnosticsState,
 } from "./state.js";
 
 import {
@@ -55,7 +57,6 @@ import {
   renderLogs,
   updateLiveProgress,
   renderPageCompanion,
-  displayFileList,
   displayRecentItems,
   displayAnalysisResults,
   updateSelectionCount,
@@ -84,6 +85,431 @@ const buildLogFingerprint = (logs) => {
   if (!Array.isArray(logs) || logs.length === 0) return "0";
   const lastEntry = logs[logs.length - 1] || "";
   return `${logs.length}:${String(lastEntry)}`;
+};
+
+const MAX_UPLOAD_SYNC_BYTES = 35 * 1024 * 1024;
+const UPLOAD_SYNC_DEBOUNCE_MS = 450;
+const MAX_UPLOAD_SYNC_ATTEMPTS = 6;
+
+const UPLOAD_SECTION_CONFIG = [
+  {
+    key: "socialWork",
+    heading: "=== SOCIAL WORK DOCUMENTS ===",
+    inputId: "upload-social-work-input",
+    listId: "upload-social-work-files",
+    single: true,
+  },
+  {
+    key: "initialAssessment",
+    heading: "=== INITIAL ASSESSMENT ===",
+    inputId: "upload-initial-assessment-input",
+    listId: "upload-initial-assessment-files",
+    single: true,
+  },
+  {
+    key: "carePlan",
+    heading: "=== CURRENT CARE PLAN ===",
+    inputId: "upload-care-plan-input",
+    listId: "upload-care-plan-files",
+    single: true,
+  },
+  {
+    key: "movingHandling",
+    heading: "=== MOVING AND HANDLING PLAN ===",
+    inputId: "upload-moving-handling-input",
+    listId: "upload-moving-handling-files",
+    single: true,
+  },
+  {
+    key: "additionalDocuments",
+    heading: "=== ADDITIONAL DOCUMENT",
+    inputId: "upload-additional-documents-input",
+    listId: "upload-additional-documents-files",
+    single: false,
+  },
+];
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let uploadSyncTimer = null;
+let uploadSyncInFlight = false;
+let uploadSyncQueued = false;
+let uploadSyncForceQueued = false;
+let lastUploadSyncSignature = "";
+
+const createEmptyUploadBuckets = () => ({
+  socialWork: [],
+  initialAssessment: [],
+  carePlan: [],
+  movingHandling: [],
+  additionalDocuments: [],
+});
+
+const formatUploadBytes = (bytes) => {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} B`;
+  const kb = value / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+};
+
+const ensureUploadBuckets = () => {
+  if (!state.uploadBuckets || typeof state.uploadBuckets !== "object") {
+    state.uploadBuckets = createEmptyUploadBuckets();
+  }
+  for (const section of Object.keys(createEmptyUploadBuckets())) {
+    if (!Array.isArray(state.uploadBuckets[section])) {
+      state.uploadBuckets[section] = [];
+    }
+  }
+};
+
+const flattenUploadBuckets = () => {
+  ensureUploadBuckets();
+  return UPLOAD_SECTION_CONFIG.flatMap((section) =>
+    (state.uploadBuckets[section.key] || []).map((file) => ({ section: section.key, file }))
+  );
+};
+
+const getUploadSyncSignature = () => {
+  const fileSignature = flattenUploadBuckets()
+    .map(({ section, file }) => `${section}:${file.name}:${file.size}:${file.lastModified}`)
+    .join("|");
+  const notes = (dom.uploadNotes?.value || "").trim();
+  return `${fileSignature}::${notes}`;
+};
+
+const updateUploadSyncStatus = (message, level = "info") => {
+  if (!dom.uploadSyncStatus) return;
+  dom.uploadSyncStatus.textContent = message || "";
+  if (level && level !== "info") {
+    dom.uploadSyncStatus.dataset.level = level;
+  } else {
+    delete dom.uploadSyncStatus.dataset.level;
+  }
+};
+
+const renderUploadBuckets = () => {
+  ensureUploadBuckets();
+  let totalFileCount = 0;
+
+  for (const section of UPLOAD_SECTION_CONFIG) {
+    const files = state.uploadBuckets[section.key] || [];
+    totalFileCount += files.length;
+
+    const container = document.getElementById(section.listId);
+    const card = document.querySelector(`[data-upload-section="${section.key}"]`);
+    if (card) {
+      card.classList.toggle("has-files", files.length > 0);
+    }
+
+    if (!container) continue;
+
+    if (files.length === 0) {
+      container.innerHTML = '<div class="upload-bucket-files-empty">No files selected.</div>';
+      continue;
+    }
+
+    container.innerHTML = files
+      .map(
+        (file, index) => `
+          <div class="upload-bucket-file">
+            <div class="upload-bucket-file-info">
+              <span class="upload-bucket-file-name">${escapeHtml(file.name)}</span>
+              <span class="upload-bucket-file-meta">${escapeHtml(formatUploadBytes(file.size))}</span>
+            </div>
+            <button
+              type="button"
+              class="upload-bucket-file-remove"
+              data-upload-remove-section="${section.key}"
+              data-upload-remove-index="${index}"
+              aria-label="Remove ${escapeHtml(file.name)}"
+              title="Remove"
+            >
+              ×
+            </button>
+          </div>
+        `
+      )
+      .join("");
+
+    container.querySelectorAll(".upload-bucket-file-remove").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const sectionKey = button.getAttribute("data-upload-remove-section");
+        const index = Number(button.getAttribute("data-upload-remove-index"));
+        if (!sectionKey || Number.isNaN(index)) return;
+
+        ensureUploadBuckets();
+        const sectionFiles = state.uploadBuckets[sectionKey] || [];
+        if (index < 0 || index >= sectionFiles.length) return;
+        sectionFiles.splice(index, 1);
+        renderUploadBuckets();
+        scheduleUploadMirrorSync({ immediate: true, force: true });
+      });
+    });
+  }
+
+  state.selectedFilesList = flattenUploadBuckets().map(({ file }) => file);
+  if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = totalFileCount === 0;
+  updateTabBadges(state.latestPayloadSnapshot?.payload, totalFileCount);
+  updateUploadSteps(totalFileCount > 0 ? 1 : 0);
+
+  if (totalFileCount === 0) {
+    updateUploadSyncStatus("Connect your workspace to auto-sync files into CareAssurance Upload.");
+  }
+};
+
+const isSupportedUploadFile = (file) => {
+  const name = String(file?.name || "").toLowerCase();
+  return /\.(pdf|doc|docx|txt|csv)$/.test(name);
+};
+
+const applyUploadFiles = (sectionKey, files) => {
+  ensureUploadBuckets();
+  const section = UPLOAD_SECTION_CONFIG.find((item) => item.key === sectionKey);
+  if (!section) return;
+
+  const validFiles = Array.from(files || []).filter((file) => isSupportedUploadFile(file));
+  if (validFiles.length === 0) {
+    showError("Use PDF, DOC, DOCX, TXT, or CSV files only.");
+    return;
+  }
+
+  if (section.single) {
+    if (validFiles.length > 1) {
+      showInfo(`${sectionKey} accepts one file. The first file was kept.`);
+    }
+    state.uploadBuckets[section.key] = [validFiles[0]];
+  } else {
+    state.uploadBuckets[section.key] = [...(state.uploadBuckets[section.key] || []), ...validFiles];
+  }
+
+  renderUploadBuckets();
+  scheduleUploadMirrorSync({ force: true });
+};
+
+const readFileAsBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
+const sendUploadPayloadToTab = async (tabId, payload) => {
+  for (let attempt = 0; attempt < MAX_UPLOAD_SYNC_ATTEMPTS; attempt += 1) {
+    const response = await new Promise((resolve) => {
+      chrome.tabs.sendMessage(
+        tabId,
+        {
+          type: MESSAGE_TYPES.sendToApp || "CA_EXTENSION_SEND_TO_APP",
+          payload,
+        },
+        (result) => {
+          const runtimeMessage = chrome.runtime.lastError?.message;
+          if (runtimeMessage) {
+            resolve({ ok: false, error: runtimeMessage });
+            return;
+          }
+          resolve(result || { ok: false, error: "No response from CareAssurance page." });
+        }
+      );
+    });
+
+    if (response?.ok) {
+      return response;
+    }
+
+    const errorText = String(response?.error || "");
+    const retryable =
+      /receiving end does not exist|could not establish connection|frame was removed|message port closed/i.test(
+        errorText
+      );
+    if (!retryable || attempt === MAX_UPLOAD_SYNC_ATTEMPTS - 1) {
+      return response;
+    }
+    await wait(350 + attempt * 200);
+  }
+
+  return { ok: false, error: "Could not reach the CareAssurance page context." };
+};
+
+const buildUploadMirrorPayload = async () => {
+  const selected = flattenUploadBuckets();
+  const totalBytes = selected.reduce((sum, entry) => sum + Number(entry.file?.size || 0), 0);
+  if (totalBytes > MAX_UPLOAD_SYNC_BYTES) {
+    throw new Error("Selected files are too large to sync at once. Keep total size below 35 MB.");
+  }
+
+  const uploads = [];
+  for (const entry of selected) {
+    const file = entry.file;
+    const base64Data = await readFileAsBase64(file);
+    uploads.push({
+      section: entry.section,
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      lastModified: file.lastModified,
+      base64Data,
+    });
+  }
+
+  return {
+    requestId: createRequestId(),
+    source: "extension-popup",
+    uploadedAt: new Date().toISOString(),
+    additionalNotes: (dom.uploadNotes?.value || "").trim(),
+    uploads,
+  };
+};
+
+const ensureUploadRouteReady = async (context) => {
+  const uploadPath = "/service-users/upload";
+  if (context?.path?.startsWith(uploadPath)) {
+    return context;
+  }
+
+  const baseUrl = context?.baseUrl || normalizeCareAssuranceBaseUrl(getCareAssuranceUrl());
+  const targetUrl = `${baseUrl}${uploadPath}`;
+  await chrome.tabs.update(context.tabId, { url: targetUrl, active: true });
+  await wait(700);
+  const refreshed = await refreshWorkspaceContext(state.connectedWorkspaceUser);
+  return refreshed || { ...context, path: uploadPath };
+};
+
+const syncUploadsToCareAssurance = async ({ force = false } = {}) => {
+  if (uploadSyncInFlight) {
+    uploadSyncQueued = true;
+    uploadSyncForceQueued = uploadSyncForceQueued || force;
+    return false;
+  }
+
+  const selected = flattenUploadBuckets();
+  if (selected.length === 0) {
+    updateUploadSyncStatus("Connect your workspace to auto-sync files into CareAssurance Upload.");
+    return false;
+  }
+
+  if (!state.isConnected) {
+    updateUploadSyncStatus("Connect your workspace to sync files into CareAssurance Upload.", "warning");
+    return false;
+  }
+
+  const signature = getUploadSyncSignature();
+  if (!force && signature && signature === lastUploadSyncSignature) {
+    return true;
+  }
+
+  uploadSyncInFlight = true;
+  try {
+    updateUploadSyncStatus(`Syncing ${selected.length} file${selected.length === 1 ? "" : "s"} to CareAssurance Upload...`);
+
+    const context = state.connectedWorkspaceContext || (await refreshWorkspaceContext(state.connectedWorkspaceUser));
+    if (!context?.tabId) {
+      throw new Error("Open a CareAssurance tab and sync the workspace first.");
+    }
+
+    const uploadContext = await ensureUploadRouteReady(context);
+    if (!uploadContext?.tabId) {
+      throw new Error("Could not attach to a CareAssurance tab for upload sync.");
+    }
+
+    const payload = await buildUploadMirrorPayload();
+    const response = await sendUploadPayloadToTab(uploadContext.tabId, payload);
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not send uploads into CareAssurance Upload.");
+    }
+
+    lastUploadSyncSignature = signature;
+    const syncedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    updateUploadSyncStatus(
+      `Synced ${payload.uploads.length} file${payload.uploads.length === 1 ? "" : "s"} at ${syncedAt}.`,
+      "success"
+    );
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload sync failed.";
+    updateUploadSyncStatus(message, "error");
+    return false;
+  } finally {
+    uploadSyncInFlight = false;
+    if (uploadSyncQueued) {
+      const nextForce = uploadSyncForceQueued;
+      uploadSyncQueued = false;
+      uploadSyncForceQueued = false;
+      scheduleUploadMirrorSync({ immediate: true, force: nextForce });
+    }
+  }
+};
+
+const scheduleUploadMirrorSync = ({ immediate = false, force = false } = {}) => {
+  if (!state.isConnected) {
+    return;
+  }
+
+  if (uploadSyncTimer) {
+    clearTimeout(uploadSyncTimer);
+  }
+
+  uploadSyncTimer = setTimeout(() => {
+    uploadSyncTimer = null;
+    syncUploadsToCareAssurance({ force }).catch(() => {});
+  }, immediate ? 0 : UPLOAD_SYNC_DEBOUNCE_MS);
+};
+
+const bindUploadBucketInputs = () => {
+  for (const section of UPLOAD_SECTION_CONFIG) {
+    const input = document.getElementById(section.inputId);
+    if (!input) continue;
+    input.addEventListener("change", (event) => {
+      const target = event.target;
+      applyUploadFiles(section.key, target.files || []);
+      target.value = "";
+    });
+  }
+};
+
+const bindUploadDropzones = () => {
+  const dropzones = document.querySelectorAll("[data-upload-dropzone]");
+  dropzones.forEach((dropzone) => {
+    const section = dropzone.getAttribute("data-upload-dropzone");
+    const inputId = dropzone.getAttribute("data-input-id");
+    if (!section) return;
+
+    dropzone.addEventListener("click", () => {
+      if (!inputId) return;
+      document.getElementById(inputId)?.click();
+    });
+
+    dropzone.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      if (!inputId) return;
+      document.getElementById(inputId)?.click();
+    });
+
+    dropzone.addEventListener("dragenter", (event) => {
+      event.preventDefault();
+      dropzone.classList.add("is-dragover");
+    });
+
+    dropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropzone.classList.add("is-dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("is-dragover");
+    });
+
+    dropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("is-dragover");
+      applyUploadFiles(section, event.dataTransfer?.files || []);
+    });
+  });
 };
 
 async function flushScheduledPopupRefresh() {
@@ -430,8 +856,9 @@ async function refreshPayloadStatus() {
     lastLogFingerprint = logsFingerprint;
   }
 
-  renderCommandCenter({
+  const commandCenterState = buildCommandCenterState({
     payload,
+    payloadStoredAt,
     queueState,
     verificationFields,
     metrics: data[STORAGE_KEYS.runtimeMetrics],
@@ -439,7 +866,16 @@ async function refreshPayloadStatus() {
     interactionMode: data[STORAGE_KEYS.interactionMode],
     dryRun: data[STORAGE_KEYS.dryRun],
   });
-  renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);
+  const runtimeDiagnosticsState = buildRuntimeDiagnosticsState({
+    metrics: data[STORAGE_KEYS.runtimeMetrics],
+    lastError,
+    queueState,
+    payload,
+    payloadStoredAt,
+  });
+
+  renderCommandCenter(commandCenterState);
+  renderRuntimeDiagnostics(runtimeDiagnosticsState);
   if (!document.hidden) {
     await refreshPageCompanion({
       payload,
@@ -560,6 +996,9 @@ async function connectToCareAssurance() {
         connected = true;
 
         await fetchConnectedData(user);
+        if (state.selectedFilesList.length > 0) {
+          scheduleUploadMirrorSync({ immediate: true, force: true });
+        }
 
         break;
       } else if (statusRes.status === 401 || statusRes.error === "Not logged in") {
@@ -752,27 +1191,41 @@ function bindEvents() {
   });
 
   // Upload tab
-  dom.documentFiles?.addEventListener("change", (e) => {
-    state.selectedFilesList = Array.from(e.target.files || []);
-    displayFileList();
-    if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = state.selectedFilesList.length === 0;
+  bindUploadBucketInputs();
+  bindUploadDropzones();
+
+  dom.syncUploadBtn?.addEventListener("click", async () => {
+    const ok = await syncUploadsToCareAssurance({ force: true });
+    if (ok) showSuccess("Uploads synced to CareAssurance Upload");
+  });
+
+  dom.uploadNotes?.addEventListener("input", () => {
+    scheduleUploadMirrorSync({ force: true });
   });
 
   dom.clearUploads?.addEventListener("click", async () => {
+    state.uploadBuckets = createEmptyUploadBuckets();
     state.selectedFilesList = [];
     state.currentAnalysisResults = null;
-    displayFileList();
+    lastUploadSyncSignature = "";
+    if (uploadSyncTimer) {
+      clearTimeout(uploadSyncTimer);
+      uploadSyncTimer = null;
+    }
+    uploadSyncQueued = false;
+    uploadSyncForceQueued = false;
+    uploadSyncInFlight = false;
+    renderUploadBuckets();
     if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = true;
-    if (dom.uploadedDocsSummary) dom.uploadedDocsSummary.hidden = true;
-    if (dom.uploadedDocsList) dom.uploadedDocsList.innerHTML = "";
-    if (dom.documentFiles) dom.documentFiles.value = "";
     if (dom.uploadNotes) dom.uploadNotes.value = "";
     if (dom.analysisStatus) dom.analysisStatus.textContent = "";
+    updateUploadSyncStatus("Connect your workspace to auto-sync files into CareAssurance Upload.");
     await setStorage({ [STORAGE_KEYS.uploadedDocuments]: null });
   });
 
   dom.analyzeDocuments?.addEventListener("click", async () => {
-    if (state.selectedFilesList.length === 0) return;
+    const selectedEntries = flattenUploadBuckets();
+    if (selectedEntries.length === 0) return;
 
     setButtonLoading(dom.analyzeDocuments, true);
     updateUploadSteps(2);
@@ -780,26 +1233,31 @@ function bindEvents() {
     if (dom.analysisStatus) dom.analysisStatus.textContent = "Analyzing...";
 
     try {
-      const docType = document.querySelector('input[name="document-type"]:checked')?.value || "additionalDocuments";
       let content = "";
       const failedFiles = [];
 
-      const readFileAsBase64 = (file) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result.split(",")[1]);
-          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-          reader.readAsDataURL(file);
-        });
-
-      for (let i = 0; i < state.selectedFilesList.length; i++) {
-        const file = state.selectedFilesList[i];
-        if (dom.analysisStatus) dom.analysisStatus.textContent = `Parsing file ${i + 1} of ${state.selectedFilesList.length}...`;
+      for (let i = 0; i < selectedEntries.length; i++) {
+        const { section, file } = selectedEntries[i];
+        if (dom.analysisStatus) {
+          dom.analysisStatus.textContent = `Parsing file ${i + 1} of ${selectedEntries.length}...`;
+        }
         try {
           const base64Data = await readFileAsBase64(file);
-          const parseRes = await apiProxy("/api/extension/parse-document", "POST", { filename: file.name, base64Data }, { timeoutMs: 120000 });
-          if (parseRes?.ok && parseRes.text) {
-            content += `\n\n=== ${file.name} (${docType}) ===\n${parseRes.text}`;
+          const parseRes = await apiProxy(
+            "/api/extension/parse-document",
+            "POST",
+            { filename: file.name, base64Data },
+            { timeoutMs: 120000 }
+          );
+
+          const parsedText = parseRes?.data?.text || parseRes?.text;
+          if (parseRes?.ok && parsedText) {
+            const sectionConfig = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
+            const heading =
+              section === "additionalDocuments"
+                ? `${sectionConfig?.heading || "=== ADDITIONAL DOCUMENT"}: ${file.name} ===`
+                : sectionConfig?.heading || `=== ${section} ===`;
+            content += `\n\n${heading}\n${parsedText}`;
           } else {
             failedFiles.push(file.name);
           }
@@ -810,7 +1268,9 @@ function bindEvents() {
       }
 
       if (failedFiles.length > 0) showError(`Could not parse: ${failedFiles.join(", ")}`);
-      if (dom.uploadNotes?.value) content += `\n\n=== Additional Notes ===\n${dom.uploadNotes.value}`;
+      if (dom.uploadNotes?.value) {
+        content += `\n\n=== ADDITIONAL CONTEXT (USER ENTERED) ===\n${dom.uploadNotes.value}`;
+      }
       if (!content.trim()) throw new Error("No readable content found. Please check your files are valid PDF, DOCX, or text files.");
 
       if (dom.analysisStatus) dom.analysisStatus.textContent = "Analyzing document content...";
@@ -828,7 +1288,9 @@ function bindEvents() {
     } finally {
       if (dom.analysisProgress) dom.analysisProgress.hidden = true;
       setButtonLoading(dom.analyzeDocuments, false);
-      if (state.selectedFilesList.length === 0) dom.analyzeDocuments.disabled = true;
+      if (state.selectedFilesList.length === 0 && dom.analyzeDocuments) {
+        dom.analyzeDocuments.disabled = true;
+      }
     }
   });
 
@@ -994,6 +1456,52 @@ function bindEvents() {
     }
   });
 
+  dom.opsCopyIncident?.addEventListener("click", async () => {
+    try {
+      const data = await loadStorage([
+        STORAGE_KEYS.runtimeMetrics,
+        STORAGE_KEYS.lastError,
+        STORAGE_KEYS.caseInfo,
+        STORAGE_KEYS.queueState,
+        STORAGE_KEYS.payload,
+        STORAGE_KEYS.logs,
+        DATA_TIMESTAMP_KEY,
+      ]);
+
+      const incident = data?.[STORAGE_KEYS.lastError] || null;
+      if (!incident) {
+        showInfo("No active incident to copy.");
+        return;
+      }
+
+      const runtimeDiagnostics = buildRuntimeDiagnosticsState({
+        metrics: data?.[STORAGE_KEYS.runtimeMetrics] || null,
+        lastError: incident,
+        queueState: data?.[STORAGE_KEYS.queueState] || null,
+        payload: data?.[STORAGE_KEYS.payload] || null,
+        payloadStoredAt: data?.[DATA_TIMESTAMP_KEY] || null,
+      });
+
+      const packet = {
+        capturedAt: new Date().toISOString(),
+        requestId: createRequestId(),
+        targetOrigin: getCareAssuranceUrl(),
+        incident,
+        payloadType: data?.[STORAGE_KEYS.payload]?.formType || null,
+        payloadStoredAt: data?.[DATA_TIMESTAMP_KEY] || null,
+        caseInfo: data?.[STORAGE_KEYS.caseInfo] || null,
+        queueState: data?.[STORAGE_KEYS.queueState] || null,
+        runtimeDiagnostics,
+        recentLogTail: Array.isArray(data?.[STORAGE_KEYS.logs]) ? data[STORAGE_KEYS.logs].slice(-25) : [],
+      };
+
+      await writeToClipboard(JSON.stringify(packet, null, 2));
+      showSuccess("Incident packet copied");
+    } catch {
+      showError("Could not copy incident packet. Try again.");
+    }
+  });
+
   dom.opsClearIncident?.addEventListener("click", async () => {
     await setStorage({ [STORAGE_KEYS.lastError]: null });
     schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
@@ -1148,16 +1656,6 @@ function bindEvents() {
     if (dom.errorBanner) { dom.errorBanner.hidden = true; clearTimeout(dom.errorBanner._dismissTimer); }
   });
 
-  // Drag & drop feedback
-  const fileUploadLabel = document.querySelector(".file-upload-label");
-  if (fileUploadLabel) {
-    let dragCounter = 0;
-    fileUploadLabel.addEventListener("dragenter", (e) => { e.preventDefault(); dragCounter++; fileUploadLabel.classList.add("drag-over"); });
-    fileUploadLabel.addEventListener("dragover", (e) => { e.preventDefault(); });
-    fileUploadLabel.addEventListener("dragleave", () => { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; fileUploadLabel.classList.remove("drag-over"); } });
-    fileUploadLabel.addEventListener("drop", () => { dragCounter = 0; fileUploadLabel.classList.remove("drag-over"); });
-  }
-
   // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); dom.startAutofill?.click(); return; }
@@ -1191,7 +1689,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.2</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.4</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1270,6 +1768,8 @@ function bindStorageListener() {
   cacheDomElements();
   bindEvents();
   bindStorageListener();
+  ensureUploadBuckets();
+  renderUploadBuckets();
 
   // GDPR: Auto-clean stale data
   await autoCleanupStaleData();
@@ -1331,6 +1831,9 @@ function bindStorageListener() {
       updateConnectionUI(true, user);
       await refreshWorkspaceContext(user);
       fetchConnectedData(user); // Fetch service users + recent items (no reconnect)
+      if (state.selectedFilesList.length > 0) {
+        scheduleUploadMirrorSync({ immediate: true, force: true });
+      }
     } else if (res.ok && !user) {
       // Got a 200 OK but no user object — likely HTML response or malformed data
       console.warn("[CA Extension] Quick check OK but no user — running full connection flow");

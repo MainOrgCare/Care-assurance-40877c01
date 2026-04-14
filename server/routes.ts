@@ -4895,6 +4895,70 @@ declare module "express-session" {
   }
 }
 
+const getTrustedCorsOrigins = (): Set<string> => {
+  const canonicalDomain = process.env.CANONICAL_DOMAIN || "careassurance.uk";
+  const trusted = new Set<string>([
+    `https://${canonicalDomain}`,
+    `https://www.${canonicalDomain}`,
+  ]);
+
+  const configuredCorsOrigins = (process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  for (const origin of configuredCorsOrigins) {
+    trusted.add(origin);
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    [
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "http://localhost:5173",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5000",
+      "http://127.0.0.1:5173",
+    ].forEach((origin) => trusted.add(origin));
+  }
+
+  const renderHost = process.env.RENDER_EXTERNAL_HOSTNAME;
+  if (renderHost) {
+    trusted.add(`https://${renderHost}`);
+  }
+
+  return trusted;
+};
+
+const resolveTrustedResponseOrigin = (req: Request): string | null => {
+  const origin = req.get("Origin")?.trim();
+  if (!origin) return null;
+
+  const isExtensionOrigin =
+    origin.startsWith("chrome-extension://") ||
+    origin.startsWith("moz-extension://") ||
+    origin.startsWith("extension://");
+
+  if (isExtensionOrigin) {
+    return origin;
+  }
+
+  return getTrustedCorsOrigins().has(origin) ? origin : null;
+};
+
+const applySseSecurityHeaders = (req: Request, res: Response): void => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const trustedOrigin = resolveTrustedResponseOrigin(req);
+  if (trustedOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", trustedOrigin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Vary", "Origin");
+  }
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -4996,6 +5060,12 @@ export async function registerRoutes(
   }
   const crypto = await import("node:crypto");
   const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+  const isRenderHosted = Boolean(
+    process.env.RENDER ||
+    process.env.RENDER_EXTERNAL_HOSTNAME ||
+    process.env.RENDER_SERVICE_ID,
+  );
+  const useSecureSessionCookies = process.env.NODE_ENV === "production" || isRenderHosted;
 
   // Session store: prefer Postgres when available, fall back to in-memory for local dev
   if (hasDatabaseUrl) {
@@ -5013,18 +5083,20 @@ export async function registerRoutes(
   // Note: trust proxy is set in index.ts (before routes are registered)
   const sessionMiddleware = session({
     ...(sessionStore ? { store: sessionStore } : {}),
+    name: useSecureSessionCookies ? "__Host-careassurance.sid" : "careassurance.sid",
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: useSecureSessionCookies,
       httpOnly: true,
       // "none" is required for the split Render architecture where the static
       // site (care-assurance-web) and the API (care-assurance-api) live on
       // different origins.  Combined with secure:true + CSRF origin validation
       // this is safe.  If moving to same-origin, change to "lax".
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      sameSite: useSecureSessionCookies ? "none" : "lax",
+      path: "/",
       maxAge: 1000 * 60 * 30, // 30 minutes - auto logout on inactivity
     },
     rolling: true, // Reset cookie expiration on each request (keeps session alive while active)
@@ -5061,11 +5133,19 @@ export async function registerRoutes(
     
     const origin = req.get('Origin');
     const referer = req.get('Referer');
-    const host = req.get('Host');
     
     // Must have either Origin or Referer header
     if (!origin && !referer) {
       console.warn(`[CSRF] Request blocked - no Origin/Referer: ${req.method} ${req.path}`);
+      logSecurityEvent({
+        eventType: 'CSRF_BLOCKED',
+        endpoint: req.path,
+        ipAddress: req.ip,
+        details: {
+          reason: 'CSRF validation failed - missing origin/referer',
+          method: req.method,
+        }
+      });
       return res.status(403).json({ message: 'CSRF validation failed: missing origin' });
     }
     
@@ -5104,9 +5184,27 @@ export async function registerRoutes(
     
     // Allow browser extension origins
     const isExtensionOrigin = origin?.startsWith('chrome-extension://') || 
-                               origin?.startsWith('moz-extension://');
+                               origin?.startsWith('moz-extension://') ||
+                               origin?.startsWith('extension://');
     
-    const originToCheck = origin || (referer ? new URL(referer).origin : null);
+    let originToCheck: string | null = origin || null;
+    if (!originToCheck && referer) {
+      try {
+        originToCheck = new URL(referer).origin;
+      } catch {
+        logSecurityEvent({
+          eventType: 'CSRF_BLOCKED',
+          endpoint: req.path,
+          ipAddress: req.ip,
+          details: {
+            reason: 'CSRF validation failed - invalid referer URL',
+            method: req.method,
+            referer,
+          }
+        });
+        return res.status(403).json({ message: 'CSRF validation failed: invalid origin' });
+      }
+    }
     
     if (!isExtensionOrigin && originToCheck && !allowedOrigins.has(originToCheck)) {
       console.warn(`[CSRF] Request blocked - invalid origin: ${originToCheck} for ${req.method} ${req.path}`);
@@ -5294,6 +5392,40 @@ export async function registerRoutes(
     if (!req.user || req.user.role !== "admin") {
       return apiForbidden(res, "Forbidden: Admin access required");
     }
+
+    const shouldAuditAdminAction = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+    if (shouldAuditAdminAction && !res.locals.__adminAuditHookAttached) {
+      res.locals.__adminAuditHookAttached = true;
+      res.once("finish", () => {
+        const requestPath = (req.originalUrl || req.path || "").split("?")[0];
+        if (requestPath === "/api/system-logs") {
+          return;
+        }
+
+        const eventType = res.statusCode >= 400 ? "admin_action_failed" : "admin_action";
+        const details: Record<string, unknown> = {
+          method: req.method,
+          path: requestPath,
+          statusCode: res.statusCode,
+          requestId: (req as any).requestId ?? null,
+        };
+
+        if (req.params && Object.keys(req.params).length > 0) {
+          details.params = req.params;
+        }
+
+        storage.createSystemLog({
+          eventType,
+          userId: req.user?.id,
+          username: req.user?.username,
+          serviceUserInitials: null,
+          details,
+        }).catch((error) => {
+          console.error("Failed to record admin action system log:", error);
+        });
+      });
+    }
+
     next();
   };
 
@@ -5913,6 +6045,11 @@ export async function registerRoutes(
       
       return res.json({ message: "User deleted successfully" });
     } catch (error: any) {
+      if (error?.code === "23503") {
+        return res.status(409).json({
+          message: "User deletion blocked by related historical records. Contact support to purge legacy references.",
+        });
+      }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete user") });
     }
   });
@@ -7349,18 +7486,7 @@ export async function registerRoutes(
     const emarPIIVault = new PIIVault();
     
     // Set up SSE streaming response headers (after file is validated)
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    const corsOrigin = process.env.CORS_ORIGIN;
-    if (corsOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Vary', 'Origin');
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
+    applySseSecurityHeaders(req, res);
     res.flushHeaders();
 
     // Heartbeat to keep connection alive during long AI processing
@@ -13948,18 +14074,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     }
 
     // Set up SSE streaming response headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    const corsOrigin = process.env.CORS_ORIGIN;
-    if (corsOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Vary', 'Origin');
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
+    applySseSecurityHeaders(req, res);
     res.flushHeaders();
 
     // Heartbeat to keep connection alive
@@ -14427,18 +14542,7 @@ Return JSON - include ALL by default:
       piiVault.logAudit('SCRUB', '/api/ai/analyze-risks', aiUserContext.userId, aiUserContext.username);
 
       // Set up SSE for progress streaming with production-safe settings
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      const corsOrigin = process.env.CORS_ORIGIN;
-      if (corsOrigin) {
-        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Vary', 'Origin');
-      } else {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-      }
+      applySseSecurityHeaders(req, res);
       res.flushHeaders();
 
       // Small delay to ensure headers are flushed through proxies
@@ -15217,18 +15321,7 @@ Remember: Extract information ONLY from service user documents above. Templates 
       const safePerformedBy = piiVault.scrubString(String(performedBy || "Staff member"));
 
       // Set up SSE for progress streaming with production-safe settings
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      const corsOrigin = process.env.CORS_ORIGIN;
-      if (corsOrigin) {
-        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Vary', 'Origin');
-      } else {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-      }
+      applySseSecurityHeaders(req, res);
       res.flushHeaders();
 
       // Heartbeat to keep connection alive during long AI processing
@@ -15884,18 +15977,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
       }
 
       // Set up SSE for progress streaming
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      const corsOrigin = process.env.CORS_ORIGIN;
-      if (corsOrigin) {
-        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Vary', 'Origin');
-      } else {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-      }
+      applySseSecurityHeaders(req, res);
       res.flushHeaders();
 
       // Heartbeat every 5 seconds to keep connection alive
@@ -16502,18 +16584,7 @@ Return ONLY valid JSON with content field.`,
       }
 
       // Set up SSE for progress streaming with production-safe settings
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      const corsOrigin = process.env.CORS_ORIGIN;
-      if (corsOrigin) {
-        res.setHeader('Access-Control-Allow-Origin', corsOrigin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Vary', 'Origin');
-      } else {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-      }
+      applySseSecurityHeaders(req, res);
       res.flushHeaders();
 
       // Small delay to ensure headers are flushed through proxies

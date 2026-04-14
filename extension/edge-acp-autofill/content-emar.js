@@ -9,6 +9,7 @@ const FALLBACK_STORAGE_KEYS = {
   autoSubmit: "caAcpAutoSubmit",
   dryRun: "caAcpDryRun",
   interactionMode: "caAcpInteractionMode",
+  overlayPinned: "caAcpOverlayPinned",
 };
 const FALLBACK_FORM_CONFIGS = {
   emar: { formId: "1044009" },
@@ -48,10 +49,14 @@ const waitForSelector = async (selector, timeoutMs = 15000, intervalMs = 200) =>
 
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
-  chrome.runtime.sendMessage({
-    type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
-    entry: `[${timestamp}] ${message}`,
-  });
+  try {
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
+      entry: `[${timestamp}] ${message}`,
+    });
+  } catch {
+    // Extension context may be invalid after an extension reload.
+  }
   if (typeof refreshOverlaySoon === "function") {
     refreshOverlaySoon();
   }
@@ -61,6 +66,7 @@ let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
 let overlayInitialized = false;
 let overlayCollapsed = false;
+let overlayPinned = false;
 let overlayElements = null;
 let overlayRefreshTimer = null;
 let overlayIntervalId = null;
@@ -147,6 +153,8 @@ const injectOverlayStyles = () => {
     .ca-emar-chip.is-warning { border-color: rgba(185,89,12,0.25); color: #9a3412; }
     .ca-emar-chip.is-idle { border-color: rgba(148,163,184,0.22); color: #475569; }
     .ca-emar-toggle { width: 30px; height: 30px; border-radius: 10px; border: 1px solid rgba(148,163,184,0.26); background: rgba(255,255,255,0.9); color: #475569; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+    .ca-emar-lock { min-width: 48px; height: 30px; border-radius: 10px; border: 1px solid rgba(148,163,184,0.26); background: rgba(255,255,255,0.9); color: #475569; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; padding: 0 8px; }
+    .ca-emar-lock.is-active { border-color: rgba(2,132,199,0.42); background: rgba(224,242,254,0.95); color: #0369a1; }
     .ca-emar-body { padding: 0 16px 16px; }
     .ca-emar-panel.is-collapsed .ca-emar-body, .ca-emar-panel.is-collapsed .ca-emar-kicker, .ca-emar-panel.is-collapsed .ca-emar-subtitle, .ca-emar-panel.is-collapsed .ca-emar-chip { display: none; }
     .ca-emar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
@@ -212,12 +220,18 @@ const initOverlay = () => {
   const chip = document.createElement("div");
   chip.className = "ca-emar-chip is-idle";
   chip.textContent = "Waiting";
+  const lock = document.createElement("button");
+  lock.type = "button";
+  lock.className = "ca-emar-lock";
+  lock.textContent = "Pin";
+  lock.title = "Pin overlay";
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "ca-emar-toggle";
   toggle.textContent = "-";
   toggle.title = "Minimize";
   actions.appendChild(chip);
+  actions.appendChild(lock);
   actions.appendChild(toggle);
 
   header.appendChild(mark);
@@ -294,6 +308,7 @@ const initOverlay = () => {
     title,
     subtitle,
     chip,
+    lock,
     toggle,
     progress,
     progressNote,
@@ -306,10 +321,42 @@ const initOverlay = () => {
     collapsedTitle: "EMAR ready",
   };
 
+  const setOverlayPinned = async (pinned, { persist = true } = {}) => {
+    overlayPinned = Boolean(pinned);
+    if (!overlayElements) return;
+
+    overlayElements.lock.textContent = overlayPinned ? "Pinned" : "Pin";
+    overlayElements.lock.title = overlayPinned ? "Unpin overlay" : "Pin overlay";
+    overlayElements.lock.classList.toggle("is-active", overlayPinned);
+
+    if (overlayPinned && overlayCollapsed) {
+      setOverlayCollapsed(false);
+    }
+
+    if (persist) {
+      await saveStorage({ [STORAGE_KEYS.overlayPinned]: overlayPinned });
+    }
+  };
+
+  loadStorage([STORAGE_KEYS.overlayPinned])
+    .then((stored) => {
+      setOverlayPinned(Boolean(stored?.[STORAGE_KEYS.overlayPinned]), { persist: false });
+    })
+    .catch(() => {});
+
   toggle.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (overlayPinned) {
+      return;
+    }
     setOverlayCollapsed(!overlayCollapsed);
+  });
+
+  lock.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOverlayPinned(!overlayPinned).catch(() => {});
   });
 };
 
@@ -390,6 +437,9 @@ const refreshOverlay = async () => {
 };
 
 const setOverlayCollapsed = (collapsed) => {
+  if (collapsed && overlayPinned) {
+    return;
+  }
   overlayCollapsed = collapsed;
   if (!overlayElements) return;
   if (collapsed) {
@@ -417,9 +467,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.payload?.open) {
     setOverlayCollapsed(false);
   } else if (message?.payload?.minimize) {
-    setOverlayCollapsed(true);
+    if (!overlayPinned) {
+      setOverlayCollapsed(true);
+    }
   } else {
-    setOverlayCollapsed(!overlayCollapsed);
+    if (!overlayPinned) {
+      setOverlayCollapsed(!overlayCollapsed);
+    }
   }
   sendResponse?.({ ok: true });
   return true;
@@ -671,7 +725,6 @@ const run = async () => {
   const batchId = caAcpQueueState?.batchId || "legacy";
   const processedKey = `caEmarAutofillProcessed_${batchId}_${caAcpQueueState.currentIndex}`;
   if (sessionStorage.getItem(processedKey)) return;
-  sessionStorage.setItem(processedKey, "1");
 
   DRY_RUN = Boolean(caAcpDryRun);
   INTERACTION_MODE = caAcpInteractionMode || "auto";
@@ -680,7 +733,15 @@ const run = async () => {
   }
 
   const payload = caAcpPayload;
-  await waitForSelector("#section_1_1");
+  const formReady = await waitForSelector("#section_1_1");
+  if (!formReady) {
+    logAction("EMAR form section not ready yet. Autofill skipped.");
+    return;
+  }
+
+  sessionStorage.setItem(processedKey, "1");
+
+  try {
   await wait(500);
 
   await setValue("form_component_2_2", payload.serviceUserName);
@@ -739,6 +800,7 @@ const run = async () => {
       return;
     }
     logAction("Submit button not found. Please submit manually.");
+    sessionStorage.removeItem(processedKey);
     return;
   }
 
@@ -747,8 +809,15 @@ const run = async () => {
     logAction("Manual mode: waiting for submit click.");
   } else {
     logAction("Submit button not found. Please submit manually.");
+    sessionStorage.removeItem(processedKey);
+  }
+  } catch (error) {
+    sessionStorage.removeItem(processedKey);
+    logAction(`EMAR autofill failed: ${error?.message || "Unknown error"}`);
   }
 };
 
-run();
+run().catch((error) => {
+  logAction(`EMAR runtime failed: ${error?.message || "Unknown error"}`);
+});
 })();

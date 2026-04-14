@@ -17,6 +17,7 @@
     uploadedDocuments: "caAcpUploadedDocuments",
     verificationFields: "caAcpVerificationFields",
     runtimeMetrics: "caAcpRuntimeMetrics",
+    overlayPinned: "caAcpOverlayPinned",
     serverUrl: "caAcpServerUrl",
     lastTab: "caAcpLastTab",
     lastAutofillUser: "caAcpLastAutofillUser",

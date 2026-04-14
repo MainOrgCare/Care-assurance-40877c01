@@ -1,5 +1,46 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.4 - Upload Mirror + Overlay Pin Controls
+
+### Upload Workflow Parity
+
+- Replaced the popup single upload area with app-style sectioned buckets (`Social Work`, `Initial Assessment`, `Care Plan`, `Moving & Handling`, `Additional Documents`) and drag/drop support per section in `popup.html`, `popup.css`, and `popup/main.js`.
+- Added connected-session upload mirroring: popup files are serialized and sent to CareAssurance via `CA_EXTENSION_SEND_TO_APP`, then imported into the web app upload pipeline by `client/src/context/TemporaryDataContext.tsx`.
+- Added upload sync status messaging and a manual `Sync to CareAssurance Upload` action alongside automatic sync scheduling.
+
+### Overlay Lock/Pin UX
+
+- Added persistent pin controls to the ACP and EMAR in-page overlays so users can keep the panel expanded and prevent accidental minimize/toggle while pinned.
+- Added matching pin behavior to the Initial Assessment verification summary panel, including storage-backed persistence and pinned minimize guards.
+
+### Versioning
+
+- Bumped extension version to `0.6.4` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.3 - Command Center State Layer + Runtime Resilience
+
+### Critical Content-Script Fixes
+
+- Fixed Initial Assessment dedupe guards to use `batchId + currentIndex` so later people in the same batch are not skipped as already processed.
+- Hardened ACP/EMAR/generic content-script logging so `chrome.runtime.sendMessage` failures from invalidated extension contexts are treated as safe fallbacks instead of unhandled crashes.
+- Improved ACP/EMAR/generic retry behavior by setting processed markers only after key preconditions pass and clearing markers when autofill aborts or fails, preventing stuck queue entries after transient page-state issues.
+
+### Command Center State Layer
+
+- Added centralized command-center and diagnostics view-model builders in `popup/state.js`.
+- `popup/main.js` now builds command-center state and runtime diagnostics state once per refresh cycle and passes model objects to rendering, reducing UI-side derivation drift.
+- Added `Operational Flags` chips and a new `Copy Incident Packet` command-center action for faster support handoffs.
+
+### Runtime Diagnostics UX
+
+- Upgraded diagnostics from plain rows to a severity-aware panel with summary badge, key metric cards, structured runtime rows, and alert strips.
+- Added severity styling (`healthy`, `degraded`, `critical`) and responsive diagnostics card layout updates in `popup.css`.
+
+### Popup Layout Refinements
+
+- Added a dedicated header actions container so the connected-user chip can render alongside connection/help controls.
+- Refreshed the popup default footer version label and synchronized module headers/manifests to `v0.6.3`.
+
 ## Version 0.6.2 - Popup Performance + UI Refresh
 
 ### Performance Improvements

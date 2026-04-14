@@ -14,6 +14,7 @@ const FALLBACK_STORAGE_KEYS = {
   autoSubmit: "caAcpAutoSubmit",
   dryRun: "caAcpDryRun",
   interactionMode: "caAcpInteractionMode",
+  overlayPinned: "caAcpOverlayPinned",
   signatureData: "caAcpSignatureData",
   signatureBatchId: "caAcpSignatureBatchId",
   verificationFields: "caAcpVerificationFields",
@@ -339,6 +340,8 @@ const normalizeAssessmentType = (value) => {
 
 let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
+let VERIFICATION_SUMMARY_PINNED = false;
+const OVERLAY_PINNED_STORAGE_KEY = STORAGE_KEYS.overlayPinned || 'caAcpOverlayPinned';
 
 // Track fields that need human verification
 const NEEDS_VERIFICATION = [];
@@ -450,7 +453,8 @@ const typeLikeHuman = async (field, value) => {
 
 const buildProcessedKey = (queueState, payload) => {
   const batchId = queueState?.batchId || payload?.metadata?.batchId || payload?.batchId || payload?.caseId || "legacy";
-  return `caIAAutofillProcessed_${batchId}`;
+  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : "single";
+  return `caIAAutofillProcessed_${batchId}_${currentIndex}`;
 };
 
 /**
@@ -1622,6 +1626,24 @@ const showVerificationSummary = (fields) => {
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .ca-pin-btn {
+        border: 1px solid hsl(214, 25%, 89%);
+        border-radius: 6px;
+        background: hsl(210, 15%, 97%);
+        color: hsl(215, 15%, 42%);
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 2px 7px;
+        margin-right: 6px;
+      }
+      .ca-pin-btn.is-active {
+        border-color: hsl(200, 75%, 45%);
+        background: hsl(200, 80%, 94%);
+        color: hsl(200, 85%, 34%);
+      }
     `;
     document.head.appendChild(style);
   }
@@ -1653,6 +1675,7 @@ const showVerificationSummary = (fields) => {
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
       <strong style="color: hsl(222, 47%, 11%); font-size: 13px;">Verification Required</strong>
       <div>
+        <button id="ca-pin-summary" class="ca-pin-btn" title="Pin panel">Pin</button>
         <button id="ca-minimize-summary" style="background: none; border: none; cursor: pointer; font-size: 13px; color: hsl(215, 15%, 42%); margin-right: 6px;" title="Minimize">_</button>
         <button id="ca-close-summary" style="background: none; border: none; cursor: pointer; font-size: 16px; color: hsl(215, 15%, 42%);" title="Close">\u00d7</button>
       </div>
@@ -1686,6 +1709,9 @@ const showVerificationSummary = (fields) => {
   const contentEl = document.getElementById('ca-summary-content');
 
   const setSummaryMinimized = (minimized) => {
+    if (minimized && VERIFICATION_SUMMARY_PINNED) {
+      return;
+    }
     summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
     contentEl.style.display = minimized ? 'none' : 'block';
     summary.style.minWidth = minimized ? '150px' : '300px';
@@ -1742,6 +1768,16 @@ const showVerificationSummary = (fields) => {
     setSummaryMinimized(!isMinimized);
   });
 
+  document.getElementById('ca-pin-summary').addEventListener('click', () => {
+    setVerificationSummaryPinned(!VERIFICATION_SUMMARY_PINNED);
+  });
+
+  loadStorage([OVERLAY_PINNED_STORAGE_KEY])
+    .then((stored) => {
+      setVerificationSummaryPinned(Boolean(stored?.[OVERLAY_PINNED_STORAGE_KEY]), { persist: false });
+    })
+    .catch(() => {});
+
   setSummaryMinimized(false);
   
   // Keyboard shortcuts
@@ -1782,6 +1818,9 @@ const getVerificationSummaryFields = () => {
 };
 
 const setVerificationSummaryMinimized = (minimized) => {
+  if (minimized && VERIFICATION_SUMMARY_PINNED) {
+    return false;
+  }
   const summary = document.getElementById('ca-verification-summary');
   if (!summary) return false;
   const content = document.getElementById('ca-summary-content');
@@ -1796,6 +1835,28 @@ const setVerificationSummaryMinimized = (minimized) => {
     minimizeButton.title = minimized ? 'Expand' : 'Minimize';
   }
   return true;
+};
+
+const setVerificationSummaryPinned = (pinned, { persist = true } = {}) => {
+  VERIFICATION_SUMMARY_PINNED = Boolean(pinned);
+
+  const pinButton = document.getElementById('ca-pin-summary');
+  if (pinButton) {
+    pinButton.textContent = VERIFICATION_SUMMARY_PINNED ? 'Pinned' : 'Pin';
+    pinButton.title = VERIFICATION_SUMMARY_PINNED ? 'Unpin panel' : 'Pin panel';
+    pinButton.classList.toggle('is-active', VERIFICATION_SUMMARY_PINNED);
+  }
+
+  const summary = document.getElementById('ca-verification-summary');
+  if (summary && VERIFICATION_SUMMARY_PINNED && summary.dataset.caSummaryMinimized === 'true') {
+    setVerificationSummaryMinimized(false);
+  }
+
+  if (persist) {
+    saveStorage({ [OVERLAY_PINNED_STORAGE_KEY]: VERIFICATION_SUMMARY_PINNED }).catch(() => {});
+  }
+
+  return VERIFICATION_SUMMARY_PINNED;
 };
 
 const ensureVerificationSummaryVisible = () => {
@@ -1928,9 +1989,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.payload?.open) {
       setVerificationSummaryMinimized(false);
     } else if (message?.payload?.minimize) {
-      setVerificationSummaryMinimized(true);
+      if (!VERIFICATION_SUMMARY_PINNED) {
+        setVerificationSummaryMinimized(true);
+      }
     } else {
-      setVerificationSummaryMinimized(!currentlyMinimized);
+      if (!VERIFICATION_SUMMARY_PINNED) {
+        setVerificationSummaryMinimized(!currentlyMinimized);
+      }
     }
 
     sendResponse({ ok: true });
@@ -1963,7 +2028,6 @@ const run = async () => {
   
   const processedKey = buildProcessedKey(caAcpQueueState, caAcpPayload);
   if (sessionStorage.getItem(processedKey)) return;
-  sessionStorage.setItem(processedKey, "1");
   
   DRY_RUN = Boolean(caAcpDryRun);
   INTERACTION_MODE = caAcpInteractionMode || "auto";
@@ -1989,12 +2053,18 @@ const run = async () => {
     console.log("[CA Extension DEBUG] Data after mapping:", JSON.stringify(mappedData, null, 2));
     console.log("[CA Extension DEBUG] Mapping was applied:", !!formData?.thisIsMe);
   }
-  
-  await fillInitialAssessment(mappedData, {
-    assessor: caAcpPayload.assessor,
-    date: caAcpPayload.date,
-    assessmentType: caAcpPayload.assessmentType,
-  });
+
+  sessionStorage.setItem(processedKey, "1");
+  try {
+    await fillInitialAssessment(mappedData, {
+      assessor: caAcpPayload.assessor,
+      date: caAcpPayload.date,
+      assessmentType: caAcpPayload.assessmentType,
+    });
+  } catch (error) {
+    sessionStorage.removeItem(processedKey);
+    logAction(`Initial Assessment autofill failed: ${error?.message || "Unknown error"}`);
+  }
 };
 
 // Run when DOM is ready

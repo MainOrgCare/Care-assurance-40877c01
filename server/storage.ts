@@ -609,15 +609,62 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string): Promise<void> {
-    // Delete related records first to avoid foreign key constraint errors
-    await this.db.delete(policyAcknowledgements).where(eq(policyAcknowledgements.userId, id));
-    await this.db.delete(gdprConsentRecords).where(eq(gdprConsentRecords.userId, id));
-    await this.db.delete(sessionHistory).where(eq(sessionHistory.userId, id));
-    await this.db.delete(activeSessions).where(eq(activeSessions.userId, id));
-    await this.db.delete(suspensionLogs).where(eq(suspensionLogs.userId, id));
-    // Nullify AI usage log references (nullable FK)
-    await this.db.update(aiUsageLogs).set({ userId: null }).where(eq(aiUsageLogs.userId, id));
-    // Now delete the user
+    const ignoreMissingTable = async (operation: () => Promise<unknown>) => {
+      try {
+        await operation();
+      } catch (error: any) {
+        if (error?.code !== "42P01") {
+          throw error;
+        }
+      }
+    };
+
+    // Delete records where user FK is required (NOT NULL)
+    await ignoreMissingTable(() => this.db.delete(policyAcknowledgements).where(eq(policyAcknowledgements.userId, id)));
+    await ignoreMissingTable(() => this.db.delete(gdprConsentRecords).where(eq(gdprConsentRecords.userId, id)));
+    await ignoreMissingTable(() => this.db.delete(sessionHistory).where(eq(sessionHistory.userId, id)));
+    await ignoreMissingTable(() => this.db.delete(activeSessions).where(eq(activeSessions.userId, id)));
+    await ignoreMissingTable(() => this.db.delete(suspensionLogs).where(eq(suspensionLogs.userId, id)));
+    await ignoreMissingTable(() => this.db.delete(emarCorrections).where(eq(emarCorrections.adminId, id)));
+    await ignoreMissingTable(() => this.db.delete(shiftHandovers).where(eq(shiftHandovers.authorId, id)));
+    await ignoreMissingTable(() => this.db.delete(staffTraining).where(eq(staffTraining.staffId, id)));
+    await ignoreMissingTable(() => this.db.delete(userMessages).where(eq(userMessages.recipientId, id)));
+
+    // Nullify records where user FK is nullable
+    await ignoreMissingTable(() => this.db.update(aiUsageLogs).set({ userId: null }).where(eq(aiUsageLogs.userId, id)));
+    await ignoreMissingTable(() => this.db.update(careWorkerRotas).set({ createdBy: null }).where(eq(careWorkerRotas.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringTemplateRecommendations).set({ createdBy: null }).where(eq(rosteringTemplateRecommendations.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(callRecommendations).set({ appliedBy: null }).where(eq(callRecommendations.appliedBy, id)));
+    await ignoreMissingTable(() => this.db.update(workbookUploads).set({ uploadedBy: null }).where(eq(workbookUploads.uploadedBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringRecommendedCallTimes).set({ createdBy: null }).where(eq(rosteringRecommendedCallTimes.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringWorkerStartTimes).set({ createdBy: null }).where(eq(rosteringWorkerStartTimes.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringWorkerTemplates).set({ createdBy: null }).where(eq(rosteringWorkerTemplates.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringWorkerConstraints).set({ createdBy: null }).where(eq(rosteringWorkerConstraints.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringSavedStates).set({ createdBy: null }).where(eq(rosteringSavedStates.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(rosteringScheduleTemplates).set({ createdBy: null }).where(eq(rosteringScheduleTemplates.createdBy, id)));
+    await ignoreMissingTable(() => this.db.update(gdprDataRequests)
+      .set({
+        requesterId: null,
+        subjectId: null,
+        processedBy: null,
+      })
+      .where(
+        or(
+          eq(gdprDataRequests.requesterId, id),
+          eq(gdprDataRequests.subjectId, id),
+          eq(gdprDataRequests.processedBy, id)
+        )
+      ));
+    await ignoreMissingTable(() => this.db.update(appSettings).set({ updatedBy: null }).where(eq(appSettings.updatedBy, id)));
+    await ignoreMissingTable(() => this.db.update(userMessages).set({ senderId: null }).where(eq(userMessages.senderId, id)));
+
+    // Legacy table in older deployments (not in current schema)
+    await ignoreMissingTable(() => this.db.execute(sql`
+      UPDATE testing_feature_workbooks
+      SET created_by = NULL
+      WHERE created_by = ${id}
+    `));
+
     await this.db.delete(users).where(eq(users.id, id));
   }
 

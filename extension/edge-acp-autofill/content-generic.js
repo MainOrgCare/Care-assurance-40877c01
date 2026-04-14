@@ -37,10 +37,14 @@ let INTERACTION_MODE = "auto";
 
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
-  chrome.runtime.sendMessage({
-    type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
-    entry: `[${timestamp}] ${message}`,
-  });
+  try {
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
+      entry: `[${timestamp}] ${message}`,
+    });
+  } catch {
+    // Extension context may be invalid after an extension reload.
+  }
 };
 
 const highlightField = (field) => {
@@ -301,59 +305,68 @@ const fillField = async (fieldSpec) => {
 };
 
 const run = async () => {
-  const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
-    STORAGE_KEYS.payload,
-    STORAGE_KEYS.queueState,
-    STORAGE_KEYS.autoSubmit,
-    STORAGE_KEYS.dryRun,
-    STORAGE_KEYS.interactionMode,
-  ]);
+  let processedKey = null;
+  try {
+    const { caAcpPayload, caAcpQueueState, caAcpAutoSubmit, caAcpDryRun, caAcpInteractionMode } = await loadStorage([
+      STORAGE_KEYS.payload,
+      STORAGE_KEYS.queueState,
+      STORAGE_KEYS.autoSubmit,
+      STORAGE_KEYS.dryRun,
+      STORAGE_KEYS.interactionMode,
+    ]);
 
-  if (!caAcpPayload) return;
-  if (caAcpPayload.formType === "acp" || caAcpPayload.formType === "emar" || caAcpPayload.formType === "initialAssessment") return;
-  if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
-  if (!Array.isArray(caAcpPayload.fields)) {
-    logAction("Custom payload missing fields array.");
-    return;
-  }
-
-  if (caAcpPayload.formId) {
-    const params = new URLSearchParams(window.location.search);
-    const currentFormId = params.get("formId");
-    if (currentFormId && currentFormId !== String(caAcpPayload.formId)) {
+    if (!caAcpPayload) return;
+    if (caAcpPayload.formType === "acp" || caAcpPayload.formType === "emar" || caAcpPayload.formType === "initialAssessment") return;
+    if (!caAcpQueueState || typeof caAcpQueueState.currentIndex !== "number") return;
+    if (!Array.isArray(caAcpPayload.fields)) {
+      logAction("Custom payload missing fields array.");
       return;
     }
-  }
 
-  const processedKey = buildProcessedKey(caAcpQueueState);
-  if (sessionStorage.getItem(processedKey)) return;
-  sessionStorage.setItem(processedKey, "1");
-
-  DRY_RUN = Boolean(caAcpDryRun);
-  INTERACTION_MODE = caAcpInteractionMode || "auto";
-  if (DRY_RUN) {
-    logAction("Dry run enabled. No fields will be changed.");
-  }
-
-  for (const fieldSpec of caAcpPayload.fields) {
-    await fillField(fieldSpec);
-    await wait(fieldSpec.delayMs || 150);
-  }
-
-  const shouldAutoSubmit = caAcpAutoSubmit !== false;
-  if (shouldAutoSubmit) {
-    const submitted = clickSubmit(caAcpPayload.submitSelector);
-    if (!submitted) {
-      logAction("Submit button not found. Please submit manually.");
-      return;
+    if (caAcpPayload.formId) {
+      const params = new URLSearchParams(window.location.search);
+      const currentFormId = params.get("formId");
+      if (currentFormId && currentFormId !== String(caAcpPayload.formId)) {
+        return;
+      }
     }
-  }
 
-  await saveStorage({
-    [STORAGE_KEYS.queueState]: null,
-    [STORAGE_KEYS.payload]: null,
-    [STORAGE_KEYS.caseInfo]: null,
-  });
+    processedKey = buildProcessedKey(caAcpQueueState);
+    if (sessionStorage.getItem(processedKey)) return;
+    sessionStorage.setItem(processedKey, "1");
+
+    DRY_RUN = Boolean(caAcpDryRun);
+    INTERACTION_MODE = caAcpInteractionMode || "auto";
+    if (DRY_RUN) {
+      logAction("Dry run enabled. No fields will be changed.");
+    }
+
+    for (const fieldSpec of caAcpPayload.fields) {
+      await fillField(fieldSpec);
+      await wait(fieldSpec.delayMs || 150);
+    }
+
+    const shouldAutoSubmit = caAcpAutoSubmit !== false;
+    if (shouldAutoSubmit) {
+      const submitted = clickSubmit(caAcpPayload.submitSelector);
+      if (!submitted) {
+        logAction("Submit button not found. Please submit manually.");
+        sessionStorage.removeItem(processedKey);
+        return;
+      }
+    }
+
+    await saveStorage({
+      [STORAGE_KEYS.queueState]: null,
+      [STORAGE_KEYS.payload]: null,
+      [STORAGE_KEYS.caseInfo]: null,
+    });
+  } catch (error) {
+    if (processedKey) {
+      sessionStorage.removeItem(processedKey);
+    }
+    throw error;
+  }
 };
 
 run().catch((error) => {

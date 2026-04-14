@@ -3,6 +3,7 @@ const EMAR_MESSAGE_TYPE = "CA_SEND_TO_EMAR_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 const STORE_PAYLOAD_TYPE = "CA_EXTENSION_STORE_PAYLOAD";
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
+const SEND_TO_APP_TYPE = "CA_EXTENSION_SEND_TO_APP";
 const EXTENSION_STATUS_TYPE = "CA_EXTENSION_STATUS";
 const EXTENSION_STATUS_REQUEST_TYPE = "CA_EXTENSION_REQUEST_STATUS";
 const REQUEST_ID_HEADER = "X-Request-ID";
@@ -146,6 +147,22 @@ const parseSseStream = async (response) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("[CA Extension Content] Received message:", message?.type);
+
+  if (message?.type === SEND_TO_APP_TYPE) {
+    try {
+      window.postMessage(
+        {
+          type: SEND_TO_APP_TYPE,
+          payload: message?.payload || null,
+        },
+        window.location.origin
+      );
+      sendResponse({ ok: true });
+    } catch (error) {
+      sendResponse({ ok: false, error: error instanceof Error ? error.message : "Failed to post upload payload" });
+    }
+    return false;
+  }
   
   if (message.type !== API_PROXY_TYPE) return false;
   

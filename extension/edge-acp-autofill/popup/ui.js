@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.2
+ * CareAssurance Extension v0.6.4
  */
 
 import {
@@ -22,6 +22,8 @@ import {
   loadStorage,
   setStorage,
   writeToClipboard,
+  buildCommandCenterState,
+  buildRuntimeDiagnosticsState,
 } from "./state.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -50,7 +52,12 @@ export function cacheDomElements() {
     // Recent
     "recent-section", "recent-list",
     // Upload
-    "document-files", "file-list", "upload-notes", "analyze-documents",
+    "upload-social-work-input", "upload-social-work-files",
+    "upload-initial-assessment-input", "upload-initial-assessment-files",
+    "upload-care-plan-input", "upload-care-plan-files",
+    "upload-moving-handling-input", "upload-moving-handling-files",
+    "upload-additional-documents-input", "upload-additional-documents-files",
+    "upload-sync-status", "sync-upload-btn", "upload-notes", "analyze-documents",
     "analysis-status", "analysis-progress", "clear-uploads",
     "uploaded-docs-summary", "uploaded-docs-list",
     // Autofill settings
@@ -82,8 +89,8 @@ export function cacheDomElements() {
     // Payload review
     "payload-review-panel", "payload-review-list", "confirm-payload-review",
     // Command center
-    "ops-refresh", "ops-copy-snapshot", "ops-clear-incident",
-    "ops-health", "ops-reliability", "ops-queue", "ops-mode", "ops-timeline", "ops-recommendations",
+    "ops-refresh", "ops-copy-snapshot", "ops-copy-incident", "ops-clear-incident",
+    "ops-health", "ops-reliability", "ops-queue", "ops-mode", "ops-timeline", "ops-recommendations", "ops-flags",
   ];
 
   for (const id of ids) {
@@ -721,136 +728,103 @@ export function renderPayloadReview(payload, storedAt) {
 export function renderCommandCenter(snapshot = {}) {
   if (!dom.opsHealth) return;
 
-  const metrics = snapshot.metrics && typeof snapshot.metrics === "object" ? snapshot.metrics : {};
-  const queueState = snapshot.queueState && typeof snapshot.queueState === "object" ? snapshot.queueState : null;
-  const payload = snapshot.payload && typeof snapshot.payload === "object" ? snapshot.payload : null;
-  const verificationFields = Array.isArray(snapshot.verificationFields) ? snapshot.verificationFields : [];
-  const lastError = snapshot.lastError ? String(snapshot.lastError) : "";
-  const interactionMode = snapshot.interactionMode || "auto";
-  const dryRun = Boolean(snapshot.dryRun);
+  const model = snapshot && snapshot.healthTitle && Array.isArray(snapshot.timeline)
+    ? snapshot
+    : buildCommandCenterState(snapshot);
 
-  const proxyRequests = Number(metrics.proxyRequests || 0);
-  const proxySuccesses = Number(metrics.proxySuccesses || 0);
-  const reliability = proxyRequests > 0
-    ? Math.max(0, Math.min(100, Math.round((proxySuccesses / proxyRequests) * 100)))
-    : (lastError ? 0 : 100);
-
-  let healthClass = "is-idle";
-  let healthTitle = "Idle";
-  let healthDetail = "Load a payload or start a queue to activate command telemetry.";
-
-  if (lastError) {
-    healthClass = "is-critical";
-    healthTitle = "Incident";
-    healthDetail = lastError;
-  } else if (queueState && typeof queueState.total === "number") {
-    healthClass = "is-live";
-    const current = Number(queueState.currentIndex || 0) + 1;
-    healthTitle = `Running ${current}/${queueState.total}`;
-    healthDetail = `Workflow ${queueState.formType || payload?.formType || "autofill"} is active.`;
-  } else if (payload) {
-    healthClass = "is-ready";
-    healthTitle = "Ready";
-    healthDetail = `${getPayloadWorkflowLabel(payload)} payload is staged and awaiting run.`;
-  }
-
-  dom.opsHealth.className = `ops-health ${healthClass}`;
+  dom.opsHealth.className = `ops-health ${model.healthClass}`;
   dom.opsHealth.innerHTML = `
     <span class="ops-health-eyebrow">System health</span>
-    <strong class="ops-health-title">${escapeHtml(healthTitle)}</strong>
-    <span class="ops-health-detail">${escapeHtml(healthDetail)}</span>
+    <strong class="ops-health-title">${escapeHtml(model.healthTitle)}</strong>
+    <span class="ops-health-detail">${escapeHtml(model.healthDetail)}</span>
   `;
 
-  if (dom.opsReliability) dom.opsReliability.textContent = `${reliability}%`;
+  if (dom.opsReliability) dom.opsReliability.textContent = model.reliabilityLabel;
+  if (dom.opsQueue) dom.opsQueue.textContent = model.queueLabel;
+  if (dom.opsMode) dom.opsMode.textContent = model.modeLabel;
 
-  if (dom.opsQueue) {
-    if (queueState && typeof queueState.total === "number") {
-      dom.opsQueue.textContent = `${Number(queueState.currentIndex || 0) + 1}/${queueState.total}`;
-    } else if (payload) {
-      dom.opsQueue.textContent = "Queued";
-    } else {
-      dom.opsQueue.textContent = "-";
-    }
-  }
-
-  if (dom.opsMode) {
-    dom.opsMode.textContent = dryRun ? "Dry run" : interactionMode;
-  }
-
-  const timelineItems = [];
-  if (metrics.lastActivityAt || metrics.lastActivityType) {
-    timelineItems.push({
-      tone: "normal",
-      text: `Last activity: ${metrics.lastActivityType || "unknown"} at ${formatRuntimeTime(metrics.lastActivityAt)}`,
-    });
-  }
-  if (queueState && typeof queueState.total === "number") {
-    const total = Number(queueState.total || 0);
-    const current = Number(queueState.currentIndex || 0) + 1;
-    timelineItems.push({
-      tone: "normal",
-      text: `Queue progress is ${current}/${total} (${Math.round((current / Math.max(1, total)) * 100)}%)`,
-    });
-  }
-  if (verificationFields.length > 0) {
-    timelineItems.push({
-      tone: "warn",
-      text: `${verificationFields.length} field${verificationFields.length === 1 ? "" : "s"} flagged for review`,
-    });
-  }
-  if (lastError) {
-    timelineItems.push({ tone: "error", text: `Incident: ${lastError}` });
-  }
-  if (!timelineItems.length) {
-    timelineItems.push({ tone: "muted", text: "Waiting for runtime activity" });
+  if (dom.opsFlags) {
+    const flags = Array.isArray(model.flags) ? model.flags : [];
+    dom.opsFlags.innerHTML = flags.length
+      ? flags
+          .slice(0, 6)
+          .map((flag) => `<span class="ops-flag ${flag.tone || "normal"}">${escapeHtml(flag.label || "")}</span>`)
+          .join("")
+      : '<span class="ops-flag muted">No active flags</span>';
   }
 
   if (dom.opsTimeline) {
-    dom.opsTimeline.innerHTML = timelineItems
+    dom.opsTimeline.innerHTML = model.timeline
       .slice(0, 5)
       .map((item) => `<div class="ops-timeline-item ${item.tone}">${escapeHtml(item.text)}</div>`)
       .join("");
   }
 
-  const recommendations = [];
-  if (!payload) recommendations.push("Load care data from Workspace or Intake to stage payload.");
-  if (payload && !queueState) recommendations.push("Run a dry run first to verify fields before submitting live.");
-  if (verificationFields.length > 0) recommendations.push("Use Next Review Field to resolve flagged values before final submission.");
-  if (reliability < 90) recommendations.push("Proxy reliability dipped below 90%; inspect diagnostics and network conditions.");
-  if (lastError) recommendations.push("Clear the incident after resolving the issue, then retry from the current queue item.");
-  if (!recommendations.length) recommendations.push("System is healthy. Continue monitoring queue and verification status.");
-
   if (dom.opsRecommendations) {
-    dom.opsRecommendations.innerHTML = recommendations
+    dom.opsRecommendations.innerHTML = model.recommendations
       .slice(0, 4)
       .map((text) => `<div class="ops-recommendation">${escapeHtml(text)}</div>`)
       .join("");
   }
 }
 
-export function renderRuntimeDiagnostics(metrics) {
+export function renderRuntimeDiagnostics(snapshot = null) {
   if (!dom.runtimeDiagnostics) return;
-  if (!metrics || typeof metrics !== "object") {
+
+  const model = snapshot && snapshot.rows && snapshot.cards
+    ? snapshot
+    : buildRuntimeDiagnosticsState(snapshot && typeof snapshot === "object" && snapshot.metrics
+      ? snapshot
+      : { metrics: snapshot });
+
+  if (!model) {
     dom.runtimeDiagnostics.classList.add("empty");
     dom.runtimeDiagnostics.textContent = "";
     return;
   }
 
+  dom.runtimeDiagnostics.className = `runtime-diagnostics severity-${model.severity}`;
   dom.runtimeDiagnostics.classList.remove("empty");
-  const hasError = Boolean(metrics.lastError);
-  const proxySummary = `${metrics.proxySuccesses || 0}/${metrics.proxyRequests || 0} ok${metrics.proxyFailures ? ` (${metrics.proxyFailures} failed)` : ""}`;
+
+  const cards = model.cards
+    .map(
+      (card) => `
+        <div class="runtime-card ${escapeAttr(card.tone || "normal")}">
+          <span class="runtime-card-label">${escapeHtml(card.label || "")}</span>
+          <span class="runtime-card-value">${escapeHtml(card.value || "-")}</span>
+        </div>
+      `
+    )
+    .join("");
+
+  const rows = model.rows
+    .map((row) => {
+      const classes = ["runtime-value"];
+      if (row.error) classes.push("error");
+      else if (row.muted) classes.push("muted");
+      return `
+        <div class="runtime-row">
+          <span class="runtime-key">${escapeHtml(row.key || "")}</span>
+          <span class="${classes.join(" ")}">${escapeHtml(row.value || "-")}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  const alerts = Array.isArray(model.alerts) && model.alerts.length
+    ? `<div class="runtime-alerts">${model.alerts
+        .map((alert) => `<div class="runtime-alert ${escapeAttr(alert.tone || "normal")}">${escapeHtml(alert.text || "")}</div>`)
+        .join("")}</div>`
+    : "";
+
   dom.runtimeDiagnostics.innerHTML = [
+    `<div class="runtime-head">`,
     `<div class="runtime-diagnostics-title">Runtime diagnostics</div>`,
-    `<div class="runtime-row"><span class="runtime-key">Proxy</span><span class="runtime-value runtime-badge">${proxySummary}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Last status</span><span class="runtime-value">${metrics.lastProxyStatus ?? "-"}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Retries / Starts / Stops</span><span class="runtime-value">${metrics.proxyRetries || 0} / ${metrics.autofillStarts || 0} / ${metrics.autofillStops || 0}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Heartbeat</span><span class="runtime-value">${metrics.heartbeatCount || 0} \u2022 ${formatRuntimeTime(metrics.lastHeartbeatAt)}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Activity</span><span class="runtime-value">${metrics.lastActivityType || "-"} \u2022 ${formatRuntimeTime(metrics.lastActivityAt)}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Uptime</span><span class="runtime-value">${formatRuntimeDuration(metrics.workerStartedAt)}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Request ID</span><span class="runtime-value muted">${metrics.lastRequestId || "-"}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Target</span><span class="runtime-value muted">${metrics.lastTargetOrigin || "-"}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Updated</span><span class="runtime-value muted">${formatRuntimeTime(metrics.lastUpdatedAt)}</span></div>`,
-    `<div class="runtime-row"><span class="runtime-key">Error</span><span class="runtime-value ${hasError ? "error" : "muted"}">${metrics.lastError || "None"}</span></div>`,
+    `<span class="runtime-severity ${escapeAttr(model.severity || "idle")}">${escapeHtml(model.summary || "")}</span>`,
+    `</div>`,
+    `<div class="runtime-card-grid">${cards}</div>`,
+    rows,
+    alerts,
   ].join("");
 }
 

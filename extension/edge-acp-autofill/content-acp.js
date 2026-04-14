@@ -11,6 +11,7 @@ const FALLBACK_STORAGE_KEYS = {
   interactionMode: "caAcpInteractionMode",
   signatureData: "caAcpSignatureData",
   signatureBatchId: "caAcpSignatureBatchId",
+  overlayPinned: "caAcpOverlayPinned",
 };
 const FALLBACK_FORM_CONFIGS = {
   acp: { formId: "1048191" },
@@ -85,10 +86,14 @@ const waitForSelector = async (selector, timeoutMs = 15000, intervalMs = 200) =>
 
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
-  chrome.runtime.sendMessage({
-    type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
-    entry: `[${timestamp}] ${message}`,
-  });
+  try {
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES?.log || "CA_EXTENSION_LOG",
+      entry: `[${timestamp}] ${message}`,
+    });
+  } catch {
+    // Extension context may be invalid after an extension reload.
+  }
   if (typeof refreshOverlaySoon === "function") {
     refreshOverlaySoon();
   }
@@ -99,6 +104,7 @@ let INTERACTION_MODE = "auto";
 let overlayInitialized = false;
 let overlayElements = null;
 let overlayCollapsed = false;
+let overlayPinned = false;
 const OVERLAY_STYLE_ID = "ca-autofill-overlay-styles";
 
 const getInteractionModeLabel = (interactionMode, dryRun) => {
@@ -265,6 +271,29 @@ const injectOverlayStyles = () => {
       line-height: 1;
       padding: 0;
       box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    }
+
+    .ca-overlay-lock {
+      min-width: 48px;
+      height: 30px;
+      border: 1px solid rgba(148, 163, 184, 0.26);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      color: #475569;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      line-height: 1;
+      padding: 0 8px;
+      box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    }
+
+    .ca-overlay-lock.is-active {
+      border-color: rgba(37, 99, 235, 0.4);
+      background: rgba(219, 234, 254, 0.95);
+      color: #1d4ed8;
     }
 
     .ca-overlay-body {
@@ -460,7 +489,14 @@ const initOverlay = () => {
   minimizeButton.textContent = "-";
   minimizeButton.title = "Minimize";
 
+  const lockButton = document.createElement("button");
+  lockButton.type = "button";
+  lockButton.className = "ca-overlay-lock";
+  lockButton.textContent = "Pin";
+  lockButton.title = "Pin overlay";
+
   actions.appendChild(statusChip);
+  actions.appendChild(lockButton);
   actions.appendChild(minimizeButton);
 
   header.appendChild(brandmark);
@@ -567,14 +603,49 @@ const initOverlay = () => {
     stepValue,
     logsBox,
     footerNote,
+    lockButton,
     minimizeButton,
     collapsedTitle: "CA ready",
   };
 
+  const setOverlayPinned = async (pinned, { persist = true } = {}) => {
+    overlayPinned = Boolean(pinned);
+    if (!overlayElements) return;
+
+    if (overlayElements.lockButton) {
+      overlayElements.lockButton.textContent = overlayPinned ? "Pinned" : "Pin";
+      overlayElements.lockButton.title = overlayPinned ? "Unpin overlay" : "Pin overlay";
+      overlayElements.lockButton.classList.toggle("is-active", overlayPinned);
+    }
+
+    if (overlayPinned && overlayCollapsed) {
+      setOverlayCollapsed(false);
+    }
+
+    if (persist) {
+      await saveStorage({ [STORAGE_KEYS.overlayPinned]: overlayPinned });
+    }
+  };
+
+  loadStorage([STORAGE_KEYS.overlayPinned])
+    .then((stored) => {
+      setOverlayPinned(Boolean(stored?.[STORAGE_KEYS.overlayPinned]), { persist: false });
+    })
+    .catch(() => {});
+
   minimizeButton.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (overlayPinned) {
+      return;
+    }
     setOverlayCollapsed(!overlayCollapsed);
+  });
+
+  lockButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOverlayPinned(!overlayPinned).catch(() => {});
   });
 };
 
@@ -662,6 +733,9 @@ const refreshOverlay = async () => {
 };
 
 const setOverlayCollapsed = (collapsed) => {
+  if (collapsed && overlayPinned) {
+    return;
+  }
   overlayCollapsed = collapsed;
   if (!overlayElements) return;
   if (collapsed) {
@@ -689,9 +763,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.payload?.open) {
     setOverlayCollapsed(false);
   } else if (message?.payload?.minimize) {
-    setOverlayCollapsed(true);
+    if (!overlayPinned) {
+      setOverlayCollapsed(true);
+    }
   } else {
-    setOverlayCollapsed(!overlayCollapsed);
+    if (!overlayPinned) {
+      setOverlayCollapsed(!overlayCollapsed);
+    }
   }
   sendResponse?.({ ok: true });
   return true;
@@ -1518,7 +1596,7 @@ const run = async () => {
 
   const processedKey = buildProcessedKey(caAcpQueueState);
   if (sessionStorage.getItem(processedKey)) return;
-  sessionStorage.setItem(processedKey, "1");
+
   const formReady = await waitForRiskTable();
   if (!formReady || !isRiskFormPage()) {
     logAction("Risk form table not found. Autofill skipped.");
@@ -1527,64 +1605,71 @@ const run = async () => {
 
   const assessment = caAcpPayload.assessments[caAcpQueueState.currentIndex];
   if (!assessment) return;
-
-  DRY_RUN = Boolean(caAcpDryRun);
-  INTERACTION_MODE = caAcpInteractionMode || "auto";
-  if (DRY_RUN) {
-    logAction("Dry run enabled. No fields will be changed.");
-  }
-
-  await wait(1000);
-
-  const serviceUserLabel =
-    caAcpPayload.serviceUserDisplayName || caAcpPayload.serviceUserInitials || "Service User";
   if (!Array.isArray(assessment.risks)) {
     logAction("Assessment has no risks array. Skipping autofill.");
     return;
   }
 
-  const didFillAssessment = await fillRiskAssessment(assessment, serviceUserLabel);
-  if (!didFillAssessment) {
-    logAction("Risk assessment fields could not be mapped on this page. Autofill stopped.");
-    return;
-  }
+  sessionStorage.setItem(processedKey, "1");
 
-  await uploadSignature();
-  await wait(1000);
-
-  const advanceOrFinish = () => {
-    if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
-      logAction(`Assessment ${caAcpQueueState.currentIndex + 1}/${caAcpQueueState.total} complete. Advancing to next.`);
-      notifyStepComplete();
-    } else {
-      logAction(`All ${caAcpQueueState.total} assessment(s) complete.`);
-      saveStorage({
-        [STORAGE_KEYS.queueState]: null,
-        [STORAGE_KEYS.payload]: null,
-        [STORAGE_KEYS.caseInfo]: null,
-        [STORAGE_KEYS.signatureData]: null,
-        [STORAGE_KEYS.signatureBatchId]: null,
-      });
+  try {
+    DRY_RUN = Boolean(caAcpDryRun);
+    INTERACTION_MODE = caAcpInteractionMode || "auto";
+    if (DRY_RUN) {
+      logAction("Dry run enabled. No fields will be changed.");
     }
-  };
 
-  const shouldAutoSubmit = caAcpAutoSubmit !== false;
-  if (shouldAutoSubmit) {
-    const submitted = clickSubmit();
-    if (!submitted) {
-      logAction("Submit button not found. Please submit manually.");
-      attachManualSubmitListener(advanceOrFinish);
+    await wait(1000);
+
+    const serviceUserLabel =
+      caAcpPayload.serviceUserDisplayName || caAcpPayload.serviceUserInitials || "Service User";
+
+    const didFillAssessment = await fillRiskAssessment(assessment, serviceUserLabel);
+    if (!didFillAssessment) {
+      logAction("Risk assessment fields could not be mapped on this page. Autofill stopped.");
+      sessionStorage.removeItem(processedKey);
       return;
     }
-    logAction("Submitted. Waiting for page response...");
-    // After auto-submit, wait for the page to process then advance
-    // Mobizio may navigate or show a success message on the same page
-    await wait(2000);
-    advanceOrFinish();
-    return;
-  }
 
-  attachManualSubmitListener(advanceOrFinish);
+    await uploadSignature();
+    await wait(1000);
+
+    const advanceOrFinish = () => {
+      if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
+        logAction(`Assessment ${caAcpQueueState.currentIndex + 1}/${caAcpQueueState.total} complete. Advancing to next.`);
+        notifyStepComplete();
+      } else {
+        logAction(`All ${caAcpQueueState.total} assessment(s) complete.`);
+        saveStorage({
+          [STORAGE_KEYS.queueState]: null,
+          [STORAGE_KEYS.payload]: null,
+          [STORAGE_KEYS.caseInfo]: null,
+          [STORAGE_KEYS.signatureData]: null,
+          [STORAGE_KEYS.signatureBatchId]: null,
+        });
+      }
+    };
+
+    const shouldAutoSubmit = caAcpAutoSubmit !== false;
+    if (shouldAutoSubmit) {
+      const submitted = clickSubmit();
+      if (!submitted) {
+        logAction("Submit button not found. Please submit manually.");
+        attachManualSubmitListener(advanceOrFinish);
+        return;
+      }
+      logAction("Submitted. Waiting for page response...");
+      // After auto-submit, wait for the page to process then advance.
+      await wait(2000);
+      advanceOrFinish();
+      return;
+    }
+
+    attachManualSubmitListener(advanceOrFinish);
+  } catch (error) {
+    sessionStorage.removeItem(processedKey);
+    logAction(`ACP autofill failed: ${error?.message || "Unknown error"}`);
+  }
 };
 
 run();
