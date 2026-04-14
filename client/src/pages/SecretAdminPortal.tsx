@@ -157,6 +157,7 @@ interface ExtensionPackageInfo {
   previousManifestVersion?: string | null;
   versionUpdated?: boolean;
   downloadUrl: string;
+  crxDownloadUrl: string | null;
   package: {
     available: boolean;
     filename: string | null;
@@ -164,6 +165,9 @@ interface ExtensionPackageInfo {
     sha256: string | null;
     packagedAt: string | null;
     rebuilt?: boolean;
+  };
+  crx: {
+    available: boolean;
   };
 }
 
@@ -4957,6 +4961,12 @@ export default function SecretAdminPortal() {
     const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
     return base && raw.startsWith("/") ? `${base}${raw}` : raw;
   })();
+  const extensionCrxDownloadUrl = (() => {
+    const raw = extensionInfo?.crxDownloadUrl || null;
+    if (!raw) return null;
+    const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+    return base && raw.startsWith("/") ? `${base}${raw}` : raw;
+  })();
   const installedExtensionVersion = installedExtensionStatus?.detected
     ? installedExtensionStatus.version || "Detected"
     : installedExtensionStatus?.refreshRequired
@@ -5188,7 +5198,7 @@ export default function SecretAdminPortal() {
                     Edge Extension Download
                   </CardTitle>
                   <CardDescription>
-                    Download or rebuild the latest ACP Autofill Edge extension ZIP from CareAssurance.
+                    Download or rebuild the latest ACP Autofill Edge extension — available as a ZIP (for manual install or Edge Add-ons) or as a signed .crx file.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
@@ -5236,6 +5246,14 @@ export default function SecretAdminPortal() {
                           Download Edge Extension (.zip)
                         </a>
                       </Button>
+                      {extensionCrxDownloadUrl && (
+                        <Button asChild variant="outline" data-testid="button-download-edge-extension-crx">
+                          <a href={extensionCrxDownloadUrl} target="_blank" rel="noopener noreferrer">
+                            <Download size={16} />
+                            Download .crx
+                          </a>
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="outline"
@@ -5272,7 +5290,7 @@ export default function SecretAdminPortal() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    The update button bumps the extension manifest version and rebuilds the ZIP package. Extract downloads first for <strong>Extensions</strong> → <strong>Load unpacked</strong>, or upload the ZIP directly to Edge Add-ons.
+                    The update button bumps the extension manifest version and rebuilds the ZIP and .crx packages. Use the .crx for direct browser install, extract the ZIP for <strong>Extensions</strong> → <strong>Load unpacked</strong>, or upload the ZIP to Edge Add-ons.
                   </p>
                 </CardContent>
               </Card>
