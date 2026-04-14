@@ -30,6 +30,7 @@
     "db:push": "drizzle-kit push",
     "import:acp-service-users": "tsx script/importAccessCarePlanningServiceUsers.ts",
     "package:extension": "node script/package-extension.mjs",
+    "package:extension:all": "node script/package-extension.mjs",
     "extension":"npm run package:extension"
   },
   "engines": {

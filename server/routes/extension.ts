@@ -29,6 +29,10 @@ const EXTENSION_PACKAGE_CANDIDATES = [
   path.resolve(process.cwd(), "dist", "edge-acp-autofill.zip"),
   path.resolve(process.cwd(), "edge-acp-autofill.zip"),
 ] as const;
+const EXTENSION_CRX_CANDIDATES = [
+  path.resolve(process.cwd(), "dist", "edge-acp-autofill.crx"),
+  path.resolve(process.cwd(), "edge-acp-autofill.crx"),
+] as const;
 const EXTENSION_SOURCE_DIR = path.resolve(process.cwd(), "extension", "edge-acp-autofill");
 const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
 const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.mjs");
@@ -86,6 +90,18 @@ async function packageExtensionZip(): Promise<boolean> {
 
 async function resolveExtensionPackagePath(): Promise<string | null> {
   for (const candidate of EXTENSION_PACKAGE_CANDIDATES) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // Keep checking fallback locations.
+    }
+  }
+  return null;
+}
+
+async function resolveExtensionCrxPath(): Promise<string | null> {
+  for (const candidate of EXTENSION_CRX_CANDIDATES) {
     try {
       await fs.access(candidate);
       return candidate;
@@ -331,11 +347,13 @@ export function registerExtensionRoutes(
       }
 
       res.setHeader("Cache-Control", "no-store");
+      const crxPath = await resolveExtensionCrxPath();
       return res.json({
         manifestVersion: metadata.manifestVersion,
         previousManifestVersion: metadata.previousManifestVersion,
         versionUpdated: metadata.versionUpdated,
         downloadUrl: "/api/admin/extension/package?fresh=1",
+        crxDownloadUrl: crxPath ? "/api/admin/extension/package.crx?fresh=1" : null,
         package: {
           available: true,
           filename: metadata.filename,
@@ -343,6 +361,9 @@ export function registerExtensionRoutes(
           sha256: metadata.sha256,
           packagedAt: metadata.packagedAt,
           rebuilt: metadata.rebuilt,
+        },
+        crx: {
+          available: crxPath !== null,
         },
       });
     } catch (error: unknown) {
@@ -376,6 +397,49 @@ export function registerExtensionRoutes(
     } catch (error: unknown) {
       console.error("Extension package lookup error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to prepare extension package") });
+    }
+  });
+
+  // Admin-only CRX package download for browser extension rollout
+  app.get("/api/admin/extension/package.crx", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
+      if (forceBuild) {
+        // packageExtensionZip invokes the canonical packaging script which produces
+        // both the ZIP and the CRX (via Chromium --pack-extension) in a single run.
+        await packageExtensionZip();
+      }
+
+      const [crxPath, manifestVersion] = await Promise.all([
+        resolveExtensionCrxPath(),
+        readExtensionManifestVersion(),
+      ]);
+
+      if (!crxPath) {
+        return res.status(404).json({
+          message:
+            "CRX package is unavailable. Run `npm run package:extension` on the server to generate it (requires Chromium).",
+        });
+      }
+
+      const [crxStat, crxBuffer] = await Promise.all([fs.stat(crxPath), fs.readFile(crxPath)]);
+      const sha256 = createHash("sha256").update(crxBuffer).digest("hex");
+      const versionSuffix = manifestVersion ? `-v${manifestVersion}` : "";
+      const downloadName = `careassurance-edge-acp-autofill${versionSuffix}.crx`;
+
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Content-Type", "application/x-chrome-extension");
+      res.setHeader("X-Extension-Version", manifestVersion || "unknown");
+      res.setHeader("X-Extension-Sha256", sha256);
+      res.setHeader("X-Content-Length", String(crxStat.size));
+      res.download(crxPath, downloadName, (downloadError) => {
+        if (!downloadError || res.headersSent) return;
+        console.error("CRX package download error:", downloadError);
+        res.status(500).json({ message: "Failed to download CRX package" });
+      });
+    } catch (error: unknown) {
+      console.error("CRX package lookup error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to prepare CRX package") });
     }
   });
 

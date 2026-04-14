@@ -15,6 +15,12 @@ const sourceDir = path.resolve(rootDir, "extension", "edge-acp-autofill");
 const distDir = path.resolve(rootDir, "dist");
 const outputPath = path.resolve(distDir, "edge-acp-autofill.zip");
 const tempOutputPath = `${outputPath}.tmp`;
+const crxOutputPath = path.resolve(distDir, "edge-acp-autofill.crx");
+const keyPath = path.resolve(distDir, "extension-key.pem");
+
+// Chromium places the .crx and .pem next to the source directory by default
+const chromiumCrxPath = path.resolve(path.dirname(sourceDir), "edge-acp-autofill.crx");
+const chromiumPemPath = path.resolve(path.dirname(sourceDir), "edge-acp-autofill.pem");
 
 const excludedPatterns = [
   "CHANGELOG.md",
@@ -88,6 +94,64 @@ async function validateManifest() {
   return manifest;
 }
 
+async function findChromiumBin() {
+  const isWindows = process.platform === "win32";
+  const locateCmd = isWindows ? "where" : "which";
+  const candidates = isWindows
+    ? ["chrome", "chromium", "google-chrome"]
+    : ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"];
+  for (const bin of candidates) {
+    try {
+      await execFileAsync(locateCmd, [bin], { timeout: 5000 });
+      return bin;
+    } catch {
+      // Try next candidate.
+    }
+  }
+  return null;
+}
+
+async function buildCrx() {
+  const chromiumBin = await findChromiumBin();
+  if (!chromiumBin) {
+    console.warn("Chromium not found — skipping .crx build.");
+    return null;
+  }
+
+  await fs.unlink(chromiumCrxPath).catch(() => {});
+  await fs.unlink(crxOutputPath).catch(() => {});
+
+  const args = [`--pack-extension=${sourceDir}`, "--no-sandbox"];
+
+  let keyExists = false;
+  try {
+    await fs.access(keyPath);
+    keyExists = true;
+  } catch {
+    // Key does not exist yet; Chromium will generate one.
+  }
+
+  if (keyExists) {
+    args.push(`--pack-extension-key=${keyPath}`);
+  }
+
+  await execFileAsync(chromiumBin, args, { timeout: 60000 });
+
+  // Move Chromium's output from the extension parent directory into dist/.
+  await fs.rename(chromiumCrxPath, crxOutputPath);
+
+  if (!keyExists) {
+    // Persist the generated key so future runs produce the same extension ID.
+    await fs.rename(chromiumPemPath, keyPath).catch(() => {});
+  }
+
+  // Clean up any stray .pem left next to the source directory.
+  await fs.unlink(chromiumPemPath).catch(() => {});
+
+  const stats = await fs.stat(crxOutputPath);
+  return { outputPath: crxOutputPath, sizeBytes: stats.size, packagedAt: stats.mtime.toISOString() };
+}
+
 async function buildArchive() {
   await validateManifest();
   await fs.mkdir(distDir, { recursive: true });
@@ -101,17 +165,23 @@ async function buildArchive() {
   });
 
   await fs.rename(tempOutputPath, outputPath);
-  const stats = await fs.stat(outputPath);
+  const zipStats = await fs.stat(outputPath);
+
+  const crxResult = await buildCrx();
 
   console.log(JSON.stringify({
-    outputPath,
-    sizeBytes: stats.size,
-    packagedAt: stats.mtime.toISOString(),
+    zip: {
+      outputPath,
+      sizeBytes: zipStats.size,
+      packagedAt: zipStats.mtime.toISOString(),
+    },
+    crx: crxResult ?? null,
   }));
 }
 
 buildArchive().catch(async (error) => {
   await fs.unlink(tempOutputPath).catch(() => {});
+  await fs.unlink(chromiumCrxPath).catch(() => {});
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });
