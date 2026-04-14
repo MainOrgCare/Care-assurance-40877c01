@@ -353,10 +353,12 @@ export function updateConnectionUI(connected, user = null) {
   }
 
   if (dom.recentSection) dom.recentSection.hidden = !connected;
-  if (dom.searchSection) dom.searchSection.hidden = !connected;
 
   const isAdmin = connected && (user?.role === "admin" || state.connectedWorkspaceUser?.role === "admin");
   document.body.classList.toggle("is-admin", isAdmin);
+
+  // search-section uses .admin-only CSS — also gate via hidden for non-admin connected users
+  if (dom.searchSection) dom.searchSection.hidden = !connected || !isAdmin;
 
   updateHeaderUserChip(connected ? (user || state.connectedWorkspaceUser) : null);
   updateFooterLiveDot(connected);

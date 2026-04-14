@@ -36,7 +36,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, parseApiResponse } from "@/lib/queryClient";
 import { queryKeys } from "@/lib/queryKeys";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
@@ -189,7 +189,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const res = await fetch("/api/dashboard/stats", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch dashboard stats");
-      return res.json();
+      return parseApiResponse<DashboardResponse>(res);
     },
     refetchInterval: 120000,
     refetchIntervalInBackground: false,
@@ -202,7 +202,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const res = await fetch("/api/dashboard/widgets", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch widget preferences");
-      return res.json();
+      return parseApiResponse<{ widgets: string[] | null }>(res);
     },
   });
 
@@ -231,7 +231,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const res = await fetch("/api/dashboard/activity?limit=15", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch activity");
-      return res.json();
+      return parseApiResponse<ActivityItem[]>(res);
     },
     refetchInterval: 120000,
     staleTime: 30000,
@@ -925,7 +925,8 @@ export default function Dashboard() {
       </>
       )}
 
-      {/* Operational Summary & Data Export */}
+      {/* Operational Summary & Data Export — admin only */}
+      {user?.role === "admin" && (
       <Card className=" overflow-hidden animate-slide-up stagger-5" data-testid="card-operational-summary">
         <CardHeader className="pb-3 border-b border-border/50">
           <div className="flex items-center justify-between">
@@ -1028,6 +1029,7 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

@@ -493,6 +493,77 @@ const findContentScriptTab = async (targetOrigin) => {
   return null;
 };
 
+// ── Direct-fetch fallback ──────────────────────────────────────────────
+// When no content-script tab is available, the service worker makes a
+// direct fetch using host_permissions + the cookies permission to forward
+// the session cookie.  This avoids CORS issues (MV3 service workers are
+// exempt from CORS for host_permissions URLs) and lets the extension work
+// even without a CareAssurance tab open.
+// ───────────────────────────────────────────────────────────────────────
+
+const resolveBaseUrl = (hostname) => {
+  const h = String(hostname || "").trim();
+  if (!h) return "https://careassurance.uk";
+  if (h.includes("localhost") || h.includes("127.0.0.1")) return `http://${h}`;
+  return `https://${h}`;
+};
+
+const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, requestId }) => {
+  const baseUrl = resolveBaseUrl(targetOrigin);
+  const fullUrl = `${baseUrl}${endpoint}`;
+  console.log(`[CA Extension] Direct fetch fallback: ${method} ${fullUrl}`);
+
+  // Read session cookies via the cookies API so the request is authenticated
+  let cookieHeader = "";
+  try {
+    const cookies = await chrome.cookies.getAll({ url: baseUrl });
+    if (cookies.length) {
+      cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    }
+  } catch (e) {
+    console.warn("[CA Extension] Could not read cookies for", baseUrl, e?.message);
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(requestId ? { "X-Request-ID": String(requestId) } : {}),
+    ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+  };
+
+  const fetchOptions = { method, headers, credentials: "include" };
+  if (body && method !== "GET") {
+    fetchOptions.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(fullUrl, fetchOptions);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    return {
+      ok: false,
+      status: res.status,
+      requestId: requestId || res.headers.get("X-Request-ID") || null,
+      error: res.status === 401 ? "Not logged in" : errText,
+      directFetch: true,
+    };
+  }
+
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const rawText = await res.text();
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = { message: rawText };
+  }
+  return {
+    ok: true,
+    data,
+    status: res.status,
+    requestId: requestId || res.headers.get("X-Request-ID") || null,
+    directFetch: true,
+  };
+};
+
 const forwardProxyRequest = async (request, sendResponse) => {
   const { endpoint, method = "GET", body, targetOrigin, requestId } = request || {};
   const resolvedTargetOrigin = targetOrigin || "careassurance.uk";
@@ -508,19 +579,37 @@ const forwardProxyRequest = async (request, sendResponse) => {
   try {
     const tabId = await findContentScriptTab(resolvedTargetOrigin);
     if (!tabId) {
-      await updateRuntimeMetrics((metrics) => ({
-        ...metrics,
-        proxyFailures: (metrics.proxyFailures || 0) + 1,
-        lastProxyStatus: "needs-tab",
-        lastError: `No tab for ${resolvedTargetOrigin}`,
-        lastErrorAt: new Date().toISOString(),
-      }));
-      sendResponse({
-        ok: false,
-        error: `No Care Assurance tab found. Please open https://${resolvedTargetOrigin} and log in first.`,
-        needsTab: true,
-      });
-      return;
+      // ── Fallback: direct fetch from service worker ──
+      console.log(`[CA Extension] No content-script tab for ${resolvedTargetOrigin}, trying direct fetch`);
+      try {
+        const directResult = await directFetch(request);
+        await updateRuntimeMetrics((metrics) => ({
+          ...metrics,
+          directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
+          directFetchSuccesses: directResult?.ok ? (metrics.directFetchSuccesses || 0) + 1 : metrics.directFetchSuccesses || 0,
+          lastProxyStatus: directResult?.ok ? "ok-direct" : directResult?.status || "direct-error",
+          lastError: directResult?.ok ? metrics.lastError : directResult?.error || metrics.lastError,
+          lastErrorAt: directResult?.ok ? metrics.lastErrorAt : new Date().toISOString(),
+        }));
+        sendResponse(directResult);
+        return;
+      } catch (directError) {
+        console.warn("[CA Extension] Direct fetch also failed:", directError?.message);
+        await updateRuntimeMetrics((metrics) => ({
+          ...metrics,
+          directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
+          proxyFailures: (metrics.proxyFailures || 0) + 1,
+          lastProxyStatus: "direct-exception",
+          lastError: directError?.message || "Direct fetch failed",
+          lastErrorAt: new Date().toISOString(),
+        }));
+        sendResponse({
+          ok: false,
+          error: `Could not reach ${resolvedTargetOrigin}. Check the server is running and you are logged in.`,
+          needsTab: false,
+        });
+        return;
+      }
     }
 
     try {
@@ -584,30 +673,54 @@ const forwardProxyRequest = async (request, sendResponse) => {
         }));
         sendResponse(retryResponse);
       } else {
-        console.error("[CA Extension] All retry attempts failed:", lastInjectError?.message);
-        await updateRuntimeMetrics((metrics) => ({
-          ...metrics,
-          proxyFailures: (metrics.proxyFailures || 0) + 1,
-          lastProxyStatus: "inject-failed",
-          lastError: lastInjectError?.message || "Script injection failed",
-          lastErrorAt: new Date().toISOString(),
-        }));
-        sendResponse({
-          ok: false,
-          error: "Could not communicate with Care Assurance tab. Please refresh the page and try again.",
-        });
+        // Content-script relay exhausted — try direct fetch as last resort
+        console.warn("[CA Extension] Content-script retries exhausted, trying direct fetch fallback");
+        try {
+          const directResult = await directFetch(request);
+          await updateRuntimeMetrics((metrics) => ({
+            ...metrics,
+            directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
+            directFetchSuccesses: directResult?.ok ? (metrics.directFetchSuccesses || 0) + 1 : metrics.directFetchSuccesses || 0,
+            lastProxyStatus: directResult?.ok ? "ok-direct-fallback" : "direct-fallback-error",
+          }));
+          sendResponse(directResult);
+        } catch (directError) {
+          console.error("[CA Extension] All relay + direct fetch attempts failed:", lastInjectError?.message, directError?.message);
+          await updateRuntimeMetrics((metrics) => ({
+            ...metrics,
+            proxyFailures: (metrics.proxyFailures || 0) + 1,
+            lastProxyStatus: "all-failed",
+            lastError: directError?.message || lastInjectError?.message || "All request methods failed",
+            lastErrorAt: new Date().toISOString(),
+          }));
+          sendResponse({
+            ok: false,
+            error: "Could not reach Care Assurance. Please check the server is running and refresh the page.",
+          });
+        }
       }
     }
   } catch (error) {
-    console.error("[CA Extension] API proxy error:", error);
-    await updateRuntimeMetrics((metrics) => ({
-      ...metrics,
-      proxyFailures: (metrics.proxyFailures || 0) + 1,
-      lastProxyStatus: "exception",
-      lastError: error?.message || "Proxy request failed",
-      lastErrorAt: new Date().toISOString(),
-    }));
-    sendResponse({ ok: false, error: error?.message || "Proxy request failed" });
+    console.error("[CA Extension] API proxy error, trying direct fetch:", error);
+    // Last-ditch: try direct fetch if the entire proxy chain threw
+    try {
+      const directResult = await directFetch(request);
+      await updateRuntimeMetrics((metrics) => ({
+        ...metrics,
+        directFetchAttempts: (metrics.directFetchAttempts || 0) + 1,
+        lastProxyStatus: directResult?.ok ? "ok-direct-recovery" : "direct-recovery-error",
+      }));
+      sendResponse(directResult);
+    } catch (directError) {
+      await updateRuntimeMetrics((metrics) => ({
+        ...metrics,
+        proxyFailures: (metrics.proxyFailures || 0) + 1,
+        lastProxyStatus: "exception",
+        lastError: error?.message || "Proxy request failed",
+        lastErrorAt: new Date().toISOString(),
+      }));
+      sendResponse({ ok: false, error: error?.message || "Proxy request failed" });
+    }
   }
 };
 

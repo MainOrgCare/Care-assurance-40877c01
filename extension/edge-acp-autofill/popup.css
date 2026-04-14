@@ -2341,9 +2341,9 @@ svg:not([width]):not(.toast-icon) {
   max-height: 24px;
 }
 
-/* Admin-only sections */
-.admin-only { display: none; }
-.is-admin .admin-only { display: block; }
+/* Admin-only sections — hidden unless body.is-admin is set */
+.admin-only { display: none !important; }
+.is-admin .admin-only { display: block !important; }
 
 .toast-exit {
   animation: toastExit var(--duration-normal) var(--ease-out) forwards;
@@ -3332,8 +3332,7 @@ fieldset legend {
     border-color: var(--color-border);
   }
 
-  /* Admin-only visibility (body.is-admin) */
-  body:not(.is-admin) .admin-only { display: none !important; }
+  /* Admin-only visibility — handled by base rules with !important, no override needed here */
 
   /* Kbd hints dark */
   .kbd {
