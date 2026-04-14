@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.4.1
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.4.2
 // Streamlined with direct Care Assurance integration via content script proxy
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -951,12 +951,14 @@ const writeToClipboard = async (value) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function switchTab(tabName, { persist = true } = {}) {
-  [tabConnectBtn, tabUploadBtn, tabAutofillBtn].forEach(btn => btn?.classList.remove("active"));
-  [tabContentConnect, tabContentUpload, tabContentAutofill].forEach(content => content?.classList.remove("active"));
+  const tabs = [tabConnectBtn, tabUploadBtn, tabAutofillBtn];
+  const panels = [tabContentConnect, tabContentUpload, tabContentAutofill];
+  tabs.forEach(btn => { btn?.classList.remove("active"); btn?.setAttribute("aria-selected", "false"); });
+  panels.forEach(content => { content?.classList.remove("active"); content?.setAttribute("hidden", ""); });
   
-  if (tabName === "connect") { tabConnectBtn?.classList.add("active"); tabContentConnect?.classList.add("active"); }
-  if (tabName === "upload") { tabUploadBtn?.classList.add("active"); tabContentUpload?.classList.add("active"); }
-  if (tabName === "autofill") { tabAutofillBtn?.classList.add("active"); tabContentAutofill?.classList.add("active"); }
+  if (tabName === "connect") { tabConnectBtn?.classList.add("active"); tabConnectBtn?.setAttribute("aria-selected", "true"); tabContentConnect?.classList.add("active"); tabContentConnect?.removeAttribute("hidden"); }
+  if (tabName === "upload") { tabUploadBtn?.classList.add("active"); tabUploadBtn?.setAttribute("aria-selected", "true"); tabContentUpload?.classList.add("active"); tabContentUpload?.removeAttribute("hidden"); }
+  if (tabName === "autofill") { tabAutofillBtn?.classList.add("active"); tabAutofillBtn?.setAttribute("aria-selected", "true"); tabContentAutofill?.classList.add("active"); tabContentAutofill?.removeAttribute("hidden"); }
 
   if (persist) {
     chrome.storage.local.set({ [STORAGE_KEYS.lastTab]: tabName }).catch(() => {});
@@ -1020,6 +1022,10 @@ function updateConnectionUI(connected, user = null) {
   
   if (recentSection) recentSection.hidden = !connected;
   if (searchSection) searchSection.hidden = !connected;
+
+  // Header user chip + footer live dot
+  updateHeaderUserChip(connected ? (user || connectedWorkspaceUser) : null);
+  updateFooterLiveDot(connected);
 }
 
 async function connectToCareAssurance() {
@@ -1057,27 +1063,32 @@ async function connectToCareAssurance() {
         await refreshWorkspaceContext(status.user);
         connected = true;
         
-        // Fetch service users
+        // Fetch service users (merge analyzed + ACP sources)
         try {
-          const usersRes = await apiProxy('/api/extension/service-users');
-          if (usersRes.ok) {
-            const data = usersRes.data;
-            serviceUsers = data.users || [];
-            displayServiceUsers();
+          const [usersRes, acpRes] = await Promise.all([
+            apiProxy('/api/extension/service-users').catch(() => null),
+            apiProxy('/api/extension/acp-service-users').catch(() => null)
+          ]);
+          
+          const analyzedUsers = (usersRes?.ok ? usersRes.data?.users : []) || [];
+          acpServiceUsers = (acpRes?.ok ? acpRes.data?.users : []) || [];
+          
+          // Build merged list: start with analyzed users, add unique ACP users
+          const analyzedIds = new Set(analyzedUsers.map(u => (u.name || "").toLowerCase().trim()));
+          const acpOnlyUsers = acpServiceUsers
+            .filter(u => !analyzedIds.has((u.name || "").toLowerCase().trim()))
+            .map(u => ({ id: u.acpId || u.id, name: u.name, initials: u.initials, lastUpdated: u.updatedAt, isAcpOnly: true }));
+          
+          serviceUsers = [...analyzedUsers, ...acpOnlyUsers];
+          displayServiceUsers();
+          renderAutofillUserDropdown();
+          
+          if (serviceUsers.length === 0) {
+            showInfo("No service users found. Upload workbook data or ensure ACP records are imported in Care Assurance.");
           }
         } catch (e) {
           console.warn("Failed to fetch service users:", e);
-        }
-
-        // Fetch ACP service users for autofill user picker
-        try {
-          const acpRes = await apiProxy('/api/extension/acp-service-users');
-          if (acpRes.ok) {
-            acpServiceUsers = acpRes.data?.users || [];
-            renderAutofillUserDropdown();
-          }
-        } catch (e) {
-          console.warn("Failed to fetch ACP service users:", e);
+          showError("Could not load service users. Please check your connection.");
         }
         
         // Fetch recent items
@@ -1198,7 +1209,17 @@ function displayServiceUsers() {
   if (!serviceUserList) return;
   
   const searchTerm = serviceUserSearch?.value.toLowerCase() || "";
-  const filtered = serviceUsers.filter(u => u.name?.toLowerCase().includes(searchTerm));
+  const sortKey = document.getElementById("service-user-sort")?.value || "name";
+  let filtered = serviceUsers.filter(u => u.name?.toLowerCase().includes(searchTerm));
+
+  // Sort
+  if (sortKey === "carePlan") {
+    filtered.sort((a, b) => (b.hasCarePlan ? 1 : 0) - (a.hasCarePlan ? 1 : 0) || (a.name || "").localeCompare(b.name || ""));
+  } else if (sortKey === "risk") {
+    filtered.sort((a, b) => (b.hasRiskAssessment ? 1 : 0) - (a.hasRiskAssessment ? 1 : 0) || (a.name || "").localeCompare(b.name || ""));
+  } else {
+    filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }
   
   // Update count badge
   updateServiceUserCount(serviceUsers.length);
@@ -1211,10 +1232,11 @@ function displayServiceUsers() {
   }
   
   const count = filtered.length;
-  const shown = filtered.slice(0, 10);
+  const PAGE_SIZE = 10;
+  const shown = filtered.slice(0, _serviceUserShowCount || PAGE_SIZE);
   
   serviceUserList.innerHTML = shown.map(user => `
-    <div class="service-user-item" data-id="${user.id}">
+    <div class="service-user-item" data-id="${user.id}" tabindex="0" role="button" aria-label="Select ${escapeHtml(user.name || "Unknown")}">
       <div class="user-avatar">${escapeHtml(user.initials || "??")}</div>
       <div class="user-info">
         <div class="user-name">${escapeHtml(user.name || "Unknown")}</div>
@@ -1224,12 +1246,37 @@ function displayServiceUsers() {
         </div>
       </div>
     </div>
-  `).join("") + (count > 10 ? `<div class="empty-state" style="font-size:11px;">Showing 10 of ${count} — refine your search</div>` : "");
-  
-  document.querySelectorAll(".service-user-item").forEach(item => {
-    item.addEventListener("click", () => selectUser(parseInt(item.dataset.id)));
-  });
+  `).join("") + (count > shown.length ? `<a href="#" class="show-more-link" data-action="show-more-users">Show ${Math.min(PAGE_SIZE, count - shown.length)} more (${shown.length}/${count})</a>` : "");
 }
+
+let _serviceUserShowCount = 10;
+
+// Event delegation for service user list (avoids memory leaks from listeners on dynamic DOM)
+serviceUserList?.addEventListener("click", (e) => {
+  const item = e.target.closest(".service-user-item[data-id]");
+  if (item) {
+    selectUser(parseInt(item.dataset.id));
+    return;
+  }
+  const showMore = e.target.closest("[data-action='show-more-users']");
+  if (showMore) {
+    e.preventDefault();
+    _serviceUserShowCount = (_serviceUserShowCount || 10) + 10;
+    displayServiceUsers();
+  }
+});
+
+serviceUserList?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    const item = e.target.closest(".service-user-item[data-id]");
+    if (item) { e.preventDefault(); selectUser(parseInt(item.dataset.id)); }
+  }
+});
+
+document.getElementById("service-user-sort")?.addEventListener("change", () => {
+  _serviceUserShowCount = 10;
+  displayServiceUsers();
+});
 
 serviceUserSearch?.addEventListener("input", displayServiceUsers);
 
@@ -1258,7 +1305,7 @@ function renderAutofillUserDropdown(filter) {
   }
 
   autofillUserDropdown.innerHTML = filtered.slice(0, 15).map(u => `
-    <div class="autofill-user-option" data-acp-id="${escapeAttr(u.acpId)}" data-name="${escapeAttr(u.name)}">
+    <div class="autofill-user-option" data-acp-id="${escapeAttr(u.acpId)}" data-name="${escapeAttr(u.name)}" tabindex="0" role="option">
       <div class="user-avatar">${escapeHtml(u.initials || "??")}</div>
       <span class="autofill-user-option-name">${escapeHtml(u.name || "Unknown")}</span>
       <span class="autofill-user-option-id">ID ${escapeHtml(String(u.acpId))}</span>
@@ -1266,17 +1313,18 @@ function renderAutofillUserDropdown(filter) {
   `).join("");
 
   autofillUserDropdown.hidden = false;
-
-  autofillUserDropdown.querySelectorAll(".autofill-user-option[data-acp-id]").forEach(option => {
-    option.addEventListener("click", () => {
-      selectAutofillUser({
-        acpId: option.dataset.acpId,
-        name: option.dataset.name,
-        initials: option.querySelector(".user-avatar")?.textContent || "??",
-      });
-    });
-  });
 }
+
+// Event delegation for autofill user dropdown
+autofillUserDropdown?.addEventListener("click", (e) => {
+  const option = e.target.closest(".autofill-user-option[data-acp-id]");
+  if (!option) return;
+  selectAutofillUser({
+    acpId: option.dataset.acpId,
+    name: option.dataset.name,
+    initials: option.querySelector(".user-avatar")?.textContent || "??",
+  });
+});
 
 function selectAutofillUser(user) {
   selectedAutofillUser = user || null;
@@ -1297,6 +1345,11 @@ function selectAutofillUser(user) {
   if (serviceDataGroupInput && !serviceDataGroupInput.value.trim()) {
     serviceDataGroupInput.value = DEFAULT_SERVICE_DATA_GROUP_ID;
   }
+
+  // Focus management: move focus to the next logical field
+  clearFieldInvalid(caseIdInput);
+  clearFieldInvalid(serviceDataGroupInput);
+  caseIdInput?.focus();
 
   if (autofillSelectedUser) {
     autofillSelectedUser.hidden = false;
@@ -1551,36 +1604,54 @@ analyzeButton?.addEventListener("click", async () => {
   if (analysisStatus) analysisStatus.textContent = "Analyzing...";
   
   try {
-    // Read files and analyze via background script
-    const docType = document.querySelector('input[name="document-type"]:checked')?.value || "otherDocuments";
+    // Read files and parse via server (supports PDF, DOCX, DOC, TXT, CSV)
+    const docType = document.querySelector('input[name="document-type"]:checked')?.value || "additionalDocuments";
     let content = "";
-    const skippedFiles = [];
-    
-    for (const file of selectedFilesList) {
-      if (file.type.startsWith("text/") || file.name.endsWith(".txt")) {
-        content += `\n\n=== ${file.name} ===\n` + await file.text();
-      } else {
-        skippedFiles.push(file.name);
+    const failedFiles = [];
+
+    // Helper: read a File as base64 string
+    const readFileAsBase64 = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+
+    for (let i = 0; i < selectedFilesList.length; i++) {
+      const file = selectedFilesList[i];
+      if (analysisStatus) analysisStatus.textContent = `Parsing file ${i + 1} of ${selectedFilesList.length}...`;
+      try {
+        const base64Data = await readFileAsBase64(file);
+        const parseRes = await apiProxy(
+          "/api/extension/parse-document",
+          "POST",
+          { filename: file.name, base64Data },
+          { timeoutMs: 120000 }
+        );
+        if (parseRes?.ok && parseRes.text) {
+          content += `\n\n=== ${file.name} (${docType}) ===\n${parseRes.text}`;
+        } else {
+          failedFiles.push(file.name);
+        }
+      } catch (err) {
+        console.warn(`[CA Extension] Failed to parse ${file.name}:`, err);
+        failedFiles.push(file.name);
       }
     }
-    
-    if (skippedFiles.length > 0 && !content.trim()) {
-      throw new Error(
-        `Cannot read ${skippedFiles.join(", ")} directly. Only .txt and .csv files are supported. For Word or PDF files, copy the text and paste it into the notes field below.`
-      );
+
+    if (failedFiles.length > 0) {
+      showError(`Could not parse: ${failedFiles.join(", ")}`);
     }
-    if (skippedFiles.length > 0) {
-      showError(`Skipped unsupported files: ${skippedFiles.join(", ")}. Only text-based files (.txt, .csv) can be read directly.`);
-      console.warn(`[CA Extension] Skipped non-text files: ${skippedFiles.join(", ")}`);
-    }
-    
+
     if (uploadNotesInput?.value) {
       content += `\n\n=== Additional Notes ===\n${uploadNotesInput.value}`;
     }
 
     if (!content.trim()) {
-      throw new Error("No readable content found. Please upload text files or add notes.");
+      throw new Error("No readable content found. Please check your files are valid PDF, DOCX, or text files.");
     }
+
+    if (analysisStatus) analysisStatus.textContent = "Analyzing document content...";
 
     const response = await apiProxy(
       "/api/ai/analyze-risks",
@@ -1744,6 +1815,7 @@ async function refreshPayloadStatus() {
   renderPayloadInspector(payload, payloadStoredAt);
   renderPayloadReview(payload);
   updateTabBadges(payload, selectedFilesList.length);
+  checkPayloadSize(payload);
   
   if (data[STORAGE_KEYS.caseInfo]) {
     if (caseIdInput) caseIdInput.value = data[STORAGE_KEYS.caseInfo].caseId || "";
@@ -1890,11 +1962,15 @@ startButton?.addEventListener("click", async () => {
   if (!caseId) {
     showError("Case ID is required. Select a service user or enter manually.");
     if (progressStatus) progressStatus.textContent = "Missing Case ID";
+    setFieldInvalid(caseIdInput, "Case ID is required");
+    caseIdInput?.focus();
     return;
   }
   if (!serviceDataGroupId) {
     showError("Service Data Group ID is required.");
     if (progressStatus) progressStatus.textContent = "Missing Service Data Group ID";
+    setFieldInvalid(serviceDataGroupInput, "Service Data Group ID is required");
+    serviceDataGroupInput?.focus();
     return;
   }
 
@@ -1947,7 +2023,7 @@ stopButton?.addEventListener("click", () => {
 clearButton?.addEventListener("click", () => {
   showConfirmDialog(
     "Clear All Data",
-    "This will remove the loaded payload, case info, queue state, signature, uploaded documents, and verification fields. This action cannot be undone.",
+    "This will permanently remove the following. This action cannot be undone.",
     async () => {
       await setStorage({
         [STORAGE_KEYS.payload]: null,
@@ -1962,6 +2038,16 @@ clearButton?.addEventListener("click", () => {
       refreshPayloadStatus();
       if (progressStatus) progressStatus.textContent = "Cleared";
       showSuccess("All data cleared");
+    },
+    {
+      details: [
+        "Loaded payload / assessment data",
+        "Case info (Case ID, Service Data Group)",
+        "Queue state",
+        "Signature image",
+        "Uploaded documents",
+        "Verification fields",
+      ],
     }
   );
 });
@@ -2167,21 +2253,29 @@ function showInfo(message) {
 }
 
 // ── Confirmation dialog ─────────────────────────────────────────────────
-function showConfirmDialog(title, message, onConfirm) {
+function showConfirmDialog(title, message, onConfirm, { details = [] } = {}) {
   // Remove any existing dialog
   document.querySelector(".dialog-overlay")?.remove();
 
+  const dialogId = `dialog-title-${Date.now()}`;
+  const detailsHtml = details.length
+    ? `<ul class="dialog-detail-list">${details.map(d => `<li>${escapeHtml(d)}</li>`).join("")}</ul>`
+    : "";
+
   const overlay = document.createElement("div");
   overlay.className = "dialog-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", dialogId);
   overlay.innerHTML = `
     <div class="dialog">
       <div class="dialog-header">
-        <span class="dialog-icon">
+        <span class="dialog-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
         </span>
-        <span class="dialog-title">${escapeHtml(title)}</span>
+        <span class="dialog-title" id="${dialogId}">${escapeHtml(title)}</span>
       </div>
-      <div class="dialog-body">${escapeHtml(message)}</div>
+      <div class="dialog-body">${escapeHtml(message)}${detailsHtml}</div>
       <div class="dialog-actions">
         <button class="btn btn-secondary dialog-cancel">Cancel</button>
         <button class="btn btn-danger dialog-confirm">Confirm</button>
@@ -2189,14 +2283,32 @@ function showConfirmDialog(title, message, onConfirm) {
     </div>
   `;
 
-  overlay.querySelector(".dialog-cancel").addEventListener("click", () => overlay.remove());
-  overlay.querySelector(".dialog-confirm").addEventListener("click", () => {
-    overlay.remove();
-    onConfirm();
+  const cancelBtn = overlay.querySelector(".dialog-cancel");
+  const confirmBtn = overlay.querySelector(".dialog-confirm");
+  const closeDialog = () => overlay.remove();
+
+  cancelBtn.addEventListener("click", closeDialog);
+  confirmBtn.addEventListener("click", () => { closeDialog(); onConfirm(); });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeDialog(); });
+
+  // Focus trap: cycle Tab/Shift+Tab within Cancel and Confirm
+  const focusable = [cancelBtn, confirmBtn];
+  overlay.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); closeDialog(); return; }
+    if (e.key === "Tab") {
+      const idx = focusable.indexOf(document.activeElement);
+      if (e.shiftKey) {
+        e.preventDefault();
+        focusable[idx <= 0 ? focusable.length - 1 : idx - 1].focus();
+      } else {
+        e.preventDefault();
+        focusable[idx >= focusable.length - 1 ? 0 : idx + 1].focus();
+      }
+    }
   });
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 
   document.body.appendChild(overlay);
+  confirmBtn.focus();
 }
 
 // ── Tab badge helpers ───────────────────────────────────────────────────
@@ -2442,6 +2554,163 @@ async function refreshSignatureStatus() {
 // INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// INLINE VALIDATION & FOCUS MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setFieldInvalid(input, message) {
+  if (!input) return;
+  input.setAttribute("aria-invalid", "true");
+  let errorEl = input.parentElement?.querySelector(".field-error");
+  if (!errorEl) {
+    errorEl = document.createElement("span");
+    errorEl.className = "field-error";
+    errorEl.setAttribute("role", "alert");
+    input.parentElement?.appendChild(errorEl);
+  }
+  errorEl.textContent = message;
+}
+
+function clearFieldInvalid(input) {
+  if (!input) return;
+  input.removeAttribute("aria-invalid");
+  input.parentElement?.querySelector(".field-error")?.remove();
+}
+
+caseIdInput?.addEventListener("blur", () => {
+  if (caseIdInput.value.trim()) clearFieldInvalid(caseIdInput);
+  else setFieldInvalid(caseIdInput, "Case ID is required");
+});
+caseIdInput?.addEventListener("input", () => clearFieldInvalid(caseIdInput));
+
+serviceDataGroupInput?.addEventListener("blur", () => {
+  if (serviceDataGroupInput.value.trim()) clearFieldInvalid(serviceDataGroupInput);
+  else setFieldInvalid(serviceDataGroupInput, "Service Data Group ID is required");
+});
+serviceDataGroupInput?.addEventListener("input", () => clearFieldInvalid(serviceDataGroupInput));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILE UPLOAD DRAG-AND-DROP VISUAL FEEDBACK
+// ═══════════════════════════════════════════════════════════════════════════
+
+const fileUploadLabel = document.querySelector(".file-upload-label");
+if (fileUploadLabel) {
+  let dragCounter = 0;
+  fileUploadLabel.addEventListener("dragenter", (e) => { e.preventDefault(); dragCounter++; fileUploadLabel.classList.add("drag-over"); });
+  fileUploadLabel.addEventListener("dragover", (e) => { e.preventDefault(); });
+  fileUploadLabel.addEventListener("dragleave", () => { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; fileUploadLabel.classList.remove("drag-over"); } });
+  fileUploadLabel.addEventListener("drop", () => { dragCounter = 0; fileUploadLabel.classList.remove("drag-over"); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.addEventListener("keydown", (e) => {
+  // Ctrl+Enter → Start autofill
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    startButton?.click();
+    return;
+  }
+  // Escape → close dialogs and dropdowns
+  if (e.key === "Escape") {
+    const dialog = document.querySelector(".dialog-overlay");
+    if (dialog) { dialog.remove(); return; }
+    if (autofillUserDropdown && !autofillUserDropdown.hidden) {
+      autofillUserDropdown.hidden = true;
+      return;
+    }
+    const helpPanel = document.querySelector(".info-panel.visible");
+    if (helpPanel) { helpPanel.classList.remove("visible"); return; }
+  }
+  // Arrow keys for tab navigation
+  if (e.target.getAttribute("role") === "tab") {
+    const tabOrder = ["connect", "upload", "autofill"];
+    const currentTab = e.target.dataset.tab;
+    const idx = tabOrder.indexOf(currentTab);
+    if (e.key === "ArrowRight" && idx < tabOrder.length - 1) { e.preventDefault(); switchTab(tabOrder[idx + 1]); document.getElementById(`tab-${tabOrder[idx + 1]}`)?.focus(); }
+    if (e.key === "ArrowLeft" && idx > 0) { e.preventDefault(); switchTab(tabOrder[idx - 1]); document.getElementById(`tab-${tabOrder[idx - 1]}`)?.focus(); }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELP PANEL TOGGLE
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById("help-btn")?.addEventListener("click", () => {
+  let panel = document.getElementById("help-info-panel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "help-info-panel";
+    panel.className = "info-panel";
+    panel.innerHTML = `
+      <strong>Keyboard Shortcuts</strong>
+      <div style="margin-top:6px;">
+        <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> Start Autofill<br>
+        <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
+        <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
+      </div>
+      <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.4.2</div>
+    `;
+    document.querySelector(".popup-content")?.prepend(panel);
+  }
+  panel.classList.toggle("visible");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONNECTED USER CHIP IN HEADER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateHeaderUserChip(user) {
+  let chip = document.getElementById("header-user-chip");
+  if (!user) {
+    chip?.remove();
+    return;
+  }
+  if (!chip) {
+    chip = document.createElement("div");
+    chip.id = "header-user-chip";
+    chip.className = "header-user-chip";
+    const headerActions = document.querySelector(".header-actions");
+    if (headerActions) headerActions.prepend(chip);
+    else return;
+  }
+  const initials = (user.username || "U").slice(0, 2).toUpperCase();
+  chip.innerHTML = `<span class="mini-avatar">${escapeHtml(initials)}</span><span>${escapeHtml(user.username || "User")}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FOOTER LIVE STATUS DOT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateFooterLiveDot(connected) {
+  const dot = document.querySelector(".footer-status .status-dot");
+  if (dot) dot.classList.toggle("live", connected);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAYLOAD SIZE WARNING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function checkPayloadSize(payload) {
+  const warningEl = document.getElementById("payload-size-warning");
+  if (!payload) { warningEl?.remove(); return; }
+  const size = new Blob([JSON.stringify(payload)]).size;
+  const sizeMB = (size / (1024 * 1024)).toFixed(2);
+  if (size > 1024 * 1024) {
+    if (!warningEl) {
+      const el = document.createElement("div");
+      el.id = "payload-size-warning";
+      el.className = "payload-size-warning";
+      el.textContent = `\u26a0 Large payload: ${sizeMB} MB — autofill may be slower`;
+      payloadStatus?.parentElement?.appendChild(el);
+    }
+  } else {
+    warningEl?.remove();
+  }
+}
+
 (async function init() {
   // GDPR: Auto-clean stale data before loading state
   await autoCleanupStaleData();
@@ -2550,10 +2819,12 @@ async function refreshSignatureStatus() {
 // LIVE STORAGE LISTENER — Detect autofill progress/completion in real-time
 // ═══════════════════════════════════════════════════════════════════════════
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  try {
   if (areaName !== "local" && areaName !== "session") return;
 
   // Queue state changed — update progress display
   if (changes[STORAGE_KEYS.queueState]) {
+    try {
     const newState = changes[STORAGE_KEYS.queueState].newValue;
     updateLiveProgress(newState);
     if (!newState) {
@@ -2576,30 +2847,36 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         progressStatus.textContent = `Filling ${newState.currentIndex + 1} of ${newState.total}...`;
       }
     }
+    } catch (e) { console.warn('[CA Extension] queueState handler error:', e); }
   }
 
   // Payload cleared — update payload status
   if (changes[STORAGE_KEYS.payload]) {
-    refreshPayloadStatus();
+    try { refreshPayloadStatus(); } catch (e) { console.warn('[CA Extension] payload handler error:', e); }
   }
 
   if (changes[STORAGE_KEYS.verificationFields] || changes[STORAGE_KEYS.runtimeMetrics]) {
-    refreshPayloadStatus();
+    try { refreshPayloadStatus(); } catch (e) { console.warn('[CA Extension] verification handler error:', e); }
   }
 
   // Logs updated — refresh log display
   if (changes[STORAGE_KEYS.logs]) {
+    try {
     const logs = changes[STORAGE_KEYS.logs].newValue;
     if (Array.isArray(logs) && logs.length > 0) {
       renderLogs(logs);
     }
+    } catch (e) { console.warn('[CA Extension] logs handler error:', e); }
   }
 
   // Error updated — show error
   if (changes[STORAGE_KEYS.lastError]) {
+    try {
     const err = changes[STORAGE_KEYS.lastError].newValue;
     if (err) {
       showError(typeof err === "string" ? err : err.message || "Unknown error");
     }
+    } catch (e) { console.warn('[CA Extension] error handler error:', e); }
   }
+  } catch (outerErr) { console.error('[CA Extension] storage.onChanged crash:', outerErr); }
 });

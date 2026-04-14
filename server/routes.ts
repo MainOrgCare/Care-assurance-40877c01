@@ -7189,6 +7189,72 @@ export async function registerRoutes(
     }
   });
 
+  // Parse document from base64 JSON body (for extension proxy which can't send FormData)
+  app.post("/api/extension/parse-document", requireAuth, async (req: any, res) => {
+    try {
+      const { filename, base64Data } = req.body || {};
+      if (!filename || !base64Data) {
+        return res.status(400).json({ message: "Missing filename or base64Data" });
+      }
+      if (typeof base64Data !== "string" || base64Data.length > 20 * 1024 * 1024) {
+        return res.status(400).json({ message: "File too large (max 15 MB)" });
+      }
+
+      const buffer = Buffer.from(base64Data, "base64");
+      if (!buffer.length) {
+        return res.status(400).json({ message: "Empty file data" });
+      }
+
+      const lowerName = String(filename).toLowerCase();
+      const isPdf = lowerName.endsWith(".pdf");
+      const isDocx = lowerName.endsWith(".docx");
+      const isDoc = lowerName.endsWith(".doc") && !isDocx;
+      const isTxt = lowerName.endsWith(".txt") || lowerName.endsWith(".csv");
+
+      let text = "";
+
+      if (isTxt) {
+        text = buffer.toString("utf-8");
+      } else if (isDocx) {
+        const result = await mammoth.extractRawText({ buffer });
+        text = result.value || "";
+        if (!text.trim()) {
+          const pdfBuffer = await tryConvertOfficeToPdf(buffer, filename);
+          if (pdfBuffer) {
+            const extracted = await extractPdfTextWithPdfjs(pdfBuffer);
+            text = extracted.text || "";
+          }
+        }
+      } else if (isDoc) {
+        const pdfBuffer = await tryConvertOfficeToPdf(buffer, filename);
+        if (!pdfBuffer) {
+          return res.status(422).json({
+            message: "Could not convert .doc file. Please save as PDF or DOCX and try again.",
+          });
+        }
+        const extracted = await extractPdfTextWithPdfjs(pdfBuffer);
+        text = extracted.text || "";
+      } else if (isPdf) {
+        const extracted = await extractPdfTextWithPdfjs(buffer);
+        text = extracted.text || "";
+      } else {
+        return res.status(400).json({ message: `Unsupported file type: ${filename}` });
+      }
+
+      if (!text || !text.trim()) {
+        return res.status(422).json({
+          message:
+            "No readable text could be extracted. If it is a scanned image, please use a text-based PDF or paste the content manually.",
+        });
+      }
+
+      res.json({ text, filename });
+    } catch (error: any) {
+      console.error("Extension document parsing error:", error);
+      res.status(500).json({ message: "Failed to parse document" });
+    }
+  });
+
   // Analyze EMAR document using AI-based extraction with streaming progress
   app.post("/api/ai/analyze-emar/preflight", requireAuth, upload.single("file"), async (req, res) => {
     try {

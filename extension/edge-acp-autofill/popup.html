@@ -10,7 +10,8 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <main class="popup-container">
+    <a href="#tab-content-connect" class="skip-link">Skip to content</a>
+    <main class="popup-container" role="main">
       <!-- Header -->
       <header class="popup-header">
         <div class="header-content">
@@ -21,37 +22,38 @@
             <h1 class="header-title">CareAssurance</h1>
             <p id="header-subtitle" class="header-subtitle">Connected workspace for ACP Autofill</p>
           </div>
-          <div id="connection-badge" class="connection-badge disconnected" title="Click to see connection details">
-            <span class="connection-dot"></span>
+          <div id="connection-badge" class="connection-badge disconnected" title="Click to see connection details" role="status" aria-live="polite">
+            <span class="connection-dot" aria-hidden="true"></span>
             <span class="connection-text">Offline</span>
-            <span class="connection-uptime" id="connection-uptime"></span>
+            <span class="connection-uptime" id="connection-uptime" aria-label="Connection uptime"></span>
           </div>
+          <button id="help-btn" class="btn-help" title="Help &amp; keyboard shortcuts" aria-label="Help">?</button>
         </div>
       </header>
 
       <!-- Tab Navigation -->
-      <div class="tab-navigation">
-        <button id="tab-connect" class="tab-btn active" data-tab="connect">
+      <nav class="tab-navigation" role="tablist" aria-label="Extension sections">
+        <button id="tab-connect" class="tab-btn active" data-tab="connect" role="tab" aria-selected="true" aria-controls="tab-content-connect">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
           Workspace
         </button>
-        <button id="tab-upload" class="tab-btn" data-tab="upload" aria-label="Intake">
+        <button id="tab-upload" class="tab-btn" data-tab="upload" role="tab" aria-selected="false" aria-controls="tab-content-upload" aria-label="Intake">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           Intake
         </button>
-        <button id="tab-autofill" class="tab-btn" data-tab="autofill" aria-label="Autofill">
+        <button id="tab-autofill" class="tab-btn" data-tab="autofill" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Autofill">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           Autofill
         </button>
-      </div>
+      </nav>
 
       <!-- Main Content Area -->
       <div class="popup-content">
         
         <!-- Error Banner -->
-        <div id="error-banner" class="alert alert-error" hidden>
+        <div id="error-banner" class="alert alert-error" role="alert" aria-live="assertive" hidden>
           <span id="error-message"></span>
-          <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss">✕</button>
+          <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss" aria-label="Dismiss error">✕</button>
         </div>
 
         <details class="workspace-summary card collapsible">
@@ -79,7 +81,7 @@
         </details>
 
         <!-- ========== TAB 1: CONNECT ========== -->
-        <div id="tab-content-connect" class="tab-content active">
+        <div id="tab-content-connect" class="tab-content active" role="tabpanel" aria-labelledby="tab-connect">
           
           <section class="card">
             <div class="card-header">
@@ -157,12 +159,17 @@
                 </h2>
                 <p class="card-description">Search for the right record, then load care plans or risk assessments</p>
               </div>
+              <select id="service-user-sort" class="sort-select" aria-label="Sort service users">
+                <option value="name">A–Z</option>
+                <option value="carePlan">Has Care Plan</option>
+                <option value="risk">Has Risk</option>
+              </select>
               <span id="service-user-count" class="badge badge-muted" hidden>0</span>
             </div>
             <div class="card-content">
               <div class="search-container">
-                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input id="service-user-search" type="text" class="search-input" placeholder="Search by name..." />
+                <svg class="search-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="service-user-search" type="text" class="search-input" placeholder="Search by name..." aria-label="Search service users" />
               </div>
               <div id="service-user-list" class="service-user-list"></div>
             </div>
@@ -184,7 +191,7 @@
         </div>
 
         <!-- ========== TAB 2: UPLOAD ========== -->
-        <div id="tab-content-upload" class="tab-content">
+        <div id="tab-content-upload" class="tab-content" role="tabpanel" aria-labelledby="tab-upload">
 
           <div class="step-indicator">
             <div class="step active" id="step-select"><span class="step-number">1</span> Select</div>
@@ -209,7 +216,17 @@
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     </div>
                     <span class="doc-label">Social Work</span>
-                    <span class="doc-hint">Referral & support docs</span>
+                    <span class="doc-hint">C2, C3, emails</span>
+                  </div>
+                </label>
+                <label class="document-type-option">
+                  <input type="radio" name="document-type" value="initialAssessment" />
+                  <div class="document-type-card">
+                    <div class="doc-icon teal">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                    </div>
+                    <span class="doc-label">Initial Assessment</span>
+                    <span class="doc-hint">Risk & needs</span>
                   </div>
                 </label>
                 <label class="document-type-option">
@@ -219,7 +236,7 @@
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                     </div>
                     <span class="doc-label">Care Plan</span>
-                    <span class="doc-hint">Person-centred plans</span>
+                    <span class="doc-hint">Existing plans to enhance</span>
                   </div>
                 </label>
                 <label class="document-type-option">
@@ -233,13 +250,13 @@
                   </div>
                 </label>
                 <label class="document-type-option">
-                  <input type="radio" name="document-type" value="otherDocuments" checked />
+                  <input type="radio" name="document-type" value="additionalDocuments" checked />
                   <div class="document-type-card">
                     <div class="doc-icon sky">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                     </div>
-                    <span class="doc-label">Other Documents</span>
-                    <span class="doc-hint">General uploads</span>
+                    <span class="doc-label">Additional Documents</span>
+                    <span class="doc-hint">Supplementary uploads</span>
                   </div>
                 </label>
               </div>
@@ -252,8 +269,8 @@
             </div>
             <div class="card-content">
               <div class="file-upload-area">
-                <input id="document-files" type="file" accept=".pdf,.doc,.docx,.txt,image/*" multiple class="file-input" />
-                <label for="document-files" class="file-upload-label">
+                <input id="document-files" type="file" accept=".pdf,.doc,.docx,.txt,.csv" multiple class="file-input" />
+                <label for="document-files" class="file-upload-label" aria-label="Upload files area">
                   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   <span class="file-upload-text">Drop files here or click to browse</span>
                   <span class="file-upload-hint">PDF, DOC, DOCX, TXT, or images &middot; Max 10 MB each</span>
@@ -291,7 +308,7 @@
         </div>
 
         <!-- ========== TAB 3: AUTOFILL ========== -->
-        <div id="tab-content-autofill" class="tab-content">
+        <div id="tab-content-autofill" class="tab-content" role="tabpanel" aria-labelledby="tab-autofill">
 
           <section class="card">
             <div class="card-header">
@@ -395,7 +412,7 @@
                   <input id="service-data-group-id" type="text" class="form-input" value="1017650" placeholder="1017650" />
                 </div>
               </div>
-              <button id="auto-detect-ids" class="btn btn-secondary btn-sm btn-block" title="Detect from current page URL">🔍 Auto-Detect from Page</button>
+              <button id="auto-detect-ids" class="btn btn-secondary btn-sm btn-block" title="Detects Case ID and Service Data Group from Mobizio ACP form URL">🔍 Auto-Detect from Page</button>
               <div class="form-group">
                 <label class="form-label">Fill Mode</label>
                 <select id="interaction-mode" class="form-select">
@@ -404,16 +421,19 @@
                   <option value="manual">Highlight Only</option>
                 </select>
               </div>
-              <div class="options-row">
-                <label class="checkbox-label">
-                  <input id="auto-submit" type="checkbox" class="checkbox" />
-                  <span>Auto-submit</span>
-                </label>
-                <label class="checkbox-label">
-                  <input id="dry-run" type="checkbox" class="checkbox" />
-                  <span>Dry run</span>
-                </label>
-              </div>
+              <fieldset>
+                <legend class="form-label">Options</legend>
+                <div class="options-row">
+                  <label class="checkbox-label" for="auto-submit">
+                    <input id="auto-submit" type="checkbox" class="checkbox" />
+                    <span>Auto-submit</span>
+                  </label>
+                  <label class="checkbox-label" for="dry-run">
+                    <input id="dry-run" type="checkbox" class="checkbox" />
+                    <span>Dry run</span>
+                  </label>
+                </div>
+              </fieldset>
             </div>
           </section>
 
@@ -501,7 +521,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-          <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.4.0</span></span>
+          <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.4.2</span></span>
         </div>
       </footer>
     </main>

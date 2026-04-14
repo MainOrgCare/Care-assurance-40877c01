@@ -1,6 +1,73 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
-## Version 0.4.1 - UX Enhancement & Interactive Polish (Latest)
+## Version 0.4.2 - Accessibility, Code Quality & UX Polish (Latest)
+
+### Accessibility (A11Y)
+
+- Skip-to-content link for keyboard users.
+- Tab navigation uses `role="tablist"`, `role="tab"`, `aria-selected`, `role="tabpanel"`, and `aria-controls`/`aria-labelledby` for screen-reader compliance.
+- Error banner now has `role="alert"` and `aria-live="assertive"`.
+- Decorative SVG icons marked `aria-hidden="true"`.
+- Search input, file upload label, connection badge, and sort dropdown all have `aria-label`.
+- Auto-submit/Dry-run checkboxes wrapped in `<fieldset>` with `<legend>`.
+- `@media (prefers-reduced-motion: reduce)` disables all animations/transitions.
+- Focus-visible outlines on service user items, recent items, and autofill user options.
+- Arrow key navigation between tabs (Left/Right).
+
+### Event Delegation
+
+- Service user list and autofill user dropdown now use parent-level event delegation instead of per-item `addEventListener`, preventing memory leaks when lists re-render.
+
+### Dialog Improvements
+
+- Confirmation dialog now has `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, focus trap (Tab/Shift+Tab cycle), and ESC to dismiss.
+- "Clear All Data" dialog now enumerates all items being removed in a styled detail list.
+
+### Inline Validation
+
+- Case ID and Service Data Group inputs show inline red border + error message on blur when empty.
+- `aria-invalid="true"` set on invalid fields for screen readers.
+- Validation clears automatically on input.
+- Focus moves to first invalid field when Start Autofill is pressed with missing data.
+
+### Service User Show-More & Sort
+
+- Service user list now paginates with "Show X more" link instead of hard 10-item cap.
+- Sort dropdown (A–Z, Has Care Plan, Has Risk) in service users section header.
+
+### Keyboard Shortcuts
+
+- `Ctrl+Enter` → Start Autofill from anywhere.
+- `Escape` → Close dialogs, dropdowns, or help panel.
+- Help `?` button in header toggles keyboard shortcut reference panel.
+
+### UX Polish
+
+- Connected user chip with initials shown in header when connected.
+- File upload label shows visual drag-over state (blue border, scale) with proper drag counter.
+- Footer status dot pulses green when connected.
+- Payload size warning shown when payload exceeds 1 MB.
+- Service user items have `tabindex="0"` and `role="button"` for keyboard activation (Enter/Space).
+- Autofill user options have `role="option"` and `tabindex="0"`.
+- Focus management: selecting an autofill user focuses Case ID input and clears validation errors.
+- Auto-detect button has a more descriptive title tooltip.
+
+### Code Quality
+
+- Storage listener (`chrome.storage.onChanged`) wrapped in try-catch per branch to prevent silent crashes.
+- `switchTab()` now manages `aria-selected` and `hidden` attributes for proper ARIA tab semantics.
+
+### CSS Additions (~280 lines)
+
+- Form validation error states, search focus ring, file upload drag states.
+- Skip link, help button, show-more link, sort dropdown, keyboard shortcut badge.
+- Header user chip with glass-morphism, fieldset/legend styling, Firefox scrollbar.
+- Dialog fade-in animation, enhanced live-progress pip with glow, dialog detail list.
+- Info panel toggle, payload size warning, footer live pulse dot.
+
+---
+
+## Version 0.4.1 - UX Enhancement & Interactive Polish
 
 ### Loading States
 
