@@ -1,6 +1,83 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
-## Version 0.3.7 - Reliability & Code Quality Overhaul (Latest)
+## Version 0.4.1 - UX Enhancement & Interactive Polish (Latest)
+
+### Loading States
+
+- All async buttons (Connect, Load Care Plan, Load Risk Assessment, Analyze, Start Autofill) now show an inline CSS spinner with disabled state during operations.
+- `setButtonLoading()` helper toggles `.is-loading` class and injects/removes `.spinner` element.
+
+### Confirmation Dialog
+
+- "Clear All Data" now opens a centered confirmation dialog with blur backdrop overlay before destructive action.
+- `showConfirmDialog(title, message, onConfirm)` helper creates modal dialog with Cancel/Confirm buttons.
+
+### Enhanced Toast Notifications
+
+- `showSuccess()`, `showError()`, `showInfo()` now render styled toasts with SVG icons (checkmark, X, info circle).
+- Toasts auto-dismiss with exit slide animation after 3.5 seconds.
+
+### Tab Badge Indicators
+
+- Autofill tab shows a green success dot when payload is loaded.
+- Upload tab shows a count badge when files are selected.
+- `updateTabBadges()` manages badge lifecycle across payload and file state changes.
+
+### Structured Log Display
+
+- Log entries now render as formatted `<div class="log-entry">` with timestamp, color-coded level badge, and message.
+- Auto-detects log level (error/warn/success/info) from message content.
+
+### Step Indicator
+
+- Upload tab shows a 3-step progress indicator (Select → Upload → Analyze).
+- `updateUploadSteps(step)` manages active/completed states and connector fills.
+
+### Service User Count Badge
+
+- Service Users section header shows a badge with the total user count.
+
+---
+
+## Version 0.4.0 - Design System Overhaul & UX Polish
+
+### Complete CSS Redesign
+
+- New v0.4.0 design system with refined HSL-based color palette, multi-layered shadows, and CSS custom properties for motion and timing.
+- Header: gradient background with radial overlays, backdrop-filter blur, refined typography with -0.02em letter-spacing.
+- Connection badge: glass-morphism with backdrop-filter blur, per-state glow effects (connected/connecting/error/disconnected).
+- Tab navigation: pill-style active indicator with primary-ghost background and subtle border.
+- Cards: hover elevation transitions, refined card-header borders, consistent 12px radius.
+- Buttons: gradient backgrounds with inset highlight, scale(0.98) active press states, disabled opacity 0.45.
+- Forms: accent-colored focus rings with box-shadow, improved placeholder opacity.
+- Log container: dark theme (hsl(222, 30%, 14%)) with JetBrains Mono font for diagnostics.
+- Animations: healthPulse, connectingPulse, pipPulse, alertSlideIn, toastSlide, fadeIn, slideUp.
+- All transitions use CSS custom property durations (--duration-fast/normal/slow) with ease-out cubic-bezier.
+- Responsive breakpoints at 520px, 420px, and 360px for small-popup graceful degradation.
+- Inter font family as primary, JetBrains Mono for code/logs.
+
+### Enhanced HTML Structure
+
+- Document type grid: Added colored SVG icons (blue/violet/amber/sky) and descriptive hints for each document type card.
+- File upload area: Added upload icon SVG with "Drop files here or click to browse" prompt and format hint.
+- Signature upload: Replaced button with styled label-based upload area with pen icon and format hint.
+- Footer: Cleaned up version display, now shows "CareAssurance v0.4.0" from manifest.
+
+### Service User List Improvements
+
+- Service users are fetched from CareAssurance on connect and held in memory only — never persisted to extension storage.
+- Removed stale `caAcpServiceUsers` fallback storage key.
+- Improved `displayServiceUsers` with proper HTML escaping, better empty states for search vs no-data, and "Showing 10 of N" overflow indicator.
+- `selectUser` now shows user avatar with initials, badges, and optional summary box for richer context.
+
+### Code Quality
+
+- Version header bumped to v0.4.0 across manifest.json, popup.js, and CSS.
+- Dead files slated for cleanup: popup-old.js, background-enhanced.js, test-extract-single-value.js, popup.css (replaced by popup.css.new).
+
+---
+
+## Version 0.3.7 - Reliability & Code Quality Overhaul
 
 ### MV3 Service Worker Resilience
 

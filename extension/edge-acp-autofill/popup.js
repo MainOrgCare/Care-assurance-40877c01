@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.3.4
+// CARE ASSURANCE ACP AUTOFILL - POPUP SCRIPT v0.4.1
 // Streamlined with direct Care Assurance integration via content script proxy
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -117,7 +117,6 @@ const FALLBACK_STORAGE_KEYS = {
   lastError: "caAcpLastError",
   uploadedDocuments: "caAcpUploadedDocuments",
   connectionState: "caAcpConnectionState",
-  serviceUsers: "caAcpServiceUsers",
   selectedUserId: "caAcpSelectedUserId",
   verificationFields: "caAcpVerificationFields",
   runtimeMetrics: "caAcpRuntimeMetrics",
@@ -1024,7 +1023,7 @@ function updateConnectionUI(connected, user = null) {
 }
 
 async function connectToCareAssurance() {
-  if (connectBtn) connectBtn.disabled = true;
+  setButtonLoading(connectBtn, true);
   if (connectStatus) connectStatus.innerHTML = "<span>Connecting...</span>";
 
   // Show connecting state on badge
@@ -1148,7 +1147,7 @@ async function connectToCareAssurance() {
     }
   }
   
-  if (connectBtn) connectBtn.disabled = false;
+  setButtonLoading(connectBtn, false);
 }
 
 connectBtn?.addEventListener("click", connectToCareAssurance);
@@ -1201,23 +1200,31 @@ function displayServiceUsers() {
   const searchTerm = serviceUserSearch?.value.toLowerCase() || "";
   const filtered = serviceUsers.filter(u => u.name?.toLowerCase().includes(searchTerm));
   
+  // Update count badge
+  updateServiceUserCount(serviceUsers.length);
+  
   if (filtered.length === 0) {
-    serviceUserList.innerHTML = '<div class="empty-state">No service users found</div>';
+    serviceUserList.innerHTML = searchTerm
+      ? '<div class="empty-state">No matching service users</div>'
+      : '<div class="empty-state">No service users available</div>';
     return;
   }
   
-  serviceUserList.innerHTML = filtered.slice(0, 10).map(user => `
+  const count = filtered.length;
+  const shown = filtered.slice(0, 10);
+  
+  serviceUserList.innerHTML = shown.map(user => `
     <div class="service-user-item" data-id="${user.id}">
-      <div class="user-avatar">${user.initials || "??"}</div>
+      <div class="user-avatar">${escapeHtml(user.initials || "??")}</div>
       <div class="user-info">
-        <div class="user-name">${user.name || "Unknown"}</div>
+        <div class="user-name">${escapeHtml(user.name || "Unknown")}</div>
         <div class="user-badges">
           ${user.hasCarePlan ? '<span class="badge badge-success">Care Plan</span>' : ""}
           ${user.hasRiskAssessment ? '<span class="badge badge-info">Risk Assessment</span>' : ""}
         </div>
       </div>
     </div>
-  `).join("");
+  `).join("") + (count > 10 ? `<div class="empty-state" style="font-size:11px;">Showing 10 of ${count} — refine your search</div>` : "");
   
   document.querySelectorAll(".service-user-item").forEach(item => {
     item.addEventListener("click", () => selectUser(parseInt(item.dataset.id)));
@@ -1374,11 +1381,17 @@ function selectUser(userId) {
   if (selectedUserSection) selectedUserSection.hidden = false;
   if (selectedUserInfo) {
     selectedUserInfo.innerHTML = `
-      <div class="selected-user-name">${selectedUser.name || "Unknown"}</div>
-      <div class="selected-user-badges">
-        ${selectedUser.hasCarePlan ? '<span class="badge badge-success">Has Care Plan</span>' : '<span class="badge badge-muted">No Care Plan</span>'}
-        ${selectedUser.hasRiskAssessment ? '<span class="badge badge-info">Has Risk Assessment</span>' : '<span class="badge badge-muted">No Risk Assessment</span>'}
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+        <div class="user-avatar" style="width:44px;height:44px;font-size:14px;">${escapeHtml(selectedUser.initials || "??")}</div>
+        <div>
+          <div class="selected-user-name">${escapeHtml(selectedUser.name || "Unknown")}</div>
+          <div class="selected-user-badges">
+            ${selectedUser.hasCarePlan ? '<span class="badge badge-success">Care Plan</span>' : '<span class="badge badge-muted">No Care Plan</span>'}
+            ${selectedUser.hasRiskAssessment ? '<span class="badge badge-info">Risk Assessment</span>' : '<span class="badge badge-muted">No Risk Assessment</span>'}
+          </div>
+        </div>
       </div>
+      ${selectedUser.summary ? `<div class="summary-box">${escapeHtml(selectedUser.summary)}</div>` : ''}
     `;
   }
   
@@ -1389,8 +1402,7 @@ function selectUser(userId) {
 loadCarePlanBtn?.addEventListener("click", async () => {
   if (!selectedUser) return;
   
-  loadCarePlanBtn.disabled = true;
-  loadCarePlanBtn.textContent = "Loading...";
+  setButtonLoading(loadCarePlanBtn, true);
   
   try {
     const res = await apiProxy(`/api/extension/care-plan/${selectedUser.id}`);
@@ -1406,16 +1418,14 @@ loadCarePlanBtn?.addEventListener("click", async () => {
   } catch (error) {
     showError(error.message);
   } finally {
-    loadCarePlanBtn.disabled = false;
-    loadCarePlanBtn.textContent = "Load Care Plan";
+    setButtonLoading(loadCarePlanBtn, false);
   }
 });
 
 loadRiskBtn?.addEventListener("click", async () => {
   if (!selectedUser) return;
   
-  loadRiskBtn.disabled = true;
-  loadRiskBtn.textContent = "Loading...";
+  setButtonLoading(loadRiskBtn, true);
   
   try {
     const res = await apiProxy(`/api/extension/risk-assessment/${selectedUser.riskAssessmentId}`);
@@ -1431,8 +1441,7 @@ loadRiskBtn?.addEventListener("click", async () => {
   } catch (error) {
     showError(error.message);
   } finally {
-    loadRiskBtn.disabled = false;
-    loadRiskBtn.textContent = "Load Risk Assessment";
+    setButtonLoading(loadRiskBtn, false);
   }
 });
 
@@ -1507,7 +1516,15 @@ clearUploadsBtn?.addEventListener("click", async () => {
 
 function displayFileList() {
   if (!fileListContainer) return;
-  if (selectedFilesList.length === 0) { fileListContainer.innerHTML = ""; return; }
+  if (selectedFilesList.length === 0) {
+    fileListContainer.innerHTML = "";
+    updateUploadSteps(0);
+    updateTabBadges(latestPayloadSnapshot?.payload, 0);
+    return;
+  }
+  
+  updateUploadSteps(1);
+  updateTabBadges(latestPayloadSnapshot?.payload, selectedFilesList.length);
   
   fileListContainer.innerHTML = selectedFilesList.map((file, i) => `
     <div class="file-item">
@@ -1528,7 +1545,8 @@ function displayFileList() {
 analyzeButton?.addEventListener("click", async () => {
   if (selectedFilesList.length === 0) return;
   
-  analyzeButton.disabled = true;
+  setButtonLoading(analyzeButton, true);
+  updateUploadSteps(2);
   if (analysisProgress) analysisProgress.hidden = false;
   if (analysisStatus) analysisStatus.textContent = "Analyzing...";
   
@@ -1585,7 +1603,8 @@ analyzeButton?.addEventListener("click", async () => {
     showError(error.message);
   } finally {
     if (analysisProgress) analysisProgress.hidden = true;
-    analyzeButton.disabled = false;
+    setButtonLoading(analyzeButton, false);
+    if (selectedFilesList.length === 0) analyzeButton.disabled = true;
   }
 });
 
@@ -1724,6 +1743,7 @@ async function refreshPayloadStatus() {
 
   renderPayloadInspector(payload, payloadStoredAt);
   renderPayloadReview(payload);
+  updateTabBadges(payload, selectedFilesList.length);
   
   if (data[STORAGE_KEYS.caseInfo]) {
     if (caseIdInput) caseIdInput.value = data[STORAGE_KEYS.caseInfo].caseId || "";
@@ -1735,7 +1755,7 @@ async function refreshPayloadStatus() {
   if (interactionModeSelect) interactionModeSelect.value = data[STORAGE_KEYS.interactionMode] || "auto";
   
   if (logList && data[STORAGE_KEYS.logs]) {
-    logList.textContent = data[STORAGE_KEYS.logs].join("\n");
+    renderLogs(data[STORAGE_KEYS.logs]);
   }
 
   renderRuntimeDiagnostics(data[STORAGE_KEYS.runtimeMetrics]);
@@ -1895,6 +1915,8 @@ startButton?.addEventListener("click", async () => {
   // Clear stale verification fields from previous runs
   await setStorage({ [STORAGE_KEYS.verificationFields]: null });
 
+  setButtonLoading(startButton, true);
+
   await setStorage({
     [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
     [STORAGE_KEYS.autoSubmit]: autoSubmitToggle?.checked,
@@ -1905,6 +1927,7 @@ startButton?.addEventListener("click", async () => {
   chrome.runtime.sendMessage(
     { type: MESSAGE_TYPES.startAutofill, caseId, serviceDataGroupId },
     (response) => {
+      setButtonLoading(startButton, false);
       if (progressStatus) {
         progressStatus.textContent = response?.ok ? "Autofill started!" : (response?.error || "Failed");
       }
@@ -1921,20 +1944,26 @@ stopButton?.addEventListener("click", () => {
   });
 });
 
-clearButton?.addEventListener("click", async () => {
-  // Clear ALL sensitive data including signatures and uploaded documents
-  await setStorage({
-    [STORAGE_KEYS.payload]: null,
-    [DATA_TIMESTAMP_KEY]: null,
-    [STORAGE_KEYS.caseInfo]: null,
-    [STORAGE_KEYS.queueState]: null,
-    [STORAGE_KEYS.signatureData]: null,
-    [STORAGE_KEYS.signatureBatchId]: null,
-    [STORAGE_KEYS.uploadedDocuments]: null,
-    [STORAGE_KEYS.verificationFields]: null,
-  });
-  refreshPayloadStatus();
-  if (progressStatus) progressStatus.textContent = "Cleared";
+clearButton?.addEventListener("click", () => {
+  showConfirmDialog(
+    "Clear All Data",
+    "This will remove the loaded payload, case info, queue state, signature, uploaded documents, and verification fields. This action cannot be undone.",
+    async () => {
+      await setStorage({
+        [STORAGE_KEYS.payload]: null,
+        [DATA_TIMESTAMP_KEY]: null,
+        [STORAGE_KEYS.caseInfo]: null,
+        [STORAGE_KEYS.queueState]: null,
+        [STORAGE_KEYS.signatureData]: null,
+        [STORAGE_KEYS.signatureBatchId]: null,
+        [STORAGE_KEYS.uploadedDocuments]: null,
+        [STORAGE_KEYS.verificationFields]: null,
+      });
+      refreshPayloadStatus();
+      if (progressStatus) progressStatus.textContent = "Cleared";
+      showSuccess("All data cleared");
+    }
+  );
 });
 
 clearLogsButton?.addEventListener("click", async () => {
@@ -2076,29 +2105,175 @@ uploadSignatureButton?.addEventListener("click", () => {
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ── Loading spinner helpers ──────────────────────────────────────────────
+function setButtonLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) {
+    btn.classList.add("is-loading");
+    btn.disabled = true;
+    if (!btn.querySelector(".spinner")) {
+      btn.insertAdjacentHTML("beforeend", '<span class="spinner"></span>');
+    }
+  } else {
+    btn.classList.remove("is-loading");
+    btn.disabled = false;
+    btn.querySelector(".spinner")?.remove();
+  }
+}
+
+// ── Enhanced toast notifications ────────────────────────────────────────
+let _toastTimer = null;
+
+function _showToast(message, type = "success") {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  clearTimeout(_toastTimer);
+
+  const icons = {
+    success: '<svg class="toast-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>',
+    error: '<svg class="toast-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>',
+    info: '<svg class="toast-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>',
+  };
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `${icons[type] || icons.info}<span>${escapeHtml(message)}</span>`;
+  document.body.appendChild(toast);
+
+  _toastTimer = setTimeout(() => {
+    toast.classList.add("toast-exit");
+    setTimeout(() => toast.remove(), 320);
+  }, 3500);
+}
+
 function showError(message) {
   if (errorBanner) {
     const messageEl = document.getElementById('error-message');
     if (messageEl) messageEl.textContent = message;
     else errorBanner.textContent = message;
     errorBanner.hidden = false;
-    // Auto-dismiss after 8 seconds but user can dismiss earlier
     clearTimeout(errorBanner._dismissTimer);
     errorBanner._dismissTimer = setTimeout(() => { errorBanner.hidden = true; }, 8000);
   }
+  _showToast(message, "error");
 }
 
 function showSuccess(message) {
-  // Show toast notification
-  const existing = document.querySelector('.toast-success');
-  if (existing) existing.remove();
-  const toast = document.createElement('div');
-  toast.className = 'toast-success';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-  // Also update progress status
+  _showToast(message, "success");
   if (progressStatus) progressStatus.textContent = message;
+}
+
+function showInfo(message) {
+  _showToast(message, "info");
+}
+
+// ── Confirmation dialog ─────────────────────────────────────────────────
+function showConfirmDialog(title, message, onConfirm) {
+  // Remove any existing dialog
+  document.querySelector(".dialog-overlay")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "dialog-overlay";
+  overlay.innerHTML = `
+    <div class="dialog">
+      <div class="dialog-header">
+        <span class="dialog-icon">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+        </span>
+        <span class="dialog-title">${escapeHtml(title)}</span>
+      </div>
+      <div class="dialog-body">${escapeHtml(message)}</div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary dialog-cancel">Cancel</button>
+        <button class="btn btn-danger dialog-confirm">Confirm</button>
+      </div>
+    </div>
+  `;
+
+  overlay.querySelector(".dialog-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".dialog-confirm").addEventListener("click", () => {
+    overlay.remove();
+    onConfirm();
+  });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+  document.body.appendChild(overlay);
+}
+
+// ── Tab badge helpers ───────────────────────────────────────────────────
+function setTabBadge(tabBtn, count, variant) {
+  if (!tabBtn) return;
+  tabBtn.querySelector(".tab-badge")?.remove();
+  if (!count && count !== 0) return;
+
+  const badge = document.createElement("span");
+  if (count === true) {
+    badge.className = `tab-badge tab-badge-dot${variant ? ` tab-badge-${variant}` : ""}`;
+  } else if (count > 0) {
+    badge.className = `tab-badge${variant ? ` tab-badge-${variant}` : ""}`;
+    badge.textContent = count > 99 ? "99+" : String(count);
+  }
+  tabBtn.style.position = "relative";
+  tabBtn.appendChild(badge);
+}
+
+function updateTabBadges(payload, fileCount) {
+  // Autofill tab — dot when payload loaded
+  setTabBadge(tabAutofillBtn, payload ? true : null, payload ? "success" : null);
+  // Upload tab — count when files selected
+  setTabBadge(tabUploadBtn, fileCount > 0 ? fileCount : null, "warning");
+}
+
+// ── Step indicator helper ───────────────────────────────────────────────
+function updateUploadSteps(current) {
+  const steps = ["step-select", "step-upload", "step-analyze"];
+  const connectors = ["step-connector-1", "step-connector-2"];
+  steps.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("active", "completed");
+    if (i < current) el.classList.add("completed");
+    else if (i === current) el.classList.add("active");
+  });
+  connectors.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle("completed", i < current);
+  });
+}
+
+// ── Service user count badge ────────────────────────────────────────────
+function updateServiceUserCount(count) {
+  const badge = document.getElementById("service-user-count");
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
+// ── Formatted log rendering ────────────────────────────────────────────
+function renderLogs(logs) {
+  if (!logList) return;
+  if (!Array.isArray(logs) || logs.length === 0) {
+    logList.innerHTML = '<div class="empty-state" style="font-size:11px;">No log entries</div>';
+    return;
+  }
+  const levelPattern = /\b(error|fail|warn|success|ok|info|start|stop|done|complete|retry)\b/i;
+  logList.innerHTML = logs.slice(-50).map(line => {
+    const match = String(line).match(levelPattern);
+    let level = "info";
+    if (match) {
+      const word = match[1].toLowerCase();
+      if (word === "error" || word === "fail") level = "error";
+      else if (word === "warn" || word === "retry") level = "warn";
+      else if (word === "success" || word === "ok" || word === "done" || word === "complete") level = "success";
+    }
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `<div class="log-entry"><span class="log-timestamp">${now}</span><span class="log-level ${level}">${level}</span><span class="log-message">${escapeHtml(line)}</span></div>`;
+  }).join("");
+  logList.scrollTop = logList.scrollHeight;
 }
 
 // Error dismiss button
@@ -2416,11 +2591,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes[STORAGE_KEYS.logs]) {
     const logs = changes[STORAGE_KEYS.logs].newValue;
     if (Array.isArray(logs) && logs.length > 0) {
-      const logArea = document.getElementById("log-area");
-      if (logArea) {
-        logArea.textContent = logs.slice(-50).join("\n");
-        logArea.scrollTop = logArea.scrollHeight;
-      }
+      renderLogs(logs);
     }
   }
 
