@@ -2345,6 +2345,23 @@ svg:not([width]):not(.toast-icon) {
 .admin-only { display: none !important; }
 .is-admin .admin-only { display: block !important; }
 
+/* Admin role badge in header user chip */
+.header-role-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.header-role-badge.admin {
+  background: hsl(215, 80%, 55%);
+  color: #fff;
+}
+
 .toast-exit {
   animation: toastExit var(--duration-normal) var(--ease-out) forwards;
 }
@@ -3333,6 +3350,11 @@ fieldset legend {
   }
 
   /* Admin-only visibility — handled by base rules with !important, no override needed here */
+
+  /* Admin badge dark mode */
+  .header-role-badge.admin {
+    background: hsl(215, 70%, 45%);
+  }
 
   /* Kbd hints dark */
   .kbd {

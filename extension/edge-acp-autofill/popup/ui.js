@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.5.0
+ * CareAssurance Extension v0.5.1
  */
 
 import {
@@ -355,10 +355,14 @@ export function updateConnectionUI(connected, user = null) {
   if (dom.recentSection) dom.recentSection.hidden = !connected;
 
   const isAdmin = connected && (user?.role === "admin" || state.connectedWorkspaceUser?.role === "admin");
+  state.isAdmin = isAdmin;
   document.body.classList.toggle("is-admin", isAdmin);
+  console.log("[CA Extension] updateConnectionUI — connected:", connected, "role:", user?.role || state.connectedWorkspaceUser?.role, "isAdmin:", isAdmin);
 
   // search-section uses .admin-only CSS — also gate via hidden for non-admin connected users
   if (dom.searchSection) dom.searchSection.hidden = !connected || !isAdmin;
+  // Admin portal button — also gate via hidden
+  if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
 
   updateHeaderUserChip(connected ? (user || state.connectedWorkspaceUser) : null);
   updateFooterLiveDot(connected);
@@ -407,7 +411,13 @@ export function renderWorkspaceContext(context, user = state.connectedWorkspaceU
   if (dom.workspaceRoutePath) dom.workspaceRoutePath.textContent = context?.path || "/";
   if (dom.workspaceTabTitle) dom.workspaceTabTitle.textContent = context?.title || "Not available";
   if (dom.openConnectedWorkspace) dom.openConnectedWorkspace.disabled = !context?.tabId;
-  if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = state.connectedWorkspaceUser?.role !== "admin";
+
+  // Re-apply admin state every render cycle (called every 3s by interval)
+  const isAdmin = state.isConnected && (state.connectedWorkspaceUser?.role === "admin");
+  state.isAdmin = isAdmin;
+  document.body.classList.toggle("is-admin", isAdmin);
+  if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
+  if (dom.searchSection) dom.searchSection.hidden = !state.isConnected || !isAdmin;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -905,7 +915,8 @@ export function updateHeaderUserChip(user) {
     else return;
   }
   const initials = (user.username || "U").slice(0, 2).toUpperCase();
-  chip.innerHTML = `<span class="mini-avatar">${escapeHtml(initials)}</span><span>${escapeHtml(user.username || "User")}</span>`;
+  const roleBadge = user.role === "admin" ? `<span class="header-role-badge admin">Admin</span>` : "";
+  chip.innerHTML = `<span class="mini-avatar">${escapeHtml(initials)}</span><span>${escapeHtml(user.username || "User")}</span>${roleBadge}`;
 }
 
 export function updateFooterLiveDot(connected) {

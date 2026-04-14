@@ -4878,6 +4878,13 @@ export default function SecretAdminPortal() {
           title: "User Removed",
           description: "The user has been removed from the system.",
         });
+      } else {
+        const data = await response.json().catch(() => ({ message: "Unknown error" }));
+        toast({
+          title: "Failed to Remove User",
+          description: data.message || `Server returned ${response.status}`,
+          variant: "destructive",
+        });
       }
     } catch (error) {
       toast({

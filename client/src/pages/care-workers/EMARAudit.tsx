@@ -620,7 +620,8 @@ export default function EMARAudit() {
       try {
         const res = await fetch("/api/care-workers", { credentials: "include" });
         if (res.ok) {
-          const carers = await res.json();
+          const json = await res.json();
+          const carers = Array.isArray(json) ? json : (json.data ?? []);
           setExistingCarers(carers);
         }
       } catch (error) {

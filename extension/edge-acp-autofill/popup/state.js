@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.5.0
+ * CareAssurance Extension v0.5.1
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -194,6 +194,7 @@ export const state = {
   latestPayloadSnapshot: null,
   connectedWorkspaceUser: null,
   connectedWorkspaceContext: null,
+  isAdmin: false,
   pageCompanionContext: null,
   currentVerificationIndex: -1,
   connectionEstablishedAt: null,

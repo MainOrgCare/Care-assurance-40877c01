@@ -610,10 +610,13 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: string): Promise<void> {
     // Delete related records first to avoid foreign key constraint errors
+    await this.db.delete(policyAcknowledgements).where(eq(policyAcknowledgements.userId, id));
+    await this.db.delete(gdprConsentRecords).where(eq(gdprConsentRecords.userId, id));
     await this.db.delete(sessionHistory).where(eq(sessionHistory.userId, id));
     await this.db.delete(activeSessions).where(eq(activeSessions.userId, id));
     await this.db.delete(suspensionLogs).where(eq(suspensionLogs.userId, id));
-    // Note: riskAssessmentLogs does not have userId field, so we don't need to delete those
+    // Nullify AI usage log references (nullable FK)
+    await this.db.update(aiUsageLogs).set({ userId: null }).where(eq(aiUsageLogs.userId, id));
     // Now delete the user
     await this.db.delete(users).where(eq(users.id, id));
   }
