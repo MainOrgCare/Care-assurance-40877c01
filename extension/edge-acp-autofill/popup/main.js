@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.4
+ * CareAssurance Extension v0.6.7
  */
 
 import {
@@ -189,6 +189,50 @@ const updateUploadSyncStatus = (message, level = "info") => {
   }
 };
 
+const renderOverlayPinButton = (pinned) => {
+  if (!dom.overlayPinBtn) return;
+  const isPinned = Boolean(pinned);
+  dom.overlayPinBtn.textContent = isPinned ? "Pinned" : "Pin";
+  dom.overlayPinBtn.title = isPinned ? "Overlay pinned on workflow page" : "Pin in-page overlay";
+  dom.overlayPinBtn.setAttribute("aria-pressed", isPinned ? "true" : "false");
+  dom.overlayPinBtn.classList.toggle("is-active", isPinned);
+};
+
+const applyOverlayPinnedPreference = async (pinned, { broadcast = true } = {}) => {
+  const normalized = Boolean(pinned);
+  await setStorage({ [STORAGE_KEYS.overlayPinned]: normalized });
+  renderOverlayPinButton(normalized);
+
+  if (!broadcast) return;
+
+  try {
+    await sendMessageToPageCompanion({
+      type: MESSAGE_TYPES.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY",
+      payload: normalized ? { open: true, pin: true } : { pin: false },
+    });
+  } catch {
+    // Persisting the preference is enough when no live workflow page is attached.
+  }
+};
+
+const updateUploadPendingStatus = () => {
+  const stagedCount = flattenUploadBuckets().length;
+  if (stagedCount === 0) {
+    updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
+    return;
+  }
+
+  if (!state.isConnected) {
+    updateUploadSyncStatus(
+      `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. Connect your workspace, then click Send.`,
+      "warning"
+    );
+    return;
+  }
+
+  updateUploadSyncStatus(`Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. Click Send to transfer.`);
+};
+
 const renderUploadBuckets = () => {
   ensureUploadBuckets();
   let totalFileCount = 0;
@@ -245,7 +289,6 @@ const renderUploadBuckets = () => {
         if (index < 0 || index >= sectionFiles.length) return;
         sectionFiles.splice(index, 1);
         renderUploadBuckets();
-        scheduleUploadMirrorSync({ immediate: true, force: true });
       });
     });
   }
@@ -254,10 +297,7 @@ const renderUploadBuckets = () => {
   if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = totalFileCount === 0;
   updateTabBadges(state.latestPayloadSnapshot?.payload, totalFileCount);
   updateUploadSteps(totalFileCount > 0 ? 1 : 0);
-
-  if (totalFileCount === 0) {
-    updateUploadSyncStatus("Connect your workspace to auto-sync files into CareAssurance Upload.");
-  }
+  updateUploadPendingStatus();
 };
 
 const isSupportedUploadFile = (file) => {
@@ -286,7 +326,6 @@ const applyUploadFiles = (sectionKey, files) => {
   }
 
   renderUploadBuckets();
-  scheduleUploadMirrorSync({ force: true });
 };
 
 const readFileAsBase64 = (file) =>
@@ -388,12 +427,12 @@ const syncUploadsToCareAssurance = async ({ force = false } = {}) => {
 
   const selected = flattenUploadBuckets();
   if (selected.length === 0) {
-    updateUploadSyncStatus("Connect your workspace to auto-sync files into CareAssurance Upload.");
+    updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
     return false;
   }
 
   if (!state.isConnected) {
-    updateUploadSyncStatus("Connect your workspace to sync files into CareAssurance Upload.", "warning");
+    updateUploadSyncStatus("Connect your workspace, then click Send to transfer staged files.", "warning");
     return false;
   }
 
@@ -997,7 +1036,7 @@ async function connectToCareAssurance() {
 
         await fetchConnectedData(user);
         if (state.selectedFilesList.length > 0) {
-          scheduleUploadMirrorSync({ immediate: true, force: true });
+          updateUploadPendingStatus();
         }
 
         break;
@@ -1196,11 +1235,23 @@ function bindEvents() {
 
   dom.syncUploadBtn?.addEventListener("click", async () => {
     const ok = await syncUploadsToCareAssurance({ force: true });
-    if (ok) showSuccess("Uploads synced to CareAssurance Upload");
+    if (ok) showSuccess("Uploads sent to CareAssurance Upload");
   });
 
   dom.uploadNotes?.addEventListener("input", () => {
-    scheduleUploadMirrorSync({ force: true });
+    updateUploadPendingStatus();
+  });
+
+  dom.overlayPinBtn?.addEventListener("click", async () => {
+    const isPinned = dom.overlayPinBtn.getAttribute("aria-pressed") === "true";
+    const nextPinned = !isPinned;
+
+    try {
+      await applyOverlayPinnedPreference(nextPinned, { broadcast: true });
+      showInfo(nextPinned ? "Overlay pin enabled" : "Overlay pin disabled");
+    } catch {
+      showError("Could not update overlay pin right now.");
+    }
   });
 
   dom.clearUploads?.addEventListener("click", async () => {
@@ -1219,7 +1270,7 @@ function bindEvents() {
     if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = true;
     if (dom.uploadNotes) dom.uploadNotes.value = "";
     if (dom.analysisStatus) dom.analysisStatus.textContent = "";
-    updateUploadSyncStatus("Connect your workspace to auto-sync files into CareAssurance Upload.");
+    updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
     await setStorage({ [STORAGE_KEYS.uploadedDocuments]: null });
   });
 
@@ -1689,7 +1740,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.4</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.7</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1754,6 +1805,12 @@ function bindStorageListener() {
         }
         catch (e) { console.warn("[CA Extension] error handler error:", e); }
       }
+
+      if (changes[STORAGE_KEYS.overlayPinned]) {
+        try {
+          renderOverlayPinButton(Boolean(changes[STORAGE_KEYS.overlayPinned].newValue));
+        } catch (e) { console.warn("[CA Extension] overlay pin handler error:", e); }
+      }
     } catch (outerErr) {
       console.error("[CA Extension] storage.onChanged crash:", outerErr);
     }
@@ -1777,6 +1834,9 @@ function bindStorageListener() {
   await refreshPayloadStatus();
   await refreshSignatureStatus();
   refreshExtensionVersionDisplay();
+
+  const pinnedState = await loadStorage([STORAGE_KEYS.overlayPinned]);
+  renderOverlayPinButton(Boolean(pinnedState?.[STORAGE_KEYS.overlayPinned]));
 
   // Load saved server URL
   const stored = await loadStorage([STORAGE_KEYS.serverUrl]);
@@ -1832,7 +1892,7 @@ function bindStorageListener() {
       await refreshWorkspaceContext(user);
       fetchConnectedData(user); // Fetch service users + recent items (no reconnect)
       if (state.selectedFilesList.length > 0) {
-        scheduleUploadMirrorSync({ immediate: true, force: true });
+        updateUploadPendingStatus();
       }
     } else if (res.ok && !user) {
       // Got a 200 OK but no user object — likely HTML response or malformed data

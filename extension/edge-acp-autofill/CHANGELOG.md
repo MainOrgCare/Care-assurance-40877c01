@@ -1,5 +1,48 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.7 - Draggable + Resizable Runtime Panels
+
+### Overlay Mobility Improvements
+
+- Added drag-to-move behavior for ACP and EMAR in-page runtime overlays using the overlay header as a drag handle, with viewport clamping to keep panels accessible.
+- Enabled panel resizing for ACP and EMAR overlays (`resize: both`) with minimum size and viewport-aware bounds so operators can tune panel footprint while working.
+
+### Initial Assessment Verification Panel
+
+- Added drag-to-move and resize support to the Initial Assessment verification summary panel while preserving existing pin/minimize controls.
+- Updated minimized-state sizing behavior so the verification panel collapses cleanly even after custom resizing.
+
+### Versioning
+
+- Bumped extension version to `0.6.7` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.6 - Header Clarity + Global Pin Control
+
+### Header UX Fixes
+
+- Removed duplicate username rendering in the popup header by simplifying the connection badge display and clearing the extra header user chip.
+- Added an always-visible header pin control so operators can lock/unlock in-page overlays directly from the extension popup without switching tabs.
+
+### Overlay Pin Coordination
+
+- Extended `CA_EXTENSION_TOGGLE_OVERLAY` handling in ACP/EMAR/Initial Assessment content scripts to accept a `pin` payload from the popup and immediately apply persistent pin state.
+
+### Versioning
+
+- Bumped extension version to `0.6.6` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.5 - Manual Send Staging
+
+### Upload Transfer Control
+
+- Updated extension upload mirroring so drag/drop only stages files in the popup and does not auto-send them to CareAssurance.
+- Removed automatic sync triggers tied to file add/remove, notes edits, and connection checks; files now transfer only when `Send to CareAssurance Upload` is clicked.
+- Refined upload status messaging to make staged vs sent state explicit for operators.
+
+### Versioning
+
+- Bumped extension version to `0.6.5` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.4 - Upload Mirror + Overlay Pin Controls
 
 ### Upload Workflow Parity

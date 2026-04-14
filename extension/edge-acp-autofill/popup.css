@@ -3284,6 +3284,43 @@ hr {
 }
 
 /* ── Help/info button ────────────────────────────────────────────────── */
+.btn-overlay-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-muted-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.btn-overlay-pin:hover {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  border-color: var(--color-border-hover);
+}
+
+.btn-overlay-pin:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.btn-overlay-pin.is-active {
+  border-color: hsla(152, 65%, 40%, 0.45);
+  background: hsla(152, 70%, 92%, 0.95);
+  color: hsl(152, 72%, 26%);
+}
+
 .btn-help {
   display: inline-flex;
   align-items: center;

@@ -144,6 +144,9 @@ const injectOverlayStyles = () => {
 
     .ca-overlay-panel {
       width: min(360px, calc(100vw - 24px));
+      min-width: 280px;
+      min-height: 220px;
+      max-height: calc(100vh - 24px);
       border-radius: 20px;
       border: 1px solid rgba(148, 163, 184, 0.28);
       background:
@@ -151,13 +154,16 @@ const injectOverlayStyles = () => {
         linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96));
       box-shadow: 0 24px 50px rgba(15, 23, 42, 0.18);
       backdrop-filter: blur(16px);
-      overflow: hidden;
+      resize: both;
+      overflow: auto;
       pointer-events: auto;
     }
 
     .ca-overlay-panel.is-collapsed {
       width: auto;
       min-width: 168px;
+      min-height: 0;
+      resize: none;
       cursor: pointer;
     }
 
@@ -167,6 +173,13 @@ const injectOverlayStyles = () => {
       gap: 12px;
       padding: 16px 16px 14px;
       border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .ca-overlay-header.is-dragging {
+      cursor: grabbing;
     }
 
     .ca-overlay-panel.is-collapsed .ca-overlay-header {
@@ -608,6 +621,78 @@ const initOverlay = () => {
     collapsedTitle: "CA ready",
   };
 
+  const clampOverlayPosition = (left, top) => {
+    const margin = 8;
+    const rect = panel.getBoundingClientRect();
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    return {
+      left: Math.min(Math.max(margin, left), maxLeft),
+      top: Math.min(Math.max(margin, top), maxTop),
+    };
+  };
+
+  const setOverlayPosition = (left, top) => {
+    const next = clampOverlayPosition(left, top);
+    container.style.left = `${next.left}px`;
+    container.style.top = `${next.top}px`;
+    container.style.right = "auto";
+    container.style.bottom = "auto";
+  };
+
+  const keepOverlayInViewport = () => {
+    const rect = container.getBoundingClientRect();
+    const next = clampOverlayPosition(rect.left, rect.top);
+    if (Math.abs(next.left - rect.left) > 0.5 || Math.abs(next.top - rect.top) > 0.5) {
+      setOverlayPosition(next.left, next.top);
+    }
+  };
+
+  let dragState = null;
+
+  const stopDragging = () => {
+    if (!dragState) return;
+    dragState = null;
+    header.classList.remove("is-dragging");
+    window.removeEventListener("pointermove", handleDragMove);
+    window.removeEventListener("pointerup", stopDragging);
+    window.removeEventListener("pointercancel", stopDragging);
+  };
+
+  const handleDragMove = (event) => {
+    if (!dragState) return;
+    event.preventDefault();
+    const nextLeft = dragState.originLeft + (event.clientX - dragState.startX);
+    const nextTop = dragState.originTop + (event.clientY - dragState.startY);
+    setOverlayPosition(nextLeft, nextTop);
+  };
+
+  header.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("button")) return;
+
+    const rect = container.getBoundingClientRect();
+    dragState = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: rect.left,
+      originTop: rect.top,
+    };
+
+    header.classList.add("is-dragging");
+    window.addEventListener("pointermove", handleDragMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+  });
+
+  window.addEventListener("resize", keepOverlayInViewport);
+
+  if (typeof ResizeObserver === "function") {
+    const overlayResizeObserver = new ResizeObserver(() => keepOverlayInViewport());
+    overlayResizeObserver.observe(panel);
+  }
+
   const setOverlayPinned = async (pinned, { persist = true } = {}) => {
     overlayPinned = Boolean(pinned);
     if (!overlayElements) return;
@@ -760,6 +845,20 @@ const setOverlayCollapsed = (collapsed) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== (MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY")) return false;
   initOverlay();
+
+  if (typeof message?.payload?.pin === "boolean") {
+    overlayPinned = Boolean(message.payload.pin);
+    if (overlayElements?.lockButton) {
+      overlayElements.lockButton.textContent = overlayPinned ? "Pinned" : "Pin";
+      overlayElements.lockButton.title = overlayPinned ? "Unpin overlay" : "Pin overlay";
+      overlayElements.lockButton.classList.toggle("is-active", overlayPinned);
+    }
+    if (overlayPinned && overlayCollapsed) {
+      setOverlayCollapsed(false);
+    }
+    saveStorage({ [STORAGE_KEYS.overlayPinned]: overlayPinned }).catch(() => {});
+  }
+
   if (message?.payload?.open) {
     setOverlayCollapsed(false);
   } else if (message?.payload?.minimize) {

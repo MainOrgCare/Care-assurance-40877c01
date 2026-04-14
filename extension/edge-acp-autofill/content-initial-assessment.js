@@ -1644,6 +1644,14 @@ const showVerificationSummary = (fields) => {
         background: hsl(200, 80%, 94%);
         color: hsl(200, 85%, 34%);
       }
+      .ca-summary-header {
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+      }
+      .ca-summary-header.is-dragging {
+        cursor: grabbing;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -1667,12 +1675,16 @@ const showVerificationSummary = (fields) => {
     box-shadow: 0 6px 16px rgba(0,0,0,0.1);
     z-index: 10000;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 360px;
+    max-width: min(560px, calc(100vw - 32px));
     min-width: 280px;
+    min-height: 120px;
+    max-height: calc(100vh - 32px);
+    resize: both;
+    overflow: auto;
   `;
   
   summary.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+    <div class="ca-summary-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
       <strong style="color: hsl(222, 47%, 11%); font-size: 13px;">Verification Required</strong>
       <div>
         <button id="ca-pin-summary" class="ca-pin-btn" title="Pin panel">Pin</button>
@@ -1707,6 +1719,84 @@ const showVerificationSummary = (fields) => {
   const counterEl = document.getElementById('ca-nav-counter');
   const currentFieldEl = document.getElementById('ca-current-field');
   const contentEl = document.getElementById('ca-summary-content');
+  const headerEl = summary.querySelector('.ca-summary-header');
+
+  const clampSummaryPosition = (left, top) => {
+    const margin = 8;
+    const rect = summary.getBoundingClientRect();
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    return {
+      left: Math.min(Math.max(margin, left), maxLeft),
+      top: Math.min(Math.max(margin, top), maxTop),
+    };
+  };
+
+  const setSummaryPosition = (left, top) => {
+    const next = clampSummaryPosition(left, top);
+    summary.style.left = `${next.left}px`;
+    summary.style.top = `${next.top}px`;
+    summary.style.right = 'auto';
+    summary.style.bottom = 'auto';
+  };
+
+  const keepSummaryInViewport = () => {
+    const rect = summary.getBoundingClientRect();
+    const next = clampSummaryPosition(rect.left, rect.top);
+    if (Math.abs(next.left - rect.left) > 0.5 || Math.abs(next.top - rect.top) > 0.5) {
+      setSummaryPosition(next.left, next.top);
+    }
+  };
+
+  let dragState = null;
+
+  const stopDragging = () => {
+    if (!dragState) return;
+    dragState = null;
+    if (headerEl) {
+      headerEl.classList.remove('is-dragging');
+    }
+    window.removeEventListener('pointermove', handleDragMove);
+    window.removeEventListener('pointerup', stopDragging);
+    window.removeEventListener('pointercancel', stopDragging);
+  };
+
+  const handleDragMove = (event) => {
+    if (!dragState) return;
+    event.preventDefault();
+    const nextLeft = dragState.originLeft + (event.clientX - dragState.startX);
+    const nextTop = dragState.originTop + (event.clientY - dragState.startY);
+    setSummaryPosition(nextLeft, nextTop);
+  };
+
+  if (headerEl) {
+    headerEl.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('button')) return;
+
+      const rect = summary.getBoundingClientRect();
+      dragState = {
+        startX: event.clientX,
+        startY: event.clientY,
+        originLeft: rect.left,
+        originTop: rect.top,
+      };
+
+      headerEl.classList.add('is-dragging');
+      window.addEventListener('pointermove', handleDragMove);
+      window.addEventListener('pointerup', stopDragging);
+      window.addEventListener('pointercancel', stopDragging);
+    });
+  }
+
+  window.addEventListener('resize', keepSummaryInViewport);
+
+  let summaryResizeObserver = null;
+  if (typeof ResizeObserver === 'function') {
+    summaryResizeObserver = new ResizeObserver(() => keepSummaryInViewport());
+    summaryResizeObserver.observe(summary);
+  }
 
   const setSummaryMinimized = (minimized) => {
     if (minimized && VERIFICATION_SUMMARY_PINNED) {
@@ -1714,7 +1804,8 @@ const showVerificationSummary = (fields) => {
     }
     summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
     contentEl.style.display = minimized ? 'none' : 'block';
-    summary.style.minWidth = minimized ? '150px' : '300px';
+    summary.style.width = minimized ? 'auto' : '';
+    summary.style.minWidth = minimized ? '150px' : '280px';
     const minimizeButton = document.getElementById('ca-minimize-summary');
     if (minimizeButton) {
       minimizeButton.textContent = minimized ? '+' : '_';
@@ -1797,6 +1888,11 @@ const showVerificationSummary = (fields) => {
   const observer = new MutationObserver(() => {
     if (!document.getElementById('ca-verification-summary')) {
       document.removeEventListener('keydown', keyHandler);
+      window.removeEventListener('resize', keepSummaryInViewport);
+      stopDragging();
+      if (summaryResizeObserver) {
+        summaryResizeObserver.disconnect();
+      }
       observer.disconnect();
     }
   });
@@ -1826,7 +1922,8 @@ const setVerificationSummaryMinimized = (minimized) => {
   const content = document.getElementById('ca-summary-content');
   const minimizeButton = document.getElementById('ca-minimize-summary');
   summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
-  summary.style.minWidth = minimized ? '150px' : '300px';
+  summary.style.width = minimized ? 'auto' : '';
+  summary.style.minWidth = minimized ? '150px' : '280px';
   if (content) {
     content.style.display = minimized ? 'none' : 'block';
   }
@@ -1981,6 +2078,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!hasSummary) {
       sendResponse({ ok: false, error: 'No verification summary available on this page.' });
       return true;
+    }
+
+    if (typeof message?.payload?.pin === 'boolean') {
+      setVerificationSummaryPinned(Boolean(message.payload.pin));
     }
 
     const summary = document.getElementById('ca-verification-summary');

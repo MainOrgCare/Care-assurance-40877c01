@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.4
+ * CareAssurance Extension v0.6.7
  */
 
 import {
@@ -38,7 +38,7 @@ export function cacheDomElements() {
     "tab-connect", "tab-upload", "tab-autofill",
     "tab-content-connect", "tab-content-upload", "tab-content-autofill",
     // Header
-    "header-subtitle", "connection-badge", "connection-uptime",
+    "header-subtitle", "connection-badge", "connection-uptime", "overlay-pin-btn",
     // Connect
     "connect-status", "connect-btn", "refresh-workspace-context",
     "workspace-context-status", "workspace-route-label", "workspace-route-path",
@@ -328,7 +328,11 @@ export function updateConnectionUI(connected, user = null) {
   if (dom.connectionBadge) {
     dom.connectionBadge.className = `connection-badge ${connected ? "connected" : "disconnected"}`;
     const text = dom.connectionBadge.querySelector(".connection-text");
-    if (text) text.textContent = connected ? (user?.username || "Connected") : "Offline";
+    const connectedUsername = user?.username || state.connectedWorkspaceUser?.username || "user";
+    if (text) text.textContent = connected ? "Connected" : "Offline";
+    dom.connectionBadge.title = connected
+      ? `Connected as ${connectedUsername}`
+      : "Click to see connection details";
 
     const uptimeEl = dom.connectionUptime;
     if (connected) {
@@ -374,7 +378,7 @@ export function updateConnectionUI(connected, user = null) {
   // Admin portal button — also gate via hidden
   if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
 
-  updateHeaderUserChip(connected ? (user || state.connectedWorkspaceUser) : null);
+  updateHeaderUserChip(null);
   updateFooterLiveDot(connected);
 }
 
