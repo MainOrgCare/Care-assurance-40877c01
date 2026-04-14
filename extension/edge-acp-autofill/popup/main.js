@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.5.1
+ * CareAssurance Extension v0.5.3
  */
 
 import {
@@ -382,6 +382,41 @@ async function refreshSignatureStatus() {
 // CONNECTION FLOW
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Fetch ancillary data (service users, recent items) after connection is
+ * already confirmed.  Safe to call multiple times — never resets connection
+ * state on failure, just logs a warning.
+ */
+async function fetchConnectedData(user) {
+  try {
+    const [usersRes, acpRes] = await Promise.all([
+      apiProxy("/api/extension/service-users").catch(() => null),
+      apiProxy("/api/extension/acp-service-users").catch(() => null),
+    ]);
+
+    const analyzedUsers = (usersRes?.ok ? usersRes.data?.users : []) || [];
+    state.acpServiceUsers = (acpRes?.ok ? acpRes.data?.users : []) || [];
+
+    const analyzedIds = new Set(analyzedUsers.map((u) => (u.name || "").toLowerCase().trim()));
+    const acpOnlyUsers = state.acpServiceUsers
+      .filter((u) => !analyzedIds.has((u.name || "").toLowerCase().trim()))
+      .map((u) => ({ id: u.acpId || u.id, name: u.name, initials: u.initials, lastUpdated: u.updatedAt, isAcpOnly: true }));
+
+    state.serviceUsers = [...analyzedUsers, ...acpOnlyUsers];
+    displayServiceUsers();
+    renderAutofillUserDropdown();
+  } catch (e) {
+    console.warn("[CA Extension] Failed to fetch service users:", e);
+  }
+
+  try {
+    const recentRes = await apiProxy("/api/extension/recent");
+    if (recentRes.ok) displayRecentItems(recentRes.data);
+  } catch (e) {
+    console.warn("[CA Extension] Failed to fetch recent items:", e);
+  }
+}
+
 async function connectToCareAssurance() {
   setButtonLoading(dom.connectBtn, true);
   if (dom.connectStatus) dom.connectStatus.innerHTML = "<span>Connecting...</span>";
@@ -414,35 +449,7 @@ async function connectToCareAssurance() {
         await refreshWorkspaceContext(status.user);
         connected = true;
 
-        // Fetch service users (merge sources)
-        try {
-          const [usersRes, acpRes] = await Promise.all([
-            apiProxy("/api/extension/service-users").catch(() => null),
-            apiProxy("/api/extension/acp-service-users").catch(() => null),
-          ]);
-
-          const analyzedUsers = (usersRes?.ok ? usersRes.data?.users : []) || [];
-          state.acpServiceUsers = (acpRes?.ok ? acpRes.data?.users : []) || [];
-
-          const analyzedIds = new Set(analyzedUsers.map((u) => (u.name || "").toLowerCase().trim()));
-          const acpOnlyUsers = state.acpServiceUsers
-            .filter((u) => !analyzedIds.has((u.name || "").toLowerCase().trim()))
-            .map((u) => ({ id: u.acpId || u.id, name: u.name, initials: u.initials, lastUpdated: u.updatedAt, isAcpOnly: true }));
-
-          state.serviceUsers = [...analyzedUsers, ...acpOnlyUsers];
-          displayServiceUsers();
-          renderAutofillUserDropdown();
-        } catch (e) {
-          console.warn("Failed to fetch service users:", e);
-        }
-
-        // Fetch recent items
-        try {
-          const recentRes = await apiProxy("/api/extension/recent");
-          if (recentRes.ok) displayRecentItems(recentRes.data);
-        } catch (e) {
-          console.warn("Failed to fetch recent items:", e);
-        }
+        await fetchConnectedData(status.user);
 
         break;
       } else if (statusRes.status === 401 || statusRes.error === "Not logged in") {
@@ -461,7 +468,12 @@ async function connectToCareAssurance() {
   }
 
   if (!connected) {
-    updateConnectionUI(false);
+    // Don't reset connection state if already connected from a prior quick check
+    if (!state.isConnected) {
+      updateConnectionUI(false);
+    } else {
+      console.log("[CA Extension] connectToCareAssurance failed but already connected — keeping state");
+    }
 
     if (dom.connectionBadge) {
       dom.connectionBadge.className = "connection-badge error";
@@ -583,14 +595,14 @@ function bindEvents() {
   // Service user list delegation
   dom.serviceUserList?.addEventListener("click", (e) => {
     const item = e.target.closest(".service-user-item[data-id]");
-    if (item) { selectUser(parseInt(item.dataset.id)); return; }
+    if (item) { selectUser(item.dataset.id); return; }
     const showMore = e.target.closest("[data-action='show-more-users']");
     if (showMore) { e.preventDefault(); state.serviceUserShowCount = (state.serviceUserShowCount || 10) + 10; displayServiceUsers(); }
   });
   dom.serviceUserList?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       const item = e.target.closest(".service-user-item[data-id]");
-      if (item) { e.preventDefault(); selectUser(parseInt(item.dataset.id)); }
+      if (item) { e.preventDefault(); selectUser(item.dataset.id); }
     }
   });
   dom.serviceUserSort?.addEventListener("change", () => { state.serviceUserShowCount = 10; displayServiceUsers(); });
@@ -1020,7 +1032,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.1</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.5.3</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -1135,9 +1147,10 @@ function bindStorageListener() {
   try {
     const res = await apiProxy("/api/extension/status");
     if (res.ok) {
+      console.log("[CA Extension] Quick check user:", JSON.stringify(res.data?.user));
       updateConnectionUI(true, res.data.user);
       await refreshWorkspaceContext(res.data.user);
-      connectToCareAssurance(); // Full refresh in background
+      fetchConnectedData(res.data.user); // Fetch service users + recent items (no reconnect)
     } else if (res.needsTab) {
       updateConnectionUI(false);
       if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Open Care Assurance in a tab, then click Connect</span>';

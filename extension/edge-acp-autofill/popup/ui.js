@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.5.1
+ * CareAssurance Extension v0.5.3
  */
 
 import {
@@ -354,10 +354,10 @@ export function updateConnectionUI(connected, user = null) {
 
   if (dom.recentSection) dom.recentSection.hidden = !connected;
 
-  const isAdmin = connected && (user?.role === "admin" || state.connectedWorkspaceUser?.role === "admin");
+  const isAdmin = connected && (user?.role?.toLowerCase() === "admin" || state.connectedWorkspaceUser?.role?.toLowerCase() === "admin");
   state.isAdmin = isAdmin;
   document.body.classList.toggle("is-admin", isAdmin);
-  console.log("[CA Extension] updateConnectionUI — connected:", connected, "role:", user?.role || state.connectedWorkspaceUser?.role, "isAdmin:", isAdmin);
+  console.log("[CA Extension] updateConnectionUI — connected:", connected, "user:", JSON.stringify(user), "role:", user?.role || state.connectedWorkspaceUser?.role, "isAdmin:", isAdmin);
 
   // search-section uses .admin-only CSS — also gate via hidden for non-admin connected users
   if (dom.searchSection) dom.searchSection.hidden = !connected || !isAdmin;
@@ -413,7 +413,7 @@ export function renderWorkspaceContext(context, user = state.connectedWorkspaceU
   if (dom.openConnectedWorkspace) dom.openConnectedWorkspace.disabled = !context?.tabId;
 
   // Re-apply admin state every render cycle (called every 3s by interval)
-  const isAdmin = state.isConnected && (state.connectedWorkspaceUser?.role === "admin");
+  const isAdmin = state.isConnected && (state.connectedWorkspaceUser?.role?.toLowerCase() === "admin");
   state.isAdmin = isAdmin;
   document.body.classList.toggle("is-admin", isAdmin);
   if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
