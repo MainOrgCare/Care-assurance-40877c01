@@ -101,17 +101,19 @@ const injectOverlayStyles = () => {
       min-width: 280px;
       min-height: 220px;
       max-height: calc(100vh - 24px);
+      position: relative;
       border-radius: 20px;
       border: 1px solid rgba(148, 163, 184, 0.26);
       background: radial-gradient(circle at top right, rgba(20, 184, 166, 0.14), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(240,249,255,0.96));
       box-shadow: 0 24px 50px rgba(15, 23, 42, 0.16);
       backdrop-filter: blur(14px);
-      resize: both;
-      overflow: auto;
+      resize: none;
+      overflow: hidden;
       pointer-events: auto;
     }
     .ca-emar-panel.is-collapsed {
-      width: auto;
+      width: auto !important;
+      height: auto !important;
       min-width: 172px;
       min-height: 0;
       resize: none;
@@ -168,6 +170,24 @@ const injectOverlayStyles = () => {
     .ca-emar-lock { min-width: 48px; height: 30px; border-radius: 10px; border: 1px solid rgba(148,163,184,0.26); background: rgba(255,255,255,0.9); color: #475569; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; padding: 0 8px; }
     .ca-emar-lock.is-active { border-color: rgba(2,132,199,0.42); background: rgba(224,242,254,0.95); color: #0369a1; }
     .ca-emar-body { padding: 0 16px 16px; }
+    .ca-emar-resize-handle {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(203, 213, 225, 0.9));
+      cursor: nwse-resize;
+      pointer-events: auto;
+      box-shadow: 0 6px 12px rgba(15, 23, 42, 0.15);
+    }
+    .ca-emar-resize-handle.is-resizing {
+      border-color: rgba(2, 132, 199, 0.5);
+      background: linear-gradient(135deg, rgba(224, 242, 254, 0.95), rgba(125, 211, 252, 0.95));
+    }
+    .ca-emar-panel.is-collapsed .ca-emar-resize-handle { display: none; }
     .ca-emar-panel.is-collapsed .ca-emar-body, .ca-emar-panel.is-collapsed .ca-emar-kicker, .ca-emar-panel.is-collapsed .ca-emar-subtitle, .ca-emar-panel.is-collapsed .ca-emar-chip { display: none; }
     .ca-emar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
     .ca-emar-stat { padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,0.82); border: 1px solid rgba(148,163,184,0.16); }
@@ -309,8 +329,13 @@ const initOverlay = () => {
   body.appendChild(logs);
   body.appendChild(footer);
 
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "ca-emar-resize-handle";
+  resizeHandle.title = "Resize panel";
+
   panel.appendChild(header);
   panel.appendChild(body);
+  panel.appendChild(resizeHandle);
   container.appendChild(panel);
   document.body.appendChild(container);
 
@@ -330,17 +355,21 @@ const initOverlay = () => {
     serviceUserValue: serviceUser.statValue,
     modeValue: mode.statValue,
     periodValue: period.statValue,
+    resizeHandle,
     collapsedTitle: "EMAR ready",
   };
 
+  const OVERLAY_MARGIN = 8;
+  const OVERLAY_MIN_WIDTH = 280;
+  const OVERLAY_MIN_HEIGHT = 220;
+
   const clampOverlayPosition = (left, top) => {
-    const margin = 8;
     const rect = panel.getBoundingClientRect();
-    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
-    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    const maxLeft = Math.max(OVERLAY_MARGIN, window.innerWidth - rect.width - OVERLAY_MARGIN);
+    const maxTop = Math.max(OVERLAY_MARGIN, window.innerHeight - rect.height - OVERLAY_MARGIN);
     return {
-      left: Math.min(Math.max(margin, left), maxLeft),
-      top: Math.min(Math.max(margin, top), maxTop),
+      left: Math.min(Math.max(OVERLAY_MARGIN, left), maxLeft),
+      top: Math.min(Math.max(OVERLAY_MARGIN, top), maxTop),
     };
   };
 
@@ -352,37 +381,83 @@ const initOverlay = () => {
     container.style.bottom = "auto";
   };
 
-  const keepOverlayInViewport = () => {
+  const getOverlaySizeBounds = () => {
     const rect = container.getBoundingClientRect();
-    const next = clampOverlayPosition(rect.left, rect.top);
-    if (Math.abs(next.left - rect.left) > 0.5 || Math.abs(next.top - rect.top) > 0.5) {
+    return {
+      maxWidth: Math.max(OVERLAY_MIN_WIDTH, window.innerWidth - rect.left - OVERLAY_MARGIN),
+      maxHeight: Math.max(OVERLAY_MIN_HEIGHT, window.innerHeight - rect.top - OVERLAY_MARGIN),
+    };
+  };
+
+  const setPanelSize = (width, height) => {
+    const { maxWidth, maxHeight } = getOverlaySizeBounds();
+    const nextWidth = Math.min(Math.max(OVERLAY_MIN_WIDTH, width), maxWidth);
+    const nextHeight = Math.min(Math.max(OVERLAY_MIN_HEIGHT, height), maxHeight);
+
+    panel.style.width = `${Math.round(nextWidth)}px`;
+    panel.style.height = `${Math.round(nextHeight)}px`;
+  };
+
+  const keepOverlayInViewport = () => {
+    if (!overlayCollapsed) {
+      const panelRect = panel.getBoundingClientRect();
+      const { maxWidth, maxHeight } = getOverlaySizeBounds();
+      if (panelRect.width > maxWidth + 0.5 || panelRect.height > maxHeight + 0.5) {
+        setPanelSize(panelRect.width, panelRect.height);
+      }
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const next = clampOverlayPosition(containerRect.left, containerRect.top);
+    if (Math.abs(next.left - containerRect.left) > 0.5 || Math.abs(next.top - containerRect.top) > 0.5) {
       setOverlayPosition(next.left, next.top);
     }
   };
 
   let dragState = null;
+  let resizeState = null;
 
-  const stopDragging = () => {
-    if (!dragState) return;
+  const stopPointerInteraction = () => {
     dragState = null;
+    resizeState = null;
     header.classList.remove("is-dragging");
+    resizeHandle.classList.remove("is-resizing");
+    document.body.style.userSelect = "";
     window.removeEventListener("pointermove", handleDragMove);
-    window.removeEventListener("pointerup", stopDragging);
-    window.removeEventListener("pointercancel", stopDragging);
+    window.removeEventListener("pointermove", handleResizeMove);
+    window.removeEventListener("pointerup", stopPointerInteraction);
+    window.removeEventListener("pointercancel", stopPointerInteraction);
   };
 
-  const handleDragMove = (event) => {
+  const isPrimaryPointer = (event) => {
+    if (!event.isPrimary) return false;
+    if (event.pointerType === "mouse" && event.button !== 0) return false;
+    return true;
+  };
+
+  function handleDragMove(event) {
     if (!dragState) return;
     event.preventDefault();
     const nextLeft = dragState.originLeft + (event.clientX - dragState.startX);
     const nextTop = dragState.originTop + (event.clientY - dragState.startY);
     setOverlayPosition(nextLeft, nextTop);
-  };
+  }
+
+  function handleResizeMove(event) {
+    if (!resizeState || overlayCollapsed) return;
+    event.preventDefault();
+    const nextWidth = resizeState.originWidth + (event.clientX - resizeState.startX);
+    const nextHeight = resizeState.originHeight + (event.clientY - resizeState.startY);
+    setPanelSize(nextWidth, nextHeight);
+    keepOverlayInViewport();
+  }
 
   header.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
+    if (!isPrimaryPointer(event)) return;
     const target = event.target;
     if (target instanceof Element && target.closest("button")) return;
+
+    stopPointerInteraction();
 
     const rect = container.getBoundingClientRect();
     dragState = {
@@ -392,10 +467,33 @@ const initOverlay = () => {
       originTop: rect.top,
     };
 
+    document.body.style.userSelect = "none";
     header.classList.add("is-dragging");
+    event.preventDefault();
     window.addEventListener("pointermove", handleDragMove);
-    window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
+    window.addEventListener("pointerup", stopPointerInteraction);
+    window.addEventListener("pointercancel", stopPointerInteraction);
+  });
+
+  resizeHandle.addEventListener("pointerdown", (event) => {
+    if (!isPrimaryPointer(event) || overlayCollapsed) return;
+
+    stopPointerInteraction();
+    const panelRect = panel.getBoundingClientRect();
+    resizeState = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originWidth: panelRect.width,
+      originHeight: panelRect.height,
+    };
+
+    document.body.style.userSelect = "none";
+    resizeHandle.classList.add("is-resizing");
+    event.preventDefault();
+    event.stopPropagation();
+    window.addEventListener("pointermove", handleResizeMove);
+    window.addEventListener("pointerup", stopPointerInteraction);
+    window.addEventListener("pointercancel", stopPointerInteraction);
   });
 
   window.addEventListener("resize", keepOverlayInViewport);
@@ -404,6 +502,8 @@ const initOverlay = () => {
     const overlayResizeObserver = new ResizeObserver(() => keepOverlayInViewport());
     overlayResizeObserver.observe(panel);
   }
+
+  keepOverlayInViewport();
 
   const setOverlayPinned = async (pinned, { persist = true } = {}) => {
     overlayPinned = Boolean(pinned);

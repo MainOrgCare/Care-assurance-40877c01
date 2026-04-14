@@ -1652,6 +1652,25 @@ const showVerificationSummary = (fields) => {
       .ca-summary-header.is-dragging {
         cursor: grabbing;
       }
+      .ca-summary-resize-handle {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        border: 1px solid hsl(214, 25%, 76%);
+        background: linear-gradient(135deg, hsl(210, 20%, 98%), hsl(214, 24%, 87%));
+        cursor: nwse-resize;
+        box-shadow: 0 6px 12px rgba(15, 23, 42, 0.15);
+      }
+      .ca-summary-resize-handle.is-resizing {
+        border-color: hsl(200, 76%, 44%);
+        background: linear-gradient(135deg, hsl(200, 90%, 96%), hsl(199, 89%, 84%));
+      }
+      #ca-verification-summary[data-ca-summary-minimized='true'] .ca-summary-resize-handle {
+        display: none;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -1679,8 +1698,8 @@ const showVerificationSummary = (fields) => {
     min-width: 280px;
     min-height: 120px;
     max-height: calc(100vh - 32px);
-    resize: both;
-    overflow: auto;
+    resize: none;
+    overflow: hidden;
   `;
   
   summary.innerHTML = `
@@ -1715,20 +1734,27 @@ const showVerificationSummary = (fields) => {
   `;
   
   document.body.appendChild(summary);
+  const summaryResizeHandle = document.createElement('div');
+  summaryResizeHandle.className = 'ca-summary-resize-handle';
+  summaryResizeHandle.title = 'Resize panel';
+  summary.appendChild(summaryResizeHandle);
   
   const counterEl = document.getElementById('ca-nav-counter');
   const currentFieldEl = document.getElementById('ca-current-field');
   const contentEl = document.getElementById('ca-summary-content');
   const headerEl = summary.querySelector('.ca-summary-header');
 
+  const SUMMARY_MARGIN = 8;
+  const SUMMARY_MIN_WIDTH = 280;
+  const SUMMARY_MIN_HEIGHT = 120;
+
   const clampSummaryPosition = (left, top) => {
-    const margin = 8;
     const rect = summary.getBoundingClientRect();
-    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
-    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    const maxLeft = Math.max(SUMMARY_MARGIN, window.innerWidth - rect.width - SUMMARY_MARGIN);
+    const maxTop = Math.max(SUMMARY_MARGIN, window.innerHeight - rect.height - SUMMARY_MARGIN);
     return {
-      left: Math.min(Math.max(margin, left), maxLeft),
-      top: Math.min(Math.max(margin, top), maxTop),
+      left: Math.min(Math.max(SUMMARY_MARGIN, left), maxLeft),
+      top: Math.min(Math.max(SUMMARY_MARGIN, top), maxTop),
     };
   };
 
@@ -1740,7 +1766,32 @@ const showVerificationSummary = (fields) => {
     summary.style.bottom = 'auto';
   };
 
+  const getSummarySizeBounds = () => {
+    const rect = summary.getBoundingClientRect();
+    return {
+      maxWidth: Math.max(SUMMARY_MIN_WIDTH, window.innerWidth - rect.left - SUMMARY_MARGIN),
+      maxHeight: Math.max(SUMMARY_MIN_HEIGHT, window.innerHeight - rect.top - SUMMARY_MARGIN),
+    };
+  };
+
+  const setSummarySize = (width, height) => {
+    const { maxWidth, maxHeight } = getSummarySizeBounds();
+    const nextWidth = Math.min(Math.max(SUMMARY_MIN_WIDTH, width), maxWidth);
+    const nextHeight = Math.min(Math.max(SUMMARY_MIN_HEIGHT, height), maxHeight);
+    summary.style.width = `${Math.round(nextWidth)}px`;
+    summary.style.height = `${Math.round(nextHeight)}px`;
+  };
+
   const keepSummaryInViewport = () => {
+    const isMinimized = summary.dataset.caSummaryMinimized === 'true';
+    if (!isMinimized) {
+      const summaryRect = summary.getBoundingClientRect();
+      const { maxWidth, maxHeight } = getSummarySizeBounds();
+      if (summaryRect.width > maxWidth + 0.5 || summaryRect.height > maxHeight + 0.5) {
+        setSummarySize(summaryRect.width, summaryRect.height);
+      }
+    }
+
     const rect = summary.getBoundingClientRect();
     const next = clampSummaryPosition(rect.left, rect.top);
     if (Math.abs(next.left - rect.left) > 0.5 || Math.abs(next.top - rect.top) > 0.5) {
@@ -1749,16 +1800,26 @@ const showVerificationSummary = (fields) => {
   };
 
   let dragState = null;
+  let resizeState = null;
 
-  const stopDragging = () => {
-    if (!dragState) return;
+  const isPrimaryPointer = (event) => {
+    if (!event.isPrimary) return false;
+    if (event.pointerType === 'mouse' && event.button !== 0) return false;
+    return true;
+  };
+
+  const stopPointerInteraction = () => {
     dragState = null;
+    resizeState = null;
     if (headerEl) {
       headerEl.classList.remove('is-dragging');
     }
+    summaryResizeHandle.classList.remove('is-resizing');
+    document.body.style.userSelect = '';
     window.removeEventListener('pointermove', handleDragMove);
-    window.removeEventListener('pointerup', stopDragging);
-    window.removeEventListener('pointercancel', stopDragging);
+    window.removeEventListener('pointermove', handleResizeMove);
+    window.removeEventListener('pointerup', stopPointerInteraction);
+    window.removeEventListener('pointercancel', stopPointerInteraction);
   };
 
   const handleDragMove = (event) => {
@@ -1769,11 +1830,22 @@ const showVerificationSummary = (fields) => {
     setSummaryPosition(nextLeft, nextTop);
   };
 
+  const handleResizeMove = (event) => {
+    if (!resizeState || summary.dataset.caSummaryMinimized === 'true') return;
+    event.preventDefault();
+    const nextWidth = resizeState.originWidth + (event.clientX - resizeState.startX);
+    const nextHeight = resizeState.originHeight + (event.clientY - resizeState.startY);
+    setSummarySize(nextWidth, nextHeight);
+    keepSummaryInViewport();
+  };
+
   if (headerEl) {
     headerEl.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
+      if (!isPrimaryPointer(event)) return;
       const target = event.target;
       if (target instanceof Element && target.closest('button')) return;
+
+      stopPointerInteraction();
 
       const rect = summary.getBoundingClientRect();
       dragState = {
@@ -1783,12 +1855,35 @@ const showVerificationSummary = (fields) => {
         originTop: rect.top,
       };
 
+      document.body.style.userSelect = 'none';
       headerEl.classList.add('is-dragging');
+      event.preventDefault();
       window.addEventListener('pointermove', handleDragMove);
-      window.addEventListener('pointerup', stopDragging);
-      window.addEventListener('pointercancel', stopDragging);
+      window.addEventListener('pointerup', stopPointerInteraction);
+      window.addEventListener('pointercancel', stopPointerInteraction);
     });
   }
+
+  summaryResizeHandle.addEventListener('pointerdown', (event) => {
+    if (!isPrimaryPointer(event) || summary.dataset.caSummaryMinimized === 'true') return;
+
+    stopPointerInteraction();
+    const rect = summary.getBoundingClientRect();
+    resizeState = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originWidth: rect.width,
+      originHeight: rect.height,
+    };
+
+    document.body.style.userSelect = 'none';
+    summaryResizeHandle.classList.add('is-resizing');
+    event.preventDefault();
+    event.stopPropagation();
+    window.addEventListener('pointermove', handleResizeMove);
+    window.addEventListener('pointerup', stopPointerInteraction);
+    window.addEventListener('pointercancel', stopPointerInteraction);
+  });
 
   window.addEventListener('resize', keepSummaryInViewport);
 
@@ -1798,6 +1893,8 @@ const showVerificationSummary = (fields) => {
     summaryResizeObserver.observe(summary);
   }
 
+  keepSummaryInViewport();
+
   const setSummaryMinimized = (minimized) => {
     if (minimized && VERIFICATION_SUMMARY_PINNED) {
       return;
@@ -1805,6 +1902,7 @@ const showVerificationSummary = (fields) => {
     summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
     contentEl.style.display = minimized ? 'none' : 'block';
     summary.style.width = minimized ? 'auto' : '';
+    summary.style.height = minimized ? 'auto' : '';
     summary.style.minWidth = minimized ? '150px' : '280px';
     const minimizeButton = document.getElementById('ca-minimize-summary');
     if (minimizeButton) {
@@ -1889,7 +1987,7 @@ const showVerificationSummary = (fields) => {
     if (!document.getElementById('ca-verification-summary')) {
       document.removeEventListener('keydown', keyHandler);
       window.removeEventListener('resize', keepSummaryInViewport);
-      stopDragging();
+      stopPointerInteraction();
       if (summaryResizeObserver) {
         summaryResizeObserver.disconnect();
       }
@@ -1923,6 +2021,7 @@ const setVerificationSummaryMinimized = (minimized) => {
   const minimizeButton = document.getElementById('ca-minimize-summary');
   summary.dataset.caSummaryMinimized = minimized ? 'true' : 'false';
   summary.style.width = minimized ? 'auto' : '';
+  summary.style.height = minimized ? 'auto' : '';
   summary.style.minWidth = minimized ? '150px' : '280px';
   if (content) {
     content.style.display = minimized ? 'none' : 'block';

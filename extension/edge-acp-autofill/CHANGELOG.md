@@ -1,5 +1,22 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.8 - Drag/Resize Reliability Fix
+
+### Runtime Panel Interaction Fixes
+
+- Replaced browser-native panel resizing with explicit in-panel resize handles for ACP and EMAR overlays, improving reliability across extension runtime contexts.
+- Upgraded overlay drag interactions to robust primary-pointer handling (mouse/touch) with viewport-safe bounds and interaction cleanup.
+- Preserved collapse behavior while retaining custom panel size by forcing collapsed overlays to use auto dimensions.
+
+### Initial Assessment Verification Panel
+
+- Added an explicit resize handle and matching pointer interaction handling to the verification summary panel for consistent resize/move behavior.
+- Improved minimized-state sizing so resizing remains stable when toggling between minimized and expanded states.
+
+### Versioning
+
+- Bumped extension version to `0.6.8` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.7 - Draggable + Resizable Runtime Panels
 
 ### Overlay Mobility Improvements

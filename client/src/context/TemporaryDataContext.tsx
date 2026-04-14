@@ -371,7 +371,9 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       if (!event.data || event.data.type !== "CA_EXTENSION_SEND_TO_APP") return;
 
       const payload = event.data.payload as { uploads?: ExtensionUploadItem[]; additionalNotes?: string } | undefined;
-      if (!payload || !Array.isArray(payload.uploads) || payload.uploads.length === 0) return;
+      const uploads = Array.isArray(payload?.uploads) ? payload.uploads : [];
+      if (uploads.length === 0) return;
+      const additionalNotes = payload?.additionalNotes;
 
       void (async () => {
         if (!location.startsWith("/service-users")) {
@@ -379,8 +381,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
           await new Promise((resolve) => setTimeout(resolve, 80));
         }
         await importExtensionUploads({
-          uploads: payload.uploads,
-          additionalNotes: payload.additionalNotes,
+          uploads,
+          additionalNotes,
         });
       })();
     };
