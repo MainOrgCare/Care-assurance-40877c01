@@ -1582,7 +1582,9 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
         }
 
         enqueueUrlsFromText(html, enqueueUrl, { allowAny: false });
-        collectDownloadIds(html, downloadIds);
+        const htmlIdHints =
+          String(html).match(/download-document[_-]?\d+|documentId["'=:\s]+\d{3,}|data-document-id["'=:\s]+\d{3,}/gi) || [];
+        htmlIdHints.forEach((hint) => collectDownloadIds(hint, downloadIds));
         downloadIds.forEach((id) => addTemplateUrlsForDownloadId(id, enqueueUrl, currentCaseId));
         continue;
       }
