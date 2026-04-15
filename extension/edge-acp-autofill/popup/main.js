@@ -102,7 +102,6 @@ const SUPPORTED_UPLOAD_EXTENSIONS = ["pdf", "doc", "docx", "txt", "csv"];
 
 const MOBIZIO_DOCUMENT_SERVICE_ID = "1000801";
 const MOBIZIO_DOCUMENT_LIST_PATH = "/case_document_list";
-const MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID = "1014998";
 const MOBIZIO_INITIAL_ASSESSMENT_PATH = "/case_data_group";
 const MOBIZIO_CARE_PLAN_DASHBOARD_PATH = "/eoutcomeservice/branch/case_care_plans_dashboard";
 
@@ -697,6 +696,13 @@ const getCaseIdForAutoCollect = () => {
   return "";
 };
 
+const getServiceDataGroupIdForAutoCollect = () => {
+  const typedServiceDataGroupId = String(dom.serviceDataGroupId?.value || "").trim();
+  if (typedServiceDataGroupId) return typedServiceDataGroupId;
+
+  return "";
+};
+
 const parseMobizioUploadedAt = (rawValue) => {
   const value = String(rawValue || "").trim();
   if (!value) return 0;
@@ -795,34 +801,55 @@ const rankDocumentsForSection = (sectionKey, documents) =>
 const buildMobizioDocumentListUrl = (caseId) =>
   `https://clece.mobizio.com${MOBIZIO_DOCUMENT_LIST_PATH}?caseId=${encodeURIComponent(caseId)}&serviceId=${encodeURIComponent(MOBIZIO_DOCUMENT_SERVICE_ID)}`;
 
-const buildMobizioInitialAssessmentUrl = (caseId) =>
-  `https://clece.mobizio.com${MOBIZIO_INITIAL_ASSESSMENT_PATH}?caseId=${encodeURIComponent(caseId)}&serviceDataGroupId=${encodeURIComponent(MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID)}`;
+const buildMobizioInitialAssessmentUrl = (caseId, serviceDataGroupId) =>
+  `https://clece.mobizio.com${MOBIZIO_INITIAL_ASSESSMENT_PATH}?caseId=${encodeURIComponent(caseId)}&serviceDataGroupId=${encodeURIComponent(
+    String(serviceDataGroupId || "").trim()
+  )}`;
 
 const buildMobizioCarePlanDashboardUrl = (caseId) =>
   `https://clece.mobizio.com${MOBIZIO_CARE_PLAN_DASHBOARD_PATH}?caseId=${encodeURIComponent(caseId)}`;
 
-const getMobizioAutoCollectSource = (sectionKey, caseId) => {
-  if (sectionKey === "initialAssessment") {
-    return {
-      kind: "initialAssessment",
-      label: "Initial Assessment",
-      url: buildMobizioInitialAssessmentUrl(caseId),
-    };
-  }
+const createMobizioDocumentsSource = (caseId, label = "Documents") => ({
+  kind: "documents",
+  label,
+  url: buildMobizioDocumentListUrl(caseId),
+  allowDocumentsFallback: false,
+});
 
-  if (sectionKey === "carePlan") {
-    return {
-      kind: "carePlan",
-      label: "Care Plan",
-      url: buildMobizioCarePlanDashboardUrl(caseId),
-    };
-  }
-
+const createMobizioInitialAssessmentSource = (caseId) => {
+  const serviceDataGroupId = getServiceDataGroupIdForAutoCollect();
   return {
-    kind: "documents",
-    label: "Documents",
-    url: buildMobizioDocumentListUrl(caseId),
+    kind: "initialAssessment",
+    label: "Initial Assessment",
+    url: serviceDataGroupId ? buildMobizioInitialAssessmentUrl(caseId, serviceDataGroupId) : "",
+    allowDocumentsFallback: false,
+    requiresServiceDataGroupId: true,
+    serviceDataGroupId,
   };
+};
+
+const createMobizioCarePlanSource = (caseId) => ({
+  kind: "carePlan",
+  label: "Care Plan",
+  url: buildMobizioCarePlanDashboardUrl(caseId),
+  allowDocumentsFallback: true,
+});
+
+const AUTO_COLLECT_SOURCE_BUILDERS = {
+  socialWork: (caseId) => createMobizioDocumentsSource(caseId, "Social Work Documents"),
+  initialAssessment: (caseId) => createMobizioInitialAssessmentSource(caseId),
+  carePlan: (caseId) => createMobizioCarePlanSource(caseId),
+  movingHandling: (caseId) => createMobizioDocumentsSource(caseId, "Moving & Handling Documents"),
+  additionalDocuments: (caseId) => createMobizioDocumentsSource(caseId, "Additional Documents"),
+};
+
+const getMobizioAutoCollectSource = (sectionKey, caseId) => {
+  const buildSource = AUTO_COLLECT_SOURCE_BUILDERS[sectionKey];
+  if (typeof buildSource === "function") {
+    return buildSource(caseId);
+  }
+
+  return createMobizioDocumentsSource(caseId);
 };
 
 const waitForTabComplete = async (tabId, timeoutMs = 25000) => {
@@ -1854,6 +1881,16 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
   try {
     const collectionSource = getMobizioAutoCollectSource(sectionKey, caseId);
+
+    if (collectionSource.requiresServiceDataGroupId && !collectionSource.serviceDataGroupId) {
+      showError(
+        "Initial Assessment auto-collect needs the correct Service Data Group ID. Open the Mobizio Initial Assessment form first or enter the group ID in Autofill settings."
+      );
+      switchTab("autofill");
+      dom.serviceDataGroupId?.focus();
+      return false;
+    }
+
     updateUploadSyncStatus(`Opening Mobizio ${collectionSource.label} for Case ID ${caseId}...`);
 
     const collectionTab = await chrome.tabs.create({
@@ -1907,7 +1944,11 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
     let didFallbackToDocuments = false;
     const fallbackToDocuments = async () => {
-      if (didFallbackToDocuments || collectionSource.kind === "documents") {
+      if (
+        didFallbackToDocuments ||
+        collectionSource.kind === "documents" ||
+        collectionSource.allowDocumentsFallback === false
+      ) {
         return false;
       }
 
@@ -1930,7 +1971,12 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     }
 
     if (!scraped?.ok) {
-      throw new Error(scraped?.error || "Could not read documents from the Mobizio list page.");
+      throw new Error(
+        scraped?.error ||
+          (collectionSource.allowDocumentsFallback === false
+            ? `Could not read records from the Mobizio ${collectionSource.label} page.`
+            : "Could not read documents from the Mobizio list page.")
+      );
     }
 
     let normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
@@ -1945,7 +1991,11 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     }
 
     if (normalizedDocuments.length === 0) {
-      throw new Error("No downloadable documents were found for this service user.");
+      throw new Error(
+        collectionSource.allowDocumentsFallback === false
+          ? `No downloadable records were found on the Mobizio ${collectionSource.label} page.`
+          : "No downloadable documents were found for this service user."
+      );
     }
 
     const rankedDocuments = rankDocumentsForSection(sectionKey, normalizedDocuments);

@@ -6,7 +6,6 @@
 import {
   STORAGE_KEYS,
   DATA_TIMESTAMP_KEY,
-  DEFAULT_SERVICE_DATA_GROUP_ID,
   FORM_WORKFLOW_DESCRIPTORS,
   state,
   escapeHtml,
@@ -677,13 +676,12 @@ export function selectAutofillUser(user) {
   }
 
   if (dom.caseId) dom.caseId.value = user.acpId || "";
-  if (dom.serviceDataGroupId && !dom.serviceDataGroupId.value.trim()) {
-    dom.serviceDataGroupId.value = DEFAULT_SERVICE_DATA_GROUP_ID;
-  }
 
   clearFieldInvalid(dom.caseId);
   clearFieldInvalid(dom.serviceDataGroupId);
   dom.caseId?.focus();
+
+  const groupDisplay = String(dom.serviceDataGroupId?.value || "").trim() || "Set group ID";
 
   if (dom.autofillSelectedUser) {
     dom.autofillSelectedUser.hidden = false;
@@ -691,7 +689,7 @@ export function selectAutofillUser(user) {
       <div class="user-avatar">${escapeHtml(user.initials || "??")}</div>
       <div class="autofill-selected-user-info">
         <div class="autofill-selected-user-name">${escapeHtml(user.name || "Unknown")}</div>
-        <div class="autofill-selected-user-meta">Case ID ${escapeHtml(String(user.acpId))} &middot; Group ${escapeHtml(dom.serviceDataGroupId?.value || DEFAULT_SERVICE_DATA_GROUP_ID)}</div>
+        <div class="autofill-selected-user-meta">Case ID ${escapeHtml(String(user.acpId))} &middot; Group ${escapeHtml(groupDisplay)}</div>
       </div>
       <button type="button" class="autofill-selected-user-clear" title="Clear selection">&times;</button>
     `;
