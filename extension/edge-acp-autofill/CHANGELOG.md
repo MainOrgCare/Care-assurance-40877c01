@@ -1,5 +1,17 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.13 - Anchored Popup Drag Reliability
+
+### Main Menu Dragging Reliability
+
+- Fixed main extension menu dragging when opened under the browser Extensions button: dragging from the header/tab bar now detaches the anchored popup into a movable window.
+- Added detached-window reuse behavior so opening the extension again focuses the existing detached popup window when one is already open.
+- Preserved drag target guardrails so button/input interactions (including pin controls) do not trigger drag.
+
+### Versioning
+
+- Bumped extension version to `0.6.13` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.12 - Main Menu Drag Reintroduced
 
 ### Popup Main Menu Dragging

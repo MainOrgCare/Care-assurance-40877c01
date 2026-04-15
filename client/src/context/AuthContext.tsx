@@ -169,6 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          clearAuthState();
+        }
         return;
       }
 

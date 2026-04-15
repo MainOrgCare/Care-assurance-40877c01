@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.12
+ * CareAssurance Extension v0.6.13
  */
 
 import {
@@ -150,6 +150,8 @@ let popupMenuDragState = null;
 let popupMenuDragHandles = [];
 let popupMenuMoveQueued = null;
 let popupMenuMoveInFlight = false;
+let popupMenuDragRequiresDetach = false;
+let popupMenuDetachInFlight = false;
 
 const createEmptyUploadBuckets = () => ({
   socialWork: [],
@@ -264,6 +266,116 @@ const getCurrentWindow = () =>
     });
   });
 
+const getCurrentTab = () =>
+  new Promise((resolve) => {
+    if (!chrome.tabs?.getCurrent) {
+      resolve(null);
+      return;
+    }
+
+    chrome.tabs.getCurrent((tab) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+
+      resolve(tab || null);
+    });
+  });
+
+const findDetachedPopupTab = (excludeWindowId = null) =>
+  new Promise((resolve) => {
+    if (!chrome.tabs?.query) {
+      resolve(null);
+      return;
+    }
+
+    chrome.tabs.query({ url: chrome.runtime.getURL("popup.html") }, (tabs) => {
+      if (chrome.runtime.lastError || !Array.isArray(tabs)) {
+        resolve(null);
+        return;
+      }
+
+      const candidate = tabs.find((tab) => {
+        if (!Number.isFinite(tab?.windowId)) return false;
+        if (excludeWindowId != null && tab.windowId === excludeWindowId) return false;
+        return true;
+      });
+
+      resolve(candidate || null);
+    });
+  });
+
+const focusWindow = (windowId) =>
+  new Promise((resolve) => {
+    if (!chrome.windows?.update || !Number.isFinite(windowId)) {
+      resolve(false);
+      return;
+    }
+
+    chrome.windows.update(windowId, { focused: true }, () => {
+      if (chrome.runtime.lastError) {
+        resolve(false);
+        return;
+      }
+
+      resolve(true);
+    });
+  });
+
+const openDetachedPopupWindow = (currentWindow, event = null) =>
+  new Promise((resolve) => {
+    if (!chrome.windows?.create) {
+      resolve(false);
+      return;
+    }
+
+    const width = Math.max(430, Math.round(window.outerWidth || 430));
+    const height = Math.max(680, Math.round(window.outerHeight || 680));
+    const createData = {
+      url: chrome.runtime.getURL("popup.html"),
+      type: "popup",
+      focused: true,
+      width,
+      height,
+    };
+
+    if (event && Number.isFinite(event.screenX) && Number.isFinite(event.screenY)) {
+      createData.left = Math.round(event.screenX - width / 2);
+      createData.top = Math.round(event.screenY - 28);
+    } else if (Number.isFinite(currentWindow?.left) && Number.isFinite(currentWindow?.top)) {
+      createData.left = Math.round(currentWindow.left + 24);
+      createData.top = Math.round(currentWindow.top + 24);
+    }
+
+    chrome.windows.create(createData, (createdWindow) => {
+      if (chrome.runtime.lastError || !createdWindow?.id) {
+        resolve(false);
+        return;
+      }
+
+      resolve(true);
+    });
+  });
+
+const launchDetachedPopupWindow = async (event) => {
+  if (popupMenuDetachInFlight) return;
+
+  popupMenuDetachInFlight = true;
+  try {
+    const currentWindow = await getCurrentWindow();
+    const opened = await openDetachedPopupWindow(currentWindow, event);
+    if (!opened) {
+      showInfo("Could not detach the extension popup window. Please try again.");
+      return;
+    }
+
+    window.close();
+  } finally {
+    popupMenuDetachInFlight = false;
+  }
+};
+
 const updateWindowPosition = (windowId, left, top) =>
   new Promise((resolve, reject) => {
     chrome.windows.update(
@@ -358,9 +470,14 @@ function handlePopupMainMenuDragMove(event) {
 }
 
 const beginPopupMainMenuDrag = (event) => {
-  if (popupMenuDragWindowId == null) return;
   if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
   if (isWindowDragBlockedTarget(event.target)) return;
+
+  if (popupMenuDragRequiresDetach || popupMenuDragWindowId == null) {
+    event.preventDefault();
+    void launchDetachedPopupWindow(event);
+    return;
+  }
 
   stopPopupMainMenuDrag();
 
@@ -414,7 +531,21 @@ const initMainMenuDragging = async () => {
   const currentWindow = await getCurrentWindow();
   if (!currentWindow?.id) return;
 
-  popupMenuDragWindowId = currentWindow.id;
+  const currentTab = await getCurrentTab();
+  popupMenuDragRequiresDetach = !currentTab;
+
+  if (popupMenuDragRequiresDetach) {
+    const detachedTab = await findDetachedPopupTab(currentWindow.id);
+    if (detachedTab?.windowId) {
+      const focused = await focusWindow(detachedTab.windowId);
+      if (focused) {
+        window.close();
+        return;
+      }
+    }
+  }
+
+  popupMenuDragWindowId = popupMenuDragRequiresDetach ? null : currentWindow.id;
   popupMenuDragHandles = [
     document.querySelector(".popup-header"),
     document.querySelector(".tab-navigation"),
@@ -2105,7 +2236,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.12</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.13</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
