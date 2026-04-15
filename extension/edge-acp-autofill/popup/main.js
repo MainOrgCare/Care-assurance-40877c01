@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.17
+ * CareAssurance Extension v0.6.19
  */
 
 import {
@@ -98,9 +98,13 @@ const URL_UPLOAD_EXTENSION_BY_MIME = {
   "text/csv": "csv",
   "application/csv": "csv",
 };
+const SUPPORTED_UPLOAD_EXTENSIONS = ["pdf", "doc", "docx", "txt", "csv"];
 
 const MOBIZIO_DOCUMENT_SERVICE_ID = "1000801";
 const MOBIZIO_DOCUMENT_LIST_PATH = "/case_document_list";
+const MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID = "1014998";
+const MOBIZIO_INITIAL_ASSESSMENT_PATH = "/case_data_group";
+const MOBIZIO_CARE_PLAN_DASHBOARD_PATH = "/eoutcomeservice/branch/case_care_plans_dashboard";
 
 const SECTION_AUTO_COLLECT_RULES = {
   socialWork: {
@@ -657,7 +661,14 @@ const renderUploadBuckets = () => {
 
 const isSupportedUploadFile = (file) => {
   const name = String(file?.name || "").toLowerCase();
-  return /\.(pdf|doc|docx|txt|csv)$/.test(name);
+  if (/\.(pdf|doc|docx|txt|csv)$/.test(name)) return true;
+
+  const mimeType = String(file?.type || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+
+  return Boolean(URL_UPLOAD_EXTENSION_BY_MIME[mimeType]);
 };
 
 const getSectionDisplayName = (sectionKey) => {
@@ -784,6 +795,36 @@ const rankDocumentsForSection = (sectionKey, documents) =>
 const buildMobizioDocumentListUrl = (caseId) =>
   `https://clece.mobizio.com${MOBIZIO_DOCUMENT_LIST_PATH}?caseId=${encodeURIComponent(caseId)}&serviceId=${encodeURIComponent(MOBIZIO_DOCUMENT_SERVICE_ID)}`;
 
+const buildMobizioInitialAssessmentUrl = (caseId) =>
+  `https://clece.mobizio.com${MOBIZIO_INITIAL_ASSESSMENT_PATH}?caseId=${encodeURIComponent(caseId)}&serviceDataGroupId=${encodeURIComponent(MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID)}`;
+
+const buildMobizioCarePlanDashboardUrl = (caseId) =>
+  `https://clece.mobizio.com${MOBIZIO_CARE_PLAN_DASHBOARD_PATH}?caseId=${encodeURIComponent(caseId)}`;
+
+const getMobizioAutoCollectSource = (sectionKey, caseId) => {
+  if (sectionKey === "initialAssessment") {
+    return {
+      kind: "initialAssessment",
+      label: "Initial Assessment",
+      url: buildMobizioInitialAssessmentUrl(caseId),
+    };
+  }
+
+  if (sectionKey === "carePlan") {
+    return {
+      kind: "carePlan",
+      label: "Care Plans",
+      url: buildMobizioCarePlanDashboardUrl(caseId),
+    };
+  }
+
+  return {
+    kind: "documents",
+    label: "Documents",
+    url: buildMobizioDocumentListUrl(caseId),
+  };
+};
+
 const waitForTabComplete = async (tabId, timeoutMs = 25000) => {
   const startedAt = Date.now();
 
@@ -812,6 +853,66 @@ const executeScriptInTab = async (tabId, func, args = []) => {
     args,
   });
   return results?.[0]?.result;
+};
+
+const getMobizioDocumentsPageUrlInPage = (caseId, defaultServiceId) => {
+  const toAbsoluteUrl = (candidate) => {
+    const raw = String(candidate || "").trim();
+    if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch {
+      return "";
+    }
+  };
+
+  const navCandidates = [
+    document.querySelector("#documentsCaseMenu a[href]"),
+    document.querySelector('a[href*="/case_document_list"]'),
+    document.querySelector('a[href*="case_document_list?caseId="]'),
+  ];
+
+  for (const candidate of navCandidates) {
+    const href = candidate?.getAttribute?.("href") || "";
+    const absolute = toAbsoluteUrl(href);
+    if (absolute) return absolute;
+  }
+
+  const caseIdFromQuery = (() => {
+    try {
+      return String(new URL(window.location.href).searchParams.get("caseId") || "").trim();
+    } catch {
+      return "";
+    }
+  })();
+
+  const serviceIdFromQuery = (() => {
+    try {
+      return String(new URL(window.location.href).searchParams.get("serviceId") || "").trim();
+    } catch {
+      return "";
+    }
+  })();
+
+  const serviceIdFromWindow =
+    typeof window.serviceId !== "undefined" && window.serviceId !== null
+      ? String(window.serviceId).trim()
+      : "";
+
+  const serviceMenuId = String(document.querySelector("[id^='serviceMenu_ID_'].active")?.getAttribute("id") || "");
+  const serviceIdFromMenu = serviceMenuId.match(/serviceMenu_ID_(\d+)/i)?.[1] || "";
+
+  const resolvedCaseId = String(caseId || "").trim() || caseIdFromQuery;
+  const resolvedServiceId =
+    serviceIdFromQuery ||
+    serviceIdFromWindow ||
+    serviceIdFromMenu ||
+    String(defaultServiceId || "").trim() ||
+    "1000801";
+
+  if (!resolvedCaseId) return "";
+
+  return `https://clece.mobizio.com/case_document_list?caseId=${encodeURIComponent(resolvedCaseId)}&serviceId=${encodeURIComponent(resolvedServiceId)}`;
 };
 
 const normalizeScrapedDocuments = (documents) => {
@@ -1618,6 +1719,10 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
           mimeType: contentType || blob.type || "application/octet-stream",
           size: blob.size,
           base64Data,
+          sourceFileName: toText(documentEntry?.fileName),
+          sourceName: toText(documentEntry?.name),
+          sourceDescription: toText(documentEntry?.description),
+          downloadedFrom: absoluteUrl,
         },
       };
     } catch {
@@ -1644,11 +1749,23 @@ const fileFromDownloadedPayload = (filePayload) => {
     bytes[index] = binary.charCodeAt(index);
   }
 
-  const mimeType = String(filePayload?.mimeType || "application/octet-stream");
-  const fileName = normalizeDownloadedFileName(String(filePayload?.name || "mobizio-document"), mimeType);
+  const metadata = inferDownloadedFileMetadata({
+    fileName: normalizeDownloadedFileName(
+      String(filePayload?.name || "mobizio-document"),
+      String(filePayload?.mimeType || "application/octet-stream")
+    ),
+    mimeType: String(filePayload?.mimeType || "application/octet-stream"),
+    bytes,
+    hints: [
+      String(filePayload?.sourceFileName || ""),
+      String(filePayload?.sourceName || ""),
+      String(filePayload?.sourceDescription || ""),
+      String(filePayload?.downloadedFrom || ""),
+    ],
+  });
 
-  return new File([bytes], fileName, {
-    type: mimeType,
+  return new File([bytes], metadata.fileName, {
+    type: metadata.mimeType,
     lastModified: Date.now(),
   });
 };
@@ -1676,21 +1793,38 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
   }
 
   try {
-    updateUploadSyncStatus(`Opening Mobizio documents for Case ID ${caseId}...`);
+    const collectionSource = getMobizioAutoCollectSource(sectionKey, caseId);
+    updateUploadSyncStatus(`Opening Mobizio ${collectionSource.label} for Case ID ${caseId}...`);
 
     const collectionTab = await chrome.tabs.create({
-      url: buildMobizioDocumentListUrl(caseId),
+      url: collectionSource.url,
       active: false,
     });
     collectionTabId = collectionTab?.id;
 
     if (!Number.isFinite(collectionTabId)) {
-      throw new Error("Could not open the Mobizio documents page for auto-collect.");
+      throw new Error("Could not open the Mobizio source page for auto-collect.");
     }
 
     await waitForTabComplete(collectionTabId);
 
-    const scraped = await executeScriptInTab(collectionTabId, scrapeMobizioDocumentsInPage);
+    let scraped = await executeScriptInTab(collectionTabId, scrapeMobizioDocumentsInPage);
+
+    if (!scraped?.ok && collectionSource.kind !== "documents") {
+      const fallbackDocumentsUrl = await executeScriptInTab(
+        collectionTabId,
+        getMobizioDocumentsPageUrlInPage,
+        [caseId, MOBIZIO_DOCUMENT_SERVICE_ID]
+      );
+
+      if (fallbackDocumentsUrl) {
+        updateUploadSyncStatus("Switching to Mobizio Documents for downloadable records...");
+        await chrome.tabs.update(collectionTabId, { url: fallbackDocumentsUrl });
+        await waitForTabComplete(collectionTabId);
+        scraped = await executeScriptInTab(collectionTabId, scrapeMobizioDocumentsInPage);
+      }
+    }
+
     if (!scraped?.ok) {
       throw new Error(scraped?.error || "Could not read documents from the Mobizio list page.");
     }
@@ -1824,6 +1958,116 @@ const normalizeDownloadedFileName = (baseName, mimeType) => {
   }
 
   return extension ? `${cleaned}.${extension}` : cleaned;
+};
+
+const getSupportedExtensionFromName = (fileName) => {
+  const match = String(fileName || "")
+    .toLowerCase()
+    .match(/\.([a-z0-9]{1,8})$/i);
+  if (!match?.[1]) return "";
+  const extension = match[1];
+  return SUPPORTED_UPLOAD_EXTENSIONS.includes(extension) ? extension : "";
+};
+
+const getMimeTypeForExtension = (extension) => {
+  switch (String(extension || "").toLowerCase()) {
+    case "pdf":
+      return "application/pdf";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "csv":
+      return "text/csv";
+    case "txt":
+      return "text/plain";
+    default:
+      return "";
+  }
+};
+
+const inferTextExtensionFromBytes = (bytes) => {
+  if (!(bytes instanceof Uint8Array) || bytes.length === 0) return "";
+
+  const sample = bytes.subarray(0, Math.min(bytes.length, 4096));
+  let printableCount = 0;
+  for (const value of sample) {
+    if (value === 0) return "";
+    if (value === 9 || value === 10 || value === 13 || (value >= 32 && value <= 126)) {
+      printableCount += 1;
+    }
+  }
+
+  const printableRatio = printableCount / sample.length;
+  if (printableRatio < 0.92) return "";
+
+  const decoded = new TextDecoder("utf-8", { fatal: false }).decode(sample);
+  const hasLineBreak = /\r|\n/.test(decoded);
+  const hasComma = decoded.includes(",");
+  const hasSemicolon = decoded.includes(";");
+
+  if (hasLineBreak && (hasComma || hasSemicolon)) {
+    return "csv";
+  }
+
+  return "txt";
+};
+
+const inferDownloadedFileMetadata = ({ fileName, mimeType, bytes, hints = [] }) => {
+  const normalizedMimeType = String(mimeType || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+
+  const extensionFromName = getSupportedExtensionFromName(fileName);
+  const extensionFromMime = inferExtensionFromMimeType(normalizedMimeType);
+
+  let extensionFromMagic = "";
+  if (bytes instanceof Uint8Array && bytes.length >= 5) {
+    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d) {
+      extensionFromMagic = "pdf";
+    } else if (
+      bytes.length >= 8 &&
+      bytes[0] === 0xd0 &&
+      bytes[1] === 0xcf &&
+      bytes[2] === 0x11 &&
+      bytes[3] === 0xe0 &&
+      bytes[4] === 0xa1 &&
+      bytes[5] === 0xb1 &&
+      bytes[6] === 0x1a &&
+      bytes[7] === 0xe1
+    ) {
+      extensionFromMagic = "doc";
+    } else if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+      extensionFromMagic = "docx";
+    } else {
+      extensionFromMagic = inferTextExtensionFromBytes(bytes);
+    }
+  }
+
+  const extensionFromHints = (Array.isArray(hints) ? hints : [])
+    .map((hint) => getSupportedExtensionFromName(hint))
+    .find(Boolean);
+
+  const resolvedExtension = extensionFromName || extensionFromMime || extensionFromMagic || extensionFromHints || "";
+
+  const originalName = String(fileName || "").trim();
+  const sanitizedBaseName = originalName ? originalName.replace(/[\\/:*?"<>|]+/g, "_") : "mobizio-document";
+  const resolvedName = extensionFromName
+    ? sanitizedBaseName
+    : resolvedExtension
+    ? `${sanitizedBaseName.replace(/\.[a-z0-9]{1,8}$/i, "")}.${resolvedExtension}`
+    : sanitizedBaseName;
+
+  const resolvedMimeType =
+    normalizedMimeType && normalizedMimeType !== "application/octet-stream"
+      ? normalizedMimeType
+      : getMimeTypeForExtension(resolvedExtension) || "application/octet-stream";
+
+  return {
+    fileName: resolvedName,
+    mimeType: resolvedMimeType,
+  };
 };
 
 const extractDroppedUrls = (dataTransfer) => {
@@ -3456,7 +3700,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.17</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.19</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }

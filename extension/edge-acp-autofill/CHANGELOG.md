@@ -1,5 +1,38 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.19 - Intake Auto-Collect Download Reliability
+
+### Auto-Collect Download Pipeline
+
+- Hardened Intake auto-collect file staging when Mobizio returns generic file metadata (`application/octet-stream` or filename without extension).
+- Added post-download file type inference (filename hints + MIME + content signature) so selected documents are normalized into supported upload formats (`pdf`, `doc`, `docx`, `txt`, `csv`) before staging.
+- Extended downloaded-file metadata transfer from in-page fetch results to improve fallback naming and reduce false "unsupported file" rejects.
+
+### Intake Upload Validation
+
+- Updated upload bucket validation to accept supported MIME types as a fallback when extension metadata is incomplete, improving compatibility with auto-collected files.
+
+### Versioning
+
+- Bumped extension version to `0.6.19` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.18 - Section-Specific Auto-Collect Routing
+
+### Source URL Routing
+
+- Updated Intake auto-collect to open section-specific Mobizio sources instead of always starting from the documents page:
+  - Initial Assessment now starts from `/case_data_group?caseId=<id>&serviceDataGroupId=1014998`
+  - Support Plan now starts from `/eoutcomeservice/branch/case_care_plans_dashboard?caseId=<id>`
+  - Other sections continue to start from `/case_document_list?caseId=<id>&serviceId=1000801`
+
+### Download Fallback Behavior
+
+- Added a safe fallback path: when a section source page does not expose a downloadable documents table directly, auto-collect discovers and navigates to the case Documents link and continues download/picker flow there.
+
+### Versioning
+
+- Bumped extension version to `0.6.18` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.17 - Mobizio Auto-Collect Reliability Hardening
 
 ### Document Discovery Improvements
