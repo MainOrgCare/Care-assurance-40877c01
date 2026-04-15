@@ -43,15 +43,14 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 ## Setup
 
 1. Load unpacked extension from `extension/edge-acp-autofill` in Edge
-2. **For AI Analysis**:
-   - Log in to Care Assurance first
-   - Open extension, upload documents, and click "Analyze with AI"
-3. **For Traditional Method**:
-   - Open Care Assurance and use the admin-only "Send to ACP Extension" or "Send to EMAR Extension" button
-4. For custom documents, send a payload with `formType: "custom"`, a `formId` (optional), and `fields`
-5. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup
-6. Click Start Autofill
-7. Use Stop Autofill to cancel and click the error banner to clear errors if needed
+2. For AI Analysis, log in to Care Assurance first.
+3. In Intake, select a service user in Autofill settings (Case ID), then use `Upload` or `Auto-Collect` in each section.
+4. Click "Analyze with AI" after staging files.
+5. For the traditional method, use the admin-only "Send to ACP Extension" or "Send to EMAR Extension" button in Care Assurance.
+6. For custom documents, send a payload with `formType: "custom"`, a `formId` (optional), and `fields`.
+7. Open the Access Care Planning new case form page and set Case ID + Service Data Group ID in the popup.
+8. Click Start Autofill.
+9. Use Stop Autofill to cancel and click the error banner to clear errors if needed.
 
 ## Notes
 
@@ -63,6 +62,10 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Main extension popup menu dragging is enabled from the header/tab bar using the same hold-and-drag interaction style as risk-assessment autofill overlays. If opened from the toolbar anchor, drag detaches the popup to a movable window and future opens focus that detached window when available.
 - In-page ACP/EMAR/Initial Assessment overlays keep pin and minimize controls, but drag/resize interactions are disabled.
 - Upload dropzones accept either local files or dropped http/https links. Dropped links are downloaded and staged directly into the selected section when the file type is supported.
+- Each Intake section now provides both `Upload` and `Auto-Collect` actions.
+- `Auto-Collect` opens Mobizio case documents at `/case_document_list?caseId=<selectedCaseId>&serviceId=1000801`, then shows a picker with Name, Filename, Description, and Uploaded Date.
+- Selection rules for auto-collect: Support Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
+- The extension popup now uses a fully overhauled visual design system (cards, tabs, controls, dialogs, and responsive spacing) while preserving existing workflows.
 
 ## Edge Add-ons Publishing (Unlisted Release Process)
 

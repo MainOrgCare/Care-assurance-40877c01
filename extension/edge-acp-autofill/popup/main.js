@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.14
+ * CareAssurance Extension v0.6.16
  */
 
 import {
@@ -99,24 +99,55 @@ const URL_UPLOAD_EXTENSION_BY_MIME = {
   "application/csv": "csv",
 };
 
+const MOBIZIO_DOCUMENT_SERVICE_ID = "1000801";
+const MOBIZIO_DOCUMENT_LIST_PATH = "/case_document_list";
+
+const SECTION_AUTO_COLLECT_RULES = {
+  socialWork: {
+    sectionLabel: "Social Work",
+    keywords: ["social work", "c2", "c3", "referral", "email"],
+    single: false,
+  },
+  initialAssessment: {
+    sectionLabel: "Initial Assessment",
+    keywords: ["initial assessment", "initial visit", "service setup", "needs assessment", "assessment"],
+    single: false,
+  },
+  carePlan: {
+    sectionLabel: "Support Plan",
+    keywords: ["support plan", "care plan", "workplan", "work plan"],
+    single: true,
+  },
+  movingHandling: {
+    sectionLabel: "Moving & Handling",
+    keywords: ["moving", "handling", "manual handling", "hoist", "transfer"],
+    single: true,
+  },
+  additionalDocuments: {
+    sectionLabel: "Additional Documents",
+    keywords: [],
+    single: false,
+  },
+};
+
 const UPLOAD_SECTION_CONFIG = [
   {
     key: "socialWork",
     heading: "=== SOCIAL WORK DOCUMENTS ===",
     inputId: "upload-social-work-input",
     listId: "upload-social-work-files",
-    single: true,
+    single: false,
   },
   {
     key: "initialAssessment",
     heading: "=== INITIAL ASSESSMENT ===",
     inputId: "upload-initial-assessment-input",
     listId: "upload-initial-assessment-files",
-    single: true,
+    single: false,
   },
   {
     key: "carePlan",
-    heading: "=== CURRENT CARE PLAN ===",
+    heading: "=== SUPPORT PLAN ===",
     inputId: "upload-care-plan-input",
     listId: "upload-care-plan-files",
     single: true,
@@ -130,7 +161,7 @@ const UPLOAD_SECTION_CONFIG = [
   },
   {
     key: "additionalDocuments",
-    heading: "=== ADDITIONAL DOCUMENT",
+    heading: "=== ADDITIONAL DOCUMENTS ===",
     inputId: "upload-additional-documents-input",
     listId: "upload-additional-documents-files",
     single: false,
@@ -635,6 +666,797 @@ const getSectionDisplayName = (sectionKey) => {
   return heading.replace(/^===\s*/u, "").replace(/\s*===$/u, "").trim();
 };
 
+const getAutoCollectRule = (sectionKey) => {
+  const rule = SECTION_AUTO_COLLECT_RULES[sectionKey];
+  if (rule) return rule;
+  return {
+    sectionLabel: getSectionDisplayName(sectionKey),
+    keywords: [],
+    single: false,
+  };
+};
+
+const getCaseIdForAutoCollect = () => {
+  const selectedCaseId = String(state.selectedAutofillUser?.acpId || "").trim();
+  if (selectedCaseId) return selectedCaseId;
+
+  const typedCaseId = String(dom.caseId?.value || "").trim();
+  if (typedCaseId) return typedCaseId;
+
+  return "";
+};
+
+const parseMobizioUploadedAt = (rawValue) => {
+  const value = String(rawValue || "").trim();
+  if (!value) return 0;
+
+  const directlyParsed = Date.parse(value);
+  if (!Number.isNaN(directlyParsed)) {
+    return directlyParsed;
+  }
+
+  const match = value.match(/^(\d{1,2})\/([A-Za-z]{3})\/(\d{2,4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return 0;
+
+  const monthLookup = {
+    jan: 0,
+    feb: 1,
+    mar: 2,
+    apr: 3,
+    may: 4,
+    jun: 5,
+    jul: 6,
+    aug: 7,
+    sep: 8,
+    oct: 9,
+    nov: 10,
+    dec: 11,
+  };
+
+  const day = Number(match[1]);
+  const month = monthLookup[String(match[2]).toLowerCase()];
+  let year = Number(match[3]);
+  let hours = Number(match[4]);
+  const minutes = Number(match[5]);
+  const meridiem = String(match[6]).toUpperCase();
+
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year) || !Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return 0;
+  }
+
+  if (year < 100) {
+    year += year >= 70 ? 1900 : 2000;
+  }
+
+  if (meridiem === "PM" && hours < 12) {
+    hours += 12;
+  } else if (meridiem === "AM" && hours === 12) {
+    hours = 0;
+  }
+
+  const parsed = new Date(year, month, day, hours, minutes, 0, 0).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const scoreDocumentForSection = (sectionKey, documentEntry) => {
+  const rule = getAutoCollectRule(sectionKey);
+  const keywords = Array.isArray(rule.keywords) ? rule.keywords : [];
+  if (keywords.length === 0) return 0;
+
+  const sourceText = [
+    documentEntry?.name,
+    documentEntry?.fileName,
+    documentEntry?.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  let score = 0;
+  for (const keyword of keywords) {
+    if (sourceText.includes(String(keyword).toLowerCase())) {
+      score += 1;
+    }
+  }
+
+  return score;
+};
+
+const rankDocumentsForSection = (sectionKey, documents) =>
+  [...documents]
+    .map((entry) => ({
+      ...entry,
+      sectionScore: scoreDocumentForSection(sectionKey, entry),
+      uploadedTimestamp: parseMobizioUploadedAt(entry.uploadedDate),
+    }))
+    .sort((a, b) => {
+      if (b.sectionScore !== a.sectionScore) {
+        return b.sectionScore - a.sectionScore;
+      }
+      if (b.uploadedTimestamp !== a.uploadedTimestamp) {
+        return b.uploadedTimestamp - a.uploadedTimestamp;
+      }
+      const left = String(a.fileName || a.name || "");
+      const right = String(b.fileName || b.name || "");
+      return left.localeCompare(right);
+    });
+
+const buildMobizioDocumentListUrl = (caseId) =>
+  `https://clece.mobizio.com${MOBIZIO_DOCUMENT_LIST_PATH}?caseId=${encodeURIComponent(caseId)}&serviceId=${encodeURIComponent(MOBIZIO_DOCUMENT_SERVICE_ID)}`;
+
+const waitForTabComplete = async (tabId, timeoutMs = 25000) => {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    let tab;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch {
+      throw new Error("The Mobizio document tab was closed before loading completed.");
+    }
+
+    if (tab?.status === "complete") {
+      return tab;
+    }
+
+    await wait(250);
+  }
+
+  throw new Error("Timed out waiting for Mobizio documents to load.");
+};
+
+const executeScriptInTab = async (tabId, func, args = []) => {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func,
+    args,
+  });
+  return results?.[0]?.result;
+};
+
+const normalizeScrapedDocuments = (documents) => {
+  const normalized = [];
+  const seen = new Set();
+
+  for (let index = 0; index < (Array.isArray(documents) ? documents.length : 0); index += 1) {
+    const entry = documents[index] || {};
+    const name = String(entry.name || "").trim();
+    const fileName = String(entry.fileName || "").trim() || name || `document-${index + 1}.pdf`;
+    const description = String(entry.description || "").trim();
+    const uploadedDate = String(entry.uploadedDate || "").trim();
+    const uploadedBy = String(entry.uploadedBy || "").trim();
+    const downloadId = String(entry.downloadId || "").trim();
+    const candidateUrls = Array.isArray(entry.candidateUrls)
+      ? entry.candidateUrls.map((url) => String(url || "").trim()).filter(Boolean)
+      : [];
+
+    if (!downloadId && candidateUrls.length === 0) {
+      continue;
+    }
+
+    const dedupeKey = `${downloadId}:${fileName.toLowerCase()}:${uploadedDate.toLowerCase()}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+
+    normalized.push({
+      id: `${downloadId || "row"}-${index}`,
+      rowId: String(entry.rowId || index + 1),
+      downloadId,
+      name,
+      fileName,
+      description,
+      uploadedDate,
+      uploadedBy,
+      candidateUrls,
+    });
+  }
+
+  return normalized;
+};
+
+const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
+  new Promise((resolve) => {
+    document.querySelector(".auto-collect-overlay")?.remove();
+
+    const rule = getAutoCollectRule(sectionKey);
+    const selectedIndexes = new Set();
+
+    if (single && documents.length > 0) {
+      const suggestedIndex = documents.findIndex((entry) => entry.sectionScore > 0);
+      selectedIndexes.add(suggestedIndex >= 0 ? suggestedIndex : 0);
+    }
+
+    const overlay = document.createElement("div");
+    overlay.className = "dialog-overlay auto-collect-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.innerHTML = `
+      <div class="dialog auto-collect-dialog">
+        <div class="dialog-header">
+          <span class="dialog-icon dialog-icon-warning" aria-hidden="true">DOC</span>
+          <span class="dialog-title">Select ${escapeHtml(rule.sectionLabel)} document${single ? "" : "s"}</span>
+        </div>
+        <div class="dialog-body">
+          <div class="auto-collect-subtitle">Choose from the Mobizio case documents list for Case ID ${escapeHtml(getCaseIdForAutoCollect())}.</div>
+          <div class="auto-collect-toolbar">
+            <div class="auto-collect-helper" data-auto-collect-helper></div>
+            ${single ? "" : `<div class="toolbar-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="select-all">Select all</button><button type="button" class="btn btn-ghost btn-sm" data-action="clear-selection">Clear</button></div>`}
+          </div>
+          <div class="auto-collect-table-wrap">
+            <table class="auto-collect-table">
+              <thead>
+                <tr>
+                  <th>Select</th>
+                  <th>Name</th>
+                  <th>Filename</th>
+                  <th>Description</th>
+                  <th>Uploaded Date</th>
+                </tr>
+              </thead>
+              <tbody data-auto-collect-body></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" data-action="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" data-action="confirm">Add Selected</button>
+        </div>
+      </div>
+    `;
+
+    const body = overlay.querySelector("[data-auto-collect-body]");
+    const helper = overlay.querySelector("[data-auto-collect-helper]");
+    const confirmButton = overlay.querySelector("[data-action='confirm']");
+
+    const renderRows = () => {
+      if (!body) return;
+
+      if (!documents.length) {
+        body.innerHTML = '<tr><td colspan="5" class="auto-collect-empty">No documents were found for this service user.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = documents
+        .map((entry, index) => {
+          const checked = selectedIndexes.has(index);
+          const recommended = entry.sectionScore > 0;
+          return `
+            <tr class="auto-collect-row${checked ? " is-selected" : ""}${recommended ? " is-recommended" : ""}" data-row-index="${index}">
+              <td><input type="${single ? "radio" : "checkbox"}" name="auto-collect-selection" data-row-index="${index}" ${checked ? "checked" : ""} /></td>
+              <td>
+                <div class="auto-collect-name">${escapeHtml(entry.name || "Untitled")}${recommended ? '<span class="auto-collect-badge">Suggested</span>' : ""}</div>
+                ${entry.uploadedBy ? `<div class="auto-collect-meta">By ${escapeHtml(entry.uploadedBy)}</div>` : ""}
+              </td>
+              <td>${escapeHtml(entry.fileName || "-")}</td>
+              <td>${escapeHtml(entry.description || "-")}</td>
+              <td>${escapeHtml(entry.uploadedDate || "-")}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    };
+
+    const updateSelectionState = () => {
+      const count = selectedIndexes.size;
+      if (helper) {
+        helper.textContent =
+          count === 0
+            ? "Select at least one document."
+            : single
+            ? "1 document selected."
+            : `${count} document${count === 1 ? "" : "s"} selected.`;
+      }
+
+      if (confirmButton) {
+        confirmButton.disabled = count === 0;
+        confirmButton.textContent = count > 0 ? `Add Selected${single ? "" : ` (${count})`}` : "Add Selected";
+      }
+
+      body?.querySelectorAll(".auto-collect-row").forEach((row) => {
+        const index = Number(row.getAttribute("data-row-index"));
+        row.classList.toggle("is-selected", selectedIndexes.has(index));
+      });
+    };
+
+    const selectIndex = (index, checked) => {
+      if (!Number.isInteger(index) || index < 0 || index >= documents.length) return;
+
+      if (single) {
+        selectedIndexes.clear();
+        if (checked) {
+          selectedIndexes.add(index);
+        }
+      } else if (checked) {
+        selectedIndexes.add(index);
+      } else {
+        selectedIndexes.delete(index);
+      }
+
+      body?.querySelectorAll("input[data-row-index]").forEach((input) => {
+        const rowIndex = Number(input.getAttribute("data-row-index"));
+        input.checked = selectedIndexes.has(rowIndex);
+      });
+
+      updateSelectionState();
+    };
+
+    const closeDialog = (selection = null) => {
+      window.removeEventListener("keydown", handleKeydown);
+      overlay.remove();
+      resolve(selection);
+    };
+
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDialog(null);
+      }
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        closeDialog(null);
+      }
+    });
+
+    overlay.querySelector("[data-action='cancel']")?.addEventListener("click", () => {
+      closeDialog(null);
+    });
+
+    overlay.querySelector("[data-action='confirm']")?.addEventListener("click", () => {
+      const selected = [...selectedIndexes]
+        .sort((a, b) => a - b)
+        .map((index) => documents[index])
+        .filter(Boolean);
+      closeDialog(selected);
+    });
+
+    body?.addEventListener("change", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) return;
+      const index = Number(input.getAttribute("data-row-index"));
+      selectIndex(index, Boolean(input.checked));
+    });
+
+    body?.addEventListener("click", (event) => {
+      const row = event.target instanceof Element ? event.target.closest(".auto-collect-row") : null;
+      if (!row) return;
+      if (event.target instanceof HTMLInputElement) return;
+      const index = Number(row.getAttribute("data-row-index"));
+      const currentlySelected = selectedIndexes.has(index);
+      selectIndex(index, single ? true : !currentlySelected);
+    });
+
+    overlay.querySelector("[data-action='select-all']")?.addEventListener("click", () => {
+      if (single) return;
+      selectedIndexes.clear();
+      documents.forEach((_entry, index) => selectedIndexes.add(index));
+      body?.querySelectorAll("input[data-row-index]").forEach((input) => {
+        input.checked = true;
+      });
+      updateSelectionState();
+    });
+
+    overlay.querySelector("[data-action='clear-selection']")?.addEventListener("click", () => {
+      selectedIndexes.clear();
+      body?.querySelectorAll("input[data-row-index]").forEach((input) => {
+        input.checked = false;
+      });
+      updateSelectionState();
+    });
+
+    document.body.appendChild(overlay);
+    window.addEventListener("keydown", handleKeydown);
+
+    renderRows();
+    updateSelectionState();
+  });
+
+const scrapeMobizioDocumentsInPage = () => {
+  const toText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+
+  const toAbsoluteUrl = (candidate) => {
+    const raw = String(candidate || "").trim();
+    if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch {
+      return "";
+    }
+  };
+
+  const collectUrlsFromElement = (element, accumulator) => {
+    if (!element) return;
+    ["href", "data-url", "data-href", "data-download-url", "data-document-url", "src"].forEach((attributeName) => {
+      const value = element.getAttribute?.(attributeName);
+      if (!value) return;
+      const absolute = toAbsoluteUrl(value);
+      if (absolute) accumulator.add(absolute);
+    });
+  };
+
+  const extractUrlsFromText = (rawValue) => {
+    const text = String(rawValue || "");
+    if (!text) return [];
+    const matches = text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
+    return matches
+      .map((match) => toAbsoluteUrl(match))
+      .filter(Boolean);
+  };
+
+  const table = document.querySelector("#documentsTable");
+  if (!table) {
+    return { ok: false, error: "Could not find the Mobizio documents table (#documentsTable)." };
+  }
+
+  const rows = Array.from(table.querySelectorAll("tbody tr"));
+  if (rows.length === 0) {
+    return { ok: true, documents: [] };
+  }
+
+  const documents = rows
+    .filter((row) => row.querySelector(".open-document") || row.classList.contains("isDocument"))
+    .map((row, index) => {
+      const name = toText(row.querySelector(".document-name .open-document")?.textContent || row.querySelector(".document-name")?.textContent);
+      const fileName = toText(row.querySelector(".document-filename .open-document")?.textContent || row.querySelector(".document-filename")?.textContent);
+      const description = toText(row.querySelector(".document-description")?.textContent);
+      const uploadedDate = toText(row.querySelector(".document-uploaded-date-time")?.textContent);
+      const uploadedBy = toText(row.querySelector(".uploaded-by-name")?.textContent);
+      const rowId = toText(row.getAttribute("id")) || String(index + 1);
+
+      const downloadElement = row.querySelector('[id^="download-document_"], .download-document');
+      const downloadIdMatch = String(downloadElement?.id || row.innerHTML || "").match(/download-document_(\d+)/i);
+      const downloadId = downloadIdMatch?.[1] || "";
+
+      const candidateUrls = new Set();
+      collectUrlsFromElement(row, candidateUrls);
+      collectUrlsFromElement(downloadElement, candidateUrls);
+      row.querySelectorAll("a").forEach((anchor) => collectUrlsFromElement(anchor, candidateUrls));
+
+      [
+        row.getAttribute("onclick"),
+        downloadElement?.getAttribute?.("onclick"),
+        ...Array.from(row.querySelectorAll("[onclick]")).map((element) => element.getAttribute("onclick")),
+      ]
+        .filter(Boolean)
+        .forEach((handlerText) => {
+          extractUrlsFromText(handlerText).forEach((url) => candidateUrls.add(url));
+        });
+
+      return {
+        rowId,
+        downloadId,
+        name,
+        fileName,
+        description,
+        uploadedDate,
+        uploadedBy,
+        candidateUrls: Array.from(candidateUrls).slice(0, 24),
+      };
+    });
+
+  return { ok: true, documents };
+};
+
+const downloadMobizioDocumentInPage = async (documentEntry) => {
+  const toText = (value) => String(value || "").trim();
+
+  const toAbsoluteUrl = (candidate) => {
+    const raw = String(candidate || "").trim();
+    if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch {
+      return "";
+    }
+  };
+
+  const collectUrlsFromElement = (element, accumulator) => {
+    if (!element) return;
+    ["href", "data-url", "data-href", "data-download-url", "data-document-url", "src"].forEach((attributeName) => {
+      const value = element.getAttribute?.(attributeName);
+      if (!value) return;
+      const absolute = toAbsoluteUrl(value);
+      if (absolute) accumulator.add(absolute);
+    });
+  };
+
+  const extractUrlsFromText = (rawValue) => {
+    const text = String(rawValue || "");
+    if (!text) return [];
+    const matches = text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
+    return matches
+      .map((match) => toAbsoluteUrl(match))
+      .filter(Boolean);
+  };
+
+  const getFileNameFromDisposition = (headerValue) => {
+    const value = String(headerValue || "");
+    if (!value) return "";
+
+    const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        return utf8Match[1];
+      }
+    }
+
+    const quotedMatch = value.match(/filename="([^"]+)"/i);
+    if (quotedMatch?.[1]) return quotedMatch[1];
+
+    const plainMatch = value.match(/filename=([^;]+)/i);
+    return plainMatch?.[1] ? plainMatch[1].trim() : "";
+  };
+
+  const sanitizeFileName = (name, mimeType) => {
+    const cleaned = toText(name).replace(/[\\/:*?"<>|]+/g, "_");
+    const type = String(mimeType || "").toLowerCase();
+    let extension = "";
+    if (type.includes("pdf")) extension = "pdf";
+    else if (type.includes("msword")) extension = "doc";
+    else if (type.includes("wordprocessingml")) extension = "docx";
+    else if (type.includes("csv")) extension = "csv";
+    else if (type.includes("text/plain")) extension = "txt";
+
+    if (!cleaned) {
+      return extension ? `mobizio-document.${extension}` : "mobizio-document";
+    }
+
+    if (/\.(pdf|doc|docx|txt|csv)$/i.test(cleaned)) {
+      return cleaned;
+    }
+
+    return extension ? `${cleaned}.${extension}` : cleaned;
+  };
+
+  const arrayBufferToBase64 = (arrayBuffer) => {
+    const bytes = new Uint8Array(arrayBuffer);
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      const chunk = bytes.subarray(offset, offset + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  };
+
+  const candidateUrls = new Set(Array.isArray(documentEntry?.candidateUrls) ? documentEntry.candidateUrls : []);
+  const downloadId = toText(documentEntry?.downloadId);
+
+  if (downloadId) {
+    [
+      `/download-document/${downloadId}`,
+      `/download-document?documentId=${downloadId}`,
+      `/download-document?id=${downloadId}`,
+      `/case_document_download/${downloadId}`,
+      `/case_document_download?documentId=${downloadId}`,
+      `/document/download/${downloadId}`,
+      `/downloadDocument/${downloadId}`,
+      `/documents/download/${downloadId}`,
+      `/download-document_${downloadId}`,
+    ].forEach((url) => candidateUrls.add(url));
+
+    const downloadElement = document.getElementById(`download-document_${downloadId}`);
+    collectUrlsFromElement(downloadElement, candidateUrls);
+    const row = downloadElement?.closest("tr");
+    collectUrlsFromElement(row, candidateUrls);
+    row?.querySelectorAll("a").forEach((anchor) => collectUrlsFromElement(anchor, candidateUrls));
+
+    [
+      downloadElement?.getAttribute?.("onclick"),
+      row?.getAttribute?.("onclick"),
+      ...Array.from(row?.querySelectorAll?.("[onclick]") || []).map((element) => element.getAttribute("onclick")),
+    ]
+      .filter(Boolean)
+      .forEach((handlerText) => {
+        extractUrlsFromText(handlerText).forEach((url) => candidateUrls.add(url));
+      });
+  }
+
+  const attempted = [];
+  for (const candidate of candidateUrls) {
+    const absoluteUrl = toAbsoluteUrl(candidate);
+    if (!absoluteUrl || attempted.includes(absoluteUrl)) continue;
+    attempted.push(absoluteUrl);
+
+    try {
+      const response = await fetch(absoluteUrl, {
+        method: "GET",
+        credentials: "include",
+        redirect: "follow",
+      });
+
+      if (!response.ok) continue;
+
+      const contentType = response.headers.get("content-type") || "";
+      const contentDisposition = response.headers.get("content-disposition") || "";
+      const blob = await response.blob();
+
+      if (!blob || blob.size === 0) continue;
+      if (/text\/html/i.test(contentType) && !/attachment/i.test(contentDisposition)) {
+        continue;
+      }
+
+      const fromDisposition = getFileNameFromDisposition(contentDisposition);
+      const fromUrl = (() => {
+        try {
+          const parsed = new URL(absoluteUrl);
+          const last = parsed.pathname.split("/").filter(Boolean).pop() || "";
+          return decodeURIComponent(last);
+        } catch {
+          return "";
+        }
+      })();
+
+      const fallbackName = toText(documentEntry?.fileName) || toText(documentEntry?.name) || `mobizio-document-${downloadId || Date.now()}`;
+      const fileName = sanitizeFileName(fromDisposition || fromUrl || fallbackName, contentType || blob.type);
+      const base64Data = arrayBufferToBase64(await blob.arrayBuffer());
+
+      return {
+        ok: true,
+        file: {
+          name: fileName,
+          mimeType: contentType || blob.type || "application/octet-stream",
+          size: blob.size,
+          base64Data,
+        },
+      };
+    } catch {
+      // Try the next candidate URL.
+    }
+  }
+
+  return {
+    ok: false,
+    error: "Could not download the selected document from Mobizio.",
+    attempted: attempted.slice(0, 8),
+  };
+};
+
+const fileFromDownloadedPayload = (filePayload) => {
+  const base64Data = String(filePayload?.base64Data || "");
+  if (!base64Data) {
+    throw new Error("Downloaded file payload was empty.");
+  }
+
+  const binary = atob(base64Data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  const mimeType = String(filePayload?.mimeType || "application/octet-stream");
+  const fileName = normalizeDownloadedFileName(String(filePayload?.name || "mobizio-document"), mimeType);
+
+  return new File([bytes], fileName, {
+    type: mimeType,
+    lastModified: Date.now(),
+  });
+};
+
+const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) => {
+  const section = UPLOAD_SECTION_CONFIG.find((entry) => entry.key === sectionKey);
+  if (!section) {
+    showError("Unknown upload section selected for auto-collect.");
+    return false;
+  }
+
+  const rule = getAutoCollectRule(sectionKey);
+  const caseId = getCaseIdForAutoCollect();
+
+  if (!caseId) {
+    showError("Select a service user in Autofill settings (or enter a Case ID) before running auto-collect.");
+    switchTab("autofill");
+    dom.autofillUserSearch?.focus();
+    return false;
+  }
+
+  let collectionTabId = null;
+  if (triggerButton) {
+    setButtonLoading(triggerButton, true);
+  }
+
+  try {
+    updateUploadSyncStatus(`Opening Mobizio documents for Case ID ${caseId}...`);
+
+    const collectionTab = await chrome.tabs.create({
+      url: buildMobizioDocumentListUrl(caseId),
+      active: false,
+    });
+    collectionTabId = collectionTab?.id;
+
+    if (!Number.isFinite(collectionTabId)) {
+      throw new Error("Could not open the Mobizio documents page for auto-collect.");
+    }
+
+    await waitForTabComplete(collectionTabId);
+
+    const scraped = await executeScriptInTab(collectionTabId, scrapeMobizioDocumentsInPage);
+    if (!scraped?.ok) {
+      throw new Error(scraped?.error || "Could not read documents from the Mobizio list page.");
+    }
+
+    const normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
+    if (normalizedDocuments.length === 0) {
+      throw new Error("No downloadable documents were found for this service user.");
+    }
+
+    const rankedDocuments = rankDocumentsForSection(sectionKey, normalizedDocuments);
+    const selectedDocuments = await showAutoCollectPickerDialog({
+      sectionKey,
+      documents: rankedDocuments,
+      single: section.single || rule.single,
+    });
+
+    if (!selectedDocuments || selectedDocuments.length === 0) {
+      updateUploadPendingStatus();
+      showInfo(`${rule.sectionLabel} auto-collect was cancelled.`);
+      return false;
+    }
+
+    const downloadedFiles = [];
+    const failedDownloads = [];
+
+    for (let index = 0; index < selectedDocuments.length; index += 1) {
+      const selectedDocument = selectedDocuments[index];
+      const label = selectedDocument.fileName || selectedDocument.name || `Document ${index + 1}`;
+      updateUploadSyncStatus(`Downloading ${index + 1} of ${selectedDocuments.length}: ${label}`);
+
+      const result = await executeScriptInTab(collectionTabId, downloadMobizioDocumentInPage, [selectedDocument]);
+      if (!result?.ok || !result?.file?.base64Data) {
+        failedDownloads.push(label);
+        continue;
+      }
+
+      try {
+        downloadedFiles.push(fileFromDownloadedPayload(result.file));
+      } catch {
+        failedDownloads.push(label);
+      }
+    }
+
+    if (downloadedFiles.length === 0) {
+      throw new Error("The selected documents could not be downloaded from Mobizio.");
+    }
+
+    applyUploadFiles(sectionKey, downloadedFiles);
+
+    if (failedDownloads.length > 0) {
+      showInfo(`Downloaded ${downloadedFiles.length} file${downloadedFiles.length === 1 ? "" : "s"}; ${failedDownloads.length} failed.`);
+    } else {
+      showSuccess(`Auto-collected ${downloadedFiles.length} ${rule.sectionLabel} document${downloadedFiles.length === 1 ? "" : "s"}.`);
+    }
+
+    const stagedCount = flattenUploadBuckets().length;
+    updateUploadSyncStatus(
+      `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"} after auto-collect.`,
+      "success"
+    );
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not auto-collect Mobizio documents.";
+    updateUploadSyncStatus(message, "error");
+    showError(message);
+    return false;
+  } finally {
+    if (Number.isFinite(collectionTabId)) {
+      try {
+        await chrome.tabs.remove(collectionTabId);
+      } catch {
+        // Ignore tab close failures.
+      }
+    }
+
+    if (triggerButton) {
+      setButtonLoading(triggerButton, false);
+    }
+  }
+};
+
 const inferExtensionFromMimeType = (mimeType) => {
   const normalized = String(mimeType || "").split(";")[0].trim().toLowerCase();
   return URL_UPLOAD_EXTENSION_BY_MIME[normalized] || "";
@@ -774,7 +1596,7 @@ const applyUploadFiles = (sectionKey, files) => {
 
   if (section.single) {
     if (validFiles.length > 1) {
-      showInfo(`${sectionKey} accepts one file. The first file was kept.`);
+      showInfo(`${getSectionDisplayName(sectionKey)} accepts one file. The first file was kept.`);
     }
     state.uploadBuckets[section.key] = [validFiles[0]];
   } else {
@@ -1043,6 +1865,31 @@ const bindUploadDropzones = () => {
       } finally {
         dropzone.classList.remove("is-downloading");
       }
+    });
+  });
+};
+
+const bindUploadActionButtons = () => {
+  document.querySelectorAll("[data-upload-browse]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+
+      const sectionKey = button.getAttribute("data-upload-browse");
+      const explicitInputId = button.getAttribute("data-input-id");
+      const sectionConfig = UPLOAD_SECTION_CONFIG.find((entry) => entry.key === sectionKey);
+      const inputId = explicitInputId || sectionConfig?.inputId;
+
+      if (!inputId) return;
+      document.getElementById(inputId)?.click();
+    });
+  });
+
+  document.querySelectorAll("[data-upload-autocollect]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const sectionKey = button.getAttribute("data-upload-autocollect");
+      if (!sectionKey) return;
+      await autoCollectDocumentsForSection(sectionKey, button);
     });
   });
 };
@@ -1785,6 +2632,7 @@ function bindEvents() {
   // Upload tab
   bindUploadBucketInputs();
   bindUploadDropzones();
+  bindUploadActionButtons();
 
   dom.syncUploadBtn?.addEventListener("click", async () => {
     const ok = await syncUploadsToCareAssurance({ force: true });
@@ -2293,7 +3141,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.14</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.16</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }

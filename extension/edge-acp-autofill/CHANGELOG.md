@@ -1,5 +1,37 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.16 - Complete Popup Design Overhaul
+
+### Visual System Refresh
+
+- Rebuilt the popup visual language with a new "Operations Studio" theme using a refreshed teal/brass palette, atmospheric layered backgrounds, and redesigned card surfaces.
+- Updated header, tab navigation, buttons, forms, status boxes, upload buckets, dialogs, logs, and footer to create a more cohesive and modern extension UI.
+- Added staged entry animations and refined spacing/typography so the popup feels faster and easier to scan during workflows.
+
+### Responsiveness and Stability
+
+- Added responsive refinements for narrow popup widths so header, tab shell, cards, and action rows remain usable on smaller viewport sizes.
+- Kept existing interaction and workflow logic unchanged so all extension features continue to work with the redesigned interface.
+
+### Versioning
+
+- Bumped extension version to `0.6.16` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.15 - Mobizio Auto-Collect for Intake Documents
+
+### Intake Auto-Collect Workflow
+
+- Added `Upload` and `Auto-Collect` action buttons to every Intake upload section.
+- Added Mobizio document auto-collect flow that opens `/case_document_list?caseId=<selectedCaseId>&serviceId=1000801`, reads `#documentsTable`, and presents a picker with Name, Filename, Description, Uploaded Date, and uploader.
+- Added section-aware document suggestions and selection rules in the picker:
+  - Support Plan and Moving & Handling enforce single selection.
+  - Social Work, Initial Assessment, and Additional Documents allow multi-selection.
+- Added staged-download conversion from Mobizio document entries into extension file buckets so selected files are immediately ready for `Send to CareAssurance Upload`.
+
+### Versioning
+
+- Bumped extension version to `0.6.15` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.14 - Main View Launchpad Refresh
 
 ### Popup Main View Improvements
