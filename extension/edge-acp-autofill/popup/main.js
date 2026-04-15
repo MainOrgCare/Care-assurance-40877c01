@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.13
+ * CareAssurance Extension v0.6.14
  */
 
 import {
@@ -1180,6 +1180,38 @@ async function focusConnectedWorkspace() {
   await openCareAssuranceRoute("/dashboard");
 }
 
+async function executeMainViewAction(button) {
+  if (!button) return;
+
+  const action = String(button.dataset.action || "");
+  const route = String(button.dataset.route || "");
+
+  try {
+    if (action === "connect") {
+      await connectToCareAssurance();
+      return;
+    }
+
+    if (action === "focus-current") {
+      await focusConnectedWorkspace();
+      return;
+    }
+
+    if (action === "refresh-context") {
+      schedulePopupRefresh({ workspace: true, forceWorkspace: true, immediate: true });
+      showInfo("Workspace Pulse refreshed");
+      return;
+    }
+
+    if (action === "open-route") {
+      await openCareAssuranceRoute(route || "/dashboard");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not run launchpad action.";
+    showError(message);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PAGE COMPANION
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1675,6 +1707,31 @@ function bindEvents() {
   dom.openRiskWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/risk-assessment").catch(() => showError("Could not open Risk Assessment.")));
   dom.openPlanEnhancerWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/plan-enhancer").catch(() => showError("Could not open Plan Enhancer.")));
   dom.openAdminWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/shadow-admin-portal").catch(() => showError("Could not open the Admin Portal.")));
+
+  // Main launchpad
+  dom.mainViewPrimaryAction?.addEventListener("click", () => {
+    executeMainViewAction(dom.mainViewPrimaryAction);
+  });
+  dom.mainViewSecondaryAction?.addEventListener("click", () => {
+    executeMainViewAction(dom.mainViewSecondaryAction);
+  });
+
+  [
+    dom.mainOpenCarePlanning,
+    dom.mainOpenRisk,
+    dom.mainOpenPlanEnhancer,
+    dom.mainOpenMessages,
+  ].forEach((routeButton) => {
+    routeButton?.addEventListener("click", async () => {
+      const route = routeButton.dataset.route || "/dashboard";
+      const label = routeButton.textContent?.trim() || "workflow";
+      try {
+        await openCareAssuranceRoute(route);
+      } catch {
+        showError(`Could not open ${label}.`);
+      }
+    });
+  });
 
   // Service user list delegation
   dom.serviceUserList?.addEventListener("click", (e) => {
@@ -2236,7 +2293,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.13</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.14</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }

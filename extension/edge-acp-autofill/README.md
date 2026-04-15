@@ -59,6 +59,7 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - EMAR autofill uses the EMAR Quality Assurance formId and fills core audit fields when available.
 - Custom autofill uses `fields` with `selector`, `name`, or `label` plus a `value`, and can target any formId.
 - If the ACP form URL or selectors change, update content-acp.js.
+- The default popup `Workspace` view now includes a `Workflow Launchpad` with context-aware primary actions and one-click workflow shortcuts so operators can jump to the right CareAssurance page immediately.
 - Main extension popup menu dragging is enabled from the header/tab bar using the same hold-and-drag interaction style as risk-assessment autofill overlays. If opened from the toolbar anchor, drag detaches the popup to a movable window and future opens focus that detached window when available.
 - In-page ACP/EMAR/Initial Assessment overlays keep pin and minimize controls, but drag/resize interactions are disabled.
 - Upload dropzones accept either local files or dropped http/https links. Dropped links are downloaded and staged directly into the selected section when the file type is supported.

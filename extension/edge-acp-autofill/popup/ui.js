@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.13
+ * CareAssurance Extension v0.6.14
  */
 
 import {
@@ -45,6 +45,9 @@ export function cacheDomElements() {
     "workspace-tab-title", "open-connected-workspace", "open-dashboard-workspace",
     "open-care-planning-workspace", "open-risk-workspace", "open-plan-enhancer-workspace",
     "open-admin-workspace",
+    // Main launchpad
+    "main-view-state", "main-view-primary-action", "main-view-secondary-action",
+    "main-open-care-planning", "main-open-risk", "main-open-plan-enhancer", "main-open-messages",
     // Service users
     "search-section", "service-user-search", "service-user-list", "service-user-sort",
     "service-user-count", "selected-user-section", "selected-user-info",
@@ -321,6 +324,117 @@ export function updateServiceUserCount(count) {
 // CONNECTION UI
 // ═══════════════════════════════════════════════════════════════════════════
 
+const MAIN_VIEW_ROUTE_LABELS = {
+  "/dashboard": "Dashboard",
+  "/service-users/care-planning": "Care Planning",
+  "/service-users/risk-assessment": "Risk Assessment",
+  "/service-users/plan-enhancer": "Plan Enhancer",
+  "/messages": "Messages",
+};
+
+const getMainViewRouteLabel = (route) => MAIN_VIEW_ROUTE_LABELS[route] || "Workflow";
+
+const resolveMainViewSecondaryRoute = (context) => {
+  const path = String(context?.path || "").toLowerCase();
+  if (path.startsWith("/service-users/care-planning")) return "/service-users/risk-assessment";
+  if (path.startsWith("/service-users/risk-assessment")) return "/service-users/plan-enhancer";
+  if (path.startsWith("/service-users/plan-enhancer")) return "/service-users/care-planning";
+  if (path.startsWith("/messages")) return "/dashboard";
+  if (path.startsWith("/dashboard")) return "/service-users/care-planning";
+  return "/service-users/plan-enhancer";
+};
+
+const setMainViewActionButton = (button, config = {}) => {
+  if (!button) return;
+  const {
+    label = "Open",
+    action = "open-route",
+    route = "",
+    disabled = false,
+  } = config;
+
+  button.textContent = label;
+  button.dataset.action = action;
+  if (route) button.dataset.route = route;
+  else delete button.dataset.route;
+  button.disabled = Boolean(disabled);
+};
+
+function renderMainViewLaunchpad(context = state.connectedWorkspaceContext) {
+  const stateEl = dom.mainViewState;
+  const currentPath = String(context?.path || "").toLowerCase();
+
+  if (stateEl) {
+    if (!state.isConnected) {
+      stateEl.className = "main-view-state is-disconnected";
+      stateEl.innerHTML = `
+        <span class="main-view-state-eyebrow">Startup status</span>
+        <strong class="main-view-state-title">Not connected yet</strong>
+        <span class="main-view-state-detail">Sync your CareAssurance session to unlock service-user search, payload loading, and one-click workflow focus.</span>
+      `;
+    } else if (!context) {
+      stateEl.className = "main-view-state is-waiting";
+      stateEl.innerHTML = `
+        <span class="main-view-state-eyebrow">Startup status</span>
+        <strong class="main-view-state-title">Connected, waiting for a workspace tab</strong>
+        <span class="main-view-state-detail">Open CareAssurance in your browser. This launchpad will immediately adapt to your current page context.</span>
+      `;
+    } else {
+      const secondaryRoute = resolveMainViewSecondaryRoute(context);
+      stateEl.className = "main-view-state is-live";
+      stateEl.innerHTML = `
+        <span class="main-view-state-eyebrow">Startup status</span>
+        <strong class="main-view-state-title">Live on ${escapeHtml(context.routeLabel || "CareAssurance")}</strong>
+        <span class="main-view-state-detail">Focus your current tab or jump straight to ${escapeHtml(getMainViewRouteLabel(secondaryRoute))} as your next workflow step.</span>
+      `;
+    }
+  }
+
+  if (!state.isConnected) {
+    setMainViewActionButton(dom.mainViewPrimaryAction, {
+      label: "Sync Session",
+      action: "connect",
+    });
+    setMainViewActionButton(dom.mainViewSecondaryAction, {
+      label: "Open Dashboard",
+      action: "open-route",
+      route: "/dashboard",
+    });
+  } else if (!context) {
+    setMainViewActionButton(dom.mainViewPrimaryAction, {
+      label: "Open Dashboard",
+      action: "open-route",
+      route: "/dashboard",
+    });
+    setMainViewActionButton(dom.mainViewSecondaryAction, {
+      label: "Refresh Context",
+      action: "refresh-context",
+    });
+  } else {
+    const secondaryRoute = resolveMainViewSecondaryRoute(context);
+    setMainViewActionButton(dom.mainViewPrimaryAction, {
+      label: "Focus Current Page",
+      action: "focus-current",
+    });
+    setMainViewActionButton(dom.mainViewSecondaryAction, {
+      label: `Open ${getMainViewRouteLabel(secondaryRoute)}`,
+      action: "open-route",
+      route: secondaryRoute,
+    });
+  }
+
+  [
+    dom.mainOpenCarePlanning,
+    dom.mainOpenRisk,
+    dom.mainOpenPlanEnhancer,
+    dom.mainOpenMessages,
+  ].forEach((button) => {
+    if (!button) return;
+    const route = String(button.dataset.route || "").toLowerCase();
+    button.classList.toggle("is-active", Boolean(route && currentPath.startsWith(route)));
+  });
+}
+
 export function updateConnectionUI(connected, user = null) {
   state.isConnected = connected;
   if (user) state.connectedWorkspaceUser = user;
@@ -378,6 +492,7 @@ export function updateConnectionUI(connected, user = null) {
   // Admin portal button — also gate via hidden
   if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
 
+  renderMainViewLaunchpad(state.connectedWorkspaceContext);
   updateHeaderUserChip(null);
   updateFooterLiveDot(connected);
 }
@@ -432,6 +547,8 @@ export function renderWorkspaceContext(context, user = state.connectedWorkspaceU
   document.body.classList.toggle("is-admin", isAdmin);
   if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
   if (dom.searchSection) dom.searchSection.hidden = !state.isConnected || !isAdmin;
+
+  renderMainViewLaunchpad(context);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

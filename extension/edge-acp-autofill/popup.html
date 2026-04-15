@@ -100,6 +100,35 @@
             </div>
           </section>
 
+          <section class="card main-launchpad-card">
+            <div class="card-header">
+              <div>
+                <span class="section-kicker">Main View</span>
+                <h2 class="card-title">Workflow Launchpad</h2>
+                <p class="card-description">When you open the extension, start here for fast, one-click movement into the right CareAssurance workflow.</p>
+              </div>
+            </div>
+            <div class="card-content">
+              <div id="main-view-state" class="main-view-state is-disconnected">
+                <span class="main-view-state-eyebrow">Startup status</span>
+                <strong class="main-view-state-title">Ready to connect</strong>
+                <span class="main-view-state-detail">Sync your session to unlock live workspace focus and smart next-step actions.</span>
+              </div>
+
+              <div class="main-view-primary-actions">
+                <button id="main-view-primary-action" class="btn btn-primary">Sync Session</button>
+                <button id="main-view-secondary-action" class="btn btn-secondary">Open Dashboard</button>
+              </div>
+
+              <div class="main-view-route-strip" role="group" aria-label="Popular workflow shortcuts">
+                <button id="main-open-care-planning" class="route-pill" data-route="/service-users/care-planning">Care Planning</button>
+                <button id="main-open-risk" class="route-pill" data-route="/service-users/risk-assessment">Risk Assessment</button>
+                <button id="main-open-plan-enhancer" class="route-pill" data-route="/service-users/plan-enhancer">Plan Enhancer</button>
+                <button id="main-open-messages" class="route-pill" data-route="/messages">Messages</button>
+              </div>
+            </div>
+          </section>
+
           <section class="card workspace-context-card">
             <div class="card-header">
               <div>
@@ -566,7 +595,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-          <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.13</span></span>
+          <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.14</span></span>
         </div>
       </footer>
     </main>

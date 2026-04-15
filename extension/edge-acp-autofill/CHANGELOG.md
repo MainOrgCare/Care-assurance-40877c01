@@ -1,5 +1,18 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.14 - Main View Launchpad Refresh
+
+### Popup Main View Improvements
+
+- Added a new `Workflow Launchpad` panel on the default `Workspace` tab to improve the first-click extension experience.
+- Introduced a context-aware main status card that adapts to disconnected, connected-without-tab, and live-workspace states.
+- Added smart primary/secondary launch actions that dynamically switch between `Sync Session`, `Focus Current Page`, `Refresh Context`, and route navigation based on live workspace state.
+- Added fast workflow shortcut pills for `Care Planning`, `Risk Assessment`, `Plan Enhancer`, and `Messages`, including active-route highlighting when the connected tab matches a shortcut.
+
+### Versioning
+
+- Bumped extension version to `0.6.14` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.13 - Anchored Popup Drag Reliability
 
 ### Main Menu Dragging Reliability
