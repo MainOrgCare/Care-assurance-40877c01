@@ -1,5 +1,23 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.17 - Mobizio Auto-Collect Reliability Hardening
+
+### Document Discovery Improvements
+
+- Hardened Mobizio document list scraping to wait for delayed table rendering before failing.
+- Added fallback table detection beyond `#documentsTable` so auto-collect remains resilient when Mobizio markup varies.
+- Expanded row parsing to detect document rows from classes, IDs, and column structure instead of relying on a single row marker.
+
+### Download Reliability Improvements
+
+- Improved download ID extraction from row/element attributes and click handlers.
+- Added broader candidate download path inference and case-aware URL templates.
+- Added HTML follow-up parsing during download attempts so redirect/intermediate pages can surface the real file URL.
+
+### Versioning
+
+- Bumped extension version to `0.6.17` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.16 - Complete Popup Design Overhaul
 
 ### Visual System Refresh
