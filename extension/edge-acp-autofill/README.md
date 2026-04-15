@@ -64,7 +64,7 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Upload dropzones accept either local files or dropped http/https links. Dropped links are downloaded and staged directly into the selected section when the file type is supported.
 - Each Intake section now provides both `Upload` and `Auto-Collect` actions.
 - `Auto-Collect` opens Mobizio case documents at `/case_document_list?caseId=<selectedCaseId>&serviceId=1000801`, then shows a picker with Name, Filename, Description, and Uploaded Date.
-- Selection rules for auto-collect: Support Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
+- Selection rules for auto-collect: Care Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
 - The extension popup now uses a fully overhauled visual design system (cards, tabs, controls, dialogs, and responsive spacing) while preserving existing workflows.
 
 ## Edge Add-ons Publishing (Unlisted Release Process)

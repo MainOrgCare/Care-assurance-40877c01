@@ -109,7 +109,7 @@ const MOBIZIO_CARE_PLAN_DASHBOARD_PATH = "/eoutcomeservice/branch/case_care_plan
 const SECTION_AUTO_COLLECT_RULES = {
   socialWork: {
     sectionLabel: "Social Work",
-    keywords: ["social work", "c2", "c3", "referral", "email"],
+    keywords: ["social work", "support plan", "support plans", "c2", "c3", "referral", "email"],
     single: false,
   },
   initialAssessment: {
@@ -118,8 +118,8 @@ const SECTION_AUTO_COLLECT_RULES = {
     single: false,
   },
   carePlan: {
-    sectionLabel: "Support Plan",
-    keywords: ["support plan", "care plan", "workplan", "work plan"],
+    sectionLabel: "Care Plan",
+    keywords: ["care plan", "workplan", "work plan"],
     single: true,
   },
   movingHandling: {
@@ -151,7 +151,7 @@ const UPLOAD_SECTION_CONFIG = [
   },
   {
     key: "carePlan",
-    heading: "=== SUPPORT PLAN ===",
+    heading: "=== CARE PLAN ===",
     inputId: "upload-care-plan-input",
     listId: "upload-care-plan-files",
     single: true,
@@ -813,7 +813,7 @@ const getMobizioAutoCollectSource = (sectionKey, caseId) => {
   if (sectionKey === "carePlan") {
     return {
       kind: "carePlan",
-      label: "Care Plans",
+      label: "Care Plan",
       url: buildMobizioCarePlanDashboardUrl(caseId),
     };
   }
@@ -844,6 +844,21 @@ const waitForTabComplete = async (tabId, timeoutMs = 25000) => {
   }
 
   throw new Error("Timed out waiting for Mobizio documents to load.");
+};
+
+const getTabHostName = (tab) => {
+  const rawUrl = String(tab?.url || "").trim();
+  if (!rawUrl) return "";
+  try {
+    return String(new URL(rawUrl).hostname || "").toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
+const isMobizioHostName = (hostName) => {
+  const host = String(hostName || "").toLowerCase();
+  return host === "clece.mobizio.com" || host.endsWith(".mobizio.com");
 };
 
 const executeScriptInTab = async (tabId, func, args = []) => {
@@ -1158,6 +1173,20 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
 const scrapeMobizioDocumentsInPage = async () => {
   const toText = (value) => String(value || "").replace(/\s+/g, " ").trim();
 
+  const isPlaceholderText = (value) => {
+    const text = toText(value).toLowerCase();
+    if (!text) return true;
+
+    return (
+      text.includes("no data available") ||
+      text.includes("no matching records") ||
+      text.includes("no documents found") ||
+      text.includes("loading") ||
+      text.includes("processing") ||
+      text === "-"
+    );
+  };
+
   const waitInPage = (ms) =>
     new Promise((resolve) => {
       window.setTimeout(resolve, ms);
@@ -1247,19 +1276,55 @@ const scrapeMobizioDocumentsInPage = async () => {
     const tables = Array.from(document.querySelectorAll("table"));
     return (
       tables.find((table) => table.querySelector(".document-name, .document-filename")) ||
+      tables.find((table) => table.querySelector("[id^='download-document_'], .download-document, [data-document-id]")) ||
       tables.find((table) => hasDocumentColumns(table)) ||
       null
     );
   };
 
+  const tableHasRealRows = (table) => {
+    if (!table) return false;
+
+    const rows = Array.from(table.querySelectorAll("tbody tr"));
+    if (rows.length === 0) return false;
+
+    return rows.some((row) => {
+      const text = toText(row?.textContent || "");
+      if (isPlaceholderText(text)) return false;
+
+      const cellCount = row.querySelectorAll("td").length;
+      const hasDocumentMarkers = Boolean(
+        row.querySelector(".document-name, .document-filename, [id^='download-document_'], .download-document, [data-document-id]")
+      );
+
+      return hasDocumentMarkers || cellCount >= 2;
+    });
+  };
+
+  const tableHasFinalEmptyState = (table) => {
+    if (!table) return false;
+    const rows = Array.from(table.querySelectorAll("tbody tr"));
+    if (rows.length === 0) return false;
+
+    return rows.some((row) => {
+      const text = toText(row?.textContent || "").toLowerCase();
+      return (
+        text.includes("no data available") ||
+        text.includes("no matching records") ||
+        text.includes("no documents found")
+      );
+    });
+  };
+
   const waitForDocumentsTable = async (timeoutMs = 18000) => {
     const startedAt = Date.now();
+    let lastSeenTable = null;
 
     while (Date.now() - startedAt < timeoutMs) {
       const table = findDocumentsTable();
       if (table) {
-        const rowCount = table.querySelectorAll("tbody tr").length;
-        if (rowCount > 0 || document.readyState === "complete") {
+        lastSeenTable = table;
+        if (tableHasRealRows(table) || tableHasFinalEmptyState(table)) {
           return table;
         }
       }
@@ -1267,10 +1332,12 @@ const scrapeMobizioDocumentsInPage = async () => {
       await waitInPage(250);
     }
 
-    return findDocumentsTable();
+    return lastSeenTable || findDocumentsTable();
   };
 
-  const table = await waitForDocumentsTable();
+  const currentPath = String(window.location.pathname || "").toLowerCase();
+  const tableWaitTimeout = currentPath.includes("case_document_list") ? 18000 : 5000;
+  const table = await waitForDocumentsTable(tableWaitTimeout);
   if (!table) {
     return {
       ok: false,
@@ -1280,14 +1347,7 @@ const scrapeMobizioDocumentsInPage = async () => {
 
   const isPlaceholderRow = (row) => {
     const text = toText(row?.textContent || "").toLowerCase();
-    if (!text) return true;
-
-    return (
-      text.includes("no data available") ||
-      text.includes("no matching records") ||
-      text.includes("no documents found") ||
-      text === "-"
-    );
+    return isPlaceholderText(text);
   };
 
   const rawRows = Array.from(table.querySelectorAll("tbody tr"));
@@ -1806,30 +1866,84 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       throw new Error("Could not open the Mobizio source page for auto-collect.");
     }
 
-    await waitForTabComplete(collectionTabId);
+    let currentTabState = await waitForTabComplete(collectionTabId);
+    let currentTabHost = getTabHostName(currentTabState);
 
-    let scraped = await executeScriptInTab(collectionTabId, scrapeMobizioDocumentsInPage);
-
-    if (!scraped?.ok && collectionSource.kind !== "documents") {
-      const fallbackDocumentsUrl = await executeScriptInTab(
-        collectionTabId,
-        getMobizioDocumentsPageUrlInPage,
-        [caseId, MOBIZIO_DOCUMENT_SERVICE_ID]
-      );
-
-      if (fallbackDocumentsUrl) {
-        updateUploadSyncStatus("Switching to Mobizio Documents for downloadable records...");
-        await chrome.tabs.update(collectionTabId, { url: fallbackDocumentsUrl });
-        await waitForTabComplete(collectionTabId);
-        scraped = await executeScriptInTab(collectionTabId, scrapeMobizioDocumentsInPage);
+    if (currentTabHost && !isMobizioHostName(currentTabHost)) {
+      await chrome.tabs.update(collectionTabId, { url: buildMobizioDocumentListUrl(caseId) });
+      currentTabState = await waitForTabComplete(collectionTabId);
+      currentTabHost = getTabHostName(currentTabState);
+      if (currentTabHost && !isMobizioHostName(currentTabHost)) {
+        throw new Error(
+          "Mobizio redirected this tab outside clece.mobizio.com. Sign in to Mobizio in the browser, then retry auto-collect."
+        );
       }
+    }
+
+    const executeInCollectionTab = async (func, args = []) => {
+      try {
+        return await executeScriptInTab(collectionTabId, func, args);
+      } catch (error) {
+        let latestTab = null;
+        try {
+          latestTab = await chrome.tabs.get(collectionTabId);
+        } catch {
+          // Ignore lookup failure; the tab may have been closed.
+        }
+
+        const latestHost = getTabHostName(latestTab);
+        if (latestHost && !isMobizioHostName(latestHost)) {
+          throw new Error(
+            "Mobizio redirected this tab outside clece.mobizio.com. Sign in to Mobizio in the browser, then retry auto-collect."
+          );
+        }
+
+        const details = error instanceof Error ? error.message : String(error || "Unknown script execution error.");
+        throw new Error(`Could not run auto-collect script on the Mobizio page. ${details}`);
+      }
+    };
+
+    let scraped = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
+
+    let didFallbackToDocuments = false;
+    const fallbackToDocuments = async () => {
+      if (didFallbackToDocuments || collectionSource.kind === "documents") {
+        return false;
+      }
+
+      const discoveredUrl = await executeInCollectionTab(getMobizioDocumentsPageUrlInPage, [
+        caseId,
+        MOBIZIO_DOCUMENT_SERVICE_ID,
+      ]);
+
+      const fallbackDocumentsUrl = String(discoveredUrl || "").trim() || buildMobizioDocumentListUrl(caseId);
+      updateUploadSyncStatus("Switching to Mobizio Documents for downloadable records...");
+      await chrome.tabs.update(collectionTabId, { url: fallbackDocumentsUrl });
+      await waitForTabComplete(collectionTabId);
+      scraped = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
+      didFallbackToDocuments = true;
+      return true;
+    };
+
+    if (!scraped?.ok) {
+      await fallbackToDocuments();
     }
 
     if (!scraped?.ok) {
       throw new Error(scraped?.error || "Could not read documents from the Mobizio list page.");
     }
 
-    const normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
+    let normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
+    if (normalizedDocuments.length === 0) {
+      const switched = await fallbackToDocuments();
+      if (switched) {
+        if (!scraped?.ok) {
+          throw new Error(scraped?.error || "Could not read documents from the Mobizio list page.");
+        }
+        normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
+      }
+    }
+
     if (normalizedDocuments.length === 0) {
       throw new Error("No downloadable documents were found for this service user.");
     }
@@ -1855,7 +1969,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       const label = selectedDocument.fileName || selectedDocument.name || `Document ${index + 1}`;
       updateUploadSyncStatus(`Downloading ${index + 1} of ${selectedDocuments.length}: ${label}`);
 
-      const result = await executeScriptInTab(collectionTabId, downloadMobizioDocumentInPage, [selectedDocument]);
+      const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument]);
       if (!result?.ok || !result?.file?.base64Data) {
         failedDownloads.push(label);
         continue;
