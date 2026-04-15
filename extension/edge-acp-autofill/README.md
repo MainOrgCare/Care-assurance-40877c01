@@ -65,7 +65,7 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Each Intake section now provides both `Upload` and `Auto-Collect` actions.
 - `Auto-Collect` uses section-specific Mobizio source URLs:
   - `Social Work`, `Moving & Handling`, and `Additional Documents` start from `/case_document_list?caseId=<id>&serviceId=1000801`
-  - `Initial Assessment` starts from `/case_data_group?caseId=<id>&serviceDataGroupId=<live group id>`
+  - `Initial Assessment` starts from `/case_data_group?caseId=<id>&serviceDataGroupId=1014998`
   - `Care Plan` starts from `/eoutcomeservice/branch/case_care_plans_dashboard?caseId=<id>`
 - Selection rules for auto-collect: Care Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
 - The extension popup now uses a fully overhauled visual design system (cards, tabs, controls, dialogs, and responsive spacing) while preserving existing workflows.

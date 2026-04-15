@@ -102,6 +102,7 @@ const SUPPORTED_UPLOAD_EXTENSIONS = ["pdf", "doc", "docx", "txt", "csv"];
 
 const MOBIZIO_DOCUMENT_SERVICE_ID = "1000801";
 const MOBIZIO_DOCUMENT_LIST_PATH = "/case_document_list";
+const MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID = "1014998";
 const MOBIZIO_INITIAL_ASSESSMENT_PATH = "/case_data_group";
 const MOBIZIO_CARE_PLAN_DASHBOARD_PATH = "/eoutcomeservice/branch/case_care_plans_dashboard";
 
@@ -696,13 +697,6 @@ const getCaseIdForAutoCollect = () => {
   return "";
 };
 
-const getServiceDataGroupIdForAutoCollect = () => {
-  const typedServiceDataGroupId = String(dom.serviceDataGroupId?.value || "").trim();
-  if (typedServiceDataGroupId) return typedServiceDataGroupId;
-
-  return "";
-};
-
 const parseMobizioUploadedAt = (rawValue) => {
   const value = String(rawValue || "").trim();
   if (!value) return 0;
@@ -801,9 +795,9 @@ const rankDocumentsForSection = (sectionKey, documents) =>
 const buildMobizioDocumentListUrl = (caseId) =>
   `https://clece.mobizio.com${MOBIZIO_DOCUMENT_LIST_PATH}?caseId=${encodeURIComponent(caseId)}&serviceId=${encodeURIComponent(MOBIZIO_DOCUMENT_SERVICE_ID)}`;
 
-const buildMobizioInitialAssessmentUrl = (caseId, serviceDataGroupId) =>
+const buildMobizioInitialAssessmentUrl = (caseId) =>
   `https://clece.mobizio.com${MOBIZIO_INITIAL_ASSESSMENT_PATH}?caseId=${encodeURIComponent(caseId)}&serviceDataGroupId=${encodeURIComponent(
-    String(serviceDataGroupId || "").trim()
+    MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID
   )}`;
 
 const buildMobizioCarePlanDashboardUrl = (caseId) =>
@@ -816,17 +810,12 @@ const createMobizioDocumentsSource = (caseId, label = "Documents") => ({
   allowDocumentsFallback: false,
 });
 
-const createMobizioInitialAssessmentSource = (caseId) => {
-  const serviceDataGroupId = getServiceDataGroupIdForAutoCollect();
-  return {
-    kind: "initialAssessment",
-    label: "Initial Assessment",
-    url: serviceDataGroupId ? buildMobizioInitialAssessmentUrl(caseId, serviceDataGroupId) : "",
-    allowDocumentsFallback: false,
-    requiresServiceDataGroupId: true,
-    serviceDataGroupId,
-  };
-};
+const createMobizioInitialAssessmentSource = (caseId) => ({
+  kind: "initialAssessment",
+  label: "Initial Assessment",
+  url: buildMobizioInitialAssessmentUrl(caseId),
+  allowDocumentsFallback: false,
+});
 
 const createMobizioCarePlanSource = (caseId) => ({
   kind: "carePlan",
@@ -1881,15 +1870,6 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
   try {
     const collectionSource = getMobizioAutoCollectSource(sectionKey, caseId);
-
-    if (collectionSource.requiresServiceDataGroupId && !collectionSource.serviceDataGroupId) {
-      showError(
-        "Initial Assessment auto-collect needs the correct Service Data Group ID. Open the Mobizio Initial Assessment form first or enter the group ID in Autofill settings."
-      );
-      switchTab("autofill");
-      dom.serviceDataGroupId?.focus();
-      return false;
-    }
 
     updateUploadSyncStatus(`Opening Mobizio ${collectionSource.label} for Case ID ${caseId}...`);
 
