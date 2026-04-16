@@ -72,6 +72,8 @@ const SIGNATURE_FIELD_SELECTORS = [
   'input[type="file"][id*="signature" i]',
 ];
 
+const AUTO_SUBMIT_SETTLE_DELAY_MS = 6000;
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitForSelector = async (selector, timeoutMs = 15000, intervalMs = 200) => {
@@ -1857,9 +1859,9 @@ const run = async () => {
         attachManualSubmitListener(advanceOrFinish);
         return;
       }
-      logAction("Submitted. Waiting for page response...");
+      logAction(`Submitted. Waiting ${Math.round(AUTO_SUBMIT_SETTLE_DELAY_MS / 1000)}s before loading the next assessment...`);
       // After auto-submit, wait for the page to process then advance.
-      await wait(2000);
+      await wait(AUTO_SUBMIT_SETTLE_DELAY_MS);
       advanceOrFinish();
       return;
     }

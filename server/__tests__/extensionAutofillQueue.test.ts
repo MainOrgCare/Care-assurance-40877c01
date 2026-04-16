@@ -52,7 +52,12 @@ const FORM_CONFIGS = {
   },
 };
 
-const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+const deepClone = <T>(value: T): T => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  return JSON.parse(JSON.stringify(value));
+};
 
 const readStore = (store: Map<string, unknown>, keys?: string[] | string | Record<string, unknown>) => {
   if (Array.isArray(keys)) {
@@ -426,5 +431,43 @@ test("ACP success-page fallback advances queue when stepComplete is missing", as
     harness.getQueueState()?.currentIndex,
     1,
     "Fallback should advance to the next assessment when explicit stepComplete is missing"
+  );
+});
+
+test("ACP ignores duplicate stepComplete events for the same batch/index", async () => {
+  const harness = createBackgroundHarness();
+  harness.setPayload({
+    formType: "acp",
+    assessments: [{ id: 1 }, { id: 2 }, { id: 3 }],
+  });
+
+  const start = await harness.dispatchRuntimeMessage({
+    type: MESSAGE_TYPES.startAutofill,
+    caseId: "144173",
+    serviceDataGroupId: "1017650",
+  });
+  assert.equal(start?.ok, true);
+
+  const initialQueue = harness.getQueueState();
+  assert.ok(initialQueue?.batchId, "Expected a batchId to be set");
+
+  const first = await harness.dispatchRuntimeMessage({
+    type: MESSAGE_TYPES.stepComplete,
+    currentIndex: 0,
+    batchId: initialQueue?.batchId,
+  });
+  assert.equal(first?.ok, true);
+  assert.equal(harness.getQueueState()?.currentIndex, 1);
+
+  const duplicate = await harness.dispatchRuntimeMessage({
+    type: MESSAGE_TYPES.stepComplete,
+    currentIndex: 0,
+    batchId: initialQueue?.batchId,
+  });
+  assert.equal(duplicate?.ok, true);
+  assert.equal(
+    harness.getQueueState()?.currentIndex,
+    1,
+    "Second stepComplete for the same index must be ignored"
   );
 });

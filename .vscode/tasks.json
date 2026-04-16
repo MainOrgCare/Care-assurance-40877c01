@@ -34,6 +34,22 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Test Extension Queue Regression",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "--import",
+        "tsx",
+        "--test",
+        "--test-force-exit",
+        "server/__tests__/extensionAutofillQueue.test.ts"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ],
   "inputs": [

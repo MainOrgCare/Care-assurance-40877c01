@@ -10,9 +10,29 @@ const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 // ============================================================================
 
 const KEEP_ALIVE_INTERVAL_MS = 25_000; // Well under the 5-minute MV3 timeout
-const FORM_COMPLETION_FALLBACK_DELAY_MS = 2500;
+const FORM_COMPLETION_FALLBACK_DELAY_MS = 6000;
+const ADVANCE_DEDUPE_WINDOW_MS = 120000;
 let keepAliveTimer = null;
 let pendingFormCompletionFallback = null;
+const recentAdvanceKeys = new Map();
+
+const buildAdvanceKey = (batchId, index) => {
+  if (!Number.isInteger(index)) return null;
+  return `${batchId || "legacy"}:${index}`;
+};
+
+const clearStaleAdvanceKeys = () => {
+  const now = Date.now();
+  for (const [key, timestamp] of recentAdvanceKeys.entries()) {
+    if (now - timestamp > ADVANCE_DEDUPE_WINDOW_MS) {
+      recentAdvanceKeys.delete(key);
+    }
+  }
+};
+
+const clearAdvanceDedupeState = () => {
+  recentAdvanceKeys.clear();
+};
 
 function startKeepAlive() {
   if (keepAliveTimer) return;
@@ -290,6 +310,7 @@ const clearBadge = () => {
 const startAutofill = async (caseId, serviceDataGroupId) => {
   startKeepAlive(); // Prevent MV3 worker from dying during batch
   clearPendingFormCompletionFallback();
+  clearAdvanceDedupeState();
 
   const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
   if (!caAcpPayload) {
@@ -359,45 +380,67 @@ const openNextForm = async (options = {}) => {
     return;
   }
 
-  const formType = caAcpQueueState.formType || caAcpPayload.formType || "acp";
+  const activeBatchId = caAcpQueueState.batchId
+    ? String(caAcpQueueState.batchId)
+    : expectedBatchId || "legacy";
+  const advanceKey = buildAdvanceKey(activeBatchId, expectedIndex);
+
+  if (advanceKey) {
+    clearStaleAdvanceKeys();
+    const lastAdvancedAt = recentAdvanceKeys.get(advanceKey);
+    if (lastAdvancedAt && Date.now() - lastAdvancedAt <= ADVANCE_DEDUPE_WINDOW_MS) {
+      console.log(`[ACP Extension] Ignoring duplicate ${source} advance for ${advanceKey}`);
+      return;
+    }
+    recentAdvanceKeys.set(advanceKey, Date.now());
+  }
+
+  try {
+    const formType = caAcpQueueState.formType || caAcpPayload.formType || "acp";
   
-  // For non-acp form types (emar, initialAssessment), clear after single form
-  if (formType !== "acp") {
-    await setStored({
-      [STORAGE_KEYS.queueState]: null,
-      [STORAGE_KEYS.payload]: null,
-      [STORAGE_KEYS.caseInfo]: null,
-      [STORAGE_KEYS.signatureData]: null,
-      [STORAGE_KEYS.signatureBatchId]: null,
-    });
-    stopKeepAlive();
-    clearBadge();
-    return;
-  }
-  const nextIndex = caAcpQueueState.currentIndex + 1;
-  if (nextIndex >= caAcpQueueState.total) {
-    await setStored({
-      [STORAGE_KEYS.queueState]: null,
-      [STORAGE_KEYS.payload]: null,
-      [STORAGE_KEYS.caseInfo]: null,
-      [STORAGE_KEYS.signatureData]: null,
-      [STORAGE_KEYS.signatureBatchId]: null,
-    });
-    stopKeepAlive();
-    clearBadge();
-    return;
-  }
+    // For non-acp form types (emar, initialAssessment), clear after single form
+    if (formType !== "acp") {
+      await setStored({
+        [STORAGE_KEYS.queueState]: null,
+        [STORAGE_KEYS.payload]: null,
+        [STORAGE_KEYS.caseInfo]: null,
+        [STORAGE_KEYS.signatureData]: null,
+        [STORAGE_KEYS.signatureBatchId]: null,
+      });
+      stopKeepAlive();
+      clearBadge();
+      return;
+    }
+    const nextIndex = caAcpQueueState.currentIndex + 1;
+    if (nextIndex >= caAcpQueueState.total) {
+      await setStored({
+        [STORAGE_KEYS.queueState]: null,
+        [STORAGE_KEYS.payload]: null,
+        [STORAGE_KEYS.caseInfo]: null,
+        [STORAGE_KEYS.signatureData]: null,
+        [STORAGE_KEYS.signatureBatchId]: null,
+      });
+      stopKeepAlive();
+      clearBadge();
+      return;
+    }
 
-  await setStored({
-    [STORAGE_KEYS.queueState]: {
-      ...caAcpQueueState,
-      currentIndex: nextIndex,
-    },
-  });
-  updateBadge(nextIndex + 1, caAcpQueueState.total);
+    await setStored({
+      [STORAGE_KEYS.queueState]: {
+        ...caAcpQueueState,
+        currentIndex: nextIndex,
+      },
+    });
+    updateBadge(nextIndex + 1, caAcpQueueState.total);
 
-  const url = buildFormUrl(formType, caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId, caAcpPayload);
-  await reuseOrCreateTab(url);
+    const url = buildFormUrl(formType, caAcpCaseInfo.caseId, caAcpCaseInfo.serviceDataGroupId, caAcpPayload);
+    await reuseOrCreateTab(url);
+  } catch (error) {
+    if (advanceKey) {
+      recentAdvanceKeys.delete(advanceKey);
+    }
+    throw error;
+  }
 };
 
 const isMobizioFormPageUrl = (url) =>
@@ -475,6 +518,7 @@ const scheduleFormCompletionFallback = (queueSnapshot, completionContext = {}) =
 const stopAutofill = async () => {
   stopKeepAlive();
   clearPendingFormCompletionFallback();
+  clearAdvanceDedupeState();
   // Clear ALL PII-containing data when stopping — not just queueState
   // This prevents sensitive care data from persisting in extension storage
   await setStored({
