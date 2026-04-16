@@ -10,7 +10,9 @@ const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 // ============================================================================
 
 const KEEP_ALIVE_INTERVAL_MS = 25_000; // Well under the 5-minute MV3 timeout
+const FORM_COMPLETION_FALLBACK_DELAY_MS = 2500;
 let keepAliveTimer = null;
+let pendingFormCompletionFallback = null;
 
 function startKeepAlive() {
   if (keepAliveTimer) return;
@@ -287,6 +289,7 @@ const clearBadge = () => {
 
 const startAutofill = async (caseId, serviceDataGroupId) => {
   startKeepAlive(); // Prevent MV3 worker from dying during batch
+  clearPendingFormCompletionFallback();
 
   const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
   if (!caAcpPayload) {
@@ -329,7 +332,11 @@ const startAutofill = async (caseId, serviceDataGroupId) => {
   updateBadge(1, total);
 };
 
-const openNextForm = async () => {
+const openNextForm = async (options = {}) => {
+  const expectedIndex = Number.isInteger(options?.expectedIndex) ? Number(options.expectedIndex) : null;
+  const expectedBatchId = options?.expectedBatchId ? String(options.expectedBatchId) : null;
+  const source = options?.source || "unknown";
+
   const { caAcpPayload, caAcpCaseInfo, caAcpQueueState } = await getStored([
     STORAGE_KEYS.payload,
     STORAGE_KEYS.caseInfo,
@@ -337,6 +344,21 @@ const openNextForm = async () => {
   ]);
 
   if (!caAcpPayload || !caAcpCaseInfo || !caAcpQueueState) return;
+
+  if (expectedBatchId && caAcpQueueState.batchId && String(caAcpQueueState.batchId) !== expectedBatchId) {
+    console.log(
+      `[ACP Extension] Ignoring stale ${source} advance for batch ${expectedBatchId}; active batch is ${caAcpQueueState.batchId}`
+    );
+    return;
+  }
+
+  if (Number.isInteger(expectedIndex) && Number(caAcpQueueState.currentIndex) !== expectedIndex) {
+    console.log(
+      `[ACP Extension] Ignoring stale ${source} advance for index ${expectedIndex}; active index is ${caAcpQueueState.currentIndex}`
+    );
+    return;
+  }
+
   const formType = caAcpQueueState.formType || caAcpPayload.formType || "acp";
   
   // For non-acp form types (emar, initialAssessment), clear after single form
@@ -378,8 +400,81 @@ const openNextForm = async () => {
   await reuseOrCreateTab(url);
 };
 
+const isMobizioFormPageUrl = (url) =>
+  Boolean(url && url.includes("new_case_form") && url.includes("formId="));
+
+const isMobizioSuccessPageUrl = (url) =>
+  Boolean(
+    url &&
+      (url.includes("case_form_success") || url.includes("case_data_group") || url.includes("/cases/"))
+  );
+
+const clearPendingFormCompletionFallback = () => {
+  if (pendingFormCompletionFallback?.timer) {
+    clearTimeout(pendingFormCompletionFallback.timer);
+  }
+  pendingFormCompletionFallback = null;
+};
+
+const scheduleFormCompletionFallback = (queueSnapshot, completionContext = {}) => {
+  const snapshotIndex = Number.isInteger(queueSnapshot?.currentIndex)
+    ? Number(queueSnapshot.currentIndex)
+    : null;
+
+  if (!Number.isInteger(snapshotIndex)) return;
+
+  const snapshotBatchId = queueSnapshot?.batchId ? String(queueSnapshot.batchId) : null;
+  const fallbackKey = `${snapshotBatchId || "legacy"}:${snapshotIndex}`;
+
+  if (pendingFormCompletionFallback?.key === fallbackKey) return;
+
+  clearPendingFormCompletionFallback();
+  const timer = setTimeout(async () => {
+    pendingFormCompletionFallback = null;
+
+    try {
+      const { caAcpQueueState } = await getStored([STORAGE_KEYS.queueState]);
+      if (!caAcpQueueState) return;
+      if ((caAcpQueueState.formType || "acp") !== "acp") return;
+      if (snapshotBatchId && caAcpQueueState.batchId && String(caAcpQueueState.batchId) !== snapshotBatchId) return;
+      if (Number(caAcpQueueState.currentIndex) !== snapshotIndex) return;
+
+      const completionTabId = Number.isInteger(completionContext?.tabId)
+        ? Number(completionContext.tabId)
+        : null;
+
+      if (Number.isInteger(completionTabId)) {
+        const currentTab = await chrome.tabs.get(completionTabId).catch(() => null);
+        const currentUrl = currentTab?.url || "";
+        if (isMobizioFormPageUrl(currentUrl) || !isMobizioSuccessPageUrl(currentUrl)) {
+          // Tab has moved on from the captured success state, so this fallback is stale.
+          return;
+        }
+      }
+
+      console.log(
+        `[ACP Extension] Step-complete not observed for ${fallbackKey}; applying success-page fallback advance`
+      );
+
+      await openNextForm({
+        source: "success-page-fallback",
+        expectedIndex: snapshotIndex,
+        expectedBatchId: snapshotBatchId,
+      });
+    } catch (error) {
+      console.warn("[ACP Extension] Success-page fallback advance failed:", error?.message || error);
+    }
+  }, FORM_COMPLETION_FALLBACK_DELAY_MS);
+
+  pendingFormCompletionFallback = {
+    key: fallbackKey,
+    timer,
+  };
+};
+
 const stopAutofill = async () => {
   stopKeepAlive();
+  clearPendingFormCompletionFallback();
   // Clear ALL PII-containing data when stopping — not just queueState
   // This prevents sensitive care data from persisting in extension storage
   await setStored({
@@ -436,15 +531,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (formType !== 'acp') return;
   
   // If we're on a success/confirmation page (not the form page), advance to next
-  const isFormPage =
-    tab.url && tab.url.includes("new_case_form") && tab.url.includes("formId=");
-  const isSuccessPage =
-    tab.url &&
-    (tab.url.includes("case_form_success") || tab.url.includes("case_data_group") || tab.url.includes("/cases/"));
+  const isSuccessPage = isMobizioSuccessPageUrl(tab.url || "");
 
   if (isSuccessPage && caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
-    console.log("[ACP Extension] Detected form completion, advancing to next assessment");
-    await openNextForm();
+    // Use success-page detection only as a fallback when explicit step-complete doesn't arrive.
+    scheduleFormCompletionFallback(caAcpQueueState, {
+      tabId,
+      url: tab.url || "",
+    });
   }
 });
 
@@ -833,7 +927,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === MESSAGE_TYPES.stepComplete) {
-    openNextForm()
+    clearPendingFormCompletionFallback();
+
+    const expectedIndex = Number.isInteger(message?.currentIndex) ? Number(message.currentIndex) : null;
+    const expectedBatchId = message?.batchId ? String(message.batchId) : null;
+
+    openNextForm({
+      source: "step-complete",
+      expectedIndex,
+      expectedBatchId,
+    })
       .then(() => safeSendResponse({ ok: true }))
       .catch((error) => {
         setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));

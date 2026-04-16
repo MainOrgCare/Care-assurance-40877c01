@@ -1653,8 +1653,12 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
 const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
 const saveStorage = (items) => STORAGE_HELPERS.set(items);
 
-const notifyStepComplete = () =>
-  chrome.runtime.sendMessage({ type: MESSAGE_TYPES?.stepComplete || "CA_EXTENSION_STEP_COMPLETE" });
+const notifyStepComplete = (queueState = null) =>
+  chrome.runtime.sendMessage({
+    type: MESSAGE_TYPES?.stepComplete || "CA_EXTENSION_STEP_COMPLETE",
+    currentIndex: Number.isInteger(queueState?.currentIndex) ? Number(queueState.currentIndex) : undefined,
+    batchId: queueState?.batchId ? String(queueState.batchId) : undefined,
+  });
 
 const isRiskFormPage = () => Boolean(findRiskTable());
 
@@ -1832,7 +1836,7 @@ const run = async () => {
     const advanceOrFinish = () => {
       if (caAcpQueueState.currentIndex + 1 < caAcpQueueState.total) {
         logAction(`Assessment ${caAcpQueueState.currentIndex + 1}/${caAcpQueueState.total} complete. Advancing to next.`);
-        notifyStepComplete();
+        notifyStepComplete(caAcpQueueState);
       } else {
         logAction(`All ${caAcpQueueState.total} assessment(s) complete.`);
         saveStorage({
