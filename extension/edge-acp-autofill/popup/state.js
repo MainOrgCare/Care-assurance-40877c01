@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.6.25
+ * CareAssurance Extension v0.6.26
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -28,6 +28,7 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   serverUrl: "caAcpServerUrl",
   lastTab: "caAcpLastTab",
   lastAutofillUser: "caAcpLastAutofillUser",
+  appTheme: "caAcpAppTheme",
 };
 
 export const MESSAGE_TYPES = _g.MESSAGE_TYPES || {
@@ -127,14 +128,17 @@ export async function loadStorage(keys) {
     }
   } catch { /* local storage unavailable */ }
 
-  // Fallback: if session keys were missed, try local
-  for (const key of sessionKeys) {
-    if (results[key] === undefined) {
-      try {
-        const fallback = await chrome.storage.local.get([key]);
-        if (fallback[key] !== undefined) results[key] = fallback[key];
-      } catch { /* ignore */ }
-    }
+  // Fallback: if session keys were missed, pull them from local in one request.
+  const missingSessionKeys = sessionKeys.filter((key) => results[key] === undefined);
+  if (missingSessionKeys.length > 0) {
+    try {
+      const fallback = await chrome.storage.local.get(missingSessionKeys);
+      for (const key of missingSessionKeys) {
+        if (fallback[key] !== undefined) {
+          results[key] = fallback[key];
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   return results;

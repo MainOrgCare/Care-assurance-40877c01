@@ -43,6 +43,15 @@ const themeOptions: Array<{
     surface: "hsl(210 20% 93%)",
   },
   {
+    value: "sunrise",
+    label: "Sunrise",
+    description: "Warm daytime palette",
+    bgStart: "hsl(34 92% 95%)",
+    bgEnd: "hsl(18 86% 90%)",
+    accent: "hsl(18 82% 44%)",
+    surface: "hsl(24 70% 85%)",
+  },
+  {
     value: "dark",
     label: "Dark",
     description: "Reduced-glare dark mode",
@@ -69,6 +78,15 @@ const themeOptions: Array<{
     accent: "hsl(172 66% 50%)",
     surface: "hsl(176 57% 19%)",
   },
+  {
+    value: "aurora",
+    label: "Aurora",
+    description: "Emerald dark palette",
+    bgStart: "hsl(164 42% 10%)",
+    bgEnd: "hsl(182 40% 16%)",
+    accent: "hsl(148 62% 44%)",
+    surface: "hsl(170 32% 20%)",
+  },
 ];
 
 const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include an uppercase letter, lowercase letter, number, and special character.`;
@@ -85,10 +103,16 @@ export default function Settings() {
     setFontSize,
     compactMode,
     setCompactMode,
+    showQuickAccessBar,
+    setShowQuickAccessBar,
     showCopyConfirmation,
     setShowCopyConfirmation,
     autoExpandSections,
     setAutoExpandSections,
+    reduceMotion,
+    setReduceMotion,
+    highContrast,
+    setHighContrast,
   } = useSettings();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -378,6 +402,19 @@ export default function Settings() {
 
               <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
                 <div>
+                  <Label htmlFor="quick-access" className="cursor-pointer text-sm font-medium text-foreground">Quick Access Bar</Label>
+                  <p className="text-xs text-muted-foreground/70">Show pinned and recent page shortcuts below the header</p>
+                </div>
+                <Switch
+                  id="quick-access"
+                  checked={showQuickAccessBar}
+                  onCheckedChange={setShowQuickAccessBar}
+                  data-testid="switch-quick-access"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
+                <div>
                   <Label htmlFor="auto-expand" className="cursor-pointer text-sm font-medium text-foreground">Auto-expand Sections</Label>
                   <p className="text-xs text-muted-foreground/70">Automatically expand menu sections</p>
                 </div>
@@ -428,16 +465,8 @@ export default function Settings() {
                 </div>
                 <Switch
                   id="reduced-motion"
-                  checked={typeof window !== 'undefined' && document.documentElement.classList.contains('reduce-motion')}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      document.documentElement.classList.add('reduce-motion');
-                      localStorage.setItem('reduce-motion', 'true');
-                    } else {
-                      document.documentElement.classList.remove('reduce-motion');
-                      localStorage.removeItem('reduce-motion');
-                    }
-                  }}
+                  checked={reduceMotion}
+                  onCheckedChange={setReduceMotion}
                   data-testid="switch-reduced-motion"
                 />
               </div>
@@ -448,16 +477,8 @@ export default function Settings() {
                 </div>
                 <Switch
                   id="high-contrast"
-                  checked={typeof window !== 'undefined' && document.documentElement.classList.contains('high-contrast')}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      document.documentElement.classList.add('high-contrast');
-                      localStorage.setItem('high-contrast', 'true');
-                    } else {
-                      document.documentElement.classList.remove('high-contrast');
-                      localStorage.removeItem('high-contrast');
-                    }
-                  }}
+                  checked={highContrast}
+                  onCheckedChange={setHighContrast}
                   data-testid="switch-high-contrast"
                 />
               </div>
@@ -565,9 +586,10 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               {[
-                { keys: ["Ctrl", "K"], description: "Open command palette" },
-                { keys: ["Ctrl", "B"], description: "Toggle sidebar" },
-                { keys: ["Ctrl", "/"], description: "Open keyboard shortcuts" },
+                { keys: ["Ctrl/Cmd", "K"], description: "Open command palette" },
+                { keys: ["Ctrl/Cmd", "B"], description: "Toggle sidebar" },
+                { keys: ["Ctrl/Cmd", "/"], description: "Toggle Compli-ee assistant" },
+                { keys: ["?"], description: "Open keyboard shortcuts" },
                 { keys: ["Esc"], description: "Close dialog / modal" },
               ].map((shortcut, i) => (
                 <div key={i} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3">

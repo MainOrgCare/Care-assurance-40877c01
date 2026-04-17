@@ -1,5 +1,24 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.26 - Latest-Document Auto-Collect Prioritization
+
+### Intake Auto-Collect Relevance and Recency
+
+- Strengthened section keyword matching for Initial Assessment and Care Plan so suggested files are more tightly aligned with section intent.
+- Upgraded uploaded-date parsing to handle additional Mobizio date formats and avoid ambiguous numeric date misreads.
+- Added inferred timestamp fallback from document metadata (filename/name/description) when upload-date columns are missing.
+- Updated ranking behavior so Initial Assessment, Care Plan, and Additional Documents prioritize the latest relevant records before older suggestions.
+
+### Picker Defaults and Download Reliability
+
+- Updated default picker selection so single-select sections preselect the strongest latest candidate.
+- Added latest-first preselection for multi-select sections where operators typically want the newest document quickly.
+- Enabled Initial Assessment source fallback to case Documents when the source page has no downloadable records, improving latest-file retrieval reliability.
+
+### Versioning
+
+- Bumped extension version to `0.6.26` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.25 - Workflow Hardening and Professional Upload Controls
 
 ### Upload Workflow Reliability

@@ -30,12 +30,14 @@ import {
   AlertTriangle,
   Megaphone,
   Search,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy, Fragment } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
 import { useTemporaryDataTimer } from "@/context/TemporaryDataContext";
+import { useSettings } from "@/context/SettingsContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -48,7 +50,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ComplieeIdleButton from "@/components/ComplieeIdleButton";
 import CommandPalette from "@/components/CommandPalette";
 import KeyboardShortcutsDialog from "@/components/KeyboardShortcutsDialog";
@@ -60,8 +61,15 @@ import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useRecentPages } from "@/hooks/useRecentPages";
+import { useFavorites } from "@/hooks/useFavorites";
 import { useSessionTimer } from "@/hooks/useSessionTimer";
-import { resolvePageMeta, buildBreadcrumbs, type PageMeta } from "@/config/navigation";
+import {
+  resolvePageMeta,
+  buildBreadcrumbs,
+  TOP_NAV_LINKS,
+  NAV_GROUPS,
+  type PageMeta,
+} from "@/config/navigation";
 
 // Page metadata and breadcrumbs are now defined in @/config/navigation.ts
 
@@ -126,16 +134,19 @@ const SidebarContent = memo(function SidebarContent({
   handleSecretClick,
   logout,
   collapsed = false,
+  autoExpandSections = true,
 }: {
   location: string;
   handleSecretClick: (e: React.MouseEvent) => void;
   logout: () => void;
   collapsed?: boolean;
+  autoExpandSections?: boolean;
 }) {
   const { user } = useAuth();
   const { timeLeft } = useTemporaryDataTimer();
   const isAdminUser = user?.role === "admin";
   const isCollapsed = Boolean(collapsed);
+  const shouldAutoExpandSections = Boolean(autoExpandSections);
   
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -156,36 +167,38 @@ const SidebarContent = memo(function SidebarContent({
   const [openAdmin, setOpenAdmin] = useState(isAdminUser && isAdminRoute);
 
   useEffect(() => {
-     if (location.startsWith("/service-users")) setOpenServiceUsers(true);
-     if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
-      if (
-        isAdminUser &&
-        (location.startsWith("/admin") ||
-          location === "/shadow-admin-portal" ||
-          location === "/testing-features" ||
-          location === "/care-worker-rotas" ||
-          location === "/rostering-unified" ||
-          location === "/billing-tool" ||
-          location === "/system-logs")
-      ) {
-        setOpenAdmin(true);
-      }
-  }, [location, isAdminUser]);
+    if (!shouldAutoExpandSections) return;
+
+    if (location.startsWith("/service-users")) setOpenServiceUsers(true);
+    if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
+    if (
+      isAdminUser &&
+      (location.startsWith("/admin") ||
+        location === "/shadow-admin-portal" ||
+        location === "/testing-features" ||
+        location === "/care-worker-rotas" ||
+        location === "/rostering-unified" ||
+        location === "/billing-tool" ||
+        location === "/system-logs")
+    ) {
+      setOpenAdmin(true);
+    }
+  }, [location, isAdminUser, shouldAutoExpandSections]);
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-2.5 rounded-xl text-[0.8125rem] font-semibold tracking-[-0.01em] transition-all duration-150 group cursor-pointer",
+      "workspace-nav-link group relative flex items-center gap-2.5 rounded-xl text-[0.8125rem] font-semibold tracking-[-0.01em] transition-all duration-150 cursor-pointer",
       isCollapsed ? "px-2.5 py-2.75 justify-center gap-0" : "px-3.5 py-2.5",
       isActive
-        ? "bg-sidebar-primary/16 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_18%,transparent),0_14px_30px_-26px_rgba(15,23,42,0.6)]"
+        ? "is-active bg-sidebar-primary/16 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_18%,transparent),0_14px_30px_-26px_rgba(15,23,42,0.6)]"
         : "text-sidebar-foreground/72 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.07]"
     ), [isCollapsed]);
 
   const subNavLinkClass = useCallback((isActive: boolean) =>
     cn(
-      "flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-[0.76rem] font-medium transition-all duration-150",
+      "workspace-sub-nav-link relative flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-[0.76rem] font-medium transition-all duration-150",
       isActive
-        ? "bg-sidebar-primary/10 text-sidebar-primary shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_12%,transparent)]"
+        ? "is-active bg-sidebar-primary/10 text-sidebar-primary shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_12%,transparent)]"
         : "text-sidebar-foreground/56 hover:text-sidebar-foreground/88 hover:bg-sidebar-foreground/[0.05]"
     ), []);
 
@@ -275,7 +288,7 @@ const SidebarContent = memo(function SidebarContent({
             href="/service-users/upload"
             title="Service Users"
             className={cn(
-              "flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
+              "workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
             )}
           >
             <div className="flex items-center gap-0">
@@ -290,7 +303,10 @@ const SidebarContent = memo(function SidebarContent({
             className="space-y-0.5"
           >
              <CollapsibleTrigger
-              className="flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
+              className={cn(
+                "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]",
+                openServiceUsers && "is-open"
+              )}
             >
               <div className="flex items-center gap-3">
                 <Users size={16} className="text-sidebar-foreground/50" />
@@ -327,7 +343,7 @@ const SidebarContent = memo(function SidebarContent({
           <Link
             href="/care-workers/list"
             title="Care Workers"
-            className="flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+            className="workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
           >
             <div className="flex items-center gap-0">
               <UserCog size={16} className="text-sidebar-foreground/50" />
@@ -341,7 +357,10 @@ const SidebarContent = memo(function SidebarContent({
             className="space-y-0.5"
           >
              <CollapsibleTrigger
-              className="flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+              className={cn(
+                "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
+                openCareWorkers && "is-open"
+              )}
             >
               <div className="flex items-center gap-3">
                 <UserCog size={16} className="text-sidebar-foreground/50" />
@@ -372,7 +391,7 @@ const SidebarContent = memo(function SidebarContent({
             <Link
               href="/shadow-admin-portal"
               title="Admin"
-              className="flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+              className="workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
             >
               <div className="flex items-center gap-0">
                 <Lock size={16} className="text-sidebar-foreground/50" />
@@ -386,7 +405,10 @@ const SidebarContent = memo(function SidebarContent({
               className="space-y-0.5"
             >
               <CollapsibleTrigger
-                className="flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+                className={cn(
+                  "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
+                  openAdmin && "is-open"
+                )}
               >
                 <div className="flex items-center gap-3">
                   <Lock size={16} className="text-sidebar-foreground/50" />
@@ -461,6 +483,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const shouldPollUnread = !isFullBleed && location !== "/messages";
   const [clickCount, setClickCount] = useState(0);
   const { user, logout, refetchUser } = useAuth();
+  const {
+    autoExpandSections,
+    showQuickAccessBar,
+    setShowQuickAccessBar,
+  } = useSettings();
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { isConnected } = useSession();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -498,7 +526,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useScrollToTop();
 
   // Track recently visited pages (persisted to localStorage)
-  useRecentPages();
+  const recentPages = useRecentPages();
 
   // Session duration timer
   const sessionDuration = useSessionTimer();
@@ -511,6 +539,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         if (!current) setHasOpenedChat(true);
         return !current;
       });
+    }, []),
+    onToggleSidebar: useCallback(() => {
+      if (window.innerWidth < 768) {
+        setIsMobileOpen((current) => !current);
+        return;
+      }
+      autoCollapseRef.current = false;
+      setIsSidebarCollapsed((current) => !current);
     }, []),
     onOpenKeyboardShortcuts: useCallback(() => setIsKeyboardShortcutsOpen(true), []),
   });
@@ -530,6 +566,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!username) return "Account";
     return username.toLowerCase() === "admin" ? "Administrator" : username;
   }, [user?.firstName, user?.lastName, user?.username]);
+
+  const routeLabelLookup = useMemo(() => {
+    const entries = [
+      ...TOP_NAV_LINKS,
+      ...NAV_GROUPS.flatMap((group) => group.children),
+    ];
+    const map = new Map<string, string>();
+    entries.forEach((entry) => map.set(entry.href, entry.label));
+    return map;
+  }, []);
+
+  const favoriteQuickLinks = useMemo(() => {
+    return favorites
+      .filter((path) => path !== location)
+      .map((path) => ({
+        path,
+        label: routeLabelLookup.get(path) || resolvePageMeta(path).title,
+      }))
+      .slice(0, 5);
+  }, [favorites, location, routeLabelLookup]);
+
+  const recentQuickLinks = useMemo(() => {
+    return recentPages
+      .filter((entry) => entry.path !== location && !favorites.includes(entry.path))
+      .slice(0, 4)
+      .map((entry) => ({ path: entry.path, label: entry.label }));
+  }, [recentPages, location, favorites]);
+
+  const currentPageIsFavorite = useMemo(() => isFavorite(location), [isFavorite, location]);
+  const shouldRenderQuickAccess = !isFullBleed && showQuickAccessBar;
 
   // Fetch unread message count (visibility-aware to reduce background work)
   useEffect(() => {
@@ -590,38 +656,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       window.removeEventListener("online", handleOnline);
     };
   }, [user?.id, shouldPollUnread, handleUnauthorized]);
-
-  // Ctrl+/ for chat assistant (kept separately since it needs typing-context check
-  // and the global shortcuts hook doesn't handle Ctrl+/ to avoid conflict)
-  useEffect(() => {
-    if (!user) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const tagName = target?.tagName;
-      const isTypingContext =
-        target?.isContentEditable ||
-        tagName === "INPUT" ||
-        tagName === "TEXTAREA" ||
-        tagName === "SELECT";
-
-      if (isTypingContext) return;
-
-      if ((event.ctrlKey || event.metaKey) && event.key === "/") {
-        event.preventDefault();
-        setIsChatOpen((current) => {
-          const next = !current;
-          if (next) {
-            setHasOpenedChat(true);
-          }
-          return next;
-        });
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -848,6 +882,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           handleSecretClick={handleSecretClick}
           logout={logout}
           collapsed={isSidebarCollapsed}
+          autoExpandSections={autoExpandSections}
         />
       </motion.aside>
 
@@ -857,8 +892,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <main id="main-content" tabIndex={-1} data-scroll-region className={mainClass} aria-label={pageMeta.title || "Main content"}>
         {/* Header (hidden on full-bleed studio routes to maximize usable workspace) */}
         {!isFullBleed && (
-          <header className={cn("workspace-header sticky top-0 z-30 flex h-[4.25rem] items-center justify-between border-b transition-all duration-300 px-4 md:px-6 lg:px-7 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-primary/0 before:via-primary/12 before:to-primary/0", isScrolled ? "bg-card/94 shadow-[0_18px_32px_-30px_rgba(15,23,42,0.55)] border-border/75 backdrop-blur-xl" : "bg-card/72 shadow-none border-transparent backdrop-blur-md")} role="banner" aria-label="Page header" style={{ backdropFilter: isScrolled ? "blur(18px)" : "blur(10px)" }}>
-            <div className="flex items-center gap-3 min-w-0">
+          <header
+            className={cn(
+              "workspace-header sticky top-0 z-30 border-b px-3 sm:px-4 lg:px-6 transition-all duration-300",
+              isScrolled
+                ? "border-border/70 bg-card/92 shadow-[0_16px_34px_-30px_rgba(15,23,42,0.72)]"
+                : "border-transparent bg-card/62 shadow-none"
+            )}
+            role="banner"
+            aria-label="Page header"
+          >
+            <div className="mx-auto flex h-[3.8rem] w-full max-w-[var(--content-max-width)] items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
@@ -878,7 +923,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   />
                 </SheetContent>
               </Sheet>
-
+                <div className="flex min-w-0 items-center gap-2">
                   <Button
                  variant="ghost"
                  size="icon"
@@ -919,8 +964,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </div>
             </div>
+            </div>
 
-            <div className="flex items-center gap-2 rounded-2xl border border-border/65 bg-card/85 backdrop-blur-md px-2.5 py-1.5 shadow-[var(--shadow-sm)]">
+            <div className="workspace-header-tools flex items-center gap-2 rounded-xl border border-border/55 bg-background/76 px-2 py-1.5 shadow-[var(--shadow-xs)] backdrop-blur-lg">
+              <button
+                onClick={() => setIsCommandPaletteOpen(true)}
+                className="md:hidden flex items-center justify-center h-8 w-8 rounded-xl bg-muted/48 hover:bg-muted/65 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                title="Command Palette"
+                aria-label="Open command palette"
+              >
+                <Search className="h-4 w-4 text-muted-foreground" />
+              </button>
+
               {/* Command Palette Trigger */}
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
@@ -989,6 +1044,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             </div>
+            </div>
           </header>
         )}
 
@@ -1011,6 +1067,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     setIsMobileOpen(false);
                     logout();
                   }}
+                  autoExpandSections={autoExpandSections}
                 />
               </SheetContent>
             </Sheet>
@@ -1037,6 +1094,84 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
               <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
+            </div>
+          </div>
+        )}
+
+        {shouldRenderQuickAccess && (
+          <div className="px-3 sm:px-4 lg:px-6 pt-2">
+            <div className="workspace-quick-access rounded-2xl border border-border/60 bg-card/72 backdrop-blur-sm shadow-[var(--shadow-sm)] px-2.5 sm:px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleFavorite(location)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+                    currentPageIsFavorite
+                      ? "border-warning/30 bg-warning/10 text-warning"
+                      : "border-border/65 bg-background/72 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                  title={currentPageIsFavorite ? "Remove current page from favorites" : "Add current page to favorites"}
+                >
+                  <Star
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      currentPageIsFavorite ? "fill-warning text-warning" : "text-muted-foreground"
+                    )}
+                  />
+                  {currentPageIsFavorite ? "Pinned" : "Pin page"}
+                </button>
+
+                {favoriteQuickLinks.length > 0 && (
+                  <span className="quick-access-group-label inline-flex items-center rounded-md border border-border/55 bg-background/58 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
+                    Pinned
+                  </span>
+                )}
+
+                {favoriteQuickLinks.map((link) => (
+                  <Link
+                    key={`quick-favorite-${link.path}`}
+                    href={link.path}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border/65 bg-background/78 px-2.5 py-1.5 text-[11px] font-medium text-foreground/85 hover:bg-muted/55 transition-colors"
+                    title={`Open ${link.label}`}
+                  >
+                    <Star className="h-3 w-3 text-warning/90" />
+                    {link.label}
+                  </Link>
+                ))}
+
+                {recentQuickLinks.length > 0 && (
+                  <span className="quick-access-group-label inline-flex items-center rounded-md border border-border/55 bg-background/58 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
+                    Recent
+                  </span>
+                )}
+
+                {recentQuickLinks.map((link) => (
+                  <Link
+                    key={`quick-recent-${link.path}`}
+                    href={link.path}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border/65 bg-muted/25 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/45 transition-colors"
+                    title={`Re-open ${link.label}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/55" aria-hidden="true" />
+                    {link.label}
+                  </Link>
+                ))}
+
+                {favoriteQuickLinks.length === 0 && recentQuickLinks.length === 0 && (
+                  <span className="text-[10px] font-medium text-muted-foreground/78 px-1.5 py-1">
+                    Pin pages to build your quick bar.
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAccessBar(false)}
+                  className="ml-auto inline-flex items-center rounded-lg border border-transparent px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 hover:text-foreground hover:bg-muted/50 transition-colors"
+                >
+                  Hide
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1081,10 +1216,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Suspense>
             ) : (
               <>
-                <div className="mb-7">
-                  <div className="flex items-center gap-2.5 mb-2.5">
-                    <span className="inline-block h-1 w-8 rounded-full bg-primary/40" />
-                    <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-primary/50">{pageMeta.section}</p>
+                <div className="workspace-title-shell mb-7">
+                  <div className="workspace-title-kicker mb-2.5 flex items-center gap-2.5">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70" />
+                    <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-primary/58">{pageMeta.section}</p>
+                    <span className="hidden sm:inline-block h-1 w-1 rounded-full bg-border/65" />
+                    <span className="hidden sm:inline text-[10px] font-medium text-muted-foreground/76">CareAssurance workspace</span>
                   </div>
                   <h1 className="text-[1.4rem] sm:text-[1.6rem] font-heading font-bold text-foreground tracking-[-0.03em] leading-tight">{pageMeta.title}</h1>
                   <p className="mt-2.5 max-w-2xl text-[0.875rem] leading-relaxed text-muted-foreground">{pageMeta.subtitle}</p>
@@ -1105,41 +1242,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/60 bg-background/90 backdrop-blur-sm px-6 py-3 transition-[background-color,border-color] duration-200">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
-              <div className="flex flex-wrap items-center justify-center gap-3 font-medium">
-                <span className="text-foreground/55">&copy; {new Date().getFullYear()} CareAssurance</span>
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/60 px-4 py-2.5 sm:px-6 transition-[background-color,border-color] duration-200">
+            <div className="mx-auto flex w-full max-w-[var(--content-max-width)] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2.5 font-medium">
+                <span className="text-foreground/60">&copy; {new Date().getFullYear()} CareAssurance</span>
                 <span className="hidden sm:inline text-border/70">&middot;</span>
-                <span className="hidden sm:inline text-muted-foreground/60 text-[10px]">Precision tools for high-trust care teams</span>
+                <span className="hidden lg:inline text-muted-foreground/68">Operational assurance workspace</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-1.5 text-[9px] text-muted-foreground/70 font-medium tabular-nums">
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-muted/40 transition-colors cursor-help">
-                          <span className={cn(
-                            "h-1.5 w-1.5 rounded-full transition-colors",
-                            isConnected ? "bg-success" : "bg-destructive"
-                          )} />
-                          <span>{isConnected ? "Connected" : "Disconnected"}</span>
-                          <span className="mx-0.5 opacity-30">&middot;</span>
-                          <span>{sessionDuration}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-[10px]">
-                        <p className="font-semibold">{isConnected ? "WebSocket Connected" : "WebSocket Disconnected"}</p>
-                        <p className="text-muted-foreground">Session: {sessionDuration}</p>
-                        <p className="text-muted-foreground">Press ? for keyboard shortcuts</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="hidden sm:block h-3 w-px bg-border/30" />
-                <Link href="/terms" className="transition-colors hover:text-foreground text-[11px] font-medium underline-offset-2 hover:underline" data-testid="link-footer-terms">
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/85">
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full transition-colors",
+                      isConnected ? "bg-success" : "bg-destructive"
+                    )}
+                  />
+                  {isConnected ? "Connected" : "Offline"}
+                </span>
+                <span className="hidden md:inline text-muted-foreground/70 tabular-nums">{sessionDuration}</span>
+                <span className="h-3 w-px bg-border/30" />
+                <Link href="/terms" className="text-[10px] font-medium transition-colors hover:text-foreground hover:underline underline-offset-2" data-testid="link-footer-terms">
                   Terms
                 </Link>
-                <Link href="/privacy" className="transition-colors hover:text-foreground text-[11px] font-medium underline-offset-2 hover:underline" data-testid="link-footer-privacy">
+                <Link href="/privacy" className="text-[10px] font-medium transition-colors hover:text-foreground hover:underline underline-offset-2" data-testid="link-footer-privacy">
                   Privacy
                 </Link>
               </div>

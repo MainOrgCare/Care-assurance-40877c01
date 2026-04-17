@@ -1,10 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 
 export type FontSize = "small" | "medium" | "large";
-export type AppTheme = "light" | "dark" | "midnight" | "ocean";
+export type AppTheme = "light" | "sunrise" | "dark" | "midnight" | "ocean" | "aurora";
 
-const THEME_CLASSES = ["theme-light", "theme-dark", "theme-midnight", "theme-ocean"];
+const THEME_CLASSES = [
+  "theme-light",
+  "theme-sunrise",
+  "theme-dark",
+  "theme-midnight",
+  "theme-ocean",
+  "theme-aurora",
+];
 const THEME_TRANSITION_CLASS = "theme-transitioning";
+const REDUCE_MOTION_CLASS = "reduce-motion";
+const HIGH_CONTRAST_CLASS = "high-contrast";
+const APP_THEME_SYNC_MESSAGE = "CA_EXTENSION_SYNC_THEME";
+const DARK_THEMES: readonly AppTheme[] = ["dark", "midnight", "ocean", "aurora"];
 
 const FONT_SIZES: readonly FontSize[] = ["small", "medium", "large"];
 
@@ -13,14 +24,21 @@ function isFontSize(value: string | null): value is FontSize {
 }
 
 function isAppTheme(value: string | null): value is AppTheme {
-  return value === "light" || value === "dark" || value === "midnight" || value === "ocean";
+  return (
+    value === "light" ||
+    value === "sunrise" ||
+    value === "dark" ||
+    value === "midnight" ||
+    value === "ocean" ||
+    value === "aurora"
+  );
 }
 
 function applyThemeToDom(theme: AppTheme): void {
   if (typeof document === "undefined") return;
 
   const themeClass = `theme-${theme}`;
-  const isDarkTheme = theme !== "light";
+  const isDarkTheme = DARK_THEMES.includes(theme);
   const root = document.documentElement;
   const body = document.body;
 
@@ -54,6 +72,22 @@ function animateThemeSwap(): void {
   }, 220);
 }
 
+function applyPreferenceClass(className: string, enabled: boolean): void {
+  if (typeof document === "undefined") return;
+
+  const root = document.documentElement;
+  const body = document.body;
+
+  if (enabled) {
+    root.classList.add(className);
+    body?.classList.add(className);
+    return;
+  }
+
+  root.classList.remove(className);
+  body?.classList.remove(className);
+}
+
 interface SettingsContextType {
   theme: AppTheme;
   setTheme: (theme: AppTheme) => void;
@@ -61,10 +95,16 @@ interface SettingsContextType {
   setFontSize: (size: FontSize) => void;
   compactMode: boolean;
   setCompactMode: (compact: boolean) => void;
+  showQuickAccessBar: boolean;
+  setShowQuickAccessBar: (show: boolean) => void;
   showCopyConfirmation: boolean;
   setShowCopyConfirmation: (show: boolean) => void;
   autoExpandSections: boolean;
   setAutoExpandSections: (expand: boolean) => void;
+  reduceMotion: boolean;
+  setReduceMotion: (reduce: boolean) => void;
+  highContrast: boolean;
+  setHighContrast: (enabled: boolean) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -107,10 +147,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const saved = getStorageItem("lewis-compact-mode");
     return saved === "true";
   });
+
+  const [showQuickAccessBar, setShowQuickAccessBarState] = useState(() => {
+    const saved = getStorageItem("lewis-show-quick-access");
+    return saved !== "false";
+  });
   
   const [showCopyConfirmation, setShowCopyConfirmationState] = useState(() => {
     const saved = getStorageItem("lewis-copy-confirmation");
     return saved !== "false";
+  });
+
+  const [reduceMotion, setReduceMotionState] = useState(() => {
+    const saved = getStorageItem("lewis-reduce-motion") ?? getStorageItem("reduce-motion");
+    return saved === "true";
+  });
+
+  const [highContrast, setHighContrastState] = useState(() => {
+    const saved = getStorageItem("lewis-high-contrast") ?? getStorageItem("high-contrast");
+    return saved === "true";
   });
   
   const [autoExpandSections, setAutoExpandSectionsState] = useState(() => {
@@ -141,13 +196,43 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setStorageItem("lewis-compact-mode", String(compact));
   }, []);
 
+  const setShowQuickAccessBar = useCallback((show: boolean) => {
+    setShowQuickAccessBarState(show);
+    setStorageItem("lewis-show-quick-access", String(show));
+  }, []);
+
   const setShowCopyConfirmation = useCallback((show: boolean) => {
     setShowCopyConfirmationState(show);
     setStorageItem("lewis-copy-confirmation", String(show));
   }, []);
 
+  const setReduceMotion = useCallback((reduce: boolean) => {
+    setReduceMotionState(reduce);
+    setStorageItem("lewis-reduce-motion", String(reduce));
+  }, []);
+
+  const setHighContrast = useCallback((enabled: boolean) => {
+    setHighContrastState(enabled);
+    setStorageItem("lewis-high-contrast", String(enabled));
+  }, []);
+
   useEffect(() => {
     applyThemeToDom(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.postMessage(
+        {
+          type: APP_THEME_SYNC_MESSAGE,
+          payload: { theme },
+        },
+        window.location.origin,
+      );
+    } catch {
+      // ignore extension bridge dispatch failures
+    }
   }, [theme]);
 
   useEffect(() => {
@@ -163,6 +248,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [compactMode]);
 
+  useEffect(() => {
+    applyPreferenceClass(REDUCE_MOTION_CLASS, reduceMotion);
+  }, [reduceMotion]);
+
+  useEffect(() => {
+    applyPreferenceClass(HIGH_CONTRAST_CLASS, highContrast);
+  }, [highContrast]);
+
   const contextValue = useMemo(() => ({
     theme,
     setTheme,
@@ -170,11 +263,34 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setFontSize,
     compactMode,
     setCompactMode,
+    showQuickAccessBar,
+    setShowQuickAccessBar,
     showCopyConfirmation,
     setShowCopyConfirmation,
     autoExpandSections,
     setAutoExpandSections,
-  }), [theme, setTheme, fontSize, setFontSize, compactMode, setCompactMode, showCopyConfirmation, setShowCopyConfirmation, autoExpandSections, setAutoExpandSections]);
+    reduceMotion,
+    setReduceMotion,
+    highContrast,
+    setHighContrast,
+  }), [
+    theme,
+    setTheme,
+    fontSize,
+    setFontSize,
+    compactMode,
+    setCompactMode,
+    showQuickAccessBar,
+    setShowQuickAccessBar,
+    showCopyConfirmation,
+    setShowCopyConfirmation,
+    autoExpandSections,
+    setAutoExpandSections,
+    reduceMotion,
+    setReduceMotion,
+    highContrast,
+    setHighContrast,
+  ]);
 
   return (
     <SettingsContext.Provider value={contextValue}>

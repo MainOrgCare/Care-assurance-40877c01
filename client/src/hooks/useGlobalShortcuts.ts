@@ -22,6 +22,8 @@ interface UseGlobalShortcutsOptions {
   onToggleCommandPalette?: () => void;
   /** Callback to toggle the chat assistant */
   onToggleChatAssistant?: () => void;
+  /** Callback to toggle sidebar (or mobile nav) */
+  onToggleSidebar?: () => void;
   /** Callback to open the keyboard shortcuts reference */
   onOpenKeyboardShortcuts?: () => void;
 }
@@ -29,6 +31,7 @@ interface UseGlobalShortcutsOptions {
 export function useGlobalShortcuts({
   onToggleCommandPalette,
   onToggleChatAssistant,
+  onToggleSidebar,
   onOpenKeyboardShortcuts,
 }: UseGlobalShortcutsOptions = {}) {
   const [, setLocation] = useLocation();
@@ -54,7 +57,7 @@ export function useGlobalShortcuts({
         tagName === "SELECT";
 
       // Ctrl/Cmd+K → command palette (works even in inputs)
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         onToggleCommandPalette?.();
         clearGoState();
@@ -63,6 +66,22 @@ export function useGlobalShortcuts({
 
       // All shortcuts below require NOT being in a typing context
       if (isTypingContext) return;
+
+      // Ctrl/Cmd+/ → chat assistant
+      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+        e.preventDefault();
+        onToggleChatAssistant?.();
+        clearGoState();
+        return;
+      }
+
+      // Ctrl/Cmd+B → sidebar / nav toggle
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        onToggleSidebar?.();
+        clearGoState();
+        return;
+      }
 
       // Two-key "go" navigation: press G, then a letter
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
@@ -97,5 +116,5 @@ export function useGlobalShortcuts({
       window.removeEventListener("keydown", handleKeyDown);
       clearGoState();
     };
-  }, [setLocation, onToggleCommandPalette, onToggleChatAssistant, onOpenKeyboardShortcuts, clearGoState]);
+  }, [setLocation, onToggleCommandPalette, onToggleChatAssistant, onToggleSidebar, onOpenKeyboardShortcuts, clearGoState]);
 }

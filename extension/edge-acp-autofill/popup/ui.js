@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.25
+ * CareAssurance Extension v0.6.26
  */
 
 import {

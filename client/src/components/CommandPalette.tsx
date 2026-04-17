@@ -32,6 +32,8 @@ import {
   Search,
   Moon,
   Sun,
+  Type,
+  Eye,
   LogOut,
   Keyboard,
   Clock,
@@ -39,6 +41,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings, type AppTheme, type FontSize } from "@/context/SettingsContext";
 import { useRecentPages } from "@/hooks/useRecentPages";
 import { useFavorites } from "@/hooks/useFavorites";
 import { cn } from "@/lib/utils";
@@ -88,6 +91,16 @@ const ALL_ROUTES_MAP = new Map<string, CommandRoute>(
   ),
 );
 
+const THEME_SEQUENCE: readonly AppTheme[] = ["light", "sunrise", "dark", "midnight", "ocean", "aurora"];
+const DARK_THEME_VALUES = new Set<AppTheme>(["dark", "midnight", "ocean", "aurora"]);
+const FONT_SIZE_SEQUENCE: readonly FontSize[] = ["small", "medium", "large"];
+
+const formatThemeLabel = (value: AppTheme): string =>
+  value.charAt(0).toUpperCase() + value.slice(1);
+
+const formatFontSizeLabel = (value: FontSize): string =>
+  value.charAt(0).toUpperCase() + value.slice(1);
+
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -107,6 +120,20 @@ function formatTimeAgo(timestamp: number): string {
 export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShortcuts }: CommandPaletteProps) {
   const [currentPath, setLocation] = useLocation();
   const { user, logout } = useAuth();
+  const {
+    theme,
+    setTheme,
+    compactMode,
+    setCompactMode,
+    fontSize,
+    setFontSize,
+    reduceMotion,
+    setReduceMotion,
+    highContrast,
+    setHighContrast,
+    showQuickAccessBar,
+    setShowQuickAccessBar,
+  } = useSettings();
   const recentPages = useRecentPages();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const isAdmin = user?.role === "admin";
@@ -127,25 +154,57 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
     [setLocation, onOpenChange],
   );
 
-  const toggleTheme = useCallback(() => {
-    const root = document.documentElement;
-    const current = root.classList.contains("dark") ? "dark" : "light";
-    const next = current === "dark" ? "light" : "dark";
-    root.classList.remove(current);
-    root.classList.add(next);
-    localStorage.setItem("theme", next);
+  const setThemeAndClose = useCallback((nextTheme: AppTheme) => {
+    setTheme(nextTheme);
     onOpenChange(false);
-  }, [onOpenChange]);
+  }, [setTheme, onOpenChange]);
+
+  const cycleTheme = useCallback(() => {
+    const currentIndex = THEME_SEQUENCE.indexOf(theme);
+    const nextTheme = THEME_SEQUENCE[(currentIndex + 1) % THEME_SEQUENCE.length] || "light";
+    setTheme(nextTheme);
+    onOpenChange(false);
+  }, [theme, setTheme, onOpenChange]);
+
+  const cycleFontSize = useCallback(() => {
+    const currentIndex = FONT_SIZE_SEQUENCE.indexOf(fontSize);
+    const nextSize = FONT_SIZE_SEQUENCE[(currentIndex + 1) % FONT_SIZE_SEQUENCE.length] || "medium";
+    setFontSize(nextSize);
+    onOpenChange(false);
+  }, [fontSize, setFontSize, onOpenChange]);
+
+  const toggleCompactMode = useCallback(() => {
+    setCompactMode(!compactMode);
+    onOpenChange(false);
+  }, [compactMode, setCompactMode, onOpenChange]);
+
+  const toggleReduceMotion = useCallback(() => {
+    setReduceMotion(!reduceMotion);
+    onOpenChange(false);
+  }, [reduceMotion, setReduceMotion, onOpenChange]);
+
+  const toggleHighContrast = useCallback(() => {
+    setHighContrast(!highContrast);
+    onOpenChange(false);
+  }, [highContrast, setHighContrast, onOpenChange]);
+
+  const toggleQuickAccessBar = useCallback(() => {
+    setShowQuickAccessBar(!showQuickAccessBar);
+    onOpenChange(false);
+  }, [showQuickAccessBar, setShowQuickAccessBar, onOpenChange]);
 
   const handleLogout = useCallback(() => {
     onOpenChange(false);
     logout();
   }, [onOpenChange, logout]);
 
-  const isDark = useMemo(() => {
-    if (typeof document === "undefined") return false;
-    return document.documentElement.classList.contains("dark");
-  }, [open]); // re-check each time palette opens
+  const isDark = useMemo(() => DARK_THEME_VALUES.has(theme), [theme]);
+  const currentThemeLabel = useMemo(() => formatThemeLabel(theme), [theme]);
+  const nextThemeLabel = useMemo(() => {
+    const currentIndex = THEME_SEQUENCE.indexOf(theme);
+    const nextTheme = THEME_SEQUENCE[(currentIndex + 1) % THEME_SEQUENCE.length] || "light";
+    return formatThemeLabel(nextTheme);
+  }, [theme]);
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -274,6 +333,83 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
 
         <CommandSeparator />
 
+        <CommandGroup heading="Workspace Preferences">
+          <CommandItem
+            value={`theme appearance cycle ${currentThemeLabel.toLowerCase()} ${nextThemeLabel.toLowerCase()}`}
+            onSelect={cycleTheme}
+          >
+            {isDark ? (
+              <Sun className="mr-2 h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Moon className="mr-2 h-4 w-4 text-muted-foreground" />
+            )}
+            <span>Cycle Theme ({currentThemeLabel} -&gt; {nextThemeLabel})</span>
+          </CommandItem>
+
+          {THEME_SEQUENCE.map((themeOption) => (
+            <CommandItem
+              key={`theme-${themeOption}`}
+              value={`theme ${themeOption} appearance workspace style`}
+              onSelect={() => setThemeAndClose(themeOption)}
+            >
+              {themeOption === "light" ? (
+                <Sun className="mr-2 h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Moon className="mr-2 h-4 w-4 text-muted-foreground" />
+              )}
+              <span>Switch to {formatThemeLabel(themeOption)} Theme</span>
+              {theme === themeOption ? <CommandShortcut>Current</CommandShortcut> : null}
+            </CommandItem>
+          ))}
+
+          <CommandItem
+            value={`compact mode density spacing ${compactMode ? "disable" : "enable"}`}
+            onSelect={toggleCompactMode}
+          >
+            <LayoutDashboard className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span>{compactMode ? "Disable Compact Mode" : "Enable Compact Mode"}</span>
+            <CommandShortcut>{compactMode ? "On" : "Off"}</CommandShortcut>
+          </CommandItem>
+
+          <CommandItem
+            value={`font size text scale ${fontSize}`}
+            onSelect={cycleFontSize}
+          >
+            <Type className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span>Cycle Font Size</span>
+            <CommandShortcut>{formatFontSizeLabel(fontSize)}</CommandShortcut>
+          </CommandItem>
+
+          <CommandItem
+            value={`motion animation accessibility ${reduceMotion ? "disable" : "enable"}`}
+            onSelect={toggleReduceMotion}
+          >
+            <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span>{reduceMotion ? "Disable Reduced Motion" : "Enable Reduced Motion"}</span>
+            <CommandShortcut>{reduceMotion ? "On" : "Off"}</CommandShortcut>
+          </CommandItem>
+
+          <CommandItem
+            value={`high contrast accessibility readability ${highContrast ? "disable" : "enable"}`}
+            onSelect={toggleHighContrast}
+          >
+            <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span>{highContrast ? "Disable High Contrast" : "Enable High Contrast"}</span>
+            <CommandShortcut>{highContrast ? "On" : "Off"}</CommandShortcut>
+          </CommandItem>
+
+          <CommandItem
+            value={`quick access favorites recents ${showQuickAccessBar ? "hide" : "show"}`}
+            onSelect={toggleQuickAccessBar}
+          >
+            <Star className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span>{showQuickAccessBar ? "Hide Quick Access Bar" : "Show Quick Access Bar"}</span>
+            <CommandShortcut>{showQuickAccessBar ? "On" : "Off"}</CommandShortcut>
+          </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
         <CommandGroup heading="Actions">
           {currentPageName && (
             <CommandItem
@@ -290,17 +426,6 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
               <span>{currentPageIsFav ? `Remove ${currentPageName} from Favorites` : `Add ${currentPageName} to Favorites`}</span>
             </CommandItem>
           )}
-          <CommandItem
-            value="toggle theme dark light mode appearance"
-            onSelect={toggleTheme}
-          >
-            {isDark ? (
-              <Sun className="mr-2 h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Moon className="mr-2 h-4 w-4 text-muted-foreground" />
-            )}
-            <span>{isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}</span>
-          </CommandItem>
           {onOpenKeyboardShortcuts && (
             <CommandItem
               value="keyboard shortcuts help hotkeys"

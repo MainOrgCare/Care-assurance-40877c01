@@ -15,8 +15,9 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "General",
     shortcuts: [
-      { keys: ["Ctrl", "K"], description: "Open command palette" },
-      { keys: ["Ctrl", "/"], description: "Toggle Compli-ee assistant" },
+      { keys: ["Ctrl/Cmd", "K"], description: "Open command palette" },
+      { keys: ["Ctrl/Cmd", "B"], description: "Toggle sidebar" },
+      { keys: ["Ctrl/Cmd", "/"], description: "Toggle Compli-ee assistant" },
       { keys: ["?"], description: "Show this shortcut reference" },
       { keys: ["Esc"], description: "Close any open dialog or popover" },
     ],

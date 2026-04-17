@@ -21,6 +21,7 @@
     serverUrl: "caAcpServerUrl",
     lastTab: "caAcpLastTab",
     lastAutofillUser: "caAcpLastAutofillUser",
+    appTheme: "caAcpAppTheme",
   };
 
   const FORM_CONFIGS = {

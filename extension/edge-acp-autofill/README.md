@@ -71,7 +71,9 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
   - `Social Work`, `Moving & Handling`, and `Additional Documents` start from `/case_document_list?caseId=<id>&serviceId=1000801`
   - `Initial Assessment` starts from `/case_data_group?caseId=<id>&serviceDataGroupId=1014998`
   - `Care Plan` starts from `/eoutcomeservice/branch/case_care_plans_dashboard?caseId=<id>`
+- Initial Assessment and Care Plan source pages now fallback to case Documents when no downloadable records are exposed, improving recovery on sparse section dashboards.
 - Selection rules for auto-collect: Care Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
+- Auto-collect ranking now uses latest-first prioritization for Initial Assessment, Care Plan, and Additional Documents, and the picker preselects the strongest latest candidate by default.
 - Intake now includes an `Auto-Download Info` diagnostics panel that tracks the latest auto-collect run (source, counts, fallback use, duration, and error details) with a `Copy Report` shortcut.
 - The auto-collect picker now supports inline filtering by document metadata, `Select suggested` bulk actions, confidence-aware row diagnostics (confidence label + keyword matches), and richer technical row details (download ID and URL hint count) before files are fetched.
 - Auto-collect now deduplicates repeated document selections before download to avoid duplicate file staging in a single run.

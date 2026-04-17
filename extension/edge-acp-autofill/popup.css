@@ -26,6 +26,9 @@
   --color-muted-foreground: hsl(215, 15%, 46%);
   --color-border: hsl(220, 18%, 90%);
   --color-border-hover: hsl(215, 30%, 78%);
+  --color-header-start: hsl(214, 62%, 28%);
+  --color-header-mid: hsl(214, 55%, 24%);
+  --color-header-end: hsl(200, 50%, 22%);
 
   /* Feedback colors */
   --color-success: hsl(152, 60%, 36%);
@@ -67,6 +70,121 @@
   --duration-slow: 350ms;
 }
 
+:root[data-app-theme="light"],
+body[data-app-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-app-theme="sunrise"],
+body[data-app-theme="sunrise"] {
+  color-scheme: light;
+  --color-primary: hsl(18, 82%, 44%);
+  --color-primary-hover: hsl(18, 78%, 50%);
+  --color-primary-ghost: hsl(26, 92%, 93%);
+  --color-secondary: hsl(38, 84%, 45%);
+  --color-secondary-ghost: hsl(39, 94%, 93%);
+  --color-accent: hsl(346, 82%, 58%);
+  --color-accent-light: hsl(346, 90%, 95%);
+  --color-background: hsl(34, 60%, 96%);
+  --color-foreground: hsl(18, 34%, 18%);
+  --color-card: hsl(0, 0%, 100%);
+  --color-muted: hsl(33, 40%, 92%);
+  --color-muted-foreground: hsl(20, 15%, 40%);
+  --color-border: hsl(28, 28%, 80%);
+  --color-border-hover: hsl(25, 34%, 66%);
+  --color-header-start: hsl(17, 74%, 40%);
+  --color-header-mid: hsl(27, 74%, 44%);
+  --color-header-end: hsl(345, 68%, 46%);
+}
+
+:root[data-app-theme="dark"],
+body[data-app-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: hsl(217, 72%, 54%);
+  --color-primary-hover: hsl(217, 70%, 61%);
+  --color-primary-ghost: hsl(218, 44%, 20%);
+  --color-secondary: hsl(198, 56%, 42%);
+  --color-secondary-ghost: hsl(198, 40%, 22%);
+  --color-accent: hsl(205, 90%, 63%);
+  --color-accent-light: hsl(213, 42%, 19%);
+  --color-background: hsl(223, 25%, 11%);
+  --color-foreground: hsl(210, 25%, 95%);
+  --color-card: hsl(223, 21%, 16%);
+  --color-muted: hsl(220, 19%, 20%);
+  --color-muted-foreground: hsl(216, 16%, 72%);
+  --color-border: hsl(220, 16%, 28%);
+  --color-border-hover: hsl(216, 22%, 42%);
+  --color-header-start: hsl(223, 48%, 16%);
+  --color-header-mid: hsl(219, 42%, 20%);
+  --color-header-end: hsl(205, 50%, 24%);
+}
+
+:root[data-app-theme="midnight"],
+body[data-app-theme="midnight"] {
+  color-scheme: dark;
+  --color-primary: hsl(199, 89%, 54%);
+  --color-primary-hover: hsl(199, 85%, 60%);
+  --color-primary-ghost: hsl(230, 30%, 22%);
+  --color-secondary: hsl(224, 78%, 62%);
+  --color-secondary-ghost: hsl(233, 30%, 25%);
+  --color-accent: hsl(190, 88%, 56%);
+  --color-accent-light: hsl(230, 36%, 20%);
+  --color-background: hsl(230, 32%, 10%);
+  --color-foreground: hsl(208, 24%, 96%);
+  --color-card: hsl(230, 28%, 14%);
+  --color-muted: hsl(228, 24%, 19%);
+  --color-muted-foreground: hsl(218, 18%, 73%);
+  --color-border: hsl(226, 20%, 30%);
+  --color-border-hover: hsl(223, 24%, 44%);
+  --color-header-start: hsl(233, 44%, 16%);
+  --color-header-mid: hsl(225, 38%, 20%);
+  --color-header-end: hsl(198, 52%, 24%);
+}
+
+:root[data-app-theme="ocean"],
+body[data-app-theme="ocean"] {
+  color-scheme: dark;
+  --color-primary: hsl(168, 76%, 42%);
+  --color-primary-hover: hsl(168, 72%, 49%);
+  --color-primary-ghost: hsl(192, 32%, 20%);
+  --color-secondary: hsl(193, 82%, 44%);
+  --color-secondary-ghost: hsl(193, 36%, 23%);
+  --color-accent: hsl(185, 90%, 54%);
+  --color-accent-light: hsl(193, 34%, 20%);
+  --color-background: hsl(192, 36%, 11%);
+  --color-foreground: hsl(184, 30%, 95%);
+  --color-card: hsl(194, 34%, 15%);
+  --color-muted: hsl(194, 26%, 20%);
+  --color-muted-foreground: hsl(186, 17%, 72%);
+  --color-border: hsl(190, 24%, 30%);
+  --color-border-hover: hsl(186, 28%, 43%);
+  --color-header-start: hsl(191, 52%, 16%);
+  --color-header-mid: hsl(182, 52%, 20%);
+  --color-header-end: hsl(166, 56%, 24%);
+}
+
+:root[data-app-theme="aurora"],
+body[data-app-theme="aurora"] {
+  color-scheme: dark;
+  --color-primary: hsl(148, 62%, 44%);
+  --color-primary-hover: hsl(148, 58%, 50%);
+  --color-primary-ghost: hsl(165, 30%, 20%);
+  --color-secondary: hsl(178, 72%, 40%);
+  --color-secondary-ghost: hsl(178, 34%, 22%);
+  --color-accent: hsl(186, 78%, 56%);
+  --color-accent-light: hsl(170, 28%, 20%);
+  --color-background: hsl(164, 30%, 10%);
+  --color-foreground: hsl(156, 24%, 94%);
+  --color-card: hsl(166, 28%, 14%);
+  --color-muted: hsl(166, 21%, 19%);
+  --color-muted-foreground: hsl(156, 14%, 72%);
+  --color-border: hsl(164, 18%, 30%);
+  --color-border-hover: hsl(160, 20%, 42%);
+  --color-header-start: hsl(162, 46%, 16%);
+  --color-header-mid: hsl(171, 52%, 20%);
+  --color-header-end: hsl(196, 52%, 22%);
+}
+
 /* ===== RESET & BASE ===== */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -100,7 +218,7 @@ body {
 .popup-header {
   height: var(--header-height);
   flex: 0 0 auto;
-  background: linear-gradient(135deg, var(--color-primary) 0%, hsl(214, 55%, 24%) 50%, hsl(200, 50%, 22%) 100%);
+  background: linear-gradient(135deg, var(--color-header-start) 0%, var(--color-header-mid) 50%, var(--color-header-end) 100%);
   color: white;
   position: relative;
   overflow: hidden;

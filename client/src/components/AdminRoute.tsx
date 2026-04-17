@@ -1,10 +1,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { Redirect, Route } from "wouter";
-import { Suspense, lazy } from "react";
-import { Loader2 } from "lucide-react";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-
-const Layout = lazy(() => import("./Layout"));
+import { AuthenticatedRouteShell } from "@/components/AuthenticatedRouteShell";
 
 export default function AdminRoute({
   component: Component,
@@ -33,21 +29,7 @@ export default function AdminRoute({
 
   return (
     <Route path={path}>
-      {(params) => (
-        <Suspense
-          fallback={
-            <div className="min-h-screen w-full flex items-center justify-center bg-background text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          }
-        >
-          <Layout>
-            <ErrorBoundary>
-              <Component {...params} />
-            </ErrorBoundary>
-          </Layout>
-        </Suspense>
-      )}
+      {(params) => <AuthenticatedRouteShell component={Component} params={params} />}
     </Route>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.25
+ * CareAssurance Extension v0.6.26
  */
 
 import {
@@ -71,6 +71,82 @@ import {
 const POPUP_REFRESH_DEBOUNCE_MS = 180;
 const POPUP_PERIODIC_REFRESH_MS = 12000;
 const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
+const POPUP_GDPR_CLEANUP_MS = 30 * 60 * 1000;
+const POPUP_IDLE_TASK_DEFAULT_TIMEOUT_MS = 2000;
+const POPUP_IDLE_TASK_DEFAULT_FALLBACK_MS = 250;
+const POPUP_SUPPORTED_APP_THEMES = new Set(["light", "sunrise", "dark", "midnight", "ocean", "aurora"]);
+const POPUP_DARK_APP_THEMES = new Set(["dark", "midnight", "ocean", "aurora"]);
+const POPUP_INITIAL_STORAGE_KEYS = [
+  STORAGE_KEYS.overlayPinned,
+  STORAGE_KEYS.serverUrl,
+  STORAGE_KEYS.lastTab,
+  STORAGE_KEYS.lastAutofillUser,
+  STORAGE_KEYS.payload,
+  STORAGE_KEYS.appTheme,
+];
+
+const normalizePopupAppTheme = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return POPUP_SUPPORTED_APP_THEMES.has(normalized) ? normalized : "light";
+};
+
+const applyPopupAppTheme = (themeValue) => {
+  const theme = normalizePopupAppTheme(themeValue);
+  const isDark = POPUP_DARK_APP_THEMES.has(theme);
+
+  document.documentElement.setAttribute("data-app-theme", theme);
+  document.body?.setAttribute("data-app-theme", theme);
+  document.documentElement.classList.toggle("is-app-theme-dark", isDark);
+  document.body?.classList.toggle("is-app-theme-dark", isDark);
+
+  document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+  if (document.body) {
+    document.body.style.colorScheme = isDark ? "dark" : "light";
+  }
+};
+
+const runPopupIdleTask = (
+  task,
+  {
+    timeout = POPUP_IDLE_TASK_DEFAULT_TIMEOUT_MS,
+    fallbackDelay = POPUP_IDLE_TASK_DEFAULT_FALLBACK_MS,
+  } = {}
+) => {
+  if (typeof task !== "function") return;
+
+  const win = window;
+  if (typeof win.requestIdleCallback === "function") {
+    win.requestIdleCallback(
+      () => {
+        try {
+          const result = task();
+          if (result && typeof result.then === "function") {
+            result.catch((error) => {
+              console.warn("[CA Extension] idle task failed:", error);
+            });
+          }
+        } catch (error) {
+          console.warn("[CA Extension] idle task crashed:", error);
+        }
+      },
+      { timeout }
+    );
+    return;
+  }
+
+  window.setTimeout(() => {
+    try {
+      const result = task();
+      if (result && typeof result.then === "function") {
+        result.catch((error) => {
+          console.warn("[CA Extension] deferred task failed:", error);
+        });
+      }
+    } catch (error) {
+      console.warn("[CA Extension] deferred task crashed:", error);
+    }
+  }, fallbackDelay);
+};
 
 let popupRefreshTimer = null;
 let popupRefreshInFlight = false;
@@ -283,17 +359,25 @@ const MOBIZIO_CARE_PLAN_DASHBOARD_PATH = "/eoutcomeservice/branch/case_care_plan
 const SECTION_AUTO_COLLECT_RULES = {
   socialWork: {
     sectionLabel: "Social Work",
-    keywords: ["social work", "support plan", "support plans", "c2", "c3", "referral", "email"],
+    keywords: ["social work", "social worker", "support plan", "support plans", "referral", "email"],
     single: false,
   },
   initialAssessment: {
     sectionLabel: "Initial Assessment",
-    keywords: ["initial assessment", "initial visit", "service setup", "needs assessment", "assessment"],
+    keywords: [
+      "initial assessment",
+      "initial visit",
+      "service setup",
+      "needs assessment",
+      "care needs assessment",
+      "assessment intake",
+      "initial review",
+    ],
     single: false,
   },
   carePlan: {
     sectionLabel: "Care Plan",
-    keywords: ["care plan", "workplan", "work plan"],
+    keywords: ["care plan", "careplan", "care planning", "support plan", "workplan", "work plan"],
     single: true,
   },
   movingHandling: {
@@ -307,6 +391,9 @@ const SECTION_AUTO_COLLECT_RULES = {
     single: false,
   },
 };
+
+const AUTO_COLLECT_RECENCY_FIRST_SECTIONS = new Set(["initialAssessment", "carePlan", "additionalDocuments"]);
+const AUTO_COLLECT_DEFAULT_LATEST_SELECTION_SECTIONS = new Set(["initialAssessment", "carePlan", "additionalDocuments"]);
 
 const UPLOAD_SECTION_CONFIG = [
   {
@@ -1217,57 +1304,178 @@ const getCaseIdForAutoCollect = () => {
   return "";
 };
 
+const MOBIZIO_MONTH_LOOKUP = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
+};
+
+const MOBIZIO_DATE_HINT_PATTERNS = [
+  /\b\d{1,2}\/[A-Za-z]{3}\/\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)?\b/gi,
+  /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}(?:[,\s]+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)?\b/gi,
+  /\b\d{4}[\/-]\d{1,2}[\/-]\d{1,2}(?:[T\s]+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)?\b/gi,
+];
+
+const normalizeMobizioYear = (year) => {
+  const numeric = Number(year);
+  if (!Number.isFinite(numeric)) return 0;
+  if (numeric >= 100) return numeric;
+  return numeric >= 70 ? numeric + 1900 : numeric + 2000;
+};
+
+const toMobizioTimestamp = ({ day, month, year, hours = 0, minutes = 0, seconds = 0, meridiem = "" }) => {
+  const numericDay = Number(day);
+  const numericMonth = Number(month);
+  const normalizedYear = normalizeMobizioYear(year);
+  let numericHours = Number(hours);
+  const numericMinutes = Number(minutes);
+  const numericSeconds = Number(seconds);
+
+  if (
+    !Number.isFinite(numericDay) ||
+    !Number.isFinite(numericMonth) ||
+    !Number.isFinite(normalizedYear) ||
+    !Number.isFinite(numericHours) ||
+    !Number.isFinite(numericMinutes) ||
+    !Number.isFinite(numericSeconds)
+  ) {
+    return 0;
+  }
+
+  const normalizedMeridiem = String(meridiem || "").trim().toUpperCase();
+  if (normalizedMeridiem === "PM" && numericHours < 12) {
+    numericHours += 12;
+  } else if (normalizedMeridiem === "AM" && numericHours === 12) {
+    numericHours = 0;
+  }
+
+  if (
+    numericDay < 1 ||
+    numericDay > 31 ||
+    numericMonth < 0 ||
+    numericMonth > 11 ||
+    numericHours < 0 ||
+    numericHours > 23 ||
+    numericMinutes < 0 ||
+    numericMinutes > 59 ||
+    numericSeconds < 0 ||
+    numericSeconds > 59
+  ) {
+    return 0;
+  }
+
+  const timestamp = new Date(
+    normalizedYear,
+    numericMonth,
+    numericDay,
+    numericHours,
+    numericMinutes,
+    numericSeconds,
+    0
+  ).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
 const parseMobizioUploadedAt = (rawValue) => {
   const value = String(rawValue || "").trim();
   if (!value) return 0;
+
+  const dayMonthNameMatch = value.match(
+    /^(\d{1,2})\/([A-Za-z]{3})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?$/i
+  );
+  if (dayMonthNameMatch) {
+    const month = MOBIZIO_MONTH_LOOKUP[String(dayMonthNameMatch[2]).toLowerCase()];
+    if (Number.isFinite(month)) {
+      const parsed = toMobizioTimestamp({
+        day: dayMonthNameMatch[1],
+        month,
+        year: dayMonthNameMatch[3],
+        hours: dayMonthNameMatch[4] || 0,
+        minutes: dayMonthNameMatch[5] || 0,
+        seconds: dayMonthNameMatch[6] || 0,
+        meridiem: dayMonthNameMatch[7] || "",
+      });
+      if (parsed > 0) return parsed;
+    }
+  }
+
+  const dayMonthNumericMatch = value.match(
+    /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?$/i
+  );
+  if (dayMonthNumericMatch) {
+    const parsed = toMobizioTimestamp({
+      day: dayMonthNumericMatch[1],
+      month: Number(dayMonthNumericMatch[2]) - 1,
+      year: dayMonthNumericMatch[3],
+      hours: dayMonthNumericMatch[4] || 0,
+      minutes: dayMonthNumericMatch[5] || 0,
+      seconds: dayMonthNumericMatch[6] || 0,
+      meridiem: dayMonthNumericMatch[7] || "",
+    });
+    if (parsed > 0) return parsed;
+  }
+
+  const yearMonthNumericMatch = value.match(
+    /^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:[T\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?$/i
+  );
+  if (yearMonthNumericMatch) {
+    const parsed = toMobizioTimestamp({
+      day: yearMonthNumericMatch[3],
+      month: Number(yearMonthNumericMatch[2]) - 1,
+      year: yearMonthNumericMatch[1],
+      hours: yearMonthNumericMatch[4] || 0,
+      minutes: yearMonthNumericMatch[5] || 0,
+      seconds: yearMonthNumericMatch[6] || 0,
+      meridiem: yearMonthNumericMatch[7] || "",
+    });
+    if (parsed > 0) return parsed;
+  }
 
   const directlyParsed = Date.parse(value);
   if (!Number.isNaN(directlyParsed)) {
     return directlyParsed;
   }
 
-  const match = value.match(/^(\d{1,2})\/([A-Za-z]{3})\/(\d{2,4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!match) return 0;
-
-  const monthLookup = {
-    jan: 0,
-    feb: 1,
-    mar: 2,
-    apr: 3,
-    may: 4,
-    jun: 5,
-    jul: 6,
-    aug: 7,
-    sep: 8,
-    oct: 9,
-    nov: 10,
-    dec: 11,
-  };
-
-  const day = Number(match[1]);
-  const month = monthLookup[String(match[2]).toLowerCase()];
-  let year = Number(match[3]);
-  let hours = Number(match[4]);
-  const minutes = Number(match[5]);
-  const meridiem = String(match[6]).toUpperCase();
-
-  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year) || !Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    return 0;
-  }
-
-  if (year < 100) {
-    year += year >= 70 ? 1900 : 2000;
-  }
-
-  if (meridiem === "PM" && hours < 12) {
-    hours += 12;
-  } else if (meridiem === "AM" && hours === 12) {
-    hours = 0;
-  }
-
-  const parsed = new Date(year, month, day, hours, minutes, 0, 0).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
+  return 0;
 };
+
+const inferMobizioDocumentTimestamp = (documentEntry) => {
+  const fromUploadedDate = parseMobizioUploadedAt(documentEntry?.uploadedDate);
+  if (fromUploadedDate > 0) return fromUploadedDate;
+
+  const textFields = [documentEntry?.fileName, documentEntry?.name, documentEntry?.description]
+    .map((value) => String(value || ""))
+    .filter(Boolean);
+
+  let bestTimestamp = 0;
+  for (const fieldText of textFields) {
+    for (const pattern of MOBIZIO_DATE_HINT_PATTERNS) {
+      const matches = fieldText.match(pattern) || [];
+      for (const match of matches) {
+        const parsed = parseMobizioUploadedAt(match);
+        if (parsed > bestTimestamp) {
+          bestTimestamp = parsed;
+        }
+      }
+    }
+  }
+
+  return bestTimestamp;
+};
+
+const isAutoCollectRecencyFirstSection = (sectionKey) => AUTO_COLLECT_RECENCY_FIRST_SECTIONS.has(sectionKey);
+
+const shouldDefaultLatestAutoCollectSelection = (sectionKey) =>
+  AUTO_COLLECT_DEFAULT_LATEST_SELECTION_SECTIONS.has(sectionKey);
 
 const scoreDocumentForSectionDetailed = (sectionKey, documentEntry, uploadedTimestamp = 0) => {
   const rule = getAutoCollectRule(sectionKey);
@@ -1313,14 +1521,25 @@ const scoreDocumentForSectionDetailed = (sectionKey, documentEntry, uploadedTime
 
   if (Number.isFinite(uploadedTimestamp) && uploadedTimestamp > 0) {
     const ageMs = Date.now() - uploadedTimestamp;
-    const ageDays = ageMs / (24 * 60 * 60 * 1000);
-    if (ageDays <= 45) {
-      score += 2;
-      scoringNotes.push("recent upload (+2)");
+    const ageDays = Math.max(0, ageMs / (24 * 60 * 60 * 1000));
+    let recencyBonus = 0;
+    if (ageDays <= 14) {
+      recencyBonus = 4;
+      scoringNotes.push("uploaded in last 14 days (+4)");
+    } else if (ageDays <= 45) {
+      recencyBonus = 3;
+      scoringNotes.push("recent upload (+3)");
     } else if (ageDays <= 120) {
-      score += 1;
+      recencyBonus = 1;
       scoringNotes.push("fairly recent upload (+1)");
     }
+
+    if (recencyBonus > 0 && isAutoCollectRecencyFirstSection(sectionKey)) {
+      recencyBonus += 1;
+      scoringNotes.push("section recency priority (+1)");
+    }
+
+    score += recencyBonus;
   }
 
   if (String(documentEntry?.downloadId || "").trim()) {
@@ -1363,7 +1582,7 @@ const scoreDocumentForSection = (sectionKey, documentEntry, uploadedTimestamp = 
 const rankDocumentsForSection = (sectionKey, documents) =>
   [...documents]
     .map((entry) => {
-      const uploadedTimestamp = parseMobizioUploadedAt(entry.uploadedDate);
+      const uploadedTimestamp = inferMobizioDocumentTimestamp(entry);
       const scoring = scoreDocumentForSectionDetailed(sectionKey, entry, uploadedTimestamp);
       return {
         ...entry,
@@ -1376,15 +1595,33 @@ const rankDocumentsForSection = (sectionKey, documents) =>
       };
     })
     .sort((a, b) => {
-      if (b.sectionConfidenceLevel !== a.sectionConfidenceLevel) {
-        return b.sectionConfidenceLevel - a.sectionConfidenceLevel;
+      if (isAutoCollectRecencyFirstSection(sectionKey)) {
+        const aSuggested = Number(a.sectionScore || 0) > 0 ? 1 : 0;
+        const bSuggested = Number(b.sectionScore || 0) > 0 ? 1 : 0;
+        if (bSuggested !== aSuggested) {
+          return bSuggested - aSuggested;
+        }
+        if (b.uploadedTimestamp !== a.uploadedTimestamp) {
+          return b.uploadedTimestamp - a.uploadedTimestamp;
+        }
+        if (b.sectionConfidenceLevel !== a.sectionConfidenceLevel) {
+          return b.sectionConfidenceLevel - a.sectionConfidenceLevel;
+        }
+        if (b.sectionScore !== a.sectionScore) {
+          return b.sectionScore - a.sectionScore;
+        }
+      } else {
+        if (b.sectionConfidenceLevel !== a.sectionConfidenceLevel) {
+          return b.sectionConfidenceLevel - a.sectionConfidenceLevel;
+        }
+        if (b.sectionScore !== a.sectionScore) {
+          return b.sectionScore - a.sectionScore;
+        }
+        if (b.uploadedTimestamp !== a.uploadedTimestamp) {
+          return b.uploadedTimestamp - a.uploadedTimestamp;
+        }
       }
-      if (b.sectionScore !== a.sectionScore) {
-        return b.sectionScore - a.sectionScore;
-      }
-      if (b.uploadedTimestamp !== a.uploadedTimestamp) {
-        return b.uploadedTimestamp - a.uploadedTimestamp;
-      }
+
       const left = String(a.fileName || a.name || "");
       const right = String(b.fileName || b.name || "");
       return left.localeCompare(right);
@@ -1412,7 +1649,7 @@ const createMobizioInitialAssessmentSource = (caseId) => ({
   kind: "initialAssessment",
   label: "Initial Assessment",
   url: buildMobizioInitialAssessmentUrl(caseId),
-  allowDocumentsFallback: false,
+  allowDocumentsFallback: true,
 });
 
 const createMobizioCarePlanSource = (caseId) => ({
@@ -1646,6 +1883,34 @@ const dedupeAutoCollectSelection = (documents) => {
   };
 };
 
+const findBestAutoCollectDefaultIndex = (documents) => {
+  if (!Array.isArray(documents) || documents.length === 0) return -1;
+
+  const indexed = documents.map((entry, index) => ({ entry, index }));
+  const suggested = indexed.filter(({ entry }) => Number(entry?.sectionScore || 0) > 0);
+  const sourcePool = suggested.length > 0 ? suggested : indexed;
+  const datedPool = sourcePool.filter(({ entry }) => Number(entry?.uploadedTimestamp || 0) > 0);
+  const candidatePool = datedPool.length > 0 ? datedPool : sourcePool;
+
+  candidatePool.sort((a, b) => {
+    const aTime = Number(a.entry?.uploadedTimestamp || 0);
+    const bTime = Number(b.entry?.uploadedTimestamp || 0);
+    if (bTime !== aTime) return bTime - aTime;
+
+    const aConfidence = Number(a.entry?.sectionConfidenceLevel || 0);
+    const bConfidence = Number(b.entry?.sectionConfidenceLevel || 0);
+    if (bConfidence !== aConfidence) return bConfidence - aConfidence;
+
+    const aScore = Number(a.entry?.sectionScore || 0);
+    const bScore = Number(b.entry?.sectionScore || 0);
+    if (bScore !== aScore) return bScore - aScore;
+
+    return a.index - b.index;
+  });
+
+  return candidatePool[0]?.index ?? -1;
+};
+
 const showAutoCollectPickerDialog = ({
   sectionKey,
   documents,
@@ -1658,14 +1923,17 @@ const showAutoCollectPickerDialog = ({
 
     const rule = getAutoCollectRule(sectionKey);
     const selectedIndexes = new Set();
+    const defaultSelectionIndex = findBestAutoCollectDefaultIndex(documents);
     const resolvedCaseId = String(caseId || getCaseIdForAutoCollect()).trim();
     const recommendedCount = documents.filter((entry) => Number(entry?.sectionScore || 0) > 0).length;
     const highConfidenceSuggestedCount = documents.filter((entry) => Number(entry?.sectionConfidenceLevel || 0) >= 3).length;
+    const latestPreselected = !single && shouldDefaultLatestAutoCollectSelection(sectionKey) && defaultSelectionIndex >= 0;
     let filterQuery = "";
 
     if (single && documents.length > 0) {
-      const suggestedIndex = documents.findIndex((entry) => entry.sectionScore > 0);
-      selectedIndexes.add(suggestedIndex >= 0 ? suggestedIndex : 0);
+      selectedIndexes.add(defaultSelectionIndex >= 0 ? defaultSelectionIndex : 0);
+    } else if (!single && shouldDefaultLatestAutoCollectSelection(sectionKey) && defaultSelectionIndex >= 0) {
+      selectedIndexes.add(defaultSelectionIndex);
     }
 
     const matchesFilter = (entry, query) => {
@@ -1710,7 +1978,7 @@ const showAutoCollectPickerDialog = ({
       resolvedCaseId || "Unknown"
     )}. ${recommendedCount > 0 ? `${recommendedCount} suggested based on section keywords.` : ""}${
       highConfidenceSuggestedCount > 0 ? ` ${highConfidenceSuggestedCount} marked high confidence.` : ""
-    }</div>
+    }${latestPreselected ? " Latest suggested document pre-selected." : ""}</div>
           <div class="auto-collect-toolbar">
             <div class="auto-collect-helper" data-auto-collect-helper></div>
             ${single ? "" : `<div class="toolbar-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="select-suggested">Select suggested</button><button type="button" class="btn btn-secondary btn-sm" data-action="select-all">Select all</button><button type="button" class="btn btn-ghost btn-sm" data-action="clear-selection">Clear</button></div>`}
@@ -5284,7 +5552,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.25</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.26</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -5355,6 +5623,12 @@ function bindStorageListener() {
           renderOverlayPinButton(Boolean(changes[STORAGE_KEYS.overlayPinned].newValue));
         } catch (e) { console.warn("[CA Extension] overlay pin handler error:", e); }
       }
+
+      if (changes[STORAGE_KEYS.appTheme]) {
+        try {
+          applyPopupAppTheme(changes[STORAGE_KEYS.appTheme].newValue);
+        } catch (e) { console.warn("[CA Extension] theme sync handler error:", e); }
+      }
     } catch (outerErr) {
       console.error("[CA Extension] storage.onChanged crash:", outerErr);
     }
@@ -5368,45 +5642,58 @@ function bindStorageListener() {
 (async function init() {
   cacheDomElements();
   bindEvents();
-  await initMainMenuDragging();
   bindStorageListener();
   ensureUploadBuckets();
   renderUploadBuckets();
   updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
-
-  // GDPR: Auto-clean stale data
-  await autoCleanupStaleData();
-
-  await refreshPayloadStatus();
-  await refreshSignatureStatus();
   refreshExtensionVersionDisplay();
 
-  const pinnedState = await loadStorage([STORAGE_KEYS.overlayPinned]);
-  renderOverlayPinButton(Boolean(pinnedState?.[STORAGE_KEYS.overlayPinned]));
+  // Keep first popup render fast by deferring non-critical startup work.
+  runPopupIdleTask(() => initMainMenuDragging(), { timeout: 1200, fallbackDelay: 120 });
+  runPopupIdleTask(() => autoCleanupStaleData(), { timeout: 2600, fallbackDelay: 600 });
 
-  // Load saved server URL
-  const stored = await loadStorage([STORAGE_KEYS.serverUrl]);
-  if (stored[STORAGE_KEYS.serverUrl]) {
-    setCareAssuranceUrl(stored[STORAGE_KEYS.serverUrl]);
+  const initialState = await loadStorage(POPUP_INITIAL_STORAGE_KEYS);
+
+  applyPopupAppTheme(initialState?.[STORAGE_KEYS.appTheme]);
+
+  renderOverlayPinButton(Boolean(initialState?.[STORAGE_KEYS.overlayPinned]));
+
+  const storedServerUrl = String(initialState?.[STORAGE_KEYS.serverUrl] || "").trim();
+  if (storedServerUrl) {
+    setCareAssuranceUrl(storedServerUrl);
   }
-  await refreshWorkspaceContext();
 
-  // Restore last active tab and autofill user
-  const { [STORAGE_KEYS.lastTab]: savedTab, [STORAGE_KEYS.lastAutofillUser]: savedUser } = await new Promise((r) =>
-    chrome.storage.local.get([STORAGE_KEYS.lastTab, STORAGE_KEYS.lastAutofillUser], r)
-  );
-  if (savedTab) switchTab(savedTab, { persist: false });
-  if (savedUser?.acpId) selectAutofillUser(savedUser);
+  const savedTab = initialState?.[STORAGE_KEYS.lastTab];
+  if (savedTab) {
+    switchTab(savedTab, { persist: false });
+  }
+
+  const savedAutofillUser = initialState?.[STORAGE_KEYS.lastAutofillUser];
+  if (savedAutofillUser?.acpId) {
+    selectAutofillUser(savedAutofillUser);
+  }
+
+  if (initialState?.[STORAGE_KEYS.payload]) {
+    switchTab("autofill", { persist: false });
+  }
+
+  // Render state-dependent sections without blocking connection checks.
+  void refreshPayloadStatus();
+  void refreshSignatureStatus();
+  void refreshWorkspaceContext();
 
   // Auto-detect case IDs from active tab URL
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.url) {
+  runPopupIdleTask(async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.url) return;
+
       const url = new URL(tab.url);
       if (isLikelyCareAssuranceUrl(tab.url)) {
         setCareAssuranceUrl(url.host);
         await setStorage({ [STORAGE_KEYS.serverUrl]: url.host });
       }
+
       if (url.pathname.includes("new_case_form") || url.pathname.includes("edit_case_form")) {
         const caseId = url.searchParams.get("caseId");
         const serviceDataGroupId = url.searchParams.get("serviceDataGroupId");
@@ -5419,8 +5706,10 @@ function bindStorageListener() {
           }
         }
       }
+    } catch {
+      // ignore active-tab read errors
     }
-  } catch { /* ignore */ }
+  }, { timeout: 1800, fallbackDelay: 140 });
 
   // Quick connection check
   if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Checking connection...</span>';
@@ -5435,7 +5724,7 @@ function bindStorageListener() {
     if (res.ok && user) {
       console.log("[CA Extension] Quick check user:", JSON.stringify(user));
       updateConnectionUI(true, user);
-      await refreshWorkspaceContext(user);
+      void refreshWorkspaceContext(user);
       fetchConnectedData(user); // Fetch service users + recent items (no reconnect)
       if (state.selectedFilesList.length > 0) {
         updateUploadPendingStatus();
@@ -5459,12 +5748,9 @@ function bindStorageListener() {
     if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Click "Connect" to find server</span>';
   }
 
-  // Auto-switch to autofill if payload exists
-  const payloadState = await loadStorage([STORAGE_KEYS.payload]);
-  if (payloadState[STORAGE_KEYS.payload]) switchTab("autofill");
-
   // Periodic refresh (throttled)
   setInterval(() => {
+    if (document.hidden) return;
     schedulePopupRefresh({ payload: true, workspace: true });
   }, POPUP_PERIODIC_REFRESH_MS);
 
@@ -5475,5 +5761,5 @@ function bindStorageListener() {
   });
 
   // GDPR periodic cleanup
-  setInterval(autoCleanupStaleData, 30 * 60 * 1000);
+  setInterval(autoCleanupStaleData, POPUP_GDPR_CLEANUP_MS);
 })();

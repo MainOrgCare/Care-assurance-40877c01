@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,7 +10,6 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import { TermsGuard } from "@/components/TermsGuard";
 import { useAuth } from "@/context/AuthContext";
-import { Redirect } from "wouter";
 import React, { Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -59,43 +58,56 @@ function RouteFallback() {
 let hasPreloaded = false;
 const preloadRoutes = () => {
   if (hasPreloaded) return;
-  hasPreloaded = true;
 
   const connection = (navigator as Navigator & {
     connection?: { saveData?: boolean; effectiveType?: string };
+    deviceMemory?: number;
   }).connection;
+
+  const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   const shouldLimitPreload =
     connection?.saveData ||
+    connection?.effectiveType === "3g" ||
     connection?.effectiveType === "slow-2g" ||
-    connection?.effectiveType === "2g";
+    connection?.effectiveType === "2g" ||
+    (typeof deviceMemory === "number" && deviceMemory <= 4);
 
   if (shouldLimitPreload) return;
+  hasPreloaded = true;
 
-  const preload = (importFn: () => Promise<unknown>) => {
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => importFn(), { timeout: 4500 });
-    } else {
-      setTimeout(() => importFn(), 2500);
+  const preloadQueue: Array<() => Promise<unknown>> = [
+    () => import("@/pages/EmailAssistant"),
+    () => import("@/pages/Settings"),
+  ];
+
+  preloadQueue.forEach((importFn, index) => {
+    const timeout = 4500 + index * 900;
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(() => {
+        void importFn();
+      }, { timeout });
+      return;
     }
-  };
-  
-  // Preload highest-frequency pages only to avoid over-downloading.
-  preload(() => import("@/components/Layout"));
-  preload(() => import("@/pages/Dashboard"));
-  preload(() => import("@/pages/EmailAssistant"));
-  preload(() => import("@/pages/Settings"));
+    window.setTimeout(() => {
+      void importFn();
+    }, 2200 + index * 700);
+  });
 };
 
 function HomeRoute() {
   const { user } = useAuth();
-  
+
   // Preload common routes when user is logged in
   useEffect(() => {
     if (user) {
-      preloadRoutes();
+      const timer = window.setTimeout(() => {
+        preloadRoutes();
+      }, 1200);
+
+      return () => window.clearTimeout(timer);
     }
   }, [user]);
-  
+
   if (user) {
     return <Redirect to="/dashboard" />;
   }
@@ -108,56 +120,56 @@ function Router() {
       <PageLoadingBar />
       <Suspense fallback={<RouteFallback />}>
         <Switch>
-        <Route path="/terms" component={TermsConditions} />
-        <Route path="/privacy" component={PrivacyPolicy} />
-        <ProtectedRoute path="/dashboard" component={Dashboard} />
+          <Route path="/terms" component={TermsConditions} />
+          <Route path="/privacy" component={PrivacyPolicy} />
+          <ProtectedRoute path="/dashboard" component={Dashboard} />
 
-        {/* Service Users Dropdown */}
-        <ProtectedRoute path="/service-users/upload" component={ServiceUserUpload} />
-        <ProtectedRoute path="/service-users/care-planning" component={CarePlanning} />
-        <ProtectedRoute path="/service-users/risk-assessment" component={RiskAssessment} />
-        <ProtectedRoute path="/service-users/plan-enhancer" component={PlanEnhancer} />
+          {/* Service Users Dropdown */}
+          <ProtectedRoute path="/service-users/upload" component={ServiceUserUpload} />
+          <ProtectedRoute path="/service-users/care-planning" component={CarePlanning} />
+          <ProtectedRoute path="/service-users/risk-assessment" component={RiskAssessment} />
+          <ProtectedRoute path="/service-users/plan-enhancer" component={PlanEnhancer} />
 
-        {/* Care Workers Dropdown */}
-        <ProtectedRoute path="/care-workers/list" component={CarersList} />
-        <ProtectedRoute path="/care-workers/emar-audit" component={EMARAudit} />
-        <ProtectedRoute path="/care-workers/visit-audit" component={VisitAudit} />
-        <ProtectedRoute path="/care-workers/performance" component={Performance} />
+          {/* Care Workers Dropdown */}
+          <ProtectedRoute path="/care-workers/list" component={CarersList} />
+          <ProtectedRoute path="/care-workers/emar-audit" component={EMARAudit} />
+          <ProtectedRoute path="/care-workers/visit-audit" component={VisitAudit} />
+          <ProtectedRoute path="/care-workers/performance" component={Performance} />
 
-        {/* Admin Dropdown */}
-        <AdminRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
-        <AdminRoute path="/call-reconciliation" component={CallReconciliation} />
-        <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
-        <ProtectedRoute path="/compliance" component={Compliance} />
-        <ProtectedRoute path="/cqc-assessment" component={CQCSelfAssessment} />
-        <ProtectedRoute path="/policy-acknowledgement" component={PolicyAcknowledgement} />
-        <AdminRoute path="/roi-calculator" component={ROICalculator} />
-        <AdminRoute path="/testing-features" component={TestingFeatures} />
-        <AdminRoute path="/system-logs" component={SystemLogs} />
-        <AdminRoute path="/rostering-unified" component={RosteringStudioUnified} />
-        <Route path="/rostering-studio">
-          <Redirect to="/rostering-unified" />
-        </Route>
-        <Route path="/rostering-hub">
-          <Redirect to="/rostering-unified" />
-        </Route>
-        <AdminRoute path="/billing-tool" component={BillingTool} />
-        <Route path="/admin/care-worker-rotas">
-          <Redirect to="/rostering-unified" />
-        </Route>
-        <Route path="/care-worker-rotas">
-          <Redirect to="/rostering-unified" />
-        </Route>
-        <ProtectedRoute path="/settings" component={Settings} />
-        <ProtectedRoute path="/messages" component={Messages} />
+          {/* Admin Dropdown */}
+          <AdminRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
+          <AdminRoute path="/call-reconciliation" component={CallReconciliation} />
+          <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
+          <ProtectedRoute path="/compliance" component={Compliance} />
+          <ProtectedRoute path="/cqc-assessment" component={CQCSelfAssessment} />
+          <ProtectedRoute path="/policy-acknowledgement" component={PolicyAcknowledgement} />
+          <AdminRoute path="/roi-calculator" component={ROICalculator} />
+          <AdminRoute path="/testing-features" component={TestingFeatures} />
+          <AdminRoute path="/system-logs" component={SystemLogs} />
+          <AdminRoute path="/rostering-unified" component={RosteringStudioUnified} />
+          <Route path="/rostering-studio">
+            <Redirect to="/rostering-unified" />
+          </Route>
+          <Route path="/rostering-hub">
+            <Redirect to="/rostering-unified" />
+          </Route>
+          <AdminRoute path="/billing-tool" component={BillingTool} />
+          <Route path="/admin/care-worker-rotas">
+            <Redirect to="/rostering-unified" />
+          </Route>
+          <Route path="/care-worker-rotas">
+            <Redirect to="/rostering-unified" />
+          </Route>
+          <ProtectedRoute path="/settings" component={Settings} />
+          <ProtectedRoute path="/messages" component={Messages} />
 
-        {/* Homepage - shows landing page or redirects to dashboard */}
-        <Route path="/" component={HomeRoute} />
+          {/* Homepage - shows landing page or redirects to dashboard */}
+          <Route path="/" component={HomeRoute} />
 
-        {/* Fallback */}
-        <Route component={NotFound} />
-      </Switch>
-    </Suspense>
+          {/* Fallback */}
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </ErrorBoundary>
   );
 }

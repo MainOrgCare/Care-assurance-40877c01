@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { useSettings, FontSize } from "@/context/SettingsContext";
+import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
 import { Type, Layout, Bell, Palette, Sparkles, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -66,18 +66,20 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
               <Palette size={16} className="text-primary" />
               Appearance
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
                 { id: "light", label: "Light", icon: "☀️", color: "bg-card border-border" },
+                { id: "sunrise", label: "Sunrise", icon: "🌅", color: "bg-amber-100 border-amber-300" },
                 { id: "dark", label: "Dark", icon: "🌙", color: "bg-foreground border-foreground/80" },
                 { id: "midnight", label: "Midnight", icon: "🌌", color: "bg-primary border-primary/80" },
-                { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-secondary border-secondary/80" }
-              ].map((t) => (
+                { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-secondary border-secondary/80" },
+                { id: "aurora", label: "Aurora", icon: "🌲", color: "bg-emerald-900 border-emerald-600" },
+              ].map((t: { id: AppTheme; label: string; icon: string; color: string }) => (
                 <motion.div
                   key={t.id}
                   whileHover={{ y: -2, scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => setTheme(t.id as any)}
+                  onClick={() => setTheme(t.id)}
                   className={cn(
                     "relative cursor-pointer flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200",
                     theme === t.id 

@@ -9,7 +9,7 @@
 @import "tw-animate-css";
 
 /* Dark variant works with .dark class OR any dark theme */
-@custom-variant dark (&:is(.dark *, .theme-dark *, .theme-midnight *, .theme-ocean *));
+@custom-variant dark (&:is(.dark *, .theme-dark *, .theme-midnight *, .theme-ocean *, .theme-aurora *));
 
 @theme {
   --radius-sm: calc(var(--radius) - 4px);
@@ -104,12 +104,16 @@
   --surface-shell-border: hsl(214 18% 84% / 0.78);
   --surface-shell-shadow: 0 14px 30px -24px rgba(15, 23, 42, 0.18);
   --surface-noise-opacity: 0.035;
-  --surface-bg-gradient: radial-gradient(1200px 640px at 8% -12%, hsl(214 48% 94%), transparent 60%),
-    radial-gradient(900px 480px at 92% 0%, hsl(172 34% 93%), transparent 56%),
-    linear-gradient(180deg, hsl(216 24% 98%) 0%, hsl(216 22% 97%) 48%, hsl(216 20% 95%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(214 16% 90% / 0.48) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(214 16% 90% / 0.48) 1px, transparent 1px);
-  --surface-grid-size: 128px 128px;
+  --surface-bg-gradient: radial-gradient(1250px 740px at -8% -14%, hsl(210 66% 92% / 0.74), transparent 62%),
+    radial-gradient(1080px 620px at 102% -8%, hsl(172 52% 88% / 0.6), transparent 58%),
+    radial-gradient(820px 520px at 48% 118%, hsl(200 42% 92% / 0.36), transparent 66%),
+    linear-gradient(180deg, hsl(214 30% 98%) 0%, hsl(214 24% 96%) 46%, hsl(214 22% 94%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(214 20% 90% / 0.45) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(214 20% 90% / 0.45) 1px, transparent 1px);
+  --surface-grid-size: 120px 120px;
+  --surface-orb-a: radial-gradient(860px 520px at 12% 12%, color-mix(in oklab, var(--color-primary) 20%, transparent), transparent 70%);
+  --surface-orb-b: radial-gradient(920px 560px at 88% -8%, color-mix(in oklab, var(--color-secondary) 18%, transparent), transparent 74%);
+  --surface-orb-c: radial-gradient(780px 520px at 56% 108%, color-mix(in oklab, var(--color-primary) 14%, transparent), transparent 76%);
   --content-max-width: 1360px;
 
   /* Z-index scale */
@@ -165,6 +169,29 @@
     font-size: 0.975rem;
     line-height: 1.64;
     letter-spacing: -0.008em;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--surface-grid);
+    background-size: var(--surface-grid-size);
+    opacity: 0.2;
+    mask-image: radial-gradient(circle at 50% -12%, rgba(0, 0, 0, 0.56), transparent 72%);
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: -22% -16% -14%;
+    z-index: -2;
+    pointer-events: none;
+    background-image: var(--surface-orb-a), var(--surface-orb-b), var(--surface-orb-c);
+    opacity: 0.78;
+    filter: blur(2px) saturate(1.04);
+    transform: translateZ(0);
+    animation: surface-orb-drift 34s ease-in-out infinite alternate;
   }
   #root {
     min-height: 100vh;
@@ -286,27 +313,48 @@
 @layer components {
   /* App surface - clean corporate panel */
   .app-surface {
+    position: relative;
+    overflow: hidden;
     width: 100%;
-    border-radius: 1rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 82%, white);
+    border-radius: 1.05rem;
+    border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
     background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-card) 94%, white) 0%, var(--color-card) 100%);
+      linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white) 0%, color-mix(in oklab, var(--color-card) 89%, transparent) 100%);
     box-shadow: var(--shadow-soft);
     transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
+  .app-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(130% 70% at 8% -12%, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 66%);
+    opacity: 0.9;
+  }
   .app-surface:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
+    border-color: color-mix(in oklab, var(--color-primary) 22%, var(--color-border));
     box-shadow: var(--shadow-medium);
   }
 
   /* Card shell */
   .glass-card,
   .glass-card-interactive {
+    position: relative;
+    overflow: hidden;
     border-radius: 1rem;
     border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
-    background: color-mix(in oklab, var(--color-card) 92%, transparent);
+    background: linear-gradient(175deg, color-mix(in oklab, var(--color-card) 95%, white), color-mix(in oklab, var(--color-card) 90%, transparent));
     box-shadow: var(--shadow-soft);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
+  }
+  .glass-card::before,
+  .glass-card-interactive::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(130deg, color-mix(in oklab, var(--color-primary) 9%, transparent), transparent 46%);
+    opacity: 0.78;
   }
   .glass-card:hover,
   .glass-card-interactive:hover {
@@ -476,55 +524,291 @@
     position: relative;
     isolation: isolate;
   }
+  .workspace-root::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 360px;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(120% 120% at 50% -25%, color-mix(in oklab, var(--color-primary) 16%, transparent), transparent 68%);
+    opacity: 0.7;
+  }
+  .workspace-root::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 280px;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(110% 100% at 50% 120%, color-mix(in oklab, var(--color-secondary) 14%, transparent), transparent 72%);
+    opacity: 0.44;
+  }
   .workspace-content-shell {
     position: relative;
     z-index: 1;
   }
   .workspace-sidebar {
+      position: relative;
+      overflow: hidden;
     background: var(--color-sidebar);
+      background-image: radial-gradient(135% 68% at 10% 8%, color-mix(in oklab, var(--color-sidebar-primary) 22%, transparent), transparent 66%);
     border-color: var(--color-sidebar-border);
     box-shadow: 1px 0 0 var(--color-sidebar-border);
   }
+    .workspace-sidebar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%);
+      opacity: 0.42;
+    }
+    .workspace-sidebar::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 1px;
+      pointer-events: none;
+      z-index: 0;
+      background: linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar-primary) 38%, transparent), transparent 65%);
+      opacity: 0.72;
+    }
+    .workspace-sidebar > * {
+      position: relative;
+      z-index: 1;
+    }
+  .workspace-nav-link,
+  .workspace-nav-trigger,
+  .workspace-sub-nav-link {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .workspace-nav-link > *,
+  .workspace-nav-trigger > *,
+  .workspace-sub-nav-link > * {
+    position: relative;
+    z-index: 1;
+  }
+  .workspace-nav-link::after,
+  .workspace-nav-trigger::after,
+  .workspace-sub-nav-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 0;
+    background: linear-gradient(112deg, color-mix(in oklab, var(--color-sidebar-primary) 10%, transparent), transparent 48%);
+    transition: opacity var(--motion-fast) var(--ease-standard);
+  }
+  .workspace-nav-link::before,
+  .workspace-nav-trigger::before {
+    content: "";
+    position: absolute;
+    left: 0.52rem;
+    top: 50%;
+    width: 2px;
+    height: 1.06rem;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--color-sidebar-primary) 72%, white);
+    opacity: 0;
+    transform: translateY(-50%) scaleY(0.5);
+    transform-origin: center;
+    transition: transform var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard);
+  }
+  .workspace-sub-nav-link::before {
+    content: "";
+    position: absolute;
+    left: 0.72rem;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--color-sidebar-primary) 55%, transparent);
+    opacity: 0.6;
+    transform: translateY(-50%);
+  }
+  .workspace-nav-link:hover::after,
+  .workspace-nav-trigger:hover::after,
+  .workspace-sub-nav-link:hover::after {
+    opacity: 1;
+  }
+  .workspace-nav-link.is-active::before,
+  .workspace-nav-trigger.is-open::before {
+    opacity: 0.95;
+    transform: translateY(-50%) scaleY(1);
+  }
+  .workspace-nav-link svg,
+  .workspace-nav-trigger svg,
+  .workspace-sub-nav-link svg {
+    transition: transform var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+  }
+  .workspace-nav-link:hover svg,
+  .workspace-nav-trigger:hover svg {
+    transform: translateX(1px);
+  }
+  .workspace-sub-nav-link:hover svg {
+    transform: translateX(2px);
+  }
+  .workspace-nav-link.is-active svg,
+  .workspace-sub-nav-link.is-active svg {
+    color: var(--color-sidebar-primary);
+  }
   .workspace-header {
+    position: relative;
+    overflow: hidden;
     border-color: var(--color-border);
-    background-color: color-mix(in oklab, var(--color-card) 86%, transparent);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    background-color: color-mix(in oklab, var(--color-card) 84%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 94%, white) 0%, color-mix(in oklab, var(--color-card) 84%, transparent) 100%);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  .workspace-header::after {
+    content: "";
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    top: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 24%, transparent), transparent);
+  }
+  .workspace-header-tools {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .workspace-header-tools::before {
+    content: "";
+    position: absolute;
+    inset: 0 18% auto;
+    height: 1px;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 24%, transparent), transparent);
+  }
+  .workspace-header-tools > * {
+    position: relative;
+    z-index: 1;
   }
   .workspace-card {
-    border-color: var(--color-border);
-    background: var(--color-card);
-    box-shadow: var(--shadow-xs);
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    border-color: color-mix(in oklab, var(--color-border) 76%, white);
+    background: linear-gradient(175deg, color-mix(in oklab, var(--color-card) 96%, white), color-mix(in oklab, var(--color-card) 90%, transparent));
+    box-shadow: var(--shadow-soft);
+    transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
+  }
+  .workspace-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(110% 82% at 10% -16%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 68%);
+    opacity: 0.9;
+  }
+  .workspace-card > * {
+    position: relative;
+    z-index: 1;
+  }
+  .workspace-card:hover {
+    border-color: color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-1px);
   }
   .workspace-card > * + * {
     margin-top: 0;
   }
   .workspace-footer {
+    position: relative;
+    overflow: hidden;
     border-color: var(--color-border);
-    background-color: var(--color-card);
+    background-color: color-mix(in oklab, var(--color-card) 86%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 72%, transparent), color-mix(in oklab, var(--color-card) 92%, white));
+  }
+  .workspace-footer::before {
+    content: "";
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    top: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-secondary) 26%, transparent), transparent);
+    opacity: 0.75;
+  }
+  .workspace-quick-access {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .workspace-quick-access::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(118deg, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 52%);
+    opacity: 0.86;
+  }
+  .workspace-quick-access > * {
+    position: relative;
+    z-index: 1;
+  }
+  .quick-access-group-label {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .workspace-title-shell {
+    position: relative;
+    padding-left: 0.75rem;
+  }
+  .workspace-title-shell::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.2rem;
+    bottom: 0.2rem;
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 62%, transparent), color-mix(in oklab, var(--color-secondary) 42%, transparent));
+    opacity: 0.8;
+  }
+  .workspace-title-kicker {
+    text-wrap: balance;
   }
 
   /* Dark theme workspace overrides */
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-header {
-    background-color: color-mix(in oklab, var(--color-background) 88%, transparent);
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-header {
+    background-color: color-mix(in oklab, var(--color-background) 82%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 26%, transparent), color-mix(in oklab, var(--color-background) 90%, transparent));
   }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-card {
-    background: color-mix(in oklab, var(--color-card) 92%, transparent);
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-card {
+    background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 94%, transparent), color-mix(in oklab, var(--color-card) 86%, transparent));
     border-color: color-mix(in oklab, var(--color-border) 80%, transparent);
   }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .workspace-footer {
-    background-color: color-mix(in oklab, var(--color-background) 92%, transparent);
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-footer {
+    background-color: color-mix(in oklab, var(--color-background) 86%, transparent);
+    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 12%, transparent), color-mix(in oklab, var(--color-background) 90%, transparent));
   }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .glass-card,
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .glass-card-interactive {
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-title-shell::before {
+    background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 68%, transparent), color-mix(in oklab, var(--color-secondary) 56%, transparent));
+  }
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .glass-card,
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .glass-card-interactive {
     background: var(--color-card);
     border-color: var(--color-border);
   }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .app-surface {
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .app-surface {
     background: var(--color-card);
     border-color: var(--color-border);
   }
-  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .stat-card {
+  :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .stat-card {
     background: var(--color-card);
     border-color: var(--color-border);
   }
@@ -554,6 +838,18 @@
 @keyframes slide-in-right {
   from { transform: translateX(16px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes surface-orb-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-1.2%, 1.6%, 0) scale(1.03);
+  }
+  100% {
+    transform: translate3d(1%, -1.1%, 0) scale(1.01);
+  }
 }
 
 /* ── Compli-ee animations ─────────────────────────────── */
@@ -596,7 +892,8 @@
 
 /* Theme-specific body backgrounds */
 .theme-dark body,
-html:not(.theme-light):not(.theme-midnight):not(.theme-ocean) body {
+html.theme-aurora body,
+html:not(.theme-light):not(.theme-sunrise):not(.theme-midnight):not(.theme-ocean):not(.theme-aurora) body {
   background-color: hsl(222 22% 7%);
   background-image: var(--surface-bg-gradient);
 }
@@ -613,6 +910,11 @@ html.theme-ocean body {
 
 html.theme-light body {
   background-color: hsl(220 20% 97%);
+  background-image: var(--surface-bg-gradient);
+}
+
+html.theme-sunrise body {
+  background-color: hsl(34 60% 96%);
   background-image: var(--surface-bg-gradient);
 }
 
@@ -935,26 +1237,30 @@ html.theme-light body {
     gap: 0.75rem;
     padding: 3rem 1.5rem;
     text-align: center;
+    color: var(--color-muted-foreground);
   }
   .empty-state-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 3rem;
     width: 3rem;
+    height: 3rem;
     border-radius: 0.75rem;
     background: color-mix(in oklab, var(--color-muted) 50%, transparent);
     color: var(--color-muted-foreground);
+    opacity: 0.4;
   }
   .empty-state-title {
-    font-size: 0.875rem;
+    font-family: var(--font-heading);
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--color-foreground);
   }
-  .empty-state-description {
+  .empty-state-description,
+  .empty-state-text {
     font-size: 0.8125rem;
     color: var(--color-muted-foreground);
-    max-width: 28rem;
+    max-width: min(36ch, 28rem);
     line-height: 1.55;
   }
 
@@ -978,35 +1284,6 @@ html.theme-light body {
   .divider-fade {
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--color-border) 20%, var(--color-border) 80%, transparent);
-  }
-
-  /* Empty state placeholder */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 3rem 1.5rem;
-    text-align: center;
-    color: var(--color-muted-foreground);
-  }
-  .empty-state-icon {
-    width: 3rem;
-    height: 3rem;
-    color: var(--color-muted-foreground);
-    opacity: 0.4;
-  }
-  .empty-state-title {
-    font-family: var(--font-heading);
-    font-weight: 600;
-    font-size: 0.9375rem;
-    color: var(--color-foreground);
-  }
-  .empty-state-text {
-    font-size: 0.8125rem;
-    max-width: 36ch;
-    line-height: 1.5;
   }
 
   /* Labeled divider — horizontal rule with centered text */
@@ -1195,6 +1472,50 @@ html.theme-light body {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+
+  body::after {
+    animation: none !important;
+  }
+}
+
+html.reduce-motion,
+body.reduce-motion {
+  scroll-behavior: auto !important;
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after,
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+}
+
+html.reduce-motion body::after,
+body.reduce-motion::after {
+  animation: none !important;
+}
+
+html.high-contrast {
+  --color-muted-foreground: color-mix(in oklab, var(--color-foreground) 72%, var(--color-background));
+  --color-border: color-mix(in oklab, var(--color-foreground) 28%, var(--color-background));
+  --color-input: color-mix(in oklab, var(--color-foreground) 28%, var(--color-background));
+  --color-primary: color-mix(in oklab, var(--color-primary) 88%, black);
+  --color-ring: color-mix(in oklab, var(--color-primary) 92%, black);
+}
+
+html.high-contrast .text-muted-foreground {
+  color: var(--color-muted-foreground) !important;
+}
+
+html.high-contrast .border-border,
+html.high-contrast .workspace-header,
+html.high-contrast .workspace-footer {
+  border-color: var(--color-border) !important;
 }
 
 /* Theme transition effects - simplified */
@@ -1234,6 +1555,20 @@ html.theme-ocean .theme-preview {
   --preview-accent-2: hsl(199, 89%, 48%);
 }
 
+html.theme-aurora .theme-preview {
+  --preview-bg-1: hsl(160, 32%, 10%);
+  --preview-bg-2: hsl(178, 34%, 14%);
+  --preview-accent-1: hsl(148, 62%, 44%);
+  --preview-accent-2: hsl(186, 78%, 56%);
+}
+
+html.theme-sunrise .theme-preview {
+  --preview-bg-1: hsl(35, 94%, 95%);
+  --preview-bg-2: hsl(18, 86%, 90%);
+  --preview-accent-1: hsl(18, 82%, 44%);
+  --preview-accent-2: hsl(347, 80%, 58%);
+}
+
 html.theme-light .theme-preview {
   --preview-bg-1: hsl(203, 36%, 97%);
   --preview-bg-2: hsl(0, 0%, 100%);
@@ -1243,6 +1578,7 @@ html.theme-light .theme-preview {
 
 /* Glass effect variables per dark theme */
 html.theme-dark,
+html.theme-aurora,
 .dark {
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-border-subtle: rgba(255, 255, 255, 0.05);
@@ -1259,6 +1595,9 @@ html.theme-dark,
   --surface-grid: linear-gradient(90deg, hsl(220 24% 22% / 0.25) 1px, transparent 1px),
     linear-gradient(180deg, hsl(220 24% 22% / 0.25) 1px, transparent 1px);
   --surface-grid-size: 140px 140px;
+  --surface-orb-a: radial-gradient(900px 560px at 14% 4%, hsl(198 66% 32% / 0.22), transparent 72%);
+  --surface-orb-b: radial-gradient(980px 600px at 88% -12%, hsl(170 52% 28% / 0.16), transparent 76%);
+  --surface-orb-c: radial-gradient(820px 520px at 50% 112%, hsl(210 56% 28% / 0.14), transparent 78%);
 }
 
 html.theme-light {
@@ -1287,6 +1626,9 @@ html.theme-midnight {
   --surface-grid: linear-gradient(90deg, hsl(236 34% 24% / 0.26) 1px, transparent 1px),
     linear-gradient(180deg, hsl(236 34% 24% / 0.26) 1px, transparent 1px);
   --surface-grid-size: 160px 160px;
+  --surface-orb-a: radial-gradient(900px 560px at 10% -8%, hsl(228 72% 42% / 0.26), transparent 72%);
+  --surface-orb-b: radial-gradient(980px 620px at 88% -16%, hsl(195 66% 38% / 0.2), transparent 76%);
+  --surface-orb-c: radial-gradient(820px 520px at 52% 112%, hsl(246 68% 40% / 0.16), transparent 78%);
 }
 
 html.theme-ocean {
@@ -1303,10 +1645,13 @@ html.theme-ocean {
   --surface-grid: linear-gradient(90deg, hsl(190 40% 22% / 0.25) 1px, transparent 1px),
     linear-gradient(180deg, hsl(190 40% 22% / 0.25) 1px, transparent 1px);
   --surface-grid-size: 150px 150px;
+  --surface-orb-a: radial-gradient(920px 560px at 8% -10%, hsl(186 82% 34% / 0.22), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 580px at 90% -14%, hsl(164 72% 34% / 0.18), transparent 76%);
+  --surface-orb-c: radial-gradient(820px 520px at 50% 112%, hsl(196 72% 36% / 0.14), transparent 78%);
 }
 
 /* Default Dark Theme Overrides */
-.dark, .theme-dark {
+.dark, .theme-dark, .theme-aurora {
   --color-background: hsl(222.2 84% 4.9%);
   --color-foreground: hsl(210 40% 98%);
   --color-card: hsl(222.2 84% 4.9%);
@@ -1458,6 +1803,99 @@ html.theme-light {
   --surface-shell-border: rgba(148, 163, 184, 0.36);
   --surface-shell-shadow: 0 4px 16px -8px rgba(15, 23, 42, 0.12);
   --surface-noise-opacity: 0;
+  --surface-orb-a: radial-gradient(860px 520px at 12% 12%, hsl(206 90% 54% / 0.15), transparent 72%);
+  --surface-orb-b: radial-gradient(920px 560px at 90% -8%, hsl(172 78% 40% / 0.14), transparent 76%);
+  --surface-orb-c: radial-gradient(800px 500px at 52% 112%, hsl(206 80% 44% / 0.12), transparent 78%);
+}
+
+/* Theme: Sunrise - Warm light palette */
+html.theme-sunrise {
+  color-scheme: light;
+  --color-primary: hsl(18 82% 44%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(38 84% 45%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-background: hsl(34 60% 96%);
+  --color-foreground: hsl(18 34% 18%);
+  --color-card: hsl(0 0% 100% / 0.95);
+  --color-card-foreground: hsl(18 34% 18%);
+  --color-popover: hsl(0 0% 100% / 0.98);
+  --color-popover-foreground: hsl(18 34% 18%);
+  --color-muted: hsl(33 42% 92%);
+  --color-muted-foreground: hsl(20 16% 38%);
+  --color-accent: hsl(18 82% 44% / 0.1);
+  --color-accent-foreground: hsl(18 34% 18%);
+  --color-border: hsl(28 28% 78%);
+  --color-input: hsl(28 28% 78%);
+  --color-ring: hsl(18 82% 44%);
+  --color-primary-border: hsl(18 82% 36% / 0.32);
+  --color-secondary-border: hsl(38 84% 38% / 0.3);
+  --button-outline: hsl(28 26% 74%);
+  --badge-outline: hsl(28 26% 74%);
+  --color-sidebar: hsl(0 0% 100% / 0.9);
+  --color-sidebar-foreground: hsl(18 34% 18%);
+  --color-sidebar-primary: hsl(18 82% 44%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(33 42% 92%);
+  --color-sidebar-accent-foreground: hsl(18 34% 18%);
+  --color-sidebar-border: hsl(28 28% 78%);
+  --color-sidebar-ring: hsl(18 82% 44%);
+  --surface-shell-border: rgba(191, 137, 111, 0.34);
+  --surface-shell-shadow: 0 4px 16px -8px rgba(66, 31, 16, 0.12);
+  --surface-bg-gradient: radial-gradient(1100px 620px at 8% -20%, hsl(20 88% 72% / 0.25), transparent 62%),
+    radial-gradient(940px 540px at 92% -12%, hsl(347 75% 68% / 0.18), transparent 58%),
+    linear-gradient(180deg, hsl(34 66% 97%) 0%, hsl(33 54% 95%) 48%, hsl(32 46% 93%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(24 32% 82% / 0.35) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(24 32% 82% / 0.35) 1px, transparent 1px);
+  --surface-grid-size: 128px 128px;
+  --surface-orb-a: radial-gradient(860px 520px at 10% 8%, hsl(18 82% 54% / 0.14), transparent 72%);
+  --surface-orb-b: radial-gradient(920px 560px at 92% -8%, hsl(347 75% 60% / 0.12), transparent 76%);
+  --surface-orb-c: radial-gradient(800px 500px at 54% 112%, hsl(38 84% 50% / 0.1), transparent 78%);
+}
+
+/* Theme: Aurora - Emerald dark palette */
+html.theme-aurora {
+  color-scheme: dark;
+  --color-primary: hsl(148 62% 44%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(178 72% 40%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-background: hsl(164 30% 10%);
+  --color-foreground: hsl(156 24% 94%);
+  --color-card: hsl(166 28% 14% / 0.72);
+  --color-card-foreground: hsl(156 24% 94%);
+  --color-popover: hsl(166 28% 14% / 0.9);
+  --color-popover-foreground: hsl(156 24% 94%);
+  --color-muted: hsl(166 21% 19% / 0.6);
+  --color-muted-foreground: hsl(156 14% 72%);
+  --color-accent: hsl(148 62% 44% / 0.15);
+  --color-accent-foreground: hsl(148 62% 60%);
+  --color-border: hsl(164 18% 30% / 0.58);
+  --color-input: hsl(164 18% 30% / 0.58);
+  --color-ring: hsl(148 62% 44%);
+  --color-primary-border: hsl(148 62% 34% / 0.56);
+  --color-secondary-border: hsl(178 72% 30% / 0.52);
+  --button-outline: hsl(164 18% 34% / 0.62);
+  --badge-outline: hsl(164 18% 38% / 0.62);
+  --color-sidebar: hsl(164 34% 8% / 0.84);
+  --color-sidebar-foreground: hsl(156 24% 90%);
+  --color-sidebar-primary: hsl(148 62% 44%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(166 28% 18%);
+  --color-sidebar-accent-foreground: hsl(156 24% 94%);
+  --color-sidebar-border: hsl(164 22% 20% / 0.58);
+  --color-sidebar-ring: hsl(148 62% 44%);
+  --surface-shell-border: rgba(110, 231, 183, 0.25);
+  --surface-shell-shadow: 0 4px 16px -8px rgba(6, 24, 20, 0.35);
+  --surface-bg-gradient: radial-gradient(1120px 620px at 10% -20%, hsl(148 62% 28% / 0.36), transparent 62%),
+    radial-gradient(920px 560px at 90% -10%, hsl(186 58% 26% / 0.32), transparent 58%),
+    linear-gradient(180deg, hsl(164 34% 8%) 0%, hsl(166 30% 7%) 45%, hsl(168 30% 6%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(162 30% 22% / 0.24) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(162 30% 22% / 0.24) 1px, transparent 1px);
+  --surface-grid-size: 148px 148px;
+  --surface-orb-a: radial-gradient(900px 560px at 10% -8%, hsl(148 62% 36% / 0.22), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 600px at 90% -12%, hsl(186 58% 32% / 0.18), transparent 76%);
+  --surface-orb-c: radial-gradient(820px 520px at 52% 112%, hsl(170 52% 32% / 0.14), transparent 78%);
 }
 
 /* Font size adjustments */
@@ -1585,12 +2023,14 @@ html.theme-light .workspace-sidebar {
 }
 
 html.theme-light .workspace-header {
-  background-color: rgba(255, 255, 255, 0.96) !important;
+  background-color: color-mix(in oklab, var(--color-card) 88%, transparent) !important;
+  background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white), color-mix(in oklab, var(--color-card) 82%, transparent)) !important;
   border-color: var(--color-border) !important;
 }
 
 html.theme-light .workspace-footer {
-  background-color: rgba(255, 255, 255, 0.96) !important;
+  background-color: color-mix(in oklab, var(--color-card) 84%, transparent) !important;
+  background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 68%, transparent), color-mix(in oklab, var(--color-card) 94%, white)) !important;
   border-color: var(--color-border) !important;
 }
 
@@ -1598,14 +2038,18 @@ html.theme-light .workspace-footer {
 html.theme-midnight .bg-slate-900,
 html.theme-midnight .bg-slate-800,
 html.theme-ocean .bg-slate-900,
-html.theme-ocean .bg-slate-800 {
+html.theme-ocean .bg-slate-800,
+html.theme-aurora .bg-slate-900,
+html.theme-aurora .bg-slate-800 {
   background-color: var(--color-card) !important;
 }
 
 html.theme-midnight .border-white\/10,
 html.theme-midnight .border-white\/5,
 html.theme-ocean .border-white\/10,
-html.theme-ocean .border-white\/5 {
+html.theme-ocean .border-white\/5,
+html.theme-aurora .border-white\/10,
+html.theme-aurora .border-white\/5 {
   border-color: var(--glass-border) !important;
 }
 
@@ -1624,6 +2068,14 @@ html.theme-ocean .bg-blue-600\/10 {
 
 html.theme-ocean .bg-violet-500\/10 {
   background-color: hsl(199 89% 48% / 0.15) !important;
+}
+
+html.theme-aurora .bg-blue-600\/10 {
+  background-color: hsl(148 62% 44% / 0.16) !important;
+}
+
+html.theme-aurora .bg-violet-500\/10 {
+  background-color: hsl(186 78% 56% / 0.16) !important;
 }
 
 /* ────────────────────────────────────────────────────
@@ -1866,14 +2318,14 @@ html.theme-ocean .bg-violet-500\/10 {
 /* ────────────────────────────────────────────────────
    EMAR — Dark Mode Enhancements
    ──────────────────────────────────────────────────── */
-:is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .emar-progress-stepper {
+:is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .emar-progress-stepper {
   background: color-mix(in oklab, var(--color-card) 80%, var(--color-primary) 20%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
 }
-:is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .emar-stat-pill::after {
+:is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .emar-stat-pill::after {
   background: var(--color-primary-foreground);
 }
-:is(.dark, .theme-dark, .theme-midnight, .theme-ocean) .emar-discrepancy-table tr:nth-child(even) {
+:is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .emar-discrepancy-table tr:nth-child(even) {
   background: color-mix(in oklab, var(--color-muted) 15%, transparent);
 }
 

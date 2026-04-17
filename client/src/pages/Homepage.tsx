@@ -183,6 +183,12 @@ const HERO_ACTIVITY = [
   },
 ] as const;
 
+const TRUST_PILLARS = [
+  { icon: ShieldCheck, label: "Inspection-ready evidence" },
+  { icon: Lock, label: "Secure by design" },
+  { icon: Building2, label: "Built for UK care teams" },
+] as const;
+
 const calculateROI = (users: number) => {
   let totalManualMins = 0;
   let totalAiMins = 0;
@@ -380,12 +386,14 @@ export default function Homepage() {
   return (
     <div className="homepage-theme min-h-screen overflow-x-hidden">
       <div className="home-pattern fixed inset-0 pointer-events-none opacity-25" />
+      <div className="home-atmosphere home-atmosphere-left" aria-hidden="true" />
+      <div className="home-atmosphere home-atmosphere-right" aria-hidden="true" />
 
       <header className={`home-header ${headerScrolled ? "is-scrolled" : ""}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl home-brand-mark flex items-center justify-center shadow-[var(--shadow-xs)]">
-              <ShieldCheck className="h-5 w-5" />
+            <div className="h-9 w-9 rounded-xl home-brand-mark flex items-center justify-center shadow-[var(--shadow-xs)]">
+              <ShieldCheck className="h-4.5 w-4.5" />
             </div>
             <div className="home-brand-copy">
               <div className="text-base font-semibold">CareAssurance</div>
@@ -561,6 +569,14 @@ export default function Homepage() {
                   Estimate savings
                 </Button>
               </div>
+              <div className="home-trust-strip mt-6 justify-center lg:justify-start" aria-label="Key platform assurances">
+                {TRUST_PILLARS.map((item) => (
+                  <span key={item.label} className="home-trust-pill">
+                    <item.icon className="h-3.5 w-3.5" />
+                    {item.label}
+                  </span>
+                ))}
+              </div>
               <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
                   <div key={stat.label} className="home-card-soft p-4 text-left group">
@@ -578,6 +594,7 @@ export default function Homepage() {
             </motion.div>
 
             <motion.div {...reveal(0.1)} className="relative">
+              <div className="home-hero-glow" aria-hidden="true" />
               <div className="home-card p-6">
                 <div className="space-y-4">
                   {HERO_ACTIVITY.map((item) => (
@@ -1008,11 +1025,11 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border/60">
-        <div className="max-w-6xl mx-auto px-4 py-10 grid gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr] text-sm">
-          <div className="space-y-4">
+      <footer className="relative z-10 border-t border-border/60 bg-card/44 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 py-7 grid gap-5 md:grid-cols-[1.25fr_0.75fr_0.8fr] text-[13px]">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
+            <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-4.5 w-4.5" />
             </div>
             <div>
@@ -1023,15 +1040,10 @@ export default function Homepage() {
             <p className="max-w-md home-text-soft leading-relaxed">
               Professional compliance operations for domiciliary care teams, with consistent workflows across the website and extension.
             </p>
-            <div className="flex flex-wrap gap-2">
-              <span className="home-pill">Service users</span>
-              <span className="home-pill">Carers</span>
-              <span className="home-pill">Extension ready</span>
-            </div>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary/55">Explore</p>
-            <div className="mt-3 flex flex-col gap-3 home-text-soft text-[13px]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Explore</p>
+            <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
               <button
                 type="button"
                 className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
@@ -1056,8 +1068,8 @@ export default function Homepage() {
             </div>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary/55">Policies</p>
-            <div className="mt-3 flex flex-col gap-3 home-text-soft text-[13px]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Policies</p>
+            <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
               <Link href="/terms" className="font-semibold hover:text-foreground transition-colors">
                 Terms & Conditions
               </Link>
