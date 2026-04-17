@@ -64,6 +64,9 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Upload dropzones accept either local files or dropped http/https links. Dropped links are downloaded and staged directly into the selected section when the file type is supported.
 - Each Intake section now provides both `Upload` and `Auto-Collect` actions.
 - The Upload toolbar now includes `Reset Upload` so operators can quickly clear staged files, notes, analysis selections, and synced-upload summary state before starting a new intake pass.
+- The Upload mirror now includes a live readiness summary (staged file count/size/section coverage + case targeting) so operators can validate upload context before sending.
+- Upload actions now use operation interlocks: while Send, Auto-Collect, AI analysis, or dropped-link downloads are running, conflicting upload actions are disabled to prevent duplicate clicks and race conditions.
+- Multi-file staging now skips duplicate files automatically and enforces a practical staging cap (80 files) to keep sessions stable under heavy operator workloads.
 - `Auto-Collect` uses section-specific Mobizio source URLs:
   - `Social Work`, `Moving & Handling`, and `Additional Documents` start from `/case_document_list?caseId=<id>&serviceId=1000801`
   - `Initial Assessment` starts from `/case_data_group?caseId=<id>&serviceDataGroupId=1014998`

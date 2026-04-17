@@ -1,5 +1,26 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.25 - Workflow Hardening and Professional Upload Controls
+
+### Upload Workflow Reliability
+
+- Added upload operation interlocks across Intake actions so conflicting controls are disabled while Send, Auto-Collect, AI analysis, or dropped-link downloads are in progress.
+- Added explicit busy-state guidance and guarded action handlers to prevent duplicate clicks, race conditions, and accidental mid-run reset attempts.
+
+### Staging Quality Controls
+
+- Added duplicate-file suppression for manual/dropped uploads (both in-selection duplicates and files already staged in the target bucket).
+- Added a practical staging cap of `80` files with operator feedback when additional files are skipped, helping keep heavy sessions stable and predictable.
+
+### Operator UX
+
+- Added an `Upload readiness summary` row in the Intake upload toolbar that reports staged file count, total size, section coverage, and current case-target readiness.
+- Added disabled-state visuals for upload dropzones during active operations, improving clarity and reducing accidental interactions.
+
+### Versioning
+
+- Bumped extension version to `0.6.25` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.24 - Upload Reset Toolbar Action
 
 ### Upload Workflow UX

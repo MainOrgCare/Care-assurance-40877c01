@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.6.24
+ * CareAssurance Extension v0.6.25
  */
 
 // ═══════════════════════════════════════════════════════════════════════════

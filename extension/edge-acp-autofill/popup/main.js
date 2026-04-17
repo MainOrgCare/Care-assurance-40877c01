@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.24
+ * CareAssurance Extension v0.6.25
  */
 
 import {
@@ -261,6 +261,7 @@ const maybeSyncAutofillUserFromPayload = async (payload, payloadStoredAt, stored
 };
 
 const MAX_UPLOAD_SYNC_BYTES = 35 * 1024 * 1024;
+const MAX_UPLOAD_TOTAL_FILES = 80;
 const UPLOAD_SYNC_DEBOUNCE_MS = 450;
 const MAX_UPLOAD_SYNC_ATTEMPTS = 6;
 const URL_UPLOAD_EXTENSION_BY_MIME = {
@@ -353,6 +354,9 @@ let uploadSyncQueued = false;
 let uploadSyncForceQueued = false;
 let lastUploadSyncSignature = "";
 let autoCollectInfoSnapshot = null;
+let autoCollectInFlight = false;
+let analyzeInFlight = false;
+let droppedLinkDownloadInFlight = false;
 
 let popupMenuDragWindowId = null;
 let popupMenuDragState = null;
@@ -394,6 +398,120 @@ const flattenUploadBuckets = () => {
   return UPLOAD_SECTION_CONFIG.flatMap((section) =>
     (state.uploadBuckets[section.key] || []).map((file) => ({ section: section.key, file }))
   );
+};
+
+const buildUploadFileFingerprint = (file) => {
+  const safeName = String(file?.name || "").trim().toLowerCase();
+  const safeSize = Number(file?.size || 0);
+  const safeModified = Number(file?.lastModified || 0);
+  return `${safeName}:${safeSize}:${safeModified}`;
+};
+
+const getUploadStageStats = () => {
+  const stagedEntries = flattenUploadBuckets();
+  const sectionSet = new Set(stagedEntries.map((entry) => String(entry?.section || "").trim()).filter(Boolean));
+  const totalBytes = stagedEntries.reduce((sum, entry) => sum + Number(entry?.file?.size || 0), 0);
+
+  return {
+    fileCount: stagedEntries.length,
+    sectionCount: sectionSet.size,
+    totalBytes,
+  };
+};
+
+const isUploadWorkflowBusy = () =>
+  uploadSyncInFlight || autoCollectInFlight || analyzeInFlight || droppedLinkDownloadInFlight;
+
+const getUploadWorkflowBusyMessage = () => {
+  if (uploadSyncInFlight) {
+    return "Sending staged files to CareAssurance Upload...";
+  }
+  if (autoCollectInFlight) {
+    return "Auto-collect is running. Please wait...";
+  }
+  if (analyzeInFlight) {
+    return "AI analysis is running. Please wait...";
+  }
+  if (droppedLinkDownloadInFlight) {
+    return "Downloading dropped links...";
+  }
+  return "";
+};
+
+const updateUploadSyncSummary = () => {
+  if (!dom.uploadSyncSummary) return;
+
+  const stats = getUploadStageStats();
+  const caseId = getCaseIdForAutoCollect();
+
+  if (stats.fileCount <= 0) {
+    dom.uploadSyncSummary.dataset.state = "idle";
+    dom.uploadSyncSummary.textContent = state.isConnected
+      ? "No files staged yet. Add files or run Auto-Collect to begin."
+      : "No files staged yet. Connect workspace, then add files or run Auto-Collect.";
+    return;
+  }
+
+  const summaryParts = [
+    `${stats.fileCount} staged file${stats.fileCount === 1 ? "" : "s"}`,
+    `${formatUploadBytes(stats.totalBytes)}`,
+    `${stats.sectionCount} section${stats.sectionCount === 1 ? "" : "s"}`,
+  ];
+
+  if (caseId) {
+    summaryParts.push(`Case ID ${caseId}`);
+  } else {
+    summaryParts.push("No Case ID selected yet");
+  }
+
+  dom.uploadSyncSummary.dataset.state = state.isConnected ? "ready" : "attention";
+  dom.uploadSyncSummary.textContent = summaryParts.join(" • ");
+};
+
+const updateUploadActionInterlocks = () => {
+  const stats = getUploadStageStats();
+  const busy = isUploadWorkflowBusy();
+  const busyMessage = getUploadWorkflowBusyMessage();
+
+  document.querySelectorAll("[data-upload-browse], [data-upload-autocollect]").forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.disabled = busy;
+  });
+
+  document.querySelectorAll("[data-upload-dropzone]").forEach((dropzone) => {
+    if (!(dropzone instanceof HTMLElement)) return;
+    if (busy) {
+      dropzone.classList.add("is-disabled");
+      dropzone.setAttribute("aria-disabled", "true");
+      dropzone.setAttribute("tabindex", "-1");
+    } else {
+      dropzone.classList.remove("is-disabled");
+      dropzone.removeAttribute("aria-disabled");
+      dropzone.setAttribute("tabindex", "0");
+    }
+  });
+
+  if (dom.syncUploadBtn) {
+    dom.syncUploadBtn.disabled = busy || stats.fileCount === 0 || !state.isConnected;
+  }
+
+  if (dom.resetUploadBtn) {
+    dom.resetUploadBtn.disabled = busy || stats.fileCount === 0;
+  }
+
+  if (dom.clearUploads) {
+    dom.clearUploads.disabled = busy || stats.fileCount === 0;
+  }
+
+  if (dom.analyzeDocuments) {
+    dom.analyzeDocuments.disabled = busy || stats.fileCount === 0;
+  }
+
+  if (busyMessage && !autoCollectInFlight) {
+    updateUploadSyncStatus(busyMessage, uploadSyncInFlight ? "info" : "warning");
+  }
+
+  updateUploadSyncSummary();
 };
 
 const getUploadSyncSignature = () => {
@@ -658,9 +776,17 @@ const applyOverlayPinnedPreference = async (pinned, { broadcast = true } = {}) =
 };
 
 const updateUploadPendingStatus = () => {
+  updateUploadSyncSummary();
+
+  if (isUploadWorkflowBusy()) {
+    updateUploadActionInterlocks();
+    return;
+  }
+
   const stagedCount = flattenUploadBuckets().length;
   if (stagedCount === 0) {
     updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
+    updateUploadActionInterlocks();
     return;
   }
 
@@ -669,10 +795,12 @@ const updateUploadPendingStatus = () => {
       `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. Connect your workspace, then click Send.`,
       "warning"
     );
+    updateUploadActionInterlocks();
     return;
   }
 
   updateUploadSyncStatus(`Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. Click Send to transfer.`);
+  updateUploadActionInterlocks();
 };
 
 const getCurrentWindow = () =>
@@ -1048,6 +1176,7 @@ const renderUploadBuckets = () => {
   updateTabBadges(state.latestPayloadSnapshot?.payload, totalFileCount);
   updateUploadSteps(totalFileCount > 0 ? 1 : 0);
   updateUploadPendingStatus();
+  updateUploadActionInterlocks();
 };
 
 const isSupportedUploadFile = (file) => {
@@ -2705,9 +2834,19 @@ const fileFromDownloadedPayload = (filePayload) => {
 };
 
 const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) => {
+  if (autoCollectInFlight) {
+    showInfo("Auto-collect is already running. Please wait for it to complete.");
+    return false;
+  }
+
+  autoCollectInFlight = true;
+  updateUploadActionInterlocks();
+
   const section = UPLOAD_SECTION_CONFIG.find((entry) => entry.key === sectionKey);
   if (!section) {
     showError("Unknown upload section selected for auto-collect.");
+    autoCollectInFlight = false;
+    updateUploadActionInterlocks();
     return false;
   }
 
@@ -2735,6 +2874,8 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     });
     switchTab("autofill");
     dom.autofillUserSearch?.focus();
+    autoCollectInFlight = false;
+    updateUploadActionInterlocks();
     return false;
   }
 
@@ -3134,6 +3275,9 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     if (triggerButton) {
       setButtonLoading(triggerButton, false);
     }
+
+    autoCollectInFlight = false;
+    updateUploadPendingStatus();
   }
 };
 
@@ -3378,19 +3522,92 @@ const applyUploadFiles = (sectionKey, files) => {
   const section = UPLOAD_SECTION_CONFIG.find((item) => item.key === sectionKey);
   if (!section) return;
 
+  if (isUploadWorkflowBusy()) {
+    showInfo("Please wait for the current upload operation to finish before adding files.");
+    return;
+  }
+
   const validFiles = Array.from(files || []).filter((file) => isSupportedUploadFile(file));
   if (validFiles.length === 0) {
     showError("Use PDF, DOC, DOCX, TXT, or CSV files only.");
     return;
   }
 
+  const uniqueIncoming = [];
+  const incomingSeen = new Set();
+  let duplicateIncomingCount = 0;
+
+  validFiles.forEach((file) => {
+    const fingerprint = buildUploadFileFingerprint(file);
+    if (incomingSeen.has(fingerprint)) {
+      duplicateIncomingCount += 1;
+      return;
+    }
+    incomingSeen.add(fingerprint);
+    uniqueIncoming.push(file);
+  });
+
+  if (duplicateIncomingCount > 0) {
+    showInfo(
+      `Skipped ${duplicateIncomingCount} duplicate file${duplicateIncomingCount === 1 ? "" : "s"} in this selection.`
+    );
+  }
+
+  if (uniqueIncoming.length === 0) {
+    showInfo("No new files were added.");
+    return;
+  }
+
   if (section.single) {
-    if (validFiles.length > 1) {
+    if (uniqueIncoming.length > 1) {
       showInfo(`${getSectionDisplayName(sectionKey)} accepts one file. The first file was kept.`);
     }
-    state.uploadBuckets[section.key] = [validFiles[0]];
+    state.uploadBuckets[section.key] = [uniqueIncoming[0]];
   } else {
-    state.uploadBuckets[section.key] = [...(state.uploadBuckets[section.key] || []), ...validFiles];
+    const existingFiles = state.uploadBuckets[section.key] || [];
+    const existingFingerprints = new Set(existingFiles.map((file) => buildUploadFileFingerprint(file)));
+    const dedupedToAppend = [];
+    let duplicatesAgainstExisting = 0;
+
+    uniqueIncoming.forEach((file) => {
+      const fingerprint = buildUploadFileFingerprint(file);
+      if (existingFingerprints.has(fingerprint)) {
+        duplicatesAgainstExisting += 1;
+        return;
+      }
+      existingFingerprints.add(fingerprint);
+      dedupedToAppend.push(file);
+    });
+
+    if (duplicatesAgainstExisting > 0) {
+      showInfo(
+        `Skipped ${duplicatesAgainstExisting} file${duplicatesAgainstExisting === 1 ? "" : "s"} already staged in ${getSectionDisplayName(
+          sectionKey
+        )}.`
+      );
+    }
+
+    if (dedupedToAppend.length === 0) {
+      showInfo("No new files were added.");
+      return;
+    }
+
+    const currentTotal = flattenUploadBuckets().length;
+    const remainingCapacity = Math.max(0, MAX_UPLOAD_TOTAL_FILES - currentTotal);
+    if (remainingCapacity <= 0) {
+      showError(`Upload staging limit reached (${MAX_UPLOAD_TOTAL_FILES} files). Remove files before adding more.`);
+      return;
+    }
+
+    const filesToAppend = dedupedToAppend.slice(0, remainingCapacity);
+    const skippedByCapacity = Math.max(0, dedupedToAppend.length - filesToAppend.length);
+    if (skippedByCapacity > 0) {
+      showInfo(
+        `Added ${filesToAppend.length} file${filesToAppend.length === 1 ? "" : "s"}; skipped ${skippedByCapacity} due to the ${MAX_UPLOAD_TOTAL_FILES}-file staging cap.`
+      );
+    }
+
+    state.uploadBuckets[section.key] = [...existingFiles, ...filesToAppend];
   }
 
   renderUploadBuckets();
@@ -3585,6 +3802,14 @@ const bindUploadBucketInputs = () => {
     if (!input) continue;
     input.addEventListener("change", (event) => {
       const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+
+      if (isUploadWorkflowBusy()) {
+        showInfo("Please wait for the current upload operation to finish.");
+        target.value = "";
+        return;
+      }
+
       applyUploadFiles(section.key, target.files || []);
       target.value = "";
     });
@@ -3599,6 +3824,10 @@ const bindUploadDropzones = () => {
     if (!section) return;
 
     dropzone.addEventListener("click", () => {
+      if (isUploadWorkflowBusy()) {
+        showInfo("Please wait for the current upload operation to finish.");
+        return;
+      }
       if (!inputId) return;
       document.getElementById(inputId)?.click();
     });
@@ -3606,16 +3835,22 @@ const bindUploadDropzones = () => {
     dropzone.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
+      if (isUploadWorkflowBusy()) {
+        showInfo("Please wait for the current upload operation to finish.");
+        return;
+      }
       if (!inputId) return;
       document.getElementById(inputId)?.click();
     });
 
     dropzone.addEventListener("dragenter", (event) => {
+      if (isUploadWorkflowBusy()) return;
       event.preventDefault();
       dropzone.classList.add("is-dragover");
     });
 
     dropzone.addEventListener("dragover", (event) => {
+      if (isUploadWorkflowBusy()) return;
       event.preventDefault();
       dropzone.classList.add("is-dragover");
     });
@@ -3627,6 +3862,11 @@ const bindUploadDropzones = () => {
     dropzone.addEventListener("drop", async (event) => {
       event.preventDefault();
       dropzone.classList.remove("is-dragover");
+
+      if (isUploadWorkflowBusy()) {
+        showInfo("Please wait for the current upload operation to finish before dropping files.");
+        return;
+      }
 
       const droppedFiles = Array.from(event.dataTransfer?.files || []);
       if (droppedFiles.length > 0) {
@@ -3645,6 +3885,8 @@ const bindUploadDropzones = () => {
       }
 
       const urlsToDownload = sectionConfig?.single ? droppedUrls.slice(0, 1) : droppedUrls;
+      droppedLinkDownloadInFlight = true;
+      updateUploadActionInterlocks();
       dropzone.classList.add("is-downloading");
       updateUploadSyncStatus(`Downloading link into ${getSectionDisplayName(section)}...`);
 
@@ -3667,6 +3909,8 @@ const bindUploadDropzones = () => {
         showError(message);
       } finally {
         dropzone.classList.remove("is-downloading");
+        droppedLinkDownloadInFlight = false;
+        updateUploadPendingStatus();
       }
     });
   });
@@ -3676,6 +3920,11 @@ const bindUploadActionButtons = () => {
   document.querySelectorAll("[data-upload-browse]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
+
+      if (isUploadWorkflowBusy()) {
+        showInfo("Please wait for the current upload operation to finish.");
+        return;
+      }
 
       const sectionKey = button.getAttribute("data-upload-browse");
       const explicitInputId = button.getAttribute("data-input-id");
@@ -3692,12 +3941,24 @@ const bindUploadActionButtons = () => {
       event.preventDefault();
       const sectionKey = button.getAttribute("data-upload-autocollect");
       if (!sectionKey) return;
+
+      if (isUploadWorkflowBusy()) {
+        showInfo("Please wait for the current upload operation to finish.");
+        return;
+      }
+
       await autoCollectDocumentsForSection(sectionKey, button);
     });
   });
 };
 
 const resetUploadWorkspace = async ({ showToast = false } = {}) => {
+  if (isUploadWorkflowBusy()) {
+    const busyMessage = getUploadWorkflowBusyMessage() || "An upload operation is still running.";
+    showInfo(`${busyMessage} Finish or wait, then reset.`);
+    return false;
+  }
+
   state.uploadBuckets = createEmptyUploadBuckets();
   state.selectedFilesList = [];
   state.currentAnalysisResults = null;
@@ -3734,10 +3995,13 @@ const resetUploadWorkspace = async ({ showToast = false } = {}) => {
   updateUploadSteps(0);
   updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
   await setStorage({ [STORAGE_KEYS.uploadedDocuments]: null });
+  updateUploadActionInterlocks();
 
   if (showToast) {
     showSuccess("Upload staging reset.");
   }
+
+  return true;
 };
 
 async function flushScheduledPopupRefresh() {
@@ -4494,8 +4758,16 @@ function bindEvents() {
   bindUploadActionButtons();
 
   dom.syncUploadBtn?.addEventListener("click", async () => {
+    if (isUploadWorkflowBusy() && !uploadSyncInFlight) {
+      showInfo("Please wait for the current upload operation to finish.");
+      return;
+    }
+
+    setButtonLoading(dom.syncUploadBtn, true);
     const ok = await syncUploadsToCareAssurance({ force: true });
     if (ok) showSuccess("Uploads sent to CareAssurance Upload");
+    setButtonLoading(dom.syncUploadBtn, false);
+    updateUploadActionInterlocks();
   });
 
   dom.resetUploadBtn?.addEventListener("click", async () => {
@@ -4541,6 +4813,13 @@ function bindEvents() {
     const selectedEntries = flattenUploadBuckets();
     if (selectedEntries.length === 0) return;
 
+    if (isUploadWorkflowBusy()) {
+      showInfo("Please wait for the current upload operation to finish.");
+      return;
+    }
+
+    analyzeInFlight = true;
+    updateUploadActionInterlocks();
     setButtonLoading(dom.analyzeDocuments, true);
     updateUploadSteps(2);
     if (dom.analysisProgress) dom.analysisProgress.hidden = false;
@@ -4601,10 +4880,12 @@ function bindEvents() {
       showError(error.message);
     } finally {
       if (dom.analysisProgress) dom.analysisProgress.hidden = true;
+      analyzeInFlight = false;
       setButtonLoading(dom.analyzeDocuments, false);
       if (state.selectedFilesList.length === 0 && dom.analyzeDocuments) {
         dom.analyzeDocuments.disabled = true;
       }
+      updateUploadPendingStatus();
     }
   });
 
@@ -5003,7 +5284,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.24</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.25</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
