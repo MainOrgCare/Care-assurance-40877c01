@@ -458,6 +458,14 @@ export default function RiskAssessment() {
     () => sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName),
     [analysisRaw?.serviceUser?.fullName]
   );
+  const extensionServiceUserCaseId = useMemo(
+    () => String(serviceUserData.serviceUserCaseId || "").trim(),
+    [serviceUserData.serviceUserCaseId]
+  );
+  const extensionServiceDataGroupId = useMemo(
+    () => String(serviceUserData.serviceDataGroupId || "").trim(),
+    [serviceUserData.serviceDataGroupId]
+  );
   const resolvedServiceUserName = useMemo(
     () => analyzedServiceUserName || extensionServiceUserName || manualServiceUserName,
     [analyzedServiceUserName, extensionServiceUserName, manualServiceUserName]
@@ -1538,11 +1546,23 @@ export default function RiskAssessment() {
     const payloadInitials = normalizeServiceUserInitials(
       analysisRaw?.serviceUser?.initials || analysisScrubbed?.serviceUser?.initials || requiredName
     );
+    const extensionCaseId = extensionServiceUserCaseId;
+    const extensionServiceGroupId = extensionServiceDataGroupId;
     const payload = {
       version: 1,
       createdAt: new Date().toISOString(),
       serviceUserDisplayName: requiredName,
       serviceUserInitials: payloadInitials,
+      caseId: extensionCaseId || undefined,
+      acpId: extensionCaseId || undefined,
+      accessCarePlanningId: extensionCaseId || undefined,
+      serviceDataGroupId: extensionServiceGroupId || undefined,
+      caseInfo: extensionCaseId || extensionServiceGroupId
+        ? {
+            caseId: extensionCaseId || undefined,
+            serviceDataGroupId: extensionServiceGroupId || undefined,
+          }
+        : undefined,
       assessments: assessments.map((assessment) => {
         const safeAssessment = sanitizeGeneratedAssessmentResult(assessment);
         return {

@@ -3762,10 +3762,10 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
   const key = normalizeAssessmentKey(category);
   const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[key] || [];
   const evidenceFinder = buildDocumentEvidenceFinder(documentContent);
-  const snippets = evidenceFinder.findAllSnippets(evidenceTerms, 4).filter(isMeaningfulEvidence);
+  const snippets = evidenceFinder.findAllSnippets(evidenceTerms, 8).filter(isMeaningfulEvidence);
   const baseline = normalizeRiskRating(analyzeRiskLevel(documentContent).level);
   const residual = deescalateRiskRating(baseline);
-  const evidencePool =
+  let evidencePool =
     snippets.length > 0
       ? snippets
       : [
@@ -3773,18 +3773,54 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
             "Information recorded in supporting documents.",
         ];
 
-  const risks = evidencePool.slice(0, 3).map((snippet, index) => {
-    const supportLabel = index === 0 ? "primary" : "additional";
+  evidencePool = Array.from(
+    new Set(
+      evidencePool
+        .map((snippet) => sanitizeEvidenceSnippet(snippet))
+        .filter((snippet) => isMeaningfulEvidence(snippet))
+    )
+  );
+
+  if (evidencePool.length === 0) {
+    evidencePool = ["Information recorded in supporting documents."];
+  }
+
+  // Bias toward a richer multi-risk output while staying evidence-led.
+  const targetRiskCount = Math.min(8, Math.max(4, Math.min(7, evidencePool.length + 1)));
+  const riskEvidence = [...evidencePool];
+  while (riskEvidence.length < targetRiskCount) {
+    riskEvidence.push(riskEvidence[riskEvidence.length - 1] || "Information recorded in supporting documents.");
+  }
+
+  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet, index) => {
+    const supportLabel = index === 0 ? "priority" : "additional";
+    const evidenceLine = truncateEvidence(sanitizeEvidenceSnippet(snippet) || "Information recorded in supporting documents.", 190);
+    const lowerEvidence = evidenceLine.toLowerCase();
+    const whoWillBeHarmed =
+      /family|visitor|home|environment|property|trip|hazard/.test(lowerEvidence)
+        ? "Service User, Care Workers and Visitors"
+        : "Service User and Care Workers";
+    const earlyWarningFocus =
+      /fall|trip|slip|balance|mobility|transfer|hoist|stairs/.test(lowerEvidence)
+        ? "Early warning signs include unsteadiness, slower transfers and reduced confidence with movement."
+        : /medication|dose|tablet|insulin|pain|sedat|drows|side effect/.test(lowerEvidence)
+        ? "Early warning signs include changes after medicines, increasing drowsiness, confusion, pain or reduced engagement."
+        : /nutrition|hydration|meal|drink|weight|swallow|choking/.test(lowerEvidence)
+        ? "Early warning signs include reduced intake, poor hydration, swallowing difficulty or fatigue around meals."
+        : "Early warning signs include changes in mood, behaviour, comfort, sleep, breathing, skin condition or routine tolerance.";
+
     return {
-      riskDefinition: toFirstPerson(`I have a ${supportLabel} ${category.toLowerCase()} risk identified in my records. I need a clear plan so this is managed safely and consistently.`),
+      riskDefinition: toFirstPerson(
+        `I have a ${supportLabel} ${category.toLowerCase()} risk identified in my records. My documents note: ${evidenceLine}. I need a clear, detailed plan so this risk is managed safely and consistently in daily care.`
+      ),
       initialRating: baseline,
       howItsARisk: toFirstPerson(
-        `This ${category.toLowerCase()} risk could affect my safety, comfort and independence if it is not managed properly. I need carers to notice changes early and follow my care plan in a calm and timely way.`
+        `This ${category.toLowerCase()} risk could affect my safety, comfort and independence if it is not managed promptly. If warning signs linked to this evidence are missed, my routine and wellbeing could deteriorate quickly. ${earlyWarningFocus} I need carers to notice changes early and respond in line with my care plan.`
       ),
-      whoWillBeHarmed: "Service user and care workers",
+      whoWillBeHarmed,
       controlMeasures: toFirstPerson(
         sanitizeOutOfScopeText(
-          "My care team follows my agreed care plan, records observations, uses the correct equipment and escalates any concerns promptly."
+          `My care team follows my agreed care plan, records observations linked to this risk, uses the correct equipment and escalates any concern without delay. Support should be calm, consistent and clearly documented at each relevant visit. My care notes should include what changed, what actions were taken and what follow-up is needed before the next visit.`
         )
       ),
       ratingAfterControls: residual,
@@ -3796,10 +3832,12 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
     serviceUserInitials: normalizeInitials(serviceUserInitials || "N.N."),
     assessmentDate: formatRiskAssessmentDate(),
     risks,
-    supportingEvidence: evidencePool,
+    supportingEvidence: riskEvidence.slice(0, 12),
     signedBy: normalizeSignedByName(performedBy || "Staff member"),
     jobTitle: performedByJobTitle || "Care Staff",
-    additionalNotes: toFirstPerson("I need this risk area reviewed regularly and updated when my needs change."),
+    additionalNotes: toFirstPerson(
+      "I need this risk area reviewed after incidents, after any significant change in my presentation and during regular care reviews so my controls stay current and proportionate."
+    ),
     generationMode: "rule-based",
   };
 };
@@ -15593,7 +15631,8 @@ ${privacyDirective}
 RISK ASSESSMENT CATEGORY: ${assessmentCategory}
 
 CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
-- A comprehensive risk assessment typically has MULTIPLE risks (usually 3-8 risks depending on the category)
+- A comprehensive risk assessment typically has MULTIPLE risks (usually 4-10 risks depending on the category)
+- Return at least 4 distinct risk entries whenever the documents contain multiple concerns in this category
 - For EACH distinct risk identified in this category, create a separate entry in the "risks" array
 - Think broadly about all the different ways this category could present risks for this service user
 - Examples: Falls Prevention might include risks from: dizziness/balance issues, environmental hazards, medication side effects, visual impairment, footwear, etc.
@@ -15629,7 +15668,7 @@ Respond ONLY with valid JSON in this exact format:
       "controlMeasures": "Control measures for this specific risk",
       "ratingAfterControls": "Low/Medium/High"
     }
-    // ... include ALL relevant risks for this category - typically 3-8 risks total
+    // ... include ALL relevant risks for this category - typically 4-10 risks total
   ],
   "signedBy": "${safePerformedBy}",
   "jobTitle": "${performedByJobTitle || 'Care Staff'}",
@@ -15721,7 +15760,8 @@ ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : '
 
 ⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
-1. Identify and list ALL distinct risks within this category (typically 3-8 separate risks)
+1. Identify and list ALL distinct risks within this category (typically 4-10 separate risks)
+1a. Provide at least 4 distinct risk entries when the SERVICE USER documents include multiple concerns for this category
 2. ONLY use information EXPLICITLY stated in the SERVICE USER documents below (NOT from templates above)
 3. Templates above contain EXAMPLE text - IGNORE any risks, conditions, or care needs mentioned in templates
 4. DO NOT invent, fabricate, or assume any medical conditions, incidents, or risks not mentioned in the SERVICE USER documents
@@ -15881,8 +15921,52 @@ Remember: Extract information ONLY from the service user documents above. Templa
           ? riskQualityScores.reduce((sum: number, score: number) => sum + score, 0) / riskQualityScores.length
           : 0;
 
-        if (!result.risks || result.risks.length < 2 || averageRiskScore < 60) {
-          console.warn(`[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, avgScore=${averageRiskScore.toFixed(1)}). Using rule-based fallback.`);
+        const normalizedRiskKeys = Array.isArray(result.risks)
+          ? result.risks
+              .map((risk: any) =>
+                [risk?.riskDefinition, risk?.howItsARisk]
+                  .filter((value) => typeof value === "string")
+                  .join(" ")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, " ")
+                  .trim()
+              )
+              .filter(Boolean)
+          : [];
+        const uniqueRiskCount = new Set(normalizedRiskKeys).size;
+        const riskDiversityRatio = normalizedRiskKeys.length > 0 ? uniqueRiskCount / normalizedRiskKeys.length : 0;
+
+        const lowDetailRiskCount = Array.isArray(result.risks)
+          ? result.risks.filter((risk: any) => {
+              const fields = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
+                .filter((val: string) => typeof val === "string")
+                .join(" ");
+              const fieldLength = fields.trim().length;
+              const fieldWords = fields.trim().split(/\s+/).filter(Boolean).length;
+              return fieldLength < 150 || fieldWords < 30 || !hasSpecificDetail(fields);
+            }).length
+          : 0;
+
+        const evidenceCandidateCount = normalizeStringArray([
+          ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
+          ...scrubbedSupportingEvidence,
+        ]).filter(isMeaningfulEvidence).length;
+        const evidenceCoverageRatio = Array.isArray(result.risks) && result.risks.length > 0
+          ? evidenceCandidateCount / result.risks.length
+          : 0;
+        const minimumRiskCount = Math.min(6, Math.max(4, Math.ceil(evidenceCandidateCount / 2)));
+
+        if (
+          !result.risks ||
+          result.risks.length < minimumRiskCount ||
+          averageRiskScore < 70 ||
+          riskDiversityRatio < 0.7 ||
+          lowDetailRiskCount > Math.floor((result.risks?.length || 0) / 2) ||
+          evidenceCoverageRatio < 0.8
+        ) {
+          console.warn(
+            `[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, minimum=${minimumRiskCount}, avgScore=${averageRiskScore.toFixed(1)}, diversity=${riskDiversityRatio.toFixed(2)}, lowDetail=${lowDetailRiskCount}, evidenceCoverage=${evidenceCoverageRatio.toFixed(2)}). Using rule-based fallback.`
+          );
           const fallbackResult = buildRuleBasedRiskAssessmentPayload({
             documentContent: scrubbedDocumentContent,
             assessmentCategory,
@@ -15904,12 +15988,41 @@ Remember: Extract information ONLY from the service user documents above. Templa
             result.additionalNotes = "";
           }
         }
+        const riskDerivedEvidence = Array.isArray(result.risks)
+          ? result.risks
+              .map((risk: any) =>
+                sanitizeEvidenceSnippet(
+                  [risk?.riskDefinition, risk?.howItsARisk]
+                    .filter((value) => typeof value === "string")
+                    .join(" ")
+                )
+              )
+              .filter(isMeaningfulEvidence)
+          : [];
+
         const mergedSupportingEvidence = normalizeStringArray([
           ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
           ...scrubbedSupportingEvidence,
+          ...riskDerivedEvidence,
         ]).filter(isMeaningfulEvidence);
+
+        const minimumEvidenceCount = Math.min(10, Math.max(3, Array.isArray(result.risks) ? result.risks.length : 3));
+        if (mergedSupportingEvidence.length < minimumEvidenceCount) {
+          const backfillSnippets = buildDocumentEvidenceFinder(scrubbedDocumentContent)
+            .findAllSnippets(categoryEvidenceTerms, minimumEvidenceCount * 2)
+            .map((snippet) => sanitizeEvidenceSnippet(snippet))
+            .filter(isMeaningfulEvidence);
+
+          for (const snippet of backfillSnippets) {
+            if (mergedSupportingEvidence.length >= minimumEvidenceCount) break;
+            if (!mergedSupportingEvidence.some((existing) => existing.toLowerCase() === snippet.toLowerCase())) {
+              mergedSupportingEvidence.push(snippet);
+            }
+          }
+        }
+
         if (mergedSupportingEvidence.length > 0) {
-          result.supportingEvidence = mergedSupportingEvidence;
+          result.supportingEvidence = mergedSupportingEvidence.slice(0, 12);
         }
         
         // Template-Only AI: Convert tokens to readable placeholders (no PII in output)

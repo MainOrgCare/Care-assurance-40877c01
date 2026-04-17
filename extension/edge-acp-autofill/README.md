@@ -63,13 +63,19 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - In-page ACP/EMAR/Initial Assessment overlays keep pin and minimize controls, but drag/resize interactions are disabled.
 - Upload dropzones accept either local files or dropped http/https links. Dropped links are downloaded and staged directly into the selected section when the file type is supported.
 - Each Intake section now provides both `Upload` and `Auto-Collect` actions.
+- The Upload toolbar now includes `Reset Upload` so operators can quickly clear staged files, notes, analysis selections, and synced-upload summary state before starting a new intake pass.
 - `Auto-Collect` uses section-specific Mobizio source URLs:
   - `Social Work`, `Moving & Handling`, and `Additional Documents` start from `/case_document_list?caseId=<id>&serviceId=1000801`
   - `Initial Assessment` starts from `/case_data_group?caseId=<id>&serviceDataGroupId=1014998`
   - `Care Plan` starts from `/eoutcomeservice/branch/case_care_plans_dashboard?caseId=<id>`
 - Selection rules for auto-collect: Care Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
 - Intake now includes an `Auto-Download Info` diagnostics panel that tracks the latest auto-collect run (source, counts, fallback use, duration, and error details) with a `Copy Report` shortcut.
-- The auto-collect picker now supports inline filtering by document metadata and shows extra row diagnostics (download ID and URL hint count) before files are fetched.
+- The auto-collect picker now supports inline filtering by document metadata, `Select suggested` bulk actions, confidence-aware row diagnostics (confidence label + keyword matches), and richer technical row details (download ID and URL hint count) before files are fetched.
+- Auto-collect now deduplicates repeated document selections before download to avoid duplicate file staging in a single run.
+- Auto-collect now performs retry-aware scraping and includes frame/loose-link fallback discovery so collection is more resilient when Mobizio table rendering is delayed or non-standard.
+- Auto-collect download resolution now follows response-aware deep links from intermediate HTML pages and resolves relative links against the correct page/frame base URL.
+- Auto-Download diagnostics now include scrape-attempt counts to make retry behavior visible when Mobizio pages render slowly.
+- Auto-Download diagnostics now include high-confidence suggestion counts and deduped selection counts in both the live panel and copied report output.
 - The extension popup now uses a fully overhauled visual design system (cards, tabs, controls, dialogs, and responsive spacing) while preserving existing workflows.
 
 ## Edge Add-ons Publishing (Unlisted Release Process)

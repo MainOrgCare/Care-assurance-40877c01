@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.20
+ * CareAssurance Extension v0.6.24
  */
 
 import {
@@ -80,11 +80,184 @@ let popupRefreshWorkspaceRequested = false;
 let popupRefreshForceWorkspace = false;
 let lastWorkspaceRefreshAt = 0;
 let lastLogFingerprint = "";
+let lastPayloadAutofillSyncKey = "";
+let lastPayloadAutofillAttemptKey = "";
+let pendingPayloadAutofillContext = null;
 
 const buildLogFingerprint = (logs) => {
   if (!Array.isArray(logs) || logs.length === 0) return "0";
   const lastEntry = logs[logs.length - 1] || "";
   return `${logs.length}:${String(lastEntry)}`;
+};
+
+const pickFirstNonEmptyString = (...values) => {
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+};
+
+const normalizePersonMatchValue = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeInitialsMatchValue = (value) =>
+  String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .trim();
+
+const buildAcpUserFingerprint = () => {
+  if (!Array.isArray(state.acpServiceUsers) || state.acpServiceUsers.length === 0) {
+    return "none";
+  }
+  return state.acpServiceUsers
+    .map((user) => `${String(user?.acpId || user?.id || "").trim()}:${normalizePersonMatchValue(user?.name)}`)
+    .join("|");
+};
+
+const extractPayloadAutofillContext = (payload, payloadStoredAt) => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const storedMarker = String(payloadStoredAt ?? "").trim();
+  if (!storedMarker) return null;
+
+  const serviceUserName = pickFirstNonEmptyString(
+    payload.serviceUserDisplayName,
+    payload.serviceUserName,
+    payload.serviceUser?.name,
+    payload.serviceUser?.fullName,
+    payload.metadata?.serviceUserName
+  );
+  const serviceUserInitials = pickFirstNonEmptyString(
+    payload.serviceUserInitials,
+    payload.initials,
+    payload.serviceUser?.initials
+  );
+  const caseIdHint = pickFirstNonEmptyString(
+    payload.caseId,
+    payload.acpId,
+    payload.accessCarePlanningId,
+    payload.serviceUser?.acpId,
+    payload.serviceUser?.accessCarePlanningId,
+    payload.caseInfo?.caseId
+  );
+
+  const normalizedName = normalizePersonMatchValue(serviceUserName);
+  const normalizedInitials = normalizeInitialsMatchValue(serviceUserInitials);
+
+  if (!caseIdHint && !normalizedName && !normalizedInitials) return null;
+
+  return {
+    syncKey: [storedMarker, caseIdHint, normalizedName, normalizedInitials].join("|"),
+    caseIdHint,
+    normalizedName,
+    normalizedInitials,
+  };
+};
+
+const findAutofillUserFromPayloadContext = (context) => {
+  if (!context || !Array.isArray(state.acpServiceUsers) || state.acpServiceUsers.length === 0) {
+    return null;
+  }
+
+  const indexedUsers = state.acpServiceUsers
+    .map((user) => ({
+      user,
+      acpId: String(user?.acpId || user?.id || "").trim(),
+      normalizedName: normalizePersonMatchValue(user?.name),
+      normalizedInitials: normalizeInitialsMatchValue(user?.initials),
+    }))
+    .filter((entry) => entry.acpId);
+
+  if (indexedUsers.length === 0) return null;
+
+  if (context.caseIdHint) {
+    const byId = indexedUsers.find((entry) => entry.acpId === context.caseIdHint);
+    if (byId) return byId.user;
+  }
+
+  if (context.normalizedName) {
+    const exactNameMatches = indexedUsers.filter(
+      (entry) => entry.normalizedName && entry.normalizedName === context.normalizedName
+    );
+    if (exactNameMatches.length === 1) return exactNameMatches[0].user;
+    if (exactNameMatches.length > 1 && context.normalizedInitials) {
+      const byInitials = exactNameMatches.find(
+        (entry) => entry.normalizedInitials === context.normalizedInitials
+      );
+      if (byInitials) return byInitials.user;
+    }
+  }
+
+  if (context.normalizedInitials) {
+    const initialsMatches = indexedUsers.filter(
+      (entry) => entry.normalizedInitials && entry.normalizedInitials === context.normalizedInitials
+    );
+    if (initialsMatches.length === 1) return initialsMatches[0].user;
+  }
+
+  return null;
+};
+
+const maybeSyncAutofillUserFromPayload = async (payload, payloadStoredAt, storedCaseInfo = null) => {
+  const context = pendingPayloadAutofillContext || extractPayloadAutofillContext(payload, payloadStoredAt);
+  if (!context) {
+    pendingPayloadAutofillContext = null;
+    return;
+  }
+
+  if (context.syncKey === lastPayloadAutofillSyncKey) {
+    pendingPayloadAutofillContext = null;
+    return;
+  }
+
+  pendingPayloadAutofillContext = context;
+
+  const attemptKey = `${context.syncKey}|${buildAcpUserFingerprint()}`;
+  if (attemptKey === lastPayloadAutofillAttemptKey) return;
+  lastPayloadAutofillAttemptKey = attemptKey;
+
+  const matchedUser = findAutofillUserFromPayloadContext(context);
+  if (!matchedUser) return;
+
+  const normalizedMatch = {
+    acpId: String(matchedUser?.acpId || matchedUser?.id || "").trim(),
+    name: String(matchedUser?.name || "Unknown"),
+    initials: String(matchedUser?.initials || "??"),
+  };
+  if (!normalizedMatch.acpId) return;
+
+  if (String(state.selectedAutofillUser?.acpId || "").trim() !== normalizedMatch.acpId) {
+    selectAutofillUser(normalizedMatch);
+  } else if (dom.caseId && String(dom.caseId.value || "").trim() !== normalizedMatch.acpId) {
+    dom.caseId.value = normalizedMatch.acpId;
+  }
+
+  const previousCaseInfo =
+    storedCaseInfo && typeof storedCaseInfo === "object" ? storedCaseInfo : null;
+  const existingCaseId = String(previousCaseInfo?.caseId || "").trim();
+  const serviceDataGroupId = String(
+    dom.serviceDataGroupId?.value ?? previousCaseInfo?.serviceDataGroupId ?? ""
+  ).trim();
+
+  if (existingCaseId !== normalizedMatch.acpId) {
+    await setStorage({
+      [STORAGE_KEYS.caseInfo]: {
+        caseId: normalizedMatch.acpId,
+        serviceDataGroupId,
+      },
+    });
+  }
+
+  lastPayloadAutofillSyncKey = context.syncKey;
+  pendingPayloadAutofillContext = null;
 };
 
 const MAX_UPLOAD_SYNC_BYTES = 35 * 1024 * 1024;
@@ -261,9 +434,12 @@ const createAutoCollectInfoSnapshot = (overrides = {}) => ({
   fallbackUsed: false,
   discoveredCount: 0,
   suggestedCount: 0,
+  highConfidenceCount: 0,
   selectedCount: 0,
+  dedupedSelectionCount: 0,
   downloadedCount: 0,
   failedCount: 0,
+  scrapeAttempts: 0,
   startedAtMs: 0,
   durationMs: 0,
   finishedAt: "",
@@ -329,14 +505,23 @@ const buildAutoCollectInfoDetail = (snapshot) => {
   if (Number.isFinite(snapshot?.suggestedCount) && snapshot.suggestedCount > 0) {
     metrics.push(`Suggested ${snapshot.suggestedCount}`);
   }
+  if (Number.isFinite(snapshot?.highConfidenceCount) && snapshot.highConfidenceCount > 0) {
+    metrics.push(`High confidence ${snapshot.highConfidenceCount}`);
+  }
   if (Number.isFinite(snapshot?.selectedCount) && snapshot.selectedCount > 0) {
     metrics.push(`Selected ${snapshot.selectedCount}`);
+  }
+  if (Number.isFinite(snapshot?.dedupedSelectionCount) && snapshot.dedupedSelectionCount > 0) {
+    metrics.push(`Deduped ${snapshot.dedupedSelectionCount}`);
   }
   if (Number.isFinite(snapshot?.downloadedCount) && snapshot.downloadedCount > 0) {
     metrics.push(`Downloaded ${snapshot.downloadedCount}`);
   }
   if (Number.isFinite(snapshot?.failedCount) && snapshot.failedCount > 0) {
     metrics.push(`Failed ${snapshot.failedCount}`);
+  }
+  if (Number.isFinite(snapshot?.scrapeAttempts) && snapshot.scrapeAttempts > 1) {
+    metrics.push(`Scrape attempts ${snapshot.scrapeAttempts}`);
   }
   if (Number.isFinite(snapshot?.durationMs) && snapshot.durationMs > 0) {
     metrics.push(`Duration ${formatAutoCollectDuration(snapshot.durationMs)}`);
@@ -425,9 +610,12 @@ const buildAutoCollectReportText = () => {
     `Fallback Used: ${snapshot.fallbackUsed ? "Yes" : "No"}`,
     `Found: ${snapshot.discoveredCount || 0}`,
     `Suggested: ${snapshot.suggestedCount || 0}`,
+    `High Confidence Suggested: ${snapshot.highConfidenceCount || 0}`,
     `Selected: ${snapshot.selectedCount || 0}`,
+    `Deduped Selection Count: ${snapshot.dedupedSelectionCount || 0}`,
     `Downloaded: ${snapshot.downloadedCount || 0}`,
     `Failed: ${snapshot.failedCount || 0}`,
+    `Scrape Attempts: ${snapshot.scrapeAttempts || 0}`,
     `Duration: ${formatAutoCollectDuration(snapshot.durationMs || 0)}`,
   ];
 
@@ -952,38 +1140,116 @@ const parseMobizioUploadedAt = (rawValue) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const scoreDocumentForSection = (sectionKey, documentEntry) => {
+const scoreDocumentForSectionDetailed = (sectionKey, documentEntry, uploadedTimestamp = 0) => {
   const rule = getAutoCollectRule(sectionKey);
   const keywords = Array.isArray(rule.keywords) ? rule.keywords : [];
-  if (keywords.length === 0) return 0;
+  if (keywords.length === 0) {
+    return {
+      score: 0,
+      keywordMatches: [],
+      confidenceLevel: 0,
+      confidenceLabel: "Not Suggested",
+      scoringNotes: [],
+    };
+  }
 
-  const sourceText = [
-    documentEntry?.name,
-    documentEntry?.fileName,
-    documentEntry?.description,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  const weightedFields = [
+    { key: "name", text: String(documentEntry?.name || "").toLowerCase(), weight: 4 },
+    { key: "fileName", text: String(documentEntry?.fileName || "").toLowerCase(), weight: 3 },
+    { key: "description", text: String(documentEntry?.description || "").toLowerCase(), weight: 2 },
+    { key: "uploadedBy", text: String(documentEntry?.uploadedBy || "").toLowerCase(), weight: 1 },
+  ];
 
   let score = 0;
-  for (const keyword of keywords) {
-    if (sourceText.includes(String(keyword).toLowerCase())) {
-      score += 1;
+  const keywordMatches = [];
+  const scoringNotes = [];
+
+  for (const rawKeyword of keywords) {
+    const keyword = String(rawKeyword || "").trim().toLowerCase();
+    if (!keyword) continue;
+
+    let bestFieldWeight = 0;
+    for (const field of weightedFields) {
+      if (field.text && field.text.includes(keyword)) {
+        bestFieldWeight = Math.max(bestFieldWeight, field.weight);
+      }
+    }
+
+    if (bestFieldWeight > 0) {
+      score += bestFieldWeight;
+      keywordMatches.push(keyword);
+      scoringNotes.push(`${keyword} (+${bestFieldWeight})`);
     }
   }
 
-  return score;
+  if (Number.isFinite(uploadedTimestamp) && uploadedTimestamp > 0) {
+    const ageMs = Date.now() - uploadedTimestamp;
+    const ageDays = ageMs / (24 * 60 * 60 * 1000);
+    if (ageDays <= 45) {
+      score += 2;
+      scoringNotes.push("recent upload (+2)");
+    } else if (ageDays <= 120) {
+      score += 1;
+      scoringNotes.push("fairly recent upload (+1)");
+    }
+  }
+
+  if (String(documentEntry?.downloadId || "").trim()) {
+    score += 1;
+    scoringNotes.push("direct document ID (+1)");
+  }
+
+  const candidateUrlCount = Array.isArray(documentEntry?.candidateUrls)
+    ? documentEntry.candidateUrls.filter(Boolean).length
+    : 0;
+  if (candidateUrlCount >= 2) {
+    score += 1;
+    scoringNotes.push("multiple URL hints (+1)");
+  }
+
+  const confidenceLevel = score >= 8 ? 3 : score >= 5 ? 2 : score > 0 ? 1 : 0;
+  const confidenceLabel =
+    confidenceLevel === 3
+      ? "High Confidence"
+      : confidenceLevel === 2
+      ? "Medium Confidence"
+      : confidenceLevel === 1
+      ? "Low Confidence"
+      : "Not Suggested";
+
+  return {
+    score,
+    keywordMatches: keywordMatches.slice(0, 6),
+    confidenceLevel,
+    confidenceLabel,
+    scoringNotes: scoringNotes.slice(0, 6),
+  };
+};
+
+const scoreDocumentForSection = (sectionKey, documentEntry, uploadedTimestamp = 0) => {
+  const details = scoreDocumentForSectionDetailed(sectionKey, documentEntry, uploadedTimestamp);
+  return details.score;
 };
 
 const rankDocumentsForSection = (sectionKey, documents) =>
   [...documents]
-    .map((entry) => ({
-      ...entry,
-      sectionScore: scoreDocumentForSection(sectionKey, entry),
-      uploadedTimestamp: parseMobizioUploadedAt(entry.uploadedDate),
-    }))
+    .map((entry) => {
+      const uploadedTimestamp = parseMobizioUploadedAt(entry.uploadedDate);
+      const scoring = scoreDocumentForSectionDetailed(sectionKey, entry, uploadedTimestamp);
+      return {
+        ...entry,
+        sectionScore: scoring.score,
+        sectionKeywordMatches: scoring.keywordMatches,
+        sectionConfidenceLevel: scoring.confidenceLevel,
+        sectionConfidenceLabel: scoring.confidenceLabel,
+        sectionScoreNotes: scoring.scoringNotes,
+        uploadedTimestamp,
+      };
+    })
     .sort((a, b) => {
+      if (b.sectionConfidenceLevel !== a.sectionConfidenceLevel) {
+        return b.sectionConfidenceLevel - a.sectionConfidenceLevel;
+      }
       if (b.sectionScore !== a.sectionScore) {
         return b.sectionScore - a.sectionScore;
       }
@@ -1094,22 +1360,49 @@ const getMobizioDocumentsPageUrlInPage = (caseId, defaultServiceId) => {
     const raw = String(candidate || "").trim();
     if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
     try {
-      return new URL(raw, window.location.origin).toString();
+      return new URL(raw, window.location.href).toString();
     } catch {
       return "";
     }
   };
 
-  const navCandidates = [
-    document.querySelector("#documentsCaseMenu a[href]"),
-    document.querySelector('a[href*="/case_document_list"]'),
-    document.querySelector('a[href*="case_document_list?caseId="]'),
-  ];
+  const extractUrlsFromText = (rawValue) => {
+    const text = String(rawValue || "");
+    if (!text) return [];
+    const matches =
+      text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*|\?[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
+    return matches
+      .map((match) => toAbsoluteUrl(match))
+      .filter(Boolean);
+  };
+
+  const navCandidates = Array.from(
+    document.querySelectorAll(
+      "#documentsCaseMenu a[href], a[href*='/case_document_list'], a[href*='case_document_list?caseId='], [data-href*='/case_document_list'], [data-url*='/case_document_list'], [onclick*='case_document_list']"
+    )
+  );
 
   for (const candidate of navCandidates) {
-    const href = candidate?.getAttribute?.("href") || "";
-    const absolute = toAbsoluteUrl(href);
-    if (absolute) return absolute;
+    const rawCandidates = [
+      candidate?.getAttribute?.("href"),
+      candidate?.getAttribute?.("data-href"),
+      candidate?.getAttribute?.("data-url"),
+      candidate?.getAttribute?.("onclick"),
+    ].filter(Boolean);
+
+    for (const rawValue of rawCandidates) {
+      const directAbsolute = toAbsoluteUrl(rawValue);
+      if (directAbsolute && directAbsolute.includes("/case_document_list")) {
+        return directAbsolute;
+      }
+
+      const extractedUrls = extractUrlsFromText(rawValue);
+      for (const extractedUrl of extractedUrls) {
+        if (extractedUrl.includes("/case_document_list")) {
+          return extractedUrl;
+        }
+      }
+    }
   }
 
   const caseIdFromQuery = (() => {
@@ -1191,6 +1484,39 @@ const normalizeScrapedDocuments = (documents) => {
   return normalized;
 };
 
+const dedupeAutoCollectSelection = (documents) => {
+  const list = Array.isArray(documents) ? documents : [];
+  const unique = [];
+  const removedLabels = [];
+  const seen = new Set();
+
+  for (const entry of list) {
+    const downloadId = String(entry?.downloadId || "").trim();
+    const primaryCandidate = Array.isArray(entry?.candidateUrls)
+      ? String(entry.candidateUrls[0] || "").trim().toLowerCase()
+      : "";
+    const fileName = String(entry?.fileName || entry?.name || "").trim().toLowerCase();
+    const uploadedDate = String(entry?.uploadedDate || "").trim().toLowerCase();
+    const key = downloadId
+      ? `id:${downloadId}`
+      : `meta:${fileName}|${uploadedDate}|${primaryCandidate}`;
+
+    if (seen.has(key)) {
+      removedLabels.push(String(entry?.fileName || entry?.name || "Document").trim() || "Document");
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(entry);
+  }
+
+  return {
+    documents: unique,
+    removedCount: removedLabels.length,
+    removedLabels,
+  };
+};
+
 const showAutoCollectPickerDialog = ({
   sectionKey,
   documents,
@@ -1205,6 +1531,7 @@ const showAutoCollectPickerDialog = ({
     const selectedIndexes = new Set();
     const resolvedCaseId = String(caseId || getCaseIdForAutoCollect()).trim();
     const recommendedCount = documents.filter((entry) => Number(entry?.sectionScore || 0) > 0).length;
+    const highConfidenceSuggestedCount = documents.filter((entry) => Number(entry?.sectionConfidenceLevel || 0) >= 3).length;
     let filterQuery = "";
 
     if (single && documents.length > 0) {
@@ -1252,10 +1579,12 @@ const showAutoCollectPickerDialog = ({
         <div class="dialog-body">
           <div class="auto-collect-subtitle">Source: Mobizio ${escapeHtml(sourceLabel)} for Case ID ${escapeHtml(
       resolvedCaseId || "Unknown"
-    )}. ${recommendedCount > 0 ? `${recommendedCount} suggested based on section keywords.` : ""}</div>
+    )}. ${recommendedCount > 0 ? `${recommendedCount} suggested based on section keywords.` : ""}${
+      highConfidenceSuggestedCount > 0 ? ` ${highConfidenceSuggestedCount} marked high confidence.` : ""
+    }</div>
           <div class="auto-collect-toolbar">
             <div class="auto-collect-helper" data-auto-collect-helper></div>
-            ${single ? "" : `<div class="toolbar-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="select-all">Select all</button><button type="button" class="btn btn-ghost btn-sm" data-action="clear-selection">Clear</button></div>`}
+            ${single ? "" : `<div class="toolbar-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="select-suggested">Select suggested</button><button type="button" class="btn btn-secondary btn-sm" data-action="select-all">Select all</button><button type="button" class="btn btn-ghost btn-sm" data-action="clear-selection">Clear</button></div>`}
           </div>
           <div class="auto-collect-filter-row">
             <input
@@ -1315,9 +1644,18 @@ const showAutoCollectPickerDialog = ({
           const checked = selectedIndexes.has(index);
           const recommended = entry.sectionScore > 0;
           const diagnostics = [];
+          const keywordMatches = Array.isArray(entry.sectionKeywordMatches)
+            ? entry.sectionKeywordMatches.filter(Boolean).slice(0, 3)
+            : [];
           if (entry.downloadId) diagnostics.push(`ID ${entry.downloadId}`);
           if (Array.isArray(entry.candidateUrls) && entry.candidateUrls.length > 0) {
             diagnostics.push(`${entry.candidateUrls.length} URL hint${entry.candidateUrls.length === 1 ? "" : "s"}`);
+          }
+          if (entry.sectionConfidenceLevel > 0) {
+            diagnostics.push(`${entry.sectionConfidenceLabel || "Suggested"}`);
+          }
+          if (keywordMatches.length > 0) {
+            diagnostics.push(`Matches: ${keywordMatches.join(", ")}`);
           }
 
           return `
@@ -1342,12 +1680,17 @@ const showAutoCollectPickerDialog = ({
       const visibleIndexes = getVisibleIndexes();
       const visibleSelectedCount = visibleIndexes.filter((index) => selectedIndexes.has(index)).length;
       const visibleRecommendedCount = visibleIndexes.filter((index) => Number(documents[index]?.sectionScore || 0) > 0).length;
+      const visibleHighConfidenceCount = visibleIndexes.filter(
+        (index) => Number(documents[index]?.sectionConfidenceLevel || 0) >= 3
+      ).length;
 
       if (countLabel) {
         const visibilityText = filterQuery ? `${visibleIndexes.length} shown of ${documents.length}` : `${documents.length} document${documents.length === 1 ? "" : "s"}`;
         countLabel.textContent =
           visibleRecommendedCount > 0
-            ? `${visibilityText} • ${visibleRecommendedCount} suggested`
+            ? `${visibilityText} • ${visibleRecommendedCount} suggested${
+                visibleHighConfidenceCount > 0 ? ` (${visibleHighConfidenceCount} high confidence)` : ""
+              }`
             : visibilityText;
       }
 
@@ -1356,7 +1699,9 @@ const showAutoCollectPickerDialog = ({
           visibleIndexes.length === 0
             ? "Update the filter to show documents."
             : count === 0
-            ? "Select at least one document."
+            ? visibleRecommendedCount > 0
+              ? `Select at least one document (${visibleRecommendedCount} suggested).`
+              : "Select at least one document."
             : single
             ? `1 document selected${filterQuery ? ` (${visibleSelectedCount} visible)` : ""}.`
             : `${count} document${count === 1 ? "" : "s"} selected${filterQuery ? ` (${visibleSelectedCount} visible)` : ""}.`;
@@ -1452,6 +1797,19 @@ const showAutoCollectPickerDialog = ({
       updateSelectionState();
     });
 
+    overlay.querySelector("[data-action='select-suggested']")?.addEventListener("click", () => {
+      if (single) return;
+      selectedIndexes.clear();
+      getVisibleIndexes()
+        .filter((index) => Number(documents[index]?.sectionScore || 0) > 0)
+        .forEach((index) => selectedIndexes.add(index));
+      body?.querySelectorAll("input[data-row-index]").forEach((input) => {
+        const rowIndex = Number(input.getAttribute("data-row-index"));
+        input.checked = selectedIndexes.has(rowIndex);
+      });
+      updateSelectionState();
+    });
+
     overlay.querySelector("[data-action='clear-selection']")?.addEventListener("click", () => {
       selectedIndexes.clear();
       body?.querySelectorAll("input[data-row-index]").forEach((input) => {
@@ -1496,39 +1854,40 @@ const scrapeMobizioDocumentsInPage = async () => {
       window.setTimeout(resolve, ms);
     });
 
-  const toAbsoluteUrl = (candidate) => {
+  const toAbsoluteUrl = (candidate, baseUrl = window.location.href) => {
     const raw = String(candidate || "").trim();
     if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
     try {
-      return new URL(raw, window.location.origin).toString();
+      return new URL(raw, baseUrl).toString();
     } catch {
       return "";
     }
   };
 
-  const extractUrlsFromText = (rawValue) => {
+  const extractUrlsFromText = (rawValue, baseUrl = window.location.href) => {
     const text = String(rawValue || "");
     if (!text) return [];
-    const matches = text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
+    const matches = text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*|\?[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
     return matches
-      .map((match) => toAbsoluteUrl(match))
+      .map((match) => toAbsoluteUrl(match, baseUrl))
       .filter(Boolean);
   };
 
   const collectUrlsFromElement = (element, accumulator) => {
     if (!element) return;
+    const baseUrl = String(element?.ownerDocument?.baseURI || window.location.href || "");
 
     ["href", "data-url", "data-href", "data-download-url", "data-document-url", "src"].forEach((attributeName) => {
       const value = element.getAttribute?.(attributeName);
       if (!value) return;
-      const absolute = toAbsoluteUrl(value);
+      const absolute = toAbsoluteUrl(value, baseUrl);
       if (absolute) accumulator.add(absolute);
     });
 
     for (const attribute of Array.from(element.attributes || [])) {
       const attrValue = String(attribute?.value || "");
       if (!attrValue) continue;
-      extractUrlsFromText(attrValue).forEach((url) => accumulator.add(url));
+      extractUrlsFromText(attrValue, baseUrl).forEach((url) => accumulator.add(url));
     }
   };
 
@@ -1548,6 +1907,64 @@ const scrapeMobizioDocumentsInPage = async () => {
     }
 
     extractNumericIds(value).forEach((id) => accumulator.add(id));
+  };
+
+  const addTemplateUrlsForDownloadId = (downloadId, accumulator) => {
+    const id = String(downloadId || "").trim();
+    if (!id || !accumulator) return;
+
+    [
+      `/download-document_${id}`,
+      `/download-document/${id}`,
+      `/download-document?documentId=${id}`,
+      `/case_document_download/${id}`,
+      `/case_document_download?documentId=${id}`,
+      `/document/download/${id}`,
+      `/documents/download/${id}`,
+      `/documents/${id}/download`,
+    ]
+      .map((candidate) => toAbsoluteUrl(candidate))
+      .filter(Boolean)
+      .forEach((url) => accumulator.add(url));
+  };
+
+  const isLikelyDocumentCandidate = (rawValue) => {
+    const value = String(rawValue || "").toLowerCase();
+    if (!value) return false;
+    if (/\.(pdf|doc|docx|txt|csv)(\?|$)/i.test(value)) return true;
+    return (
+      value.includes("download") ||
+      value.includes("document") ||
+      value.includes("attachment") ||
+      value.includes("case_document")
+    );
+  };
+
+  const getSearchDocuments = () => {
+    const documents = [];
+    const visited = new Set();
+    const queue = [document];
+
+    while (queue.length > 0 && documents.length < 12) {
+      const current = queue.shift();
+      if (!current || visited.has(current)) continue;
+      visited.add(current);
+      documents.push(current);
+
+      const frames = Array.from(current.querySelectorAll("iframe, frame"));
+      for (const frame of frames) {
+        try {
+          const frameDoc = frame.contentDocument;
+          if (frameDoc && !visited.has(frameDoc)) {
+            queue.push(frameDoc);
+          }
+        } catch {
+          // Ignore cross-origin frame access failures.
+        }
+      }
+    }
+
+    return documents;
   };
 
   const TABLE_SELECTORS = [
@@ -1572,18 +1989,26 @@ const scrapeMobizioDocumentsInPage = async () => {
   };
 
   const findDocumentsTable = () => {
-    for (const selector of TABLE_SELECTORS) {
-      const table = document.querySelector(selector);
-      if (table) return table;
+    const searchDocuments = getSearchDocuments();
+    for (const rootDoc of searchDocuments) {
+      for (const selector of TABLE_SELECTORS) {
+        const table = rootDoc.querySelector(selector);
+        if (table) return table;
+      }
+
+      const tables = Array.from(rootDoc.querySelectorAll("table"));
+      const matchingTable =
+        tables.find((table) => table.querySelector(".document-name, .document-filename")) ||
+        tables.find((table) => table.querySelector("[id^='download-document_'], .download-document, [data-document-id]")) ||
+        tables.find((table) => hasDocumentColumns(table)) ||
+        null;
+
+      if (matchingTable) {
+        return matchingTable;
+      }
     }
 
-    const tables = Array.from(document.querySelectorAll("table"));
-    return (
-      tables.find((table) => table.querySelector(".document-name, .document-filename")) ||
-      tables.find((table) => table.querySelector("[id^='download-document_'], .download-document, [data-document-id]")) ||
-      tables.find((table) => hasDocumentColumns(table)) ||
-      null
-    );
+    return null;
   };
 
   const tableHasRealRows = (table) => {
@@ -1620,6 +2045,96 @@ const scrapeMobizioDocumentsInPage = async () => {
     });
   };
 
+  const buildLooseDocumentEntries = () => {
+    const looseDocuments = [];
+    const seen = new Set();
+    const searchDocuments = getSearchDocuments();
+
+    searchDocuments.forEach((rootDoc, rootIndex) => {
+      const candidates = Array.from(
+        rootDoc.querySelectorAll(
+          "a[href], a[onclick], button[onclick], [data-download-url], [data-document-url], [data-href*='download'], [data-url*='download'], [id*='download-document'], [data-document-id], [onclick*='download-document'], [onclick*='case_document_download']"
+        )
+      );
+
+      candidates.forEach((element, elementIndex) => {
+        const downloadIds = new Set();
+        const candidateUrls = new Set();
+
+        collectUrlsFromElement(element, candidateUrls);
+        collectDownloadIds(element.getAttribute?.("id"), downloadIds);
+        collectDownloadIds(element.getAttribute?.("data-document-id"), downloadIds);
+        collectDownloadIds(element.getAttribute?.("data-id"), downloadIds);
+        collectDownloadIds(element.getAttribute?.("data-document"), downloadIds);
+        collectDownloadIds(element.getAttribute?.("onclick"), downloadIds);
+
+        const row = element.closest?.("tr");
+        if (row) {
+          collectUrlsFromElement(row, candidateUrls);
+          collectDownloadIds(row.getAttribute("id"), downloadIds);
+          collectDownloadIds(row.getAttribute("onclick"), downloadIds);
+          row.querySelectorAll("a, [href], [src], [data-url], [data-href], [data-download-url], [data-document-url], [onclick]").forEach((child) => {
+            collectUrlsFromElement(child, candidateUrls);
+            collectDownloadIds(child.getAttribute?.("id"), downloadIds);
+            collectDownloadIds(child.getAttribute?.("data-document-id"), downloadIds);
+            collectDownloadIds(child.getAttribute?.("onclick"), downloadIds);
+          });
+        }
+
+        Array.from(downloadIds).forEach((id) => addTemplateUrlsForDownloadId(id, candidateUrls));
+
+        const urls = Array.from(candidateUrls).filter(Boolean);
+        const label = toText(
+          element.textContent ||
+            element.getAttribute?.("title") ||
+            element.getAttribute?.("aria-label") ||
+            ""
+        );
+        const description = toText(element.getAttribute?.("title") || "");
+        const hasDownloadSignal =
+          downloadIds.size > 0 ||
+          urls.some((url) => isLikelyDocumentCandidate(url)) ||
+          isLikelyDocumentCandidate(label) ||
+          /\.(pdf|doc|docx|txt|csv)$/i.test(label);
+
+        if (!hasDownloadSignal) return;
+
+        const primaryUrl = urls[0] || "";
+        const downloadId = Array.from(downloadIds)[0] || "";
+        if (!downloadId && !primaryUrl) return;
+
+        const dedupeKey = `${downloadId}|${primaryUrl}|${label.toLowerCase()}`;
+        if (seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
+
+        const inferredFromUrl = (() => {
+          if (!primaryUrl) return "";
+          try {
+            const parsed = new URL(primaryUrl);
+            return decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || "");
+          } catch {
+            return "";
+          }
+        })();
+
+        const inferredName = label || inferredFromUrl || `Document ${looseDocuments.length + 1}`;
+
+        looseDocuments.push({
+          rowId: `loose-${rootIndex + 1}-${elementIndex + 1}`,
+          downloadId,
+          name: inferredName,
+          fileName: inferredFromUrl || inferredName,
+          description,
+          uploadedDate: "",
+          uploadedBy: "",
+          candidateUrls: urls.slice(0, 48),
+        });
+      });
+    });
+
+    return looseDocuments;
+  };
+
   const waitForDocumentsTable = async (timeoutMs = 18000) => {
     const startedAt = Date.now();
     let lastSeenTable = null;
@@ -1640,9 +2155,20 @@ const scrapeMobizioDocumentsInPage = async () => {
   };
 
   const currentPath = String(window.location.pathname || "").toLowerCase();
-  const tableWaitTimeout = currentPath.includes("case_document_list") ? 18000 : 5000;
+  const tableWaitTimeout = currentPath.includes("case_document_list")
+    ? 18000
+    : currentPath.includes("case_data_group")
+    ? 16000
+    : currentPath.includes("case_care_plans_dashboard")
+    ? 9000
+    : 7000;
   const table = await waitForDocumentsTable(tableWaitTimeout);
   if (!table) {
+    const looseDocuments = buildLooseDocumentEntries();
+    if (looseDocuments.length > 0) {
+      return { ok: true, documents: looseDocuments };
+    }
+
     return {
       ok: false,
       error: `Could not find the Mobizio documents table (searched #documentsTable + fallback selectors) on ${window.location.pathname || "/"}.`,
@@ -1656,6 +2182,10 @@ const scrapeMobizioDocumentsInPage = async () => {
 
   const rawRows = Array.from(table.querySelectorAll("tbody tr"));
   if (rawRows.length === 0) {
+    const looseDocuments = buildLooseDocumentEntries();
+    if (looseDocuments.length > 0) {
+      return { ok: true, documents: looseDocuments };
+    }
     return { ok: true, documents: [] };
   }
 
@@ -1722,7 +2252,8 @@ const scrapeMobizioDocumentsInPage = async () => {
       collectDownloadIds(element.getAttribute("onclick"), downloadIds);
     });
 
-    const downloadId = Array.from(downloadIds)[0] || "";
+    const downloadIdList = Array.from(downloadIds);
+    const downloadId = downloadIdList[0] || "";
 
     const candidateUrls = new Set();
     collectUrlsFromElement(row, candidateUrls);
@@ -1739,20 +2270,11 @@ const scrapeMobizioDocumentsInPage = async () => {
     ]
       .filter(Boolean)
       .forEach((handlerText) => {
-        extractUrlsFromText(handlerText).forEach((url) => candidateUrls.add(url));
+        const rowBaseUrl = String(row?.ownerDocument?.baseURI || window.location.href || "");
+        extractUrlsFromText(handlerText, rowBaseUrl).forEach((url) => candidateUrls.add(url));
       });
 
-    if (downloadId) {
-      [
-        `/download-document_${downloadId}`,
-        `/download-document/${downloadId}`,
-        `/download-document?documentId=${downloadId}`,
-        `/case_document_download/${downloadId}`,
-        `/case_document_download?documentId=${downloadId}`,
-        `/document/download/${downloadId}`,
-        `/documents/download/${downloadId}`,
-      ].forEach((url) => candidateUrls.add(url));
-    }
+    downloadIdList.forEach((id) => addTemplateUrlsForDownloadId(id, candidateUrls));
 
     return {
       rowId,
@@ -1762,21 +2284,32 @@ const scrapeMobizioDocumentsInPage = async () => {
       description,
       uploadedDate,
       uploadedBy,
-      candidateUrls: Array.from(candidateUrls).slice(0, 48),
+      candidateUrls: Array.from(candidateUrls).filter(Boolean).slice(0, 48),
     };
   });
 
-  return { ok: true, documents };
+  const normalizedDocuments = documents.filter(
+    (entry) => String(entry?.downloadId || "").trim() || (Array.isArray(entry?.candidateUrls) && entry.candidateUrls.length > 0)
+  );
+
+  if (normalizedDocuments.length === 0) {
+    const looseDocuments = buildLooseDocumentEntries();
+    if (looseDocuments.length > 0) {
+      return { ok: true, documents: looseDocuments };
+    }
+  }
+
+  return { ok: true, documents: normalizedDocuments };
 };
 
 const downloadMobizioDocumentInPage = async (documentEntry) => {
   const toText = (value) => String(value || "").trim();
 
-  const toAbsoluteUrl = (candidate) => {
+  const toAbsoluteUrl = (candidate, baseUrl = window.location.href) => {
     const raw = String(candidate || "").trim();
     if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
     try {
-      return new URL(raw, window.location.origin).toString();
+      return new URL(raw, baseUrl).toString();
     } catch {
       return "";
     }
@@ -1794,29 +2327,30 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
     );
   };
 
-  const extractUrlsFromText = (rawValue) => {
+  const extractUrlsFromText = (rawValue, baseUrl = window.location.href) => {
     const text = String(rawValue || "");
     if (!text) return [];
-    const matches = text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
+    const matches = text.match(/https?:\/\/[^\s"'<>]+|\/[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*|\?[a-zA-Z0-9][a-zA-Z0-9_\-/.?=&%]*/g) || [];
     return matches
-      .map((match) => toAbsoluteUrl(match))
+      .map((match) => toAbsoluteUrl(match, baseUrl))
       .filter(Boolean);
   };
 
   const collectUrlsFromElement = (element, accumulator) => {
     if (!element) return;
+    const baseUrl = String(element?.ownerDocument?.baseURI || window.location.href || "");
 
     ["href", "data-url", "data-href", "data-download-url", "data-document-url", "src"].forEach((attributeName) => {
       const value = element.getAttribute?.(attributeName);
       if (!value) return;
-      const absolute = toAbsoluteUrl(value);
+      const absolute = toAbsoluteUrl(value, baseUrl);
       if (absolute) accumulator.add(absolute);
     });
 
     for (const attribute of Array.from(element.attributes || [])) {
       const attrValue = String(attribute?.value || "");
       if (!attrValue) continue;
-      extractUrlsFromText(attrValue).forEach((url) => accumulator.add(url));
+      extractUrlsFromText(attrValue, baseUrl).forEach((url) => accumulator.add(url));
     }
   };
 
@@ -1838,8 +2372,8 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
     extractNumericIds(value).forEach((id) => accumulator.add(id));
   };
 
-  const enqueueUrlsFromText = (rawValue, enqueueUrl, { allowAny = false } = {}) => {
-    extractUrlsFromText(rawValue).forEach((url) => enqueueUrl(url, { allowAny }));
+  const enqueueUrlsFromText = (rawValue, enqueueUrl, { allowAny = false, baseUrl = window.location.href } = {}) => {
+    extractUrlsFromText(rawValue, baseUrl).forEach((url) => enqueueUrl(url, { allowAny, baseUrl }));
   };
 
   const addTemplateUrlsForDownloadId = (downloadId, enqueueUrl, caseId = "") => {
@@ -1927,12 +2461,12 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
   const candidateQueue = [];
   const queued = new Set();
 
-  const enqueueUrl = (candidate, { allowAny = false } = {}) => {
-    const absoluteUrl = toAbsoluteUrl(candidate);
+  const enqueueUrl = (candidate, { allowAny = false, baseUrl = window.location.href } = {}) => {
+    const absoluteUrl = toAbsoluteUrl(candidate, baseUrl);
     if (!absoluteUrl) return;
     if (!allowAny && !isLikelyDocumentUrl(absoluteUrl)) return;
     if (queued.has(absoluteUrl)) return;
-    if (candidateQueue.length >= 96) return;
+    if (candidateQueue.length >= 160) return;
 
     queued.add(absoluteUrl);
     candidateQueue.push(absoluteUrl);
@@ -1974,6 +2508,25 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
     if (rowById) locatedElements.push(rowById);
   }
 
+  const requestedFileHint = toText(documentEntry?.fileName || documentEntry?.name).toLowerCase();
+  if (requestedFileHint && requestedFileHint.length >= 4) {
+    document
+      .querySelectorAll("a, button, [onclick], [data-url], [data-href], [data-download-url], [data-document-url]")
+      .forEach((element) => {
+        const label = toText(
+          element.textContent ||
+            element.getAttribute?.("title") ||
+            element.getAttribute?.("aria-label") ||
+            ""
+        ).toLowerCase();
+
+        if (!label) return;
+        if (label.includes(requestedFileHint) || requestedFileHint.includes(label)) {
+          locatedElements.push(element);
+        }
+      });
+  }
+
   downloadIds.forEach((id) => {
     document
       .querySelectorAll(
@@ -1986,18 +2539,27 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
 
   const discoveredCandidates = new Set();
   locatedElements.forEach((element) => {
+    const elementBaseUrl = String(element?.ownerDocument?.baseURI || window.location.href || "");
     collectUrlsFromElement(element, discoveredCandidates);
-    enqueueUrlsFromText(element.getAttribute?.("onclick"), enqueueUrl, { allowAny: true });
+    enqueueUrlsFromText(element.getAttribute?.("onclick"), enqueueUrl, {
+      allowAny: true,
+      baseUrl: elementBaseUrl,
+    });
 
     const row = element.closest?.("tr");
     if (row) {
+      const rowBaseUrl = String(row?.ownerDocument?.baseURI || window.location.href || "");
       collectUrlsFromElement(row, discoveredCandidates);
       row
         .querySelectorAll("a, [href], [src], [data-url], [data-href], [data-download-url], [data-document-url], [onclick]")
         .forEach((child) => collectUrlsFromElement(child, discoveredCandidates));
-      enqueueUrlsFromText(row.getAttribute("onclick"), enqueueUrl, { allowAny: true });
+      enqueueUrlsFromText(row.getAttribute("onclick"), enqueueUrl, { allowAny: true, baseUrl: rowBaseUrl });
       row.querySelectorAll("[onclick]").forEach((child) => {
-        enqueueUrlsFromText(child.getAttribute("onclick"), enqueueUrl, { allowAny: true });
+        const childBaseUrl = String(child?.ownerDocument?.baseURI || rowBaseUrl || window.location.href || "");
+        enqueueUrlsFromText(child.getAttribute("onclick"), enqueueUrl, {
+          allowAny: true,
+          baseUrl: childBaseUrl,
+        });
       });
       collectDownloadIds(row.getAttribute("id"), downloadIds);
       collectDownloadIds(row.getAttribute("onclick"), downloadIds);
@@ -2028,25 +2590,33 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
         const html = await response.text();
         if (!html) continue;
 
+        const responseBaseUrl = String(response.url || absoluteUrl || window.location.href || "");
+
         const parsed = new DOMParser().parseFromString(html, "text/html");
         parsed
           .querySelectorAll("a[href], iframe[src], frame[src], embed[src], object[data], source[src]")
           .forEach((element) => {
             const value = element.getAttribute("href") || element.getAttribute("src") || element.getAttribute("data");
-            enqueueUrl(value, { allowAny: true });
+            enqueueUrl(value, { allowAny: true, baseUrl: responseBaseUrl });
           });
 
         parsed.querySelectorAll("[onclick]").forEach((element) => {
-          enqueueUrlsFromText(element.getAttribute("onclick"), enqueueUrl, { allowAny: true });
+          enqueueUrlsFromText(element.getAttribute("onclick"), enqueueUrl, {
+            allowAny: true,
+            baseUrl: responseBaseUrl,
+          });
         });
 
         const refreshContent = parsed.querySelector('meta[http-equiv="refresh" i]')?.getAttribute("content") || "";
         const refreshMatch = refreshContent.match(/url\s*=\s*([^;]+)/i);
         if (refreshMatch?.[1]) {
-          enqueueUrl(refreshMatch[1].replace(/^['"]|['"]$/g, ""), { allowAny: true });
+          enqueueUrl(refreshMatch[1].replace(/^['"]|['"]$/g, ""), {
+            allowAny: true,
+            baseUrl: responseBaseUrl,
+          });
         }
 
-        enqueueUrlsFromText(html, enqueueUrl, { allowAny: false });
+        enqueueUrlsFromText(html, enqueueUrl, { allowAny: false, baseUrl: responseBaseUrl });
         const htmlIdHints =
           String(html).match(/download-document[_-]?\d+|documentId["'=:\s]+\d{3,}|data-document-id["'=:\s]+\d{3,}/gi) || [];
         htmlIdHints.forEach((hint) => collectDownloadIds(hint, downloadIds));
@@ -2233,7 +2803,41 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       }
     };
 
-    let scraped = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
+    const scrapeDocumentsWithRetry = async () => {
+      let bestAttempt = null;
+      let attempts = 0;
+      const retryDelaysMs = [0, 900, 1400];
+
+      for (let index = 0; index < retryDelaysMs.length; index += 1) {
+        const delayMs = retryDelaysMs[index];
+        if (delayMs > 0) {
+          await wait(delayMs);
+        }
+
+        const attempt = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
+        attempts += 1;
+        const discoveredCount = Array.isArray(attempt?.documents) ? attempt.documents.length : 0;
+
+        if (!bestAttempt || (attempt?.ok && !bestAttempt?.ok)) {
+          bestAttempt = attempt;
+        }
+
+        if (attempt?.ok && discoveredCount > 0) {
+          return { scrape: attempt, attempts };
+        }
+      }
+
+      return {
+        scrape: bestAttempt || { ok: false, error: "Could not read documents from the Mobizio page." },
+        attempts,
+      };
+    };
+
+    let scrapeAttempts = 0;
+    const initialScrapeRun = await scrapeDocumentsWithRetry();
+    let scraped = initialScrapeRun.scrape;
+    scrapeAttempts += initialScrapeRun.attempts;
+    updateAutoCollectInfoSnapshot({ scrapeAttempts });
 
     const fallbackToDocuments = async () => {
       if (
@@ -2256,8 +2860,18 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         note: "Switched to case Documents source for downloadable records.",
       });
       await chrome.tabs.update(collectionTabId, { url: fallbackDocumentsUrl });
-      await waitForTabComplete(collectionTabId);
-      scraped = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
+      const fallbackTabState = await waitForTabComplete(collectionTabId);
+      const fallbackHost = getTabHostName(fallbackTabState);
+      if (fallbackHost && !isMobizioHostName(fallbackHost)) {
+        throw new Error(
+          "Mobizio redirected this tab outside clece.mobizio.com. Sign in to Mobizio in the browser, then retry auto-collect."
+        );
+      }
+
+      const fallbackScrapeRun = await scrapeDocumentsWithRetry();
+      scraped = fallbackScrapeRun.scrape;
+      scrapeAttempts += fallbackScrapeRun.attempts;
+      updateAutoCollectInfoSnapshot({ scrapeAttempts });
       didFallbackToDocuments = true;
       return true;
     };
@@ -2277,12 +2891,31 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
     let normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
     if (normalizedDocuments.length === 0) {
+      const refreshedScrapeRun = await scrapeDocumentsWithRetry();
+      scrapeAttempts += refreshedScrapeRun.attempts;
+      updateAutoCollectInfoSnapshot({ scrapeAttempts });
+      if (refreshedScrapeRun.scrape?.ok) {
+        scraped = refreshedScrapeRun.scrape;
+        normalizedDocuments = normalizeScrapedDocuments(refreshedScrapeRun.scrape.documents);
+      }
+    }
+
+    if (normalizedDocuments.length === 0) {
       const switched = await fallbackToDocuments();
       if (switched) {
         if (!scraped?.ok) {
           throw new Error(scraped?.error || "Could not read documents from the Mobizio list page.");
         }
         normalizedDocuments = normalizeScrapedDocuments(scraped.documents);
+        if (normalizedDocuments.length === 0) {
+          const refreshedScrapeRun = await scrapeDocumentsWithRetry();
+          scrapeAttempts += refreshedScrapeRun.attempts;
+          updateAutoCollectInfoSnapshot({ scrapeAttempts });
+          if (refreshedScrapeRun.scrape?.ok) {
+            scraped = refreshedScrapeRun.scrape;
+            normalizedDocuments = normalizeScrapedDocuments(refreshedScrapeRun.scrape.documents);
+          }
+        }
       }
     }
 
@@ -2296,9 +2929,12 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
     const rankedDocuments = rankDocumentsForSection(sectionKey, normalizedDocuments);
     const suggestedCount = rankedDocuments.filter((entry) => Number(entry?.sectionScore || 0) > 0).length;
+    const highConfidenceCount = rankedDocuments.filter((entry) => Number(entry?.sectionConfidenceLevel || 0) >= 3).length;
     updateAutoCollectInfoSnapshot({
       discoveredCount: rankedDocuments.length,
       suggestedCount,
+      highConfidenceCount,
+      scrapeAttempts,
       note:
         rankedDocuments.length > 0
           ? "Review the picker and confirm which documents to download."
@@ -2318,10 +2954,37 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         status: "cancelled",
         note: `${rule.sectionLabel} auto-download was cancelled before download started.`,
         selectedCount: 0,
+        dedupedSelectionCount: 0,
+        scrapeAttempts,
       });
       updateUploadPendingStatus();
       showInfo(`${rule.sectionLabel} auto-collect was cancelled.`);
       return false;
+    }
+
+    const dedupedSelection = dedupeAutoCollectSelection(selectedDocuments);
+    const selectedForDownload = dedupedSelection.documents;
+    const dedupedSelectionCount = dedupedSelection.removedCount;
+    if (selectedForDownload.length === 0) {
+      finalizeAutoCollectInfoSnapshot({
+        status: "cancelled",
+        note: `${rule.sectionLabel} auto-download selection contained duplicate entries only.`,
+        selectedCount: 0,
+        dedupedSelectionCount,
+        scrapeAttempts,
+      });
+      updateUploadPendingStatus();
+      showInfo(`${rule.sectionLabel} auto-collect was cancelled.`);
+      return false;
+    }
+
+    if (dedupedSelectionCount > 0) {
+      const removedPreview = dedupedSelection.removedLabels.slice(0, 2).join(", ");
+      showInfo(
+        `Removed ${dedupedSelectionCount} duplicate document${dedupedSelectionCount === 1 ? "" : "s"} before download${
+          removedPreview ? ` (${removedPreview}${dedupedSelectionCount > 2 ? ` +${dedupedSelectionCount - 2} more` : ""})` : ""
+        }.`
+      );
     }
 
     const downloadedFiles = [];
@@ -2329,16 +2992,17 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     const failedDetails = [];
 
     updateAutoCollectInfoSnapshot({
-      selectedCount: selectedDocuments.length,
-      note: `Downloading ${selectedDocuments.length} selected document${selectedDocuments.length === 1 ? "" : "s"}...`,
+      selectedCount: selectedForDownload.length,
+      dedupedSelectionCount,
+      note: `Downloading ${selectedForDownload.length} selected document${selectedForDownload.length === 1 ? "" : "s"}...`,
     });
 
-    for (let index = 0; index < selectedDocuments.length; index += 1) {
-      const selectedDocument = selectedDocuments[index];
+    for (let index = 0; index < selectedForDownload.length; index += 1) {
+      const selectedDocument = selectedForDownload[index];
       const label = selectedDocument.fileName || selectedDocument.name || `Document ${index + 1}`;
-      updateUploadSyncStatus(`Downloading ${index + 1} of ${selectedDocuments.length}: ${label}`);
+      updateUploadSyncStatus(`Downloading ${index + 1} of ${selectedForDownload.length}: ${label}`);
       updateAutoCollectInfoSnapshot({
-        note: `Downloading ${index + 1} of ${selectedDocuments.length}: ${label}`,
+        note: `Downloading ${index + 1} of ${selectedForDownload.length}: ${label}`,
       });
 
       const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument]);
@@ -2407,12 +3071,15 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         downloadedCount: downloadedFiles.length,
         failedCount: failedDownloads.length,
         failedDetails,
-        selectedCount: selectedDocuments.length,
+        scrapeAttempts,
+        selectedCount: selectedForDownload.length,
+        dedupedSelectionCount,
         discoveredCount: rankedDocuments.length,
         suggestedCount,
+        highConfidenceCount,
         fallbackUsed: didFallbackToDocuments,
-        note: `Downloaded ${downloadedFiles.length} of ${selectedDocuments.length} selected document${
-          selectedDocuments.length === 1 ? "" : "s"
+        note: `Downloaded ${downloadedFiles.length} of ${selectedForDownload.length} selected document${
+          selectedForDownload.length === 1 ? "" : "s"
         }.`,
         error: "",
       });
@@ -2427,9 +3094,12 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         downloadedCount: downloadedFiles.length,
         failedCount: 0,
         failedDetails: [],
-        selectedCount: selectedDocuments.length,
+        scrapeAttempts,
+        selectedCount: selectedForDownload.length,
+        dedupedSelectionCount,
         discoveredCount: rankedDocuments.length,
         suggestedCount,
+        highConfidenceCount,
         fallbackUsed: didFallbackToDocuments,
         note: `Downloaded all ${downloadedFiles.length} selected document${downloadedFiles.length === 1 ? "" : "s"}.`,
         error: "",
@@ -2446,6 +3116,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       sourceLabel: collectionSource?.label || "",
       sourceUrl: collectionSource?.url || "",
       fallbackUsed: didFallbackToDocuments,
+      scrapeAttempts: Number(autoCollectInfoSnapshot?.scrapeAttempts || 0),
       error: message,
       note: "Auto-download stopped before files could be fully staged.",
     });
@@ -2778,6 +3449,11 @@ const buildUploadMirrorPayload = async () => {
     throw new Error("Selected files are too large to sync at once. Keep total size below 35 MB.");
   }
 
+  const serviceUserCaseId = String(
+    state.selectedAutofillUser?.acpId || dom.caseId?.value || ""
+  ).trim();
+  const serviceDataGroupId = String(dom.serviceDataGroupId?.value || "").trim();
+
   const serviceUserName = String(
     state.selectedAutofillUser?.name || state.selectedUser?.name || ""
   )
@@ -2802,6 +3478,8 @@ const buildUploadMirrorPayload = async () => {
     source: "extension-popup",
     uploadedAt: new Date().toISOString(),
     serviceUserName,
+    serviceUserCaseId,
+    serviceDataGroupId,
     additionalNotes: (dom.uploadNotes?.value || "").trim(),
     uploads,
   };
@@ -3017,6 +3695,49 @@ const bindUploadActionButtons = () => {
       await autoCollectDocumentsForSection(sectionKey, button);
     });
   });
+};
+
+const resetUploadWorkspace = async ({ showToast = false } = {}) => {
+  state.uploadBuckets = createEmptyUploadBuckets();
+  state.selectedFilesList = [];
+  state.currentAnalysisResults = null;
+  lastUploadSyncSignature = "";
+
+  updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
+
+  if (uploadSyncTimer) {
+    clearTimeout(uploadSyncTimer);
+    uploadSyncTimer = null;
+  }
+  uploadSyncQueued = false;
+  uploadSyncForceQueued = false;
+  uploadSyncInFlight = false;
+
+  for (const section of UPLOAD_SECTION_CONFIG) {
+    const input = document.getElementById(section.inputId);
+    if (input instanceof HTMLInputElement) {
+      input.value = "";
+    }
+  }
+
+  renderUploadBuckets();
+
+  if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = true;
+  if (dom.uploadNotes) dom.uploadNotes.value = "";
+  if (dom.analysisStatus) dom.analysisStatus.textContent = "";
+  if (dom.additionalNotes) dom.additionalNotes.value = "";
+  if (dom.assessmentList) dom.assessmentList.innerHTML = "";
+  if (dom.selectionSection) dom.selectionSection.hidden = true;
+  if (dom.uploadedDocsList) dom.uploadedDocsList.innerHTML = "";
+  if (dom.uploadedDocsSummary) dom.uploadedDocsSummary.hidden = true;
+
+  updateUploadSteps(0);
+  updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
+  await setStorage({ [STORAGE_KEYS.uploadedDocuments]: null });
+
+  if (showToast) {
+    showSuccess("Upload staging reset.");
+  }
 };
 
 async function flushScheduledPopupRefresh() {
@@ -3384,6 +4105,12 @@ async function refreshPayloadStatus() {
     if (dom.serviceDataGroupId) dom.serviceDataGroupId.value = data[STORAGE_KEYS.caseInfo].serviceDataGroupId || "";
   }
 
+  try {
+    await maybeSyncAutofillUserFromPayload(payload, payloadStoredAt, data[STORAGE_KEYS.caseInfo] || null);
+  } catch (syncError) {
+    console.warn("[CA Extension] payload autofill user sync failed:", syncError);
+  }
+
   if (dom.autoSubmit) dom.autoSubmit.checked = data[STORAGE_KEYS.autoSubmit] !== false;
   if (dom.dryRun) dom.dryRun.checked = data[STORAGE_KEYS.dryRun] === true;
   if (dom.interactionMode) dom.interactionMode.value = data[STORAGE_KEYS.interactionMode] || "auto";
@@ -3488,6 +4215,13 @@ async function fetchConnectedData(user) {
     state.serviceUsers = [...analyzedUsers, ...acpOnlyUsers];
     displayServiceUsers();
     renderAutofillUserDropdown();
+
+    const payloadData = await loadStorage([STORAGE_KEYS.payload, DATA_TIMESTAMP_KEY, STORAGE_KEYS.caseInfo]);
+    await maybeSyncAutofillUserFromPayload(
+      payloadData[STORAGE_KEYS.payload],
+      payloadData[DATA_TIMESTAMP_KEY],
+      payloadData[STORAGE_KEYS.caseInfo] || null
+    );
   } catch (e) {
     console.warn("[CA Extension] Failed to fetch service users:", e);
   }
@@ -3764,6 +4498,10 @@ function bindEvents() {
     if (ok) showSuccess("Uploads sent to CareAssurance Upload");
   });
 
+  dom.resetUploadBtn?.addEventListener("click", async () => {
+    await resetUploadWorkspace({ showToast: true });
+  });
+
   dom.copyAutoCollectInfo?.addEventListener("click", async () => {
     const report = buildAutoCollectReportText();
     if (!report) {
@@ -3796,24 +4534,7 @@ function bindEvents() {
   });
 
   dom.clearUploads?.addEventListener("click", async () => {
-    state.uploadBuckets = createEmptyUploadBuckets();
-    state.selectedFilesList = [];
-    state.currentAnalysisResults = null;
-    lastUploadSyncSignature = "";
-    updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
-    if (uploadSyncTimer) {
-      clearTimeout(uploadSyncTimer);
-      uploadSyncTimer = null;
-    }
-    uploadSyncQueued = false;
-    uploadSyncForceQueued = false;
-    uploadSyncInFlight = false;
-    renderUploadBuckets();
-    if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = true;
-    if (dom.uploadNotes) dom.uploadNotes.value = "";
-    if (dom.analysisStatus) dom.analysisStatus.textContent = "";
-    updateUploadSyncStatus("Add files to stage them, then click Send to transfer.");
-    await setStorage({ [STORAGE_KEYS.uploadedDocuments]: null });
+    await resetUploadWorkspace({ showToast: true });
   });
 
   dom.analyzeDocuments?.addEventListener("click", async () => {
@@ -4282,7 +5003,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.20</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.24</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }

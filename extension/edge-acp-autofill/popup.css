@@ -1159,6 +1159,14 @@ body {
   margin-bottom: 12px;
 }
 
+.upload-sync-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .upload-sync-status {
   margin: 0;
   font-size: 11px;
@@ -2775,6 +2783,8 @@ body {
   .document-type-grid { grid-template-columns: 1fr; }
   .upload-bucket-grid { grid-template-columns: 1fr; }
   .upload-sync-row { flex-direction: column; align-items: stretch; }
+  .upload-sync-actions { width: 100%; justify-content: space-between; }
+  .upload-sync-actions .btn { flex: 1 1 0; }
   .upload-bucket-actions { grid-template-columns: 1fr; }
   .auto-collect-toolbar { flex-direction: column; align-items: stretch; }
   .auto-collect-filter-row { flex-direction: column; align-items: stretch; }

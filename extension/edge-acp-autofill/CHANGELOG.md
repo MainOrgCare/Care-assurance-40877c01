@@ -1,5 +1,71 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.24 - Upload Reset Toolbar Action
+
+### Upload Workflow UX
+
+- Added a visible `Reset Upload` button beside `Send to CareAssurance Upload` in the Intake Upload toolbar for faster staging recovery.
+- Refactored upload reset behavior into a shared handler so both the new toolbar reset action and existing clear action fully reset staged files, notes, analysis selections, sync status, and persisted uploaded-doc markers.
+- Updated upload-toolbar layout styling to keep Send + Reset controls responsive on narrow popup widths.
+
+### Versioning
+
+- Bumped extension version to `0.6.24` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.23 - Deep-Link Download Reliability and Retry Telemetry
+
+### Intake Auto-Collect Reliability
+
+- Hardened documents-page URL detection by extracting real `case_document_list` targets from complex onclick/data-attribute navigation payloads.
+- Improved scrape URL extraction so attribute/handler links are resolved against the correct document/frame base URI instead of only the top-level page URL.
+- Improved download URL extraction and queueing so relative links discovered on intermediate HTML pages are resolved against each response URL before retrying.
+
+### Auto-Collect Diagnostics
+
+- Added scrape-attempt telemetry (`scrapeAttempts`) across auto-collect runs and surfaced it in both the live Auto-Download Info panel and copied report output.
+- Expanded scrape retry behavior to three phased attempts before failing, reducing transient empty-result failures on slow Mobizio renders.
+
+### Versioning
+
+- Bumped extension version to `0.6.23` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.22 - Auto-Collect Reliability Hardening
+
+### Intake Auto-Collect Reliability
+
+- Improved Mobizio URL resolution during scraping/downloading so relative and query-style links are resolved against the active page correctly.
+- Added same-origin frame-aware table discovery for document scraping, allowing auto-collect to detect records when table markup is rendered inside embedded frames.
+- Added non-table loose-link extraction fallback for download/document controls when standard table structures are missing or delayed.
+- Added retry-aware scraping before failure and after source fallback transitions to reduce transient empty-result runs on slow Mobizio renders.
+- Expanded in-page download candidate discovery with filename-hint element matching and a larger candidate queue to better handle intermediate HTML download pages.
+
+### Versioning
+
+- Bumped extension version to `0.6.22` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.21 - Confidence Scoring and Detail Hardening
+
+### Intake Auto-Collect Quality Improvements
+
+- Upgraded document suggestion scoring from simple keyword counts to weighted confidence scoring across document name, filename, description, uploader metadata, upload recency, and download signal strength.
+- Added confidence metadata to picker rows (confidence label + keyword match hints) to improve operator decision quality before download.
+- Added `Select suggested` action in the picker for faster high-signal selection workflows.
+- Added duplicate-selection protection before download to prevent repeated downloads of the same Mobizio document entry in one run.
+
+### Diagnostics Enhancements
+
+- Auto-Download diagnostics now track high-confidence suggestion counts and deduped selection counts in the live panel and copyable report output.
+
+### Risk Assessment Detail Hardening (App)
+
+- Strengthened risk-assessment quality gates with additional checks for risk diversity, low-detail risk rows, and evidence-to-risk coverage.
+- Improved supporting-evidence backfill logic so generated outputs retain richer, document-grounded evidence sets when AI output is sparse.
+- Upgraded rule-based fallback risk assessments to produce more detailed, evidence-anchored multi-risk narratives.
+
+### Versioning
+
+- Bumped extension version to `0.6.21` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.20 - Auto-Download Diagnostics and Picker Upgrades
 
 ### Intake Auto-Collect Diagnostics

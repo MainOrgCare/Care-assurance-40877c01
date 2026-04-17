@@ -88,6 +88,45 @@ const getReadyHostCandidates = (targetOrigin) => {
   return Array.from(new Set(candidates));
 };
 
+const pickFirstNonEmptyPayloadValue = (...values) => {
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+};
+
+const buildCaseInfoFromPayload = (payload, existingCaseInfo = null) => {
+  if (!payload || typeof payload !== "object") return existingCaseInfo || null;
+
+  const existingCaseId = String(existingCaseInfo?.caseId || "").trim();
+  const existingServiceDataGroupId = String(existingCaseInfo?.serviceDataGroupId || "").trim();
+
+  const caseId = pickFirstNonEmptyPayloadValue(
+    payload.caseId,
+    payload.acpId,
+    payload.accessCarePlanningId,
+    payload.serviceUser?.acpId,
+    payload.serviceUser?.accessCarePlanningId,
+    payload.caseInfo?.caseId,
+    existingCaseId
+  );
+  const serviceDataGroupId = pickFirstNonEmptyPayloadValue(
+    payload.serviceDataGroupId,
+    payload.caseInfo?.serviceDataGroupId,
+    existingServiceDataGroupId
+  );
+
+  if (!caseId) {
+    return existingCaseInfo || null;
+  }
+
+  return {
+    caseId,
+    serviceDataGroupId,
+  };
+};
+
 const shouldBypassContentRelay = (workspaceOrigin, apiOrigin) => {
   const workspaceHost = normalizeOriginHost(workspaceOrigin);
   const apiHost = normalizeOriginHost(apiOrigin);
@@ -928,10 +967,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   };
 
   if (message?.type === MESSAGE_TYPES.storePayload) {
-    setStored({
-      [STORAGE_KEYS.payload]: message.payload,
-      [STORAGE_KEYS.dataTimestamp]: Date.now(),
-    })
+    Promise.resolve()
+      .then(async () => {
+        const payload = message?.payload;
+        const storedValues = await getStored([STORAGE_KEYS.caseInfo]);
+        const nextCaseInfo = buildCaseInfoFromPayload(payload, storedValues?.[STORAGE_KEYS.caseInfo] || null);
+
+        const nextItems = {
+          [STORAGE_KEYS.payload]: payload,
+          [STORAGE_KEYS.dataTimestamp]: Date.now(),
+        };
+
+        if (nextCaseInfo) {
+          nextItems[STORAGE_KEYS.caseInfo] = nextCaseInfo;
+        }
+
+        await setStored(nextItems);
+      })
       .then(clearLastError)
       .then(() => safeSendResponse({ ok: true }))
       .catch((error) => {

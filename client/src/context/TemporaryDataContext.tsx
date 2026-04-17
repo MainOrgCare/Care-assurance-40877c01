@@ -26,6 +26,8 @@ interface ExtensionUploadItem {
 
 type ServiceUserDataState = {
   serviceUserName?: string;
+  serviceUserCaseId?: string;
+  serviceDataGroupId?: string;
   socialWork?: FileData;
   initialAssessment?: FileData;
   carePlan?: FileData;
@@ -37,7 +39,13 @@ type ServiceUserDataState = {
 interface TemporaryDataContextType {
   serviceUserData: ServiceUserDataState;
   uploadFile: (section: UploadSection, file: File) => Promise<void>;
-  importExtensionUploads: (payload: { uploads: ExtensionUploadItem[]; additionalNotes?: string; serviceUserName?: string }) => Promise<{ imported: number; failed: number }>;
+  importExtensionUploads: (payload: {
+    uploads: ExtensionUploadItem[];
+    additionalNotes?: string;
+    serviceUserName?: string;
+    serviceUserCaseId?: string;
+    serviceDataGroupId?: string;
+  }) => Promise<{ imported: number; failed: number }>;
   removeAdditionalDocument: (id: string) => void;
   clearServiceUserData: () => void;
   startTimer: () => void;
@@ -327,7 +335,13 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const importExtensionUploads = useCallback(async (payload: { uploads: ExtensionUploadItem[]; additionalNotes?: string; serviceUserName?: string }) => {
+  const importExtensionUploads = useCallback(async (payload: {
+    uploads: ExtensionUploadItem[];
+    additionalNotes?: string;
+    serviceUserName?: string;
+    serviceUserCaseId?: string;
+    serviceDataGroupId?: string;
+  }) => {
     const uploads = Array.isArray(payload?.uploads) ? payload.uploads : [];
     if (uploads.length === 0) {
       return { imported: 0, failed: 0 };
@@ -373,6 +387,28 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    if (typeof payload.serviceUserCaseId === "string") {
+      const serviceUserCaseId = payload.serviceUserCaseId.trim();
+      if (serviceUserCaseId.length > 0) {
+        setServiceUserData((prev) => ({
+          ...prev,
+          serviceUserCaseId,
+        }));
+        resetTimer();
+      }
+    }
+
+    if (typeof payload.serviceDataGroupId === "string") {
+      const serviceDataGroupId = payload.serviceDataGroupId.trim();
+      if (serviceDataGroupId.length > 0) {
+        setServiceUserData((prev) => ({
+          ...prev,
+          serviceDataGroupId,
+        }));
+        resetTimer();
+      }
+    }
+
     return { imported, failed };
   }, [decodeExtensionUploadFile, resetTimer, uploadFile]);
 
@@ -382,11 +418,19 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
       if (event.origin !== window.location.origin) return;
       if (!event.data || event.data.type !== "CA_EXTENSION_SEND_TO_APP") return;
 
-      const payload = event.data.payload as { uploads?: ExtensionUploadItem[]; additionalNotes?: string; serviceUserName?: string } | undefined;
+      const payload = event.data.payload as {
+        uploads?: ExtensionUploadItem[];
+        additionalNotes?: string;
+        serviceUserName?: string;
+        serviceUserCaseId?: string;
+        serviceDataGroupId?: string;
+      } | undefined;
       const uploads = Array.isArray(payload?.uploads) ? payload.uploads : [];
       if (uploads.length === 0) return;
       const additionalNotes = payload?.additionalNotes;
       const serviceUserName = payload?.serviceUserName;
+      const serviceUserCaseId = payload?.serviceUserCaseId;
+      const serviceDataGroupId = payload?.serviceDataGroupId;
 
       void (async () => {
         if (!location.startsWith("/service-users")) {
@@ -397,6 +441,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
           uploads,
           additionalNotes,
           serviceUserName,
+          serviceUserCaseId,
+          serviceDataGroupId,
         });
       })();
     };
