@@ -2623,9 +2623,57 @@ function formatRiskAssessmentDate(value?: Date): string {
   return formatter.format(date).replace(/ /g, "/");
 }
 
+const SIGNED_BY_PLACEHOLDER_VALUES = new Set([
+  "USER",
+  "UNKNOWN",
+  "STAFF",
+  "STAFF MEMBER",
+  "CARE STAFF",
+  "CARE WORKER",
+  "CARER",
+  "ASSISTANT",
+  "NOT PROVIDED",
+  "NOT KNOWN",
+  "N A",
+  "NA",
+]);
+
+function sanitizeSignedByCandidate(value?: string | null): string {
+  if (typeof value !== "string") return "";
+  const raw = value.trim();
+  if (!raw) return "";
+  if (/^\{\{PII_[a-z0-9]+_[A-Z_]+_\d+\}\}$/i.test(raw)) return raw;
+  if (/^\[[^\]\n]{2,}\]$/.test(raw)) return "";
+
+  const cleaned = raw.replace(/\./g, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+
+  const normalized = cleaned.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+  if (!normalized || SIGNED_BY_PLACEHOLDER_VALUES.has(normalized)) return "";
+  return cleaned;
+}
+
 function normalizeSignedByName(value?: string | null): string {
-  if (!value) return "";
-  return value.replace(/\./g, " ").replace(/\s+/g, " ").trim();
+  return sanitizeSignedByCandidate(value);
+}
+
+function resolveRiskAssessmentPerformerName(
+  performedBy: unknown,
+  authenticatedUser?: { firstName?: unknown; lastName?: unknown; username?: unknown },
+): string {
+  const explicit = sanitizeSignedByCandidate(typeof performedBy === "string" ? performedBy : "");
+  if (explicit) return explicit;
+
+  const fullNameRaw = `${
+    typeof authenticatedUser?.firstName === "string" ? authenticatedUser.firstName : ""
+  } ${typeof authenticatedUser?.lastName === "string" ? authenticatedUser.lastName : ""}`.trim();
+  const fullName = sanitizeSignedByCandidate(fullNameRaw);
+  if (fullName) return fullName;
+
+  const username = sanitizeSignedByCandidate(
+    typeof authenticatedUser?.username === "string" ? authenticatedUser.username : "",
+  );
+  return username || "Staff member";
 }
 
 const extractServiceUserFullName = (text: string): string => {
@@ -15318,7 +15366,8 @@ Remember: Extract information ONLY from service user documents above. Templates 
       }
 
       const safeServiceUserInitials = piiVault.scrubString(String(serviceUserInitials || "N.N."));
-      const safePerformedBy = piiVault.scrubString(String(performedBy || "Staff member"));
+      const resolvedPerformedBy = resolveRiskAssessmentPerformerName(performedBy, req.user);
+      const safePerformedBy = piiVault.scrubString(resolvedPerformedBy);
 
       // Set up SSE for progress streaming with production-safe settings
       applySseSecurityHeaders(req, res);
@@ -15717,7 +15766,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
         // Preserve fields that should NOT be scrubbed (they contain expected values)
         const preservedFields = {
           assessmentDate: formatRiskAssessmentDate(),
-          signedBy: normalizeSignedByName(result.signedBy || safePerformedBy || 'Staff member'),
+          signedBy: normalizeSignedByName(safePerformedBy) || "Staff member",
           jobTitle: result.jobTitle || performedByJobTitle || 'Care Staff',
           category: result.category,
         };
@@ -17455,7 +17504,11 @@ Return ONLY valid JSON matching the schema.`,
   // Create a risk assessment log
   app.post("/api/risk-assessment-logs", requireAuth, blockDemoWrites, async (req, res) => {
     try {
-      const log = await storage.createRiskAssessmentLog(req.body);
+      const safeBody = {
+        ...req.body,
+        performedBy: resolveRiskAssessmentPerformerName(req.body?.performedBy, req.user),
+      };
+      const log = await storage.createRiskAssessmentLog(safeBody);
       return res.status(201).json(log);
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to create risk assessment log") });

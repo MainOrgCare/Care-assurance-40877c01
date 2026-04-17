@@ -50,6 +50,21 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Test Risk Identity Normalizer",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "test",
+        "--",
+        "client/src/pages/service-users/__tests__/riskIdentity.test.ts"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ],
   "inputs": [

@@ -243,6 +243,18 @@
                 <button id="sync-upload-btn" class="btn btn-secondary btn-sm">Send to CareAssurance Upload</button>
               </div>
 
+              <div id="auto-collect-info" class="auto-collect-info auto-collect-info-empty" aria-live="polite">
+                <div class="auto-collect-info-header">
+                  <span class="auto-collect-info-eyebrow">Auto-Download Info</span>
+                  <span id="auto-collect-info-state" class="auto-collect-info-state">Idle</span>
+                </div>
+                <strong id="auto-collect-info-title" class="auto-collect-info-title">No auto-collect run yet</strong>
+                <div id="auto-collect-info-detail" class="auto-collect-info-detail">Run Auto-Collect in any Intake section to capture source, selection, and download diagnostics.</div>
+                <div class="auto-collect-info-actions">
+                  <button id="copy-auto-collect-info" type="button" class="btn btn-ghost btn-sm" disabled>Copy Report</button>
+                </div>
+              </div>
+
               <div class="upload-bucket-grid">
                 <div class="upload-bucket-card" data-upload-section="socialWork">
                   <div class="upload-bucket-header">
@@ -615,7 +627,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-          <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.19</span></span>
+          <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.20</span></span>
         </div>
       </footer>
     </main>

@@ -18,6 +18,7 @@ import jsPDF from "jspdf";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { ClientPIIVault, VaultExport } from "@/lib/pii-vault";
 import { consumeJsonSseStream } from "@/lib/sse";
+import { normalizeServiceUserInitials } from "./riskIdentity";
 
 const AI_STREAM_TIMEOUT_MS = 180_000;
 
@@ -95,6 +96,21 @@ const NAME_PLACEHOLDER_LABELS = new Set([
   "client name",
   "resident",
   "patient",
+]);
+
+const SIGNED_BY_PLACEHOLDER_VALUES = new Set([
+  "USER",
+  "UNKNOWN",
+  "STAFF",
+  "STAFF MEMBER",
+  "CARE STAFF",
+  "CARE WORKER",
+  "CARER",
+  "ASSISTANT",
+  "NOT PROVIDED",
+  "NOT KNOWN",
+  "N A",
+  "NA",
 ]);
 
 const PERSON_NAME_PARTICLES = new Set([
@@ -209,6 +225,24 @@ function sanitizeServiceUserName(value?: string | null): string {
   return cleaned;
 }
 
+function sanitizePerformerName(value?: string | null): string {
+  if (typeof value !== "string") return "";
+  const raw = value.trim();
+  if (!raw) return "";
+  if (/^\{\{PII_[a-z0-9]+_[A-Z_]+_\d+\}\}$/i.test(raw)) return "";
+  if (/^\[[^\]\n]{2,}\]$/.test(raw)) return "";
+
+  const cleaned = sanitizeRiskDisplayText(raw)
+    .replace(/\./g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+
+  const normalized = cleaned.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+  if (!normalized || SIGNED_BY_PLACEHOLDER_VALUES.has(normalized)) return "";
+  return cleaned;
+}
+
 function sanitizeRecommendedAssessment(assessment: RecommendedAssessment): RecommendedAssessment {
   return {
     ...assessment,
@@ -224,6 +258,7 @@ function sanitizeRiskAnalysisResult(result: RiskAnalysis): RiskAnalysis {
     ...result,
     serviceUser: {
       ...result.serviceUser,
+      initials: normalizeServiceUserInitials(result.serviceUser?.initials),
       fullName: sanitizeServiceUserName(result.serviceUser?.fullName),
     },
     medicalConditions: sanitizeStringList(result.medicalConditions),
@@ -251,6 +286,7 @@ function sanitizeGeneratedAssessmentResult(assessment: GeneratedAssessment): Gen
   return {
     ...assessment,
     category: sanitizeRiskDisplayText(assessment.category) || assessment.category,
+    serviceUserInitials: normalizeServiceUserInitials(assessment.serviceUserInitials),
     risks: (assessment.risks || []).map(sanitizeRiskRow),
     supportingEvidence: sanitizeStringList(assessment.supportingEvidence),
     additionalNotes: sanitizeRiskDisplayText(assessment.additionalNotes),
@@ -360,6 +396,7 @@ export default function RiskAssessment() {
   const [copiedAssessment, setCopiedAssessment] = useState<number | null>(null);
   const [customAssessmentName, setCustomAssessmentName] = useState("");
   const [customAssessments, setCustomAssessments] = useState<RecommendedAssessment[]>([]);
+  const [serviceUserNameInput, setServiceUserNameInput] = useState("");
   const [isRefreshingIdentity, setIsRefreshingIdentity] = useState(false);
   const [selectedForAcp, setSelectedForAcp] = useState<Set<number>>(new Set());
   const [cachedDocumentContent, setCachedDocumentContent] = useState<string | null>(null);
@@ -405,29 +442,76 @@ export default function RiskAssessment() {
       generatedAssessmentsForCopy.some((assessment) => assessment.generationMode === "rule-based"),
     [generatedAssessments, generatedAssessmentsForCopy]
   );
+  const extensionServiceUserName = useMemo(
+    () => sanitizeServiceUserName(serviceUserData.serviceUserName),
+    [serviceUserData.serviceUserName]
+  );
+  const manualServiceUserName = useMemo(() => {
+    const trimmed = String(serviceUserNameInput || "").trim().replace(/\s+/g, " ");
+    if (!trimmed) return "";
+    const direct = sanitizeServiceUserName(trimmed);
+    if (direct) return direct;
+    const titleCaseCandidate = trimmed.replace(/\b([a-z])/g, (match) => match.toUpperCase());
+    return sanitizeServiceUserName(titleCaseCandidate);
+  }, [serviceUserNameInput]);
+  const analyzedServiceUserName = useMemo(
+    () => sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName),
+    [analysisRaw?.serviceUser?.fullName]
+  );
+  const resolvedServiceUserName = useMemo(
+    () => analyzedServiceUserName || extensionServiceUserName || manualServiceUserName,
+    [analyzedServiceUserName, extensionServiceUserName, manualServiceUserName]
+  );
+  const analysisNameHint = useMemo(
+    () => extensionServiceUserName || manualServiceUserName,
+    [extensionServiceUserName, manualServiceUserName]
+  );
   const serviceUserDisplayName = useMemo(() => {
-    // Use full name if available (vault automatically restores it)
-    const fullName = sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName);
-    if (fullName) return fullName;
-    const initials = analysisScrubbed?.serviceUser?.initials || analysisRaw?.serviceUser?.initials;
-    return initials || "N.N.";
-  }, [analysisRaw, analysisScrubbed]);
+    return resolvedServiceUserName || "Service user name required";
+  }, [resolvedServiceUserName]);
+  const hasResolvedServiceUserName = Boolean(resolvedServiceUserName);
+  const performerDisplayName = useMemo(() => {
+    const fullName = sanitizePerformerName(`${user?.firstName || ""} ${user?.lastName || ""}`);
+    const username = sanitizePerformerName(user?.username);
+    return fullName || username || "Staff member";
+  }, [user?.firstName, user?.lastName, user?.username]);
   const serviceUserLabel = "Name";
   const formatSignedBy = (assessment: GeneratedAssessment) => {
-    const rawName = assessment.signedBy?.trim() || "";
-    const name = rawName.replace(/\./g, " ").replace(/\s+/g, " ").trim();
+    const name = sanitizePerformerName(assessment.signedBy) || performerDisplayName;
     const title = assessment.jobTitle?.trim();
     if (name && title) return `${name} (${title})`;
     return name || title || "Staff member";
   };
   const getServiceUserDisplay = (fallbackInitials?: string) => {
-    // Automatically use restored full name if available
-    const fullName = sanitizeServiceUserName(analysisRaw?.serviceUser?.fullName);
-    if (fullName) {
-      return fullName;
-    }
-    return sanitizeRiskDisplayText(fallbackInitials) || serviceUserDisplayName || "N.N.";
+    const fallbackName = sanitizeServiceUserName(fallbackInitials);
+    return resolvedServiceUserName || fallbackName || "Service user name required";
   };
+
+  const applyServiceUserNameFallback = useCallback(
+    (result: RiskAnalysis): RiskAnalysis => {
+      if (!analysisNameHint) return result;
+      if (sanitizeServiceUserName(result?.serviceUser?.fullName)) return result;
+      return {
+        ...result,
+        serviceUser: {
+          ...result.serviceUser,
+          fullName: analysisNameHint,
+          initials: normalizeServiceUserInitials(result.serviceUser?.initials || analysisNameHint),
+        },
+      };
+    },
+    [analysisNameHint]
+  );
+
+  const ensureServiceUserName = useCallback((): string | null => {
+    if (resolvedServiceUserName) return resolvedServiceUserName;
+    toast({
+      title: "Service user name required",
+      description: "Enter the service user's full name before generating or sending assessments.",
+      variant: "destructive",
+    });
+    return null;
+  }, [resolvedServiceUserName, toast]);
 
   const hasData = Boolean(
     serviceUserData.initialAssessment ||
@@ -738,7 +822,11 @@ export default function RiskAssessment() {
         
         const response = await fetch(
           "/api/ai/analyze-risks",
-          buildAiStreamRequest({ documentContent, allowSensitive: true })
+          buildAiStreamRequest({
+            documentContent,
+            allowSensitive: true,
+            serviceUserNameHint: analysisNameHint || undefined,
+          })
         );
         if (!response.ok) return;
         
@@ -767,8 +855,10 @@ export default function RiskAssessment() {
         });
 
         if (resultRaw) {
-          const cleanedRaw = sanitizeRiskAnalysisResult(resultRaw);
-          const cleanedScrubbed = sanitizeRiskAnalysisResult((resultScrubbed || resultRaw) as RiskAnalysis);
+          const cleanedRaw = applyServiceUserNameFallback(sanitizeRiskAnalysisResult(resultRaw));
+          const cleanedScrubbed = applyServiceUserNameFallback(
+            sanitizeRiskAnalysisResult((resultScrubbed || resultRaw) as RiskAnalysis)
+          );
           setAnalysisRaw(cleanedRaw);
           setAnalysisScrubbed(cleanedScrubbed);
           setAnalysisVaultExport(resultVaultExport);
@@ -783,7 +873,7 @@ export default function RiskAssessment() {
       }
     };
     refreshSensitiveIdentity();
-  }, [analysisRaw, isAdmin, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent]);
+  }, [analysisRaw, isAdmin, isRefreshingIdentity, hasAllParsed, getAllDocumentContent, cachedDocumentContent, analysisNameHint, applyServiceUserNameFallback]);
 
   const analyzeDocuments = async () => {
     setIsAnalyzing(true);
@@ -805,7 +895,11 @@ export default function RiskAssessment() {
 
       const response = await fetch(
         "/api/ai/analyze-risks",
-        buildAiStreamRequest({ documentContent, allowSensitive: true })
+        buildAiStreamRequest({
+          documentContent,
+          allowSensitive: true,
+          serviceUserNameHint: analysisNameHint || undefined,
+        })
       );
 
       if (!response.ok) {
@@ -850,8 +944,10 @@ export default function RiskAssessment() {
         throw new Error("No result received from server");
       }
 
-      const cleanedRaw = sanitizeRiskAnalysisResult(resultRaw);
-      const cleanedScrubbed = sanitizeRiskAnalysisResult((resultScrubbed || resultRaw) as RiskAnalysis);
+      const cleanedRaw = applyServiceUserNameFallback(sanitizeRiskAnalysisResult(resultRaw));
+      const cleanedScrubbed = applyServiceUserNameFallback(
+        sanitizeRiskAnalysisResult((resultScrubbed || resultRaw) as RiskAnalysis)
+      );
 
       setProgress(100);
       setProgressStatus("Complete!");
@@ -996,6 +1092,8 @@ export default function RiskAssessment() {
   };
 
   const handleProceed = () => {
+    const requiredName = ensureServiceUserName();
+    if (!requiredName) return;
     const skipped = getMandatoryNotSelected();
     if (skipped.length > 0 && !showWarnings) {
       setShowWarnings(true);
@@ -1005,6 +1103,9 @@ export default function RiskAssessment() {
   };
 
   const generateAssessments = async () => {
+    const requiredName = ensureServiceUserName();
+    if (!requiredName) return;
+
     setIsGenerating(true);
     setStep("generate");
     setProgress(0);
@@ -1085,8 +1186,10 @@ export default function RiskAssessment() {
           buildAiStreamRequest({
             documentContent,
             assessmentCategory: assessmentName,
-            serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials,
-            performedBy: user?.username,
+            serviceUserInitials: normalizeServiceUserInitials(
+              analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials || requiredName
+            ),
+            performedBy: performerDisplayName,
             performedByJobTitle: user?.jobTitle || "Care Staff",
             allowSensitive: true, // Always request vault export for automatic restoration
             assessmentEvidence: assessmentEvidence
@@ -1145,8 +1248,14 @@ export default function RiskAssessment() {
         });
 
         if (resultRaw) {
-          const cleanedRaw = sanitizeGeneratedAssessmentResult(resultRaw);
-          const cleanedScrubbed = sanitizeGeneratedAssessmentResult((resultScrubbed || resultRaw) as GeneratedAssessment);
+          const cleanedRaw = {
+            ...sanitizeGeneratedAssessmentResult(resultRaw),
+            signedBy: performerDisplayName,
+          };
+          const cleanedScrubbed = {
+            ...sanitizeGeneratedAssessmentResult((resultScrubbed || resultRaw) as GeneratedAssessment),
+            signedBy: performerDisplayName,
+          };
           generatedRawMap.set(assessmentName, cleanedRaw);
           generatedScrubbedMap.set(assessmentName, cleanedScrubbed);
         } else {
@@ -1189,8 +1298,10 @@ export default function RiskAssessment() {
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({
-              serviceUserInitials: analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials || "N.N.",
-              performedBy: user?.username || "Unknown",
+              serviceUserInitials: normalizeServiceUserInitials(
+                analysisScrubbed?.serviceUser.initials || analysis?.serviceUser.initials || requiredName
+              ),
+              performedBy: performerDisplayName,
               performedByJobTitle: user?.jobTitle,
               offeredAssessments: combinedAssessments.map(a => a.name),
               selectedAssessments: Array.from(selectedAssessments),
@@ -1403,6 +1514,9 @@ export default function RiskAssessment() {
   };
 
   const sendAssessmentsToExtension = async (assessmentsToSend?: GeneratedAssessment[]) => {
+    const requiredName = ensureServiceUserName();
+    if (!requiredName) return;
+
     // If no specific assessments provided, use the selected ones
     const assessments = assessmentsToSend && assessmentsToSend.length > 0
       ? assessmentsToSend
@@ -1421,14 +1535,13 @@ export default function RiskAssessment() {
       typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
         ? window.crypto.randomUUID()
         : String(Date.now());
-    const payloadInitials =
-      analysisRaw?.serviceUser?.initials ||
-      analysisScrubbed?.serviceUser?.initials ||
-      "N.N.";
+    const payloadInitials = normalizeServiceUserInitials(
+      analysisRaw?.serviceUser?.initials || analysisScrubbed?.serviceUser?.initials || requiredName
+    );
     const payload = {
       version: 1,
       createdAt: new Date().toISOString(),
-      serviceUserDisplayName,
+      serviceUserDisplayName: requiredName,
       serviceUserInitials: payloadInitials,
       assessments: assessments.map((assessment) => {
         const safeAssessment = sanitizeGeneratedAssessmentResult(assessment);
@@ -1436,7 +1549,7 @@ export default function RiskAssessment() {
           category: safeAssessment.category,
           serviceUserInitials: safeAssessment.serviceUserInitials,
           assessmentDate: safeAssessment.assessmentDate,
-          signedBy: safeAssessment.signedBy,
+          signedBy: sanitizePerformerName(safeAssessment.signedBy) || performerDisplayName,
           jobTitle: safeAssessment.jobTitle,
           additionalNotes: safeAssessment.additionalNotes,
           risks: safeAssessment.risks.map((risk) => ({
@@ -1699,6 +1812,24 @@ export default function RiskAssessment() {
             <AlertTitle>Secure Rule-Based Mode</AlertTitle>
             <AlertDescription>
               Analysis was generated using the local rule-based engine without external AI.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!hasResolvedServiceUserName && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Service user name required</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>
+                Enter the service user's full name before generating assessments. This prevents placeholder identity values.
+              </p>
+              <Input
+                value={serviceUserNameInput}
+                onChange={(event) => setServiceUserNameInput(event.target.value)}
+                placeholder="Enter full name (e.g. Freda O'Neill)"
+                data-testid="input-service-user-name"
+              />
             </AlertDescription>
           </Alert>
         )}

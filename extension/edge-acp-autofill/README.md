@@ -68,6 +68,8 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
   - `Initial Assessment` starts from `/case_data_group?caseId=<id>&serviceDataGroupId=1014998`
   - `Care Plan` starts from `/eoutcomeservice/branch/case_care_plans_dashboard?caseId=<id>`
 - Selection rules for auto-collect: Care Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
+- Intake now includes an `Auto-Download Info` diagnostics panel that tracks the latest auto-collect run (source, counts, fallback use, duration, and error details) with a `Copy Report` shortcut.
+- The auto-collect picker now supports inline filtering by document metadata and shows extra row diagnostics (download ID and URL hint count) before files are fetched.
 - The extension popup now uses a fully overhauled visual design system (cards, tabs, controls, dialogs, and responsive spacing) while preserving existing workflows.
 
 ## Edge Add-ons Publishing (Unlisted Release Process)

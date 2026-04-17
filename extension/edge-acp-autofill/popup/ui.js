@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.19
+ * CareAssurance Extension v0.6.20
  */
 
 import {
@@ -59,6 +59,7 @@ export function cacheDomElements() {
     "upload-care-plan-input", "upload-care-plan-files",
     "upload-moving-handling-input", "upload-moving-handling-files",
     "upload-additional-documents-input", "upload-additional-documents-files",
+    "auto-collect-info", "auto-collect-info-state", "auto-collect-info-title", "auto-collect-info-detail", "copy-auto-collect-info",
     "upload-sync-status", "sync-upload-btn", "upload-notes", "analyze-documents",
     "analysis-status", "analysis-progress", "clear-uploads",
     "uploaded-docs-summary", "uploaded-docs-list",

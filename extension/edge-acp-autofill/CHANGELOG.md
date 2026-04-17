@@ -1,5 +1,27 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.20 - Auto-Download Diagnostics and Picker Upgrades
+
+### Intake Auto-Collect Diagnostics
+
+- Added a dedicated `Auto-Download Info` panel in the Intake Upload tab to surface live auto-collect telemetry (source, discovered/suggested/selected counts, downloaded/failed counts, fallback usage, and duration).
+- Added `Copy Report` for one-click export of the latest auto-collect diagnostics packet for troubleshooting and support handoff.
+
+### Auto-Collect Picker Improvements
+
+- Improved the picker subtitle with source-aware context (section source + case ID) rather than generic document-list copy.
+- Added an in-dialog filter/search field for fast narrowing by name, filename, description, uploader, date, or document ID.
+- Added result counters and enhanced row metadata (`downloadId` and URL hint counts) to improve operator visibility before download.
+
+### Download Failure Transparency
+
+- Enhanced partial-failure messaging and diagnostics capture to include attempted download paths per failed document where available.
+- Auto-collect status now reports partial outcomes with warning-level upload sync status instead of masking mixed success/failure runs as full success.
+
+### Versioning
+
+- Bumped extension version to `0.6.20` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.19 - Intake Auto-Collect Download Reliability
 
 ### Auto-Collect Download Pipeline

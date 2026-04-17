@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.19
+ * CareAssurance Extension v0.6.20
  */
 
 import {
@@ -179,6 +179,7 @@ let uploadSyncInFlight = false;
 let uploadSyncQueued = false;
 let uploadSyncForceQueued = false;
 let lastUploadSyncSignature = "";
+let autoCollectInfoSnapshot = null;
 
 let popupMenuDragWindowId = null;
 let popupMenuDragState = null;
@@ -238,6 +239,208 @@ const updateUploadSyncStatus = (message, level = "info") => {
   } else {
     delete dom.uploadSyncStatus.dataset.level;
   }
+};
+
+const AUTO_COLLECT_STATE_LABELS = {
+  idle: "Idle",
+  running: "Running",
+  success: "Success",
+  partial: "Partial",
+  cancelled: "Cancelled",
+  error: "Error",
+};
+
+const createAutoCollectInfoSnapshot = (overrides = {}) => ({
+  status: "idle",
+  sectionKey: "",
+  sectionLabel: "",
+  caseId: "",
+  sourceKind: "",
+  sourceLabel: "",
+  sourceUrl: "",
+  fallbackUsed: false,
+  discoveredCount: 0,
+  suggestedCount: 0,
+  selectedCount: 0,
+  downloadedCount: 0,
+  failedCount: 0,
+  startedAtMs: 0,
+  durationMs: 0,
+  finishedAt: "",
+  note: "",
+  error: "",
+  failedDetails: [],
+  ...overrides,
+});
+
+const formatAutoCollectDuration = (durationMs) => {
+  const milliseconds = Number(durationMs || 0);
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "0s";
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) return `${seconds}s`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+};
+
+const describeAttemptedDownloadPath = (candidate) => {
+  const value = String(candidate || "").trim();
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    return `${parsed.pathname || "/"}${parsed.search || ""}`;
+  } catch {
+    return value;
+  }
+};
+
+const buildAutoCollectInfoTitle = (snapshot) => {
+  const status = String(snapshot?.status || "idle");
+  const sectionLabel = String(snapshot?.sectionLabel || "Intake").trim() || "Intake";
+  if (status === "running") return `Running ${sectionLabel} auto-download`;
+  if (status === "success") return `Completed ${sectionLabel} auto-download`;
+  if (status === "partial") return `Partial ${sectionLabel} auto-download`;
+  if (status === "cancelled") return `Cancelled ${sectionLabel} auto-download`;
+  if (status === "error") return `Failed ${sectionLabel} auto-download`;
+  return "No auto-collect run yet";
+};
+
+const buildAutoCollectInfoDetail = (snapshot) => {
+  const status = String(snapshot?.status || "idle");
+  if (status === "idle") {
+    return "Run Auto-Collect in any Intake section to capture source, selection, and download diagnostics.";
+  }
+
+  const metrics = [];
+  const caseId = String(snapshot?.caseId || "").trim();
+  const sourceLabel = String(snapshot?.sourceLabel || "").trim();
+  if (caseId) metrics.push(`Case ${caseId}`);
+  if (sourceLabel) {
+    metrics.push(
+      snapshot?.fallbackUsed
+        ? `Source ${sourceLabel} (fallback to Documents)`
+        : `Source ${sourceLabel}`
+    );
+  }
+
+  if (Number.isFinite(snapshot?.discoveredCount) && snapshot.discoveredCount > 0) {
+    metrics.push(`Found ${snapshot.discoveredCount}`);
+  }
+  if (Number.isFinite(snapshot?.suggestedCount) && snapshot.suggestedCount > 0) {
+    metrics.push(`Suggested ${snapshot.suggestedCount}`);
+  }
+  if (Number.isFinite(snapshot?.selectedCount) && snapshot.selectedCount > 0) {
+    metrics.push(`Selected ${snapshot.selectedCount}`);
+  }
+  if (Number.isFinite(snapshot?.downloadedCount) && snapshot.downloadedCount > 0) {
+    metrics.push(`Downloaded ${snapshot.downloadedCount}`);
+  }
+  if (Number.isFinite(snapshot?.failedCount) && snapshot.failedCount > 0) {
+    metrics.push(`Failed ${snapshot.failedCount}`);
+  }
+  if (Number.isFinite(snapshot?.durationMs) && snapshot.durationMs > 0) {
+    metrics.push(`Duration ${formatAutoCollectDuration(snapshot.durationMs)}`);
+  }
+
+  const failurePreview = Array.isArray(snapshot?.failedDetails)
+    ? snapshot.failedDetails.filter(Boolean).slice(0, 2)
+    : [];
+  if (failurePreview.length > 0 && status !== "running") {
+    const extraCount = Math.max(0, snapshot.failedDetails.length - failurePreview.length);
+    metrics.push(
+      extraCount > 0
+        ? `${failurePreview.join(" | ")} (+${extraCount} more)`
+        : failurePreview.join(" | ")
+    );
+  }
+
+  const note = String(snapshot?.note || "").trim();
+  const error = String(snapshot?.error || "").trim();
+  if (note) metrics.push(note);
+  if (error) metrics.push(error);
+
+  return metrics.join(" • ") || "Auto-collect run completed.";
+};
+
+const renderAutoCollectInfoPanel = () => {
+  if (!dom.autoCollectInfo || !dom.autoCollectInfoState || !dom.autoCollectInfoTitle || !dom.autoCollectInfoDetail) {
+    return;
+  }
+
+  const snapshot = autoCollectInfoSnapshot || createAutoCollectInfoSnapshot();
+  const status = String(snapshot.status || "idle");
+  const statusLabel = AUTO_COLLECT_STATE_LABELS[status] || AUTO_COLLECT_STATE_LABELS.idle;
+
+  dom.autoCollectInfo.dataset.state = status;
+  dom.autoCollectInfo.classList.toggle("auto-collect-info-empty", status === "idle");
+  dom.autoCollectInfoState.textContent = statusLabel;
+  dom.autoCollectInfoTitle.textContent = buildAutoCollectInfoTitle(snapshot);
+  dom.autoCollectInfoDetail.textContent = buildAutoCollectInfoDetail(snapshot);
+
+  if (dom.copyAutoCollectInfo) {
+    dom.copyAutoCollectInfo.disabled = status === "idle";
+  }
+};
+
+const updateAutoCollectInfoSnapshot = (patch = {}) => {
+  const base = autoCollectInfoSnapshot || createAutoCollectInfoSnapshot();
+  const next = {
+    ...base,
+    ...patch,
+  };
+
+  if (Number.isFinite(next.startedAtMs) && next.startedAtMs > 0 && String(next.status || "") === "running") {
+    next.durationMs = Math.max(0, Date.now() - next.startedAtMs);
+  }
+
+  autoCollectInfoSnapshot = next;
+  renderAutoCollectInfoPanel();
+  return next;
+};
+
+const finalizeAutoCollectInfoSnapshot = (patch = {}) => {
+  const base = autoCollectInfoSnapshot || createAutoCollectInfoSnapshot();
+  const startedAtMs = Number(base.startedAtMs || 0);
+  const durationMs = startedAtMs > 0 ? Math.max(0, Date.now() - startedAtMs) : Number(base.durationMs || 0);
+  return updateAutoCollectInfoSnapshot({
+    ...patch,
+    durationMs,
+    finishedAt: new Date().toISOString(),
+  });
+};
+
+const buildAutoCollectReportText = () => {
+  const snapshot = autoCollectInfoSnapshot || createAutoCollectInfoSnapshot();
+  const status = String(snapshot.status || "idle");
+  if (status === "idle") return "";
+
+  const lines = [
+    "CareAssurance Auto-Collect Report",
+    `Generated: ${new Date().toISOString()}`,
+    `Status: ${AUTO_COLLECT_STATE_LABELS[status] || status}`,
+    `Section: ${snapshot.sectionLabel || "Intake"}`,
+    `Case ID: ${snapshot.caseId || "-"}`,
+    `Source: ${snapshot.sourceLabel || "-"}`,
+    `Source URL: ${snapshot.sourceUrl || "-"}`,
+    `Fallback Used: ${snapshot.fallbackUsed ? "Yes" : "No"}`,
+    `Found: ${snapshot.discoveredCount || 0}`,
+    `Suggested: ${snapshot.suggestedCount || 0}`,
+    `Selected: ${snapshot.selectedCount || 0}`,
+    `Downloaded: ${snapshot.downloadedCount || 0}`,
+    `Failed: ${snapshot.failedCount || 0}`,
+    `Duration: ${formatAutoCollectDuration(snapshot.durationMs || 0)}`,
+  ];
+
+  if (snapshot.note) lines.push(`Note: ${snapshot.note}`);
+  if (snapshot.error) lines.push(`Error: ${snapshot.error}`);
+
+  const failedDetails = Array.isArray(snapshot.failedDetails) ? snapshot.failedDetails.filter(Boolean) : [];
+  if (failedDetails.length > 0) {
+    lines.push("Failed Documents:");
+    failedDetails.forEach((entry) => lines.push(`- ${entry}`));
+  }
+
+  return lines.join("\n");
 };
 
 const renderOverlayPinButton = (pinned) => {
@@ -988,17 +1191,53 @@ const normalizeScrapedDocuments = (documents) => {
   return normalized;
 };
 
-const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
+const showAutoCollectPickerDialog = ({
+  sectionKey,
+  documents,
+  single,
+  sourceLabel = "Documents",
+  caseId = "",
+}) =>
   new Promise((resolve) => {
     document.querySelector(".auto-collect-overlay")?.remove();
 
     const rule = getAutoCollectRule(sectionKey);
     const selectedIndexes = new Set();
+    const resolvedCaseId = String(caseId || getCaseIdForAutoCollect()).trim();
+    const recommendedCount = documents.filter((entry) => Number(entry?.sectionScore || 0) > 0).length;
+    let filterQuery = "";
 
     if (single && documents.length > 0) {
       const suggestedIndex = documents.findIndex((entry) => entry.sectionScore > 0);
       selectedIndexes.add(suggestedIndex >= 0 ? suggestedIndex : 0);
     }
+
+    const matchesFilter = (entry, query) => {
+      const normalized = String(query || "")
+        .trim()
+        .toLowerCase();
+      if (!normalized) return true;
+
+      const haystack = [
+        entry?.name,
+        entry?.fileName,
+        entry?.description,
+        entry?.uploadedBy,
+        entry?.uploadedDate,
+        entry?.downloadId,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(normalized);
+    };
+
+    const getVisibleIndexes = () =>
+      documents
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => matchesFilter(entry, filterQuery))
+        .map(({ index }) => index);
 
     const overlay = document.createElement("div");
     overlay.className = "dialog-overlay auto-collect-overlay";
@@ -1011,10 +1250,22 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
           <span class="dialog-title">Select ${escapeHtml(rule.sectionLabel)} document${single ? "" : "s"}</span>
         </div>
         <div class="dialog-body">
-          <div class="auto-collect-subtitle">Choose from the Mobizio case documents list for Case ID ${escapeHtml(getCaseIdForAutoCollect())}.</div>
+          <div class="auto-collect-subtitle">Source: Mobizio ${escapeHtml(sourceLabel)} for Case ID ${escapeHtml(
+      resolvedCaseId || "Unknown"
+    )}. ${recommendedCount > 0 ? `${recommendedCount} suggested based on section keywords.` : ""}</div>
           <div class="auto-collect-toolbar">
             <div class="auto-collect-helper" data-auto-collect-helper></div>
             ${single ? "" : `<div class="toolbar-actions"><button type="button" class="btn btn-secondary btn-sm" data-action="select-all">Select all</button><button type="button" class="btn btn-ghost btn-sm" data-action="clear-selection">Clear</button></div>`}
+          </div>
+          <div class="auto-collect-filter-row">
+            <input
+              type="search"
+              class="form-input auto-collect-filter-input"
+              data-auto-collect-filter
+              placeholder="Filter by name, filename, description, uploader, or date"
+              autocomplete="off"
+            />
+            <div class="auto-collect-count" data-auto-collect-count></div>
           </div>
           <div class="auto-collect-table-wrap">
             <table class="auto-collect-table">
@@ -1041,6 +1292,8 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
     const body = overlay.querySelector("[data-auto-collect-body]");
     const helper = overlay.querySelector("[data-auto-collect-helper]");
     const confirmButton = overlay.querySelector("[data-action='confirm']");
+    const filterInput = overlay.querySelector("[data-auto-collect-filter]");
+    const countLabel = overlay.querySelector("[data-auto-collect-count]");
 
     const renderRows = () => {
       if (!body) return;
@@ -1050,16 +1303,30 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
         return;
       }
 
-      body.innerHTML = documents
-        .map((entry, index) => {
+      const visibleIndexes = getVisibleIndexes();
+      if (visibleIndexes.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" class="auto-collect-empty">No documents match the current filter.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = visibleIndexes
+        .map((index) => {
+          const entry = documents[index];
           const checked = selectedIndexes.has(index);
           const recommended = entry.sectionScore > 0;
+          const diagnostics = [];
+          if (entry.downloadId) diagnostics.push(`ID ${entry.downloadId}`);
+          if (Array.isArray(entry.candidateUrls) && entry.candidateUrls.length > 0) {
+            diagnostics.push(`${entry.candidateUrls.length} URL hint${entry.candidateUrls.length === 1 ? "" : "s"}`);
+          }
+
           return `
             <tr class="auto-collect-row${checked ? " is-selected" : ""}${recommended ? " is-recommended" : ""}" data-row-index="${index}">
               <td><input type="${single ? "radio" : "checkbox"}" name="auto-collect-selection" data-row-index="${index}" ${checked ? "checked" : ""} /></td>
               <td>
                 <div class="auto-collect-name">${escapeHtml(entry.name || "Untitled")}${recommended ? '<span class="auto-collect-badge">Suggested</span>' : ""}</div>
                 ${entry.uploadedBy ? `<div class="auto-collect-meta">By ${escapeHtml(entry.uploadedBy)}</div>` : ""}
+                ${diagnostics.length > 0 ? `<div class="auto-collect-meta">${escapeHtml(diagnostics.join(" • "))}</div>` : ""}
               </td>
               <td>${escapeHtml(entry.fileName || "-")}</td>
               <td>${escapeHtml(entry.description || "-")}</td>
@@ -1072,13 +1339,27 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
 
     const updateSelectionState = () => {
       const count = selectedIndexes.size;
+      const visibleIndexes = getVisibleIndexes();
+      const visibleSelectedCount = visibleIndexes.filter((index) => selectedIndexes.has(index)).length;
+      const visibleRecommendedCount = visibleIndexes.filter((index) => Number(documents[index]?.sectionScore || 0) > 0).length;
+
+      if (countLabel) {
+        const visibilityText = filterQuery ? `${visibleIndexes.length} shown of ${documents.length}` : `${documents.length} document${documents.length === 1 ? "" : "s"}`;
+        countLabel.textContent =
+          visibleRecommendedCount > 0
+            ? `${visibilityText} • ${visibleRecommendedCount} suggested`
+            : visibilityText;
+      }
+
       if (helper) {
         helper.textContent =
-          count === 0
+          visibleIndexes.length === 0
+            ? "Update the filter to show documents."
+            : count === 0
             ? "Select at least one document."
             : single
-            ? "1 document selected."
-            : `${count} document${count === 1 ? "" : "s"} selected.`;
+            ? `1 document selected${filterQuery ? ` (${visibleSelectedCount} visible)` : ""}.`
+            : `${count} document${count === 1 ? "" : "s"} selected${filterQuery ? ` (${visibleSelectedCount} visible)` : ""}.`;
       }
 
       if (confirmButton) {
@@ -1164,7 +1445,7 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
     overlay.querySelector("[data-action='select-all']")?.addEventListener("click", () => {
       if (single) return;
       selectedIndexes.clear();
-      documents.forEach((_entry, index) => selectedIndexes.add(index));
+      getVisibleIndexes().forEach((index) => selectedIndexes.add(index));
       body?.querySelectorAll("input[data-row-index]").forEach((input) => {
         input.checked = true;
       });
@@ -1176,6 +1457,13 @@ const showAutoCollectPickerDialog = ({ sectionKey, documents, single }) =>
       body?.querySelectorAll("input[data-row-index]").forEach((input) => {
         input.checked = false;
       });
+      updateSelectionState();
+    });
+
+    filterInput?.addEventListener("input", (event) => {
+      const target = event.target;
+      filterQuery = target instanceof HTMLInputElement ? target.value : "";
+      renderRows();
       updateSelectionState();
     });
 
@@ -1855,21 +2143,46 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
   const rule = getAutoCollectRule(sectionKey);
   const caseId = getCaseIdForAutoCollect();
+  const startedAtMs = Date.now();
+
+  updateAutoCollectInfoSnapshot(
+    createAutoCollectInfoSnapshot({
+      status: "running",
+      sectionKey,
+      sectionLabel: rule.sectionLabel,
+      caseId,
+      startedAtMs,
+      note: "Preparing auto-download session...",
+    })
+  );
 
   if (!caseId) {
     showError("Select a service user in Autofill settings (or enter a Case ID) before running auto-collect.");
+    finalizeAutoCollectInfoSnapshot({
+      status: "error",
+      error: "Case ID is required before auto-collect can start.",
+      note: "Select a service user in Autofill settings or enter a Case ID manually.",
+    });
     switchTab("autofill");
     dom.autofillUserSearch?.focus();
     return false;
   }
 
   let collectionTabId = null;
+  let collectionSource = null;
+  let didFallbackToDocuments = false;
   if (triggerButton) {
     setButtonLoading(triggerButton, true);
   }
 
   try {
-    const collectionSource = getMobizioAutoCollectSource(sectionKey, caseId);
+    collectionSource = getMobizioAutoCollectSource(sectionKey, caseId);
+    updateAutoCollectInfoSnapshot({
+      sourceKind: collectionSource.kind,
+      sourceLabel: collectionSource.label,
+      sourceUrl: collectionSource.url,
+      note: `Opening Mobizio ${collectionSource.label} source...`,
+    });
 
     updateUploadSyncStatus(`Opening Mobizio ${collectionSource.label} for Case ID ${caseId}...`);
 
@@ -1922,7 +2235,6 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
     let scraped = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
 
-    let didFallbackToDocuments = false;
     const fallbackToDocuments = async () => {
       if (
         didFallbackToDocuments ||
@@ -1939,6 +2251,10 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
       const fallbackDocumentsUrl = String(discoveredUrl || "").trim() || buildMobizioDocumentListUrl(caseId);
       updateUploadSyncStatus("Switching to Mobizio Documents for downloadable records...");
+      updateAutoCollectInfoSnapshot({
+        fallbackUsed: true,
+        note: "Switched to case Documents source for downloadable records.",
+      });
       await chrome.tabs.update(collectionTabId, { url: fallbackDocumentsUrl });
       await waitForTabComplete(collectionTabId);
       scraped = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
@@ -1979,13 +2295,30 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     }
 
     const rankedDocuments = rankDocumentsForSection(sectionKey, normalizedDocuments);
+    const suggestedCount = rankedDocuments.filter((entry) => Number(entry?.sectionScore || 0) > 0).length;
+    updateAutoCollectInfoSnapshot({
+      discoveredCount: rankedDocuments.length,
+      suggestedCount,
+      note:
+        rankedDocuments.length > 0
+          ? "Review the picker and confirm which documents to download."
+          : "No downloadable documents were discovered.",
+    });
+
     const selectedDocuments = await showAutoCollectPickerDialog({
       sectionKey,
       documents: rankedDocuments,
       single: section.single || rule.single,
+      sourceLabel: collectionSource.label,
+      caseId,
     });
 
     if (!selectedDocuments || selectedDocuments.length === 0) {
+      finalizeAutoCollectInfoSnapshot({
+        status: "cancelled",
+        note: `${rule.sectionLabel} auto-download was cancelled before download started.`,
+        selectedCount: 0,
+      });
       updateUploadPendingStatus();
       showInfo(`${rule.sectionLabel} auto-collect was cancelled.`);
       return false;
@@ -1993,15 +2326,44 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
     const downloadedFiles = [];
     const failedDownloads = [];
+    const failedDetails = [];
+
+    updateAutoCollectInfoSnapshot({
+      selectedCount: selectedDocuments.length,
+      note: `Downloading ${selectedDocuments.length} selected document${selectedDocuments.length === 1 ? "" : "s"}...`,
+    });
 
     for (let index = 0; index < selectedDocuments.length; index += 1) {
       const selectedDocument = selectedDocuments[index];
       const label = selectedDocument.fileName || selectedDocument.name || `Document ${index + 1}`;
       updateUploadSyncStatus(`Downloading ${index + 1} of ${selectedDocuments.length}: ${label}`);
+      updateAutoCollectInfoSnapshot({
+        note: `Downloading ${index + 1} of ${selectedDocuments.length}: ${label}`,
+      });
 
       const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument]);
       if (!result?.ok || !result?.file?.base64Data) {
         failedDownloads.push(label);
+        const attemptedPaths = Array.isArray(result?.attempted)
+          ? result.attempted
+              .map((candidate) => describeAttemptedDownloadPath(candidate))
+              .filter(Boolean)
+              .slice(0, 3)
+          : [];
+
+        if (attemptedPaths.length > 0) {
+          failedDetails.push(`${label}: ${attemptedPaths.join(" | ")}`);
+        } else if (result?.error) {
+          failedDetails.push(`${label}: ${String(result.error)}`);
+        } else {
+          failedDetails.push(`${label}: no downloadable file URL resolved.`);
+        }
+
+        updateAutoCollectInfoSnapshot({
+          downloadedCount: downloadedFiles.length,
+          failedCount: failedDownloads.length,
+          failedDetails: [...failedDetails],
+        });
         continue;
       }
 
@@ -2009,7 +2371,14 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         downloadedFiles.push(fileFromDownloadedPayload(result.file));
       } catch {
         failedDownloads.push(label);
+        failedDetails.push(`${label}: downloaded payload could not be converted to a file.`);
       }
+
+      updateAutoCollectInfoSnapshot({
+        downloadedCount: downloadedFiles.length,
+        failedCount: failedDownloads.length,
+        failedDetails: [...failedDetails],
+      });
     }
 
     if (downloadedFiles.length === 0) {
@@ -2018,21 +2387,68 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
     applyUploadFiles(sectionKey, downloadedFiles);
 
+    const stagedCount = flattenUploadBuckets().length;
     if (failedDownloads.length > 0) {
-      showInfo(`Downloaded ${downloadedFiles.length} file${downloadedFiles.length === 1 ? "" : "s"}; ${failedDownloads.length} failed.`);
+      const failurePreview = failedDownloads.slice(0, 2).join(", ");
+      const hiddenFailures = Math.max(0, failedDownloads.length - 2);
+      showInfo(
+        `Downloaded ${downloadedFiles.length} file${downloadedFiles.length === 1 ? "" : "s"}; ${failedDownloads.length} failed${
+          failurePreview ? ` (${failurePreview}${hiddenFailures > 0 ? ` +${hiddenFailures} more` : ""})` : ""
+        }.`
+      );
+      updateUploadSyncStatus(
+        `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"} after auto-collect. ${failedDownloads.length} document${
+          failedDownloads.length === 1 ? "" : "s"
+        } failed to download.`,
+        "warning"
+      );
+      finalizeAutoCollectInfoSnapshot({
+        status: "partial",
+        downloadedCount: downloadedFiles.length,
+        failedCount: failedDownloads.length,
+        failedDetails,
+        selectedCount: selectedDocuments.length,
+        discoveredCount: rankedDocuments.length,
+        suggestedCount,
+        fallbackUsed: didFallbackToDocuments,
+        note: `Downloaded ${downloadedFiles.length} of ${selectedDocuments.length} selected document${
+          selectedDocuments.length === 1 ? "" : "s"
+        }.`,
+        error: "",
+      });
     } else {
       showSuccess(`Auto-collected ${downloadedFiles.length} ${rule.sectionLabel} document${downloadedFiles.length === 1 ? "" : "s"}.`);
+      updateUploadSyncStatus(
+        `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"} after auto-collect.`,
+        "success"
+      );
+      finalizeAutoCollectInfoSnapshot({
+        status: "success",
+        downloadedCount: downloadedFiles.length,
+        failedCount: 0,
+        failedDetails: [],
+        selectedCount: selectedDocuments.length,
+        discoveredCount: rankedDocuments.length,
+        suggestedCount,
+        fallbackUsed: didFallbackToDocuments,
+        note: `Downloaded all ${downloadedFiles.length} selected document${downloadedFiles.length === 1 ? "" : "s"}.`,
+        error: "",
+      });
     }
 
-    const stagedCount = flattenUploadBuckets().length;
-    updateUploadSyncStatus(
-      `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"} after auto-collect.`,
-      "success"
-    );
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not auto-collect Mobizio documents.";
     updateUploadSyncStatus(message, "error");
+    finalizeAutoCollectInfoSnapshot({
+      status: "error",
+      sourceKind: collectionSource?.kind || "",
+      sourceLabel: collectionSource?.label || "",
+      sourceUrl: collectionSource?.url || "",
+      fallbackUsed: didFallbackToDocuments,
+      error: message,
+      note: "Auto-download stopped before files could be fully staged.",
+    });
     showError(message);
     return false;
   } finally {
@@ -2362,6 +2778,11 @@ const buildUploadMirrorPayload = async () => {
     throw new Error("Selected files are too large to sync at once. Keep total size below 35 MB.");
   }
 
+  const serviceUserName = String(
+    state.selectedAutofillUser?.name || state.selectedUser?.name || ""
+  )
+    .trim();
+
   const uploads = [];
   for (const entry of selected) {
     const file = entry.file;
@@ -2380,6 +2801,7 @@ const buildUploadMirrorPayload = async () => {
     requestId: createRequestId(),
     source: "extension-popup",
     uploadedAt: new Date().toISOString(),
+    serviceUserName,
     additionalNotes: (dom.uploadNotes?.value || "").trim(),
     uploads,
   };
@@ -3342,6 +3764,21 @@ function bindEvents() {
     if (ok) showSuccess("Uploads sent to CareAssurance Upload");
   });
 
+  dom.copyAutoCollectInfo?.addEventListener("click", async () => {
+    const report = buildAutoCollectReportText();
+    if (!report) {
+      showInfo("Run Auto-Collect first, then copy the diagnostics report.");
+      return;
+    }
+
+    try {
+      await writeToClipboard(report);
+      showSuccess("Auto-download report copied");
+    } catch {
+      showError("Could not copy auto-download report. Try again.");
+    }
+  });
+
   dom.uploadNotes?.addEventListener("input", () => {
     updateUploadPendingStatus();
   });
@@ -3363,6 +3800,7 @@ function bindEvents() {
     state.selectedFilesList = [];
     state.currentAnalysisResults = null;
     lastUploadSyncSignature = "";
+    updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
     if (uploadSyncTimer) {
       clearTimeout(uploadSyncTimer);
       uploadSyncTimer = null;
@@ -3844,7 +4282,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.19</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.20</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -3932,6 +4370,7 @@ function bindStorageListener() {
   bindStorageListener();
   ensureUploadBuckets();
   renderUploadBuckets();
+  updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
 
   // GDPR: Auto-clean stale data
   await autoCleanupStaleData();
