@@ -306,6 +306,7 @@ export interface IStorage {
   
   // Password operations
   updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
+  updateUserTwoFactor(id: string, enabled: boolean, encryptedSecret: string | null): Promise<User | undefined>;
   
   // Terms acceptance operations
   updateUserTermsAcceptance(id: string, version: string, signatureName: string, signatureDate: string): Promise<User | undefined>;
@@ -1128,6 +1129,18 @@ export class DatabaseStorage implements IStorage {
     const result = await this.db
       .update(users)
       .set({ password: hashedPassword })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async updateUserTwoFactor(id: string, enabled: boolean, encryptedSecret: string | null): Promise<User | undefined> {
+    const result = await this.db
+      .update(users)
+      .set({
+        twoFactorEnabled: enabled,
+        twoFactorSecret: encryptedSecret,
+      })
       .where(eq(users.id, id))
       .returning();
     return result[0];

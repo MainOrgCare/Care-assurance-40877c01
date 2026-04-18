@@ -11,7 +11,7 @@ const Textarea = React.forwardRef<
     <textarea
       className={cn(
         formControlClassName,
-        "flex min-h-[124px] px-3.5 py-2.5 resize-none",
+        "flex min-h-[132px] px-3.5 py-2.5 leading-relaxed resize-y",
         className
       )}
       ref={ref}

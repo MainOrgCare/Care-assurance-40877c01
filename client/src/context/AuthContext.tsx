@@ -15,8 +15,22 @@ interface User {
   termsVersion?: string;
   termsSignatureName?: string;
   termsSignatureDate?: string;
+  twoFactorEnabled?: boolean;
   isDemo?: boolean;
 }
+
+type LoginResult =
+  | {
+      status: "success";
+    }
+  | {
+      status: "requiresTwoFactor";
+      challengeId: string;
+      expiresInSeconds: number;
+    }
+  | {
+      status: "error";
+    };
 
 interface AuditLogEntry {
   id: number | string;
@@ -31,7 +45,8 @@ interface AuditLogEntry {
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<LoginResult>;
+  verifyTwoFactorLogin: (challengeId: string, code: string) => Promise<LoginResult>;
   loginDemo: () => Promise<boolean>;
   signup: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -284,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [user?.role, user?.username]);
 
-  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -296,7 +311,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const payload = await response.json();
-      const data = normalizeApiPayload<User>(payload);
+      const data = normalizeApiPayload<
+        User & {
+          requiresTwoFactor?: boolean;
+          challengeId?: string;
+          expiresInSeconds?: number;
+        }
+      >(payload);
 
       if (!response.ok) {
         if (response.status === 403) {
@@ -335,7 +356,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           logAction("Login Attempt", "System", "Blocked", "Login Failed");
         }
-        return false;
+        return { status: "error" };
+      }
+
+      if (data?.requiresTwoFactor) {
+        const challengeId = typeof data.challengeId === "string" ? data.challengeId : "";
+        if (!challengeId) {
+          toast({
+            title: "Login Failed",
+            description: "Two-factor challenge could not be started. Please try again.",
+            variant: "destructive",
+          });
+          return { status: "error" };
+        }
+
+        toast({
+          title: "Verification Required",
+          description: "Enter the 6-digit code from your authenticator app to continue.",
+        });
+
+        return {
+          status: "requiresTwoFactor",
+          challengeId,
+          expiresInSeconds: Number(data.expiresInSeconds) || 300,
+        };
       }
 
       setUser(data);
@@ -346,14 +390,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // fetchSystemLogs runs automatically via the useEffect on user.role change
       }
 
-      return true;
+      return { status: "success" };
     } catch (error) {
       toast({
         title: "Login Failed",
         description: "An error occurred during login. Please try again.",
         variant: "destructive"
       });
-      return false;
+      return { status: "error" };
+    }
+  }, [toast, logAction, fetchUsers]);
+
+  const verifyTwoFactorLogin = useCallback(async (challengeId: string, code: string): Promise<LoginResult> => {
+    try {
+      const response = await fetch("/api/auth/login-2fa", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ challengeId, code }),
+        credentials: "include",
+      });
+
+      const payload = await response.json();
+      const data = normalizeApiPayload<User>(payload);
+
+      if (!response.ok) {
+        const isBadCode = response.status === 401 || response.status === 400;
+        toast({
+          title: isBadCode ? "Invalid Code" : "Verification Failed",
+          description:
+            payload?.message ||
+            (isBadCode
+              ? "Please check your verification code and try again."
+              : "Two-factor verification failed. Please sign in again."),
+          variant: "destructive",
+        });
+        return { status: "error" };
+      }
+
+      setUser(data);
+      logAction("Login", "System", "Authorized");
+
+      if (data.role === "admin") {
+        await fetchUsers();
+      }
+
+      return { status: "success" };
+    } catch {
+      toast({
+        title: "Verification Failed",
+        description: "An error occurred during two-factor verification. Please try again.",
+        variant: "destructive",
+      });
+      return { status: "error" };
     }
   }, [toast, logAction, fetchUsers]);
 
@@ -537,6 +627,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => ({
     user,
     login,
+    verifyTwoFactorLogin,
     loginDemo,
     signup,
     logout,
@@ -549,7 +640,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logAction,
     auditLogs,
     loading,
-  }), [user, login, loginDemo, signup, logout, allUsers, approveUser, rejectUser, createUser, fetchUsers, refetchUser, logAction, auditLogs, loading]);
+  }), [user, login, verifyTwoFactorLogin, loginDemo, signup, logout, allUsers, approveUser, rejectUser, createUser, fetchUsers, refetchUser, logAction, auditLogs, loading]);
 
   return (
     <AuthContext.Provider value={contextValue}>

@@ -18,6 +18,8 @@ export const users = pgTable("users", {
   jobTitle: text("job_title"),
   suspendedUntil: timestamp("suspended_until"),
   lastOnlineAt: timestamp("last_online_at"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  twoFactorSecret: text("two_factor_secret"),
   dashboardWidgets: jsonb("dashboard_widgets"), // Array of widget IDs in display order
   termsAcceptedAt: timestamp("terms_accepted_at"), // When user accepted terms
   termsVersion: text("terms_version"), // Which version of terms they accepted
@@ -29,6 +31,8 @@ export const users = pgTable("users", {
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+  twoFactorEnabled: true,
+  twoFactorSecret: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

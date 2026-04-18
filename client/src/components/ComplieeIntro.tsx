@@ -1,22 +1,33 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 interface ComplieeIntroProps {
   onComplete: () => void;
   onAskHelp: () => void;
 }
 
+const COMPLIEE_INTRO_SEEN_KEY = "compliee_intro_seen";
+const COMPLIEE_INTRO_SNOOZE_KEY = "compliee_intro_snoozed_until";
+const COMPLIEE_INTRO_SNOOZE_DAYS = 3;
+
 /* ── Floating sparkle particle ───────────────────────────── */
 function FloatingSparkle({
   delay,
   x,
   size,
+  reduceMotion,
 }: {
   delay: number;
   x: number;
   size: number;
+  reduceMotion: boolean;
 }) {
+  if (reduceMotion) {
+    return null;
+  }
+
   return (
     <motion.div
       className="absolute rounded-full bg-primary/60 pointer-events-none"
@@ -44,11 +55,13 @@ function AnimatedCompliee({
   isWaving = false,
   isBlinking = false,
   isExcited = false,
+  reduceMotion = false,
   className = "",
 }: {
   isWaving?: boolean;
   isBlinking?: boolean;
   isExcited?: boolean;
+  reduceMotion?: boolean;
   className?: string;
 }) {
   return (
@@ -60,11 +73,17 @@ function AnimatedCompliee({
       <motion.g
         className="compliee-head origin-[32px_30px]"
         animate={
-          isExcited
+          reduceMotion
+            ? { rotate: 0, scale: 1 }
+            : isExcited
             ? { rotate: [-3, 4, -3], scale: [1, 1.04, 1] }
             : { rotate: [-2, 2.5, -2] }
         }
-        transition={{ repeat: Infinity, duration: isExcited ? 1.5 : 4, ease: "easeInOut" }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { repeat: Infinity, duration: isExcited ? 1.5 : 4, ease: "easeInOut" }
+        }
       >
         {/* Hair base */}
         <rect
@@ -162,24 +181,32 @@ function AnimatedCompliee({
                 cy="35"
                 r="6"
                 fill="var(--compliee-eyes, #1e1e1e)"
-                animate={{ x: [0, 1, -1, 0], y: [0, -1, 1, 0] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 3.6,
-                  ease: "easeInOut",
-                }}
+                animate={reduceMotion ? undefined : { x: [0, 1, -1, 0], y: [0, -1, 1, 0] }}
+                transition={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        repeat: Infinity,
+                        duration: 3.6,
+                        ease: "easeInOut",
+                      }
+                }
               />
               <motion.circle
                 cx="46"
                 cy="35"
                 r="6"
                 fill="var(--compliee-eyes, #1e1e1e)"
-                animate={{ x: [0, 1, -1, 0], y: [0, -1, 1, 0] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 3.6,
-                  ease: "easeInOut",
-                }}
+                animate={reduceMotion ? undefined : { x: [0, 1, -1, 0], y: [0, -1, 1, 0] }}
+                transition={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        repeat: Infinity,
+                        duration: 3.6,
+                        ease: "easeInOut",
+                      }
+                }
               />
               {/* Eye Sparks - enhanced twinkle */}
               <motion.circle
@@ -187,31 +214,47 @@ function AnimatedCompliee({
                 cy="32"
                 r="3"
                 fill="white"
-                animate={{
-                  scale: [0.7, 1.4, 0.7],
-                  opacity: [0.3, 1, 0.3],
-                }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 2,
-                  ease: "easeInOut",
-                }}
+                animate={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        scale: [0.7, 1.4, 0.7],
+                        opacity: [0.3, 1, 0.3],
+                      }
+                }
+                transition={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        repeat: Infinity,
+                        duration: 2,
+                        ease: "easeInOut",
+                      }
+                }
               />
               <motion.circle
                 cx="49"
                 cy="32"
                 r="3"
                 fill="white"
-                animate={{
-                  scale: [0.7, 1.4, 0.7],
-                  opacity: [0.3, 1, 0.3],
-                }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 2,
-                  ease: "easeInOut",
-                  delay: 0.4,
-                }}
+                animate={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        scale: [0.7, 1.4, 0.7],
+                        opacity: [0.3, 1, 0.3],
+                      }
+                }
+                transition={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        repeat: Infinity,
+                        duration: 2,
+                        ease: "easeInOut",
+                        delay: 0.4,
+                      }
+                }
               />
             </motion.g>
           )}
@@ -305,12 +348,16 @@ function AnimatedCompliee({
         {isWaving ? (
           <motion.g
             className="origin-[55px_59px]"
-            animate={{ rotate: [0, -20, 25, -15, 8, 0] }}
-            transition={{
-              repeat: Infinity,
-              duration: 0.5,
-              ease: "easeInOut",
-            }}
+            animate={reduceMotion ? { rotate: 0 } : { rotate: [0, -20, 25, -15, 8, 0] }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : {
+                    repeat: Infinity,
+                    duration: 0.5,
+                    ease: "easeInOut",
+                  }
+            }
           >
             <rect
               x="50"
@@ -347,12 +394,16 @@ function AnimatedCompliee({
             rx="4"
             fill="var(--compliee-skin, #ffedd5)"
             className="origin-[55px_60px]"
-            animate={{ rotate: [0, -6, 0] }}
-            transition={{
-              repeat: Infinity,
-              duration: 2.8,
-              ease: "easeInOut",
-            }}
+            animate={reduceMotion ? undefined : { rotate: [0, -6, 0] }}
+            transition={
+              reduceMotion
+                ? undefined
+                : {
+                    repeat: Infinity,
+                    duration: 2.8,
+                    ease: "easeInOut",
+                  }
+            }
           />
         )}
 
@@ -398,12 +449,16 @@ function AnimatedCompliee({
         cy="14"
         r="2.5"
         fill="#FDE68A"
-        animate={{
-          scale: [0.6, 1.4, 0.6],
-          opacity: [0.2, 1, 0.2],
-          rotate: [0, 180, 360],
-        }}
-        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                scale: [0.6, 1.4, 0.6],
+                opacity: [0.2, 1, 0.2],
+                rotate: [0, 180, 360],
+              }
+        }
+        transition={reduceMotion ? undefined : { repeat: Infinity, duration: 2, ease: "easeInOut" }}
       />
       {/* Extra sparkle */}
       <motion.circle
@@ -411,16 +466,24 @@ function AnimatedCompliee({
         cy="10"
         r="1.8"
         fill="#FDE68A"
-        animate={{
-          scale: [0.5, 1.3, 0.5],
-          opacity: [0.1, 0.8, 0.1],
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: 1.8,
-          ease: "easeInOut",
-          delay: 0.7,
-        }}
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                scale: [0.5, 1.3, 0.5],
+                opacity: [0.1, 0.8, 0.1],
+              }
+        }
+        transition={
+          reduceMotion
+            ? undefined
+            : {
+                repeat: Infinity,
+                duration: 1.8,
+                ease: "easeInOut",
+                delay: 0.7,
+              }
+        }
       />
     </svg>
   );
@@ -443,23 +506,35 @@ export default function ComplieeIntro({
   >("hidden");
   const [isBlinking, setIsBlinking] = useState(false);
   const [showBubble, setShowBubble] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   // Check if intro was already shown
   useEffect(() => {
-    const hasSeenIntro = localStorage.getItem("compliee_intro_seen");
-    if (hasSeenIntro) {
+    const hasSeenIntro = localStorage.getItem(COMPLIEE_INTRO_SEEN_KEY);
+    const snoozedUntilRaw = localStorage.getItem(COMPLIEE_INTRO_SNOOZE_KEY);
+    const snoozedUntil = snoozedUntilRaw ? Number(snoozedUntilRaw) : 0;
+    const isSnoozed = Number.isFinite(snoozedUntil) && snoozedUntil > Date.now();
+
+    if (hasSeenIntro || isSnoozed) {
       setPhase("complete");
       onComplete();
     } else {
       // Start intro sequence after short delay
-      const timer = setTimeout(() => setPhase("peek1"), 800);
+      const timer = setTimeout(() => {
+        if (prefersReducedMotion) {
+          setShowBubble(true);
+          setPhase("askHelp");
+          return;
+        }
+        setPhase("peek1");
+      }, prefersReducedMotion ? 120 : 800);
       return () => clearTimeout(timer);
     }
-  }, [onComplete]);
+  }, [onComplete, prefersReducedMotion]);
 
   // Intro sequence timing
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
 
     switch (phase) {
       case "peek1":
@@ -491,6 +566,7 @@ export default function ComplieeIntro({
   // Blinking animation (random intervals when in idle/askHelp state)
   useEffect(() => {
     if (
+      prefersReducedMotion ||
       phase !== "askHelp" &&
       phase !== "idle" &&
       phase !== "wave" &&
@@ -515,54 +591,94 @@ export default function ComplieeIntro({
       clearTimeout(initialBlink);
       clearInterval(blinkInterval);
     };
-  }, [phase]);
+  }, [phase, prefersReducedMotion]);
+
+  const closeIntro = useCallback(
+    (snooze: boolean) => {
+      if (snooze) {
+        const snoozeUntil = Date.now() + COMPLIEE_INTRO_SNOOZE_DAYS * 24 * 60 * 60 * 1000;
+        localStorage.setItem(COMPLIEE_INTRO_SNOOZE_KEY, String(snoozeUntil));
+      }
+
+      setPhase("complete");
+      setShowBubble(false);
+      onComplete();
+    },
+    [onComplete],
+  );
 
   const handleYes = useCallback(() => {
-    localStorage.setItem("compliee_intro_seen", "true");
+    localStorage.setItem(COMPLIEE_INTRO_SEEN_KEY, "true");
+    localStorage.removeItem(COMPLIEE_INTRO_SNOOZE_KEY);
     setPhase("complete");
     setShowBubble(false);
     onAskHelp();
   }, [onAskHelp]);
 
   const handleNo = useCallback(() => {
-    localStorage.setItem("compliee_intro_seen", "true");
-    setPhase("complete");
-    setShowBubble(false);
-    onComplete();
-  }, [onComplete]);
+    closeIntro(true);
+  }, [closeIntro]);
+
+  useEffect(() => {
+    if (phase === "complete" || phase === "hidden") {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeIntro(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [closeIntro, phase]);
 
   if (phase === "complete" || phase === "hidden") return null;
 
   // Determine variants for Compliee container based on phase
-  const complieeVariants = {
-    hidden: { x: "100%", y: 0, scale: 0.9, opacity: 0 },
-    peek1: { x: "40%", y: 0, scale: 1, opacity: 1 },
-    hide1: { x: "100%", y: 0, scale: 0.95, opacity: 0.5 },
-    peek2: { x: "40%", y: 0, scale: 1, opacity: 1 },
-    wave: { x: "25%", y: 0, scale: 1, opacity: 1 },
-    slideIn: { x: 0, y: 0, scale: 1, opacity: 1 },
-    askHelp: { x: 0, y: [0, -6, 2, 0], scale: 1, opacity: 1 },
-  };
+  const complieeVariants = useMemo(
+    () => ({
+      hidden: { x: "100%", y: 0, scale: 0.9, opacity: 0 },
+      peek1: { x: "40%", y: 0, scale: 1, opacity: 1 },
+      hide1: { x: "100%", y: 0, scale: 0.95, opacity: 0.5 },
+      peek2: { x: "40%", y: 0, scale: 1, opacity: 1 },
+      wave: { x: "25%", y: 0, scale: 1, opacity: 1 },
+      slideIn: { x: 0, y: 0, scale: 1, opacity: 1 },
+      askHelp: prefersReducedMotion
+        ? { x: 0, y: 0, scale: 1, opacity: 1 }
+        : { x: 0, y: [0, -6, 2, 0], scale: 1, opacity: 1 },
+    }),
+    [prefersReducedMotion],
+  );
 
   return (
     <AnimatePresence>
-      <div className="fixed bottom-6 right-6 z-50 flex items-end gap-4 pointer-events-none">
+      <div className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-end gap-3 sm:gap-4 pointer-events-none max-w-[calc(100vw-1.5rem)]">
         {/* Ambient glow under character */}
         <AnimatePresence>
           {(phase === "askHelp" || phase === "slideIn") && (
             <motion.div
               className="absolute -bottom-2 right-8 w-20 h-6 rounded-full pointer-events-none"
               initial={{ opacity: 0, scale: 0.5 }}
-              animate={{
-                opacity: [0.15, 0.3, 0.15],
-                scale: [0.9, 1.1, 0.9],
-              }}
+              animate={
+                prefersReducedMotion
+                  ? { opacity: 0.2, scale: 1 }
+                  : {
+                      opacity: [0.15, 0.3, 0.15],
+                      scale: [0.9, 1.1, 0.9],
+                    }
+              }
               exit={{ opacity: 0 }}
-              transition={{
-                repeat: Infinity,
-                duration: 3,
-                ease: "easeInOut",
-              }}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.2 }
+                  : {
+                      repeat: Infinity,
+                      duration: 3,
+                      ease: "easeInOut",
+                    }
+              }
               style={{
                 background:
                   "radial-gradient(ellipse, var(--color-primary) 0%, transparent 70%)",
@@ -590,10 +706,21 @@ export default function ComplieeIntro({
                 mass: 0.8,
               }}
               className={cn(
-                "bg-card rounded-2xl shadow-2xl border border-border p-5 max-w-[280px] pointer-events-auto",
+                "relative bg-card rounded-2xl shadow-2xl border border-border p-5 w-[min(19rem,calc(100vw-5.5rem))] pointer-events-auto",
                 "backdrop-blur-md bg-card/95",
               )}
+              role="dialog"
+              aria-label="Compli-ee introduction"
+              aria-live="polite"
             >
+              <button
+                type="button"
+                onClick={handleNo}
+                className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border/70 bg-background/80 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                aria-label="Dismiss Compli-ee intro"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
               <div className="flex items-center gap-2 mb-3">
                 <motion.div
                   className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center"
@@ -653,9 +780,13 @@ export default function ComplieeIntro({
                   onClick={handleNo}
                   className="flex-1 px-3 py-2 bg-muted text-foreground text-sm font-semibold rounded-xl hover:bg-muted/80 transition-colors"
                 >
-                  Maybe later
+                  Not now
                 </motion.button>
               </motion.div>
+
+              <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                You can reopen Compli-ee anytime from the header help button.
+              </p>
 
               {/* Speech bubble tail */}
               <div className="absolute -right-2 bottom-6 w-4 h-4 bg-card border-r border-b border-border transform rotate-[-45deg] shadow-[2px_2px_4px_rgba(0,0,0,0.05)]" />
@@ -678,24 +809,22 @@ export default function ComplieeIntro({
                   mass: 0.9,
                 }
           }
-          className="relative w-24 h-28 pointer-events-auto cursor-pointer drop-shadow-2xl"
-          onClick={() => {
-            if (phase === "askHelp") handleYes();
-          }}
-          whileHover={{ scale: 1.08 }}
+          className="relative w-24 h-28 pointer-events-auto drop-shadow-2xl"
+          whileHover={prefersReducedMotion ? undefined : { scale: 1.08 }}
         >
           <AnimatedCompliee
             isWaving={phase === "wave" || phase === "slideIn"}
-            isBlinking={isBlinking}
+            isBlinking={prefersReducedMotion ? false : isBlinking}
             isExcited={phase === "askHelp"}
+            reduceMotion={prefersReducedMotion}
             className="w-full h-full"
           />
 
           {/* Floating sparkle particles around character */}
-          <FloatingSparkle delay={0} x={10} size={4} />
-          <FloatingSparkle delay={0.8} x={50} size={3} />
-          <FloatingSparkle delay={1.5} x={85} size={5} />
-          <FloatingSparkle delay={2.2} x={30} size={3} />
+          <FloatingSparkle delay={0} x={10} size={4} reduceMotion={prefersReducedMotion} />
+          <FloatingSparkle delay={0.8} x={50} size={3} reduceMotion={prefersReducedMotion} />
+          <FloatingSparkle delay={1.5} x={85} size={5} reduceMotion={prefersReducedMotion} />
+          <FloatingSparkle delay={2.2} x={30} size={3} reduceMotion={prefersReducedMotion} />
         </motion.div>
       </div>
     </AnimatePresence>

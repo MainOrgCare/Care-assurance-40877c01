@@ -22,6 +22,7 @@ export interface AuthenticatedUser {
   termsVersion?: string | null;
   termsSignatureName?: string | null;
   termsSignatureDate?: string | null;
+  twoFactorEnabled?: boolean;
   /** True when the session was created via the demo login flow. */
   isDemo?: boolean;
 }

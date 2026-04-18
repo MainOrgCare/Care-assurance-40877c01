@@ -20,6 +20,7 @@ import {
   Shield,
   Users,
   ArrowRight,
+  ArrowUpRight,
   Upload,
   Brain,
   TrendingUp,
@@ -129,7 +130,15 @@ function SortableWidgetItemBase({ widget, isActive, onToggle }: { widget: Widget
 
 const SortableWidgetItem = memo(SortableWidgetItemBase);
 
-const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; href: string; panelTone: string; iconTone: string }[] = [
+const QUICK_ACTIONS: {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  href: string;
+  panelTone: string;
+  iconTone: string;
+  badge: string;
+}[] = [
   {
     icon: Upload,
     label: "EMAR Audit",
@@ -137,6 +146,7 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     href: "/care-workers/emar-audit",
     panelTone: "bg-primary/[0.03] border-primary/20",
     iconTone: "bg-primary/12 text-primary",
+    badge: "Medication",
   },
   {
     icon: FileText,
@@ -145,6 +155,7 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     href: "/service-users/upload",
     panelTone: "bg-secondary/[0.03] border-secondary/20",
     iconTone: "bg-secondary/12 text-secondary",
+    badge: "Planning",
   },
   {
     icon: Shield,
@@ -153,6 +164,7 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     href: "/service-users/risk-assessment",
     panelTone: "bg-muted/50 border-border",
     iconTone: "bg-muted text-muted-foreground",
+    badge: "Safety",
   },
   {
     icon: Brain,
@@ -161,6 +173,7 @@ const QUICK_ACTIONS: { icon: LucideIcon; label: string; description: string; hre
     href: "/service-users/plan-enhancer",
     panelTone: "bg-success/[0.03] border-success/20",
     iconTone: "bg-success/12 text-success",
+    badge: "AI",
   },
 ];
 
@@ -184,7 +197,7 @@ export default function Dashboard() {
     }
   }, [user?.isDemo, loadDemoData]);
 
-  const { data, isLoading, isError, error: fetchError, refetch, isRefetching } = useQuery<DashboardResponse>({
+  const { data, isLoading, isError, error: fetchError, refetch, isRefetching, dataUpdatedAt } = useQuery<DashboardResponse>({
     queryKey: queryKeys.dashboard.stats(),
     queryFn: async () => {
       const res = await fetch("/api/dashboard/stats", { credentials: "include" });
@@ -311,6 +324,68 @@ export default function Dashboard() {
     [activeWidgets.length, recentAlerts.length, stats?.carePlanReviews, stats?.medicationAudits, stats?.riskAssessments, user?.isDemo],
   );
 
+  const topStatusChips = useMemo(
+    () => [
+      {
+        label: isError ? "Sync paused" : isRefetching ? "Syncing" : "Live sync",
+        toneClass: isError
+          ? "border-destructive/25 bg-destructive/8 text-destructive"
+          : isRefetching
+            ? "border-warning/25 bg-warning/8 text-warning"
+            : "border-success/25 bg-success/10 text-success",
+      },
+      {
+        label: dataUpdatedAt
+          ? `Updated ${new Date(dataUpdatedAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`
+          : "Awaiting first sync",
+        toneClass: "border-border/65 bg-background/80 text-muted-foreground",
+      },
+      {
+        label: `${activeWidgets.length} widgets active`,
+        toneClass: "border-primary/20 bg-primary/8 text-primary",
+      },
+      {
+        label: recentAlerts.length > 0 ? `${recentAlerts.length} alerts pending` : "No active alerts",
+        toneClass:
+          recentAlerts.length > 0
+            ? "border-destructive/25 bg-destructive/8 text-destructive"
+            : "border-success/25 bg-success/10 text-success",
+      },
+    ],
+    [activeWidgets.length, dataUpdatedAt, isError, isRefetching, recentAlerts.length],
+  );
+
+  const auditDistribution = useMemo(() => {
+    const entries = [
+      {
+        id: "medication",
+        label: "Medication",
+        value: stats?.medicationAudits ?? 0,
+        barClass: "bg-primary",
+      },
+      {
+        id: "care-plans",
+        label: "Care plans",
+        value: stats?.carePlanReviews ?? 0,
+        barClass: "bg-secondary",
+      },
+      {
+        id: "risk",
+        label: "Risk",
+        value: stats?.riskAssessments ?? 0,
+        barClass: "bg-warning",
+      },
+    ];
+    const total = entries.reduce((sum, entry) => sum + entry.value, 0);
+    return entries.map((entry) => ({
+      ...entry,
+      percentage: total > 0 ? Math.max(4, Math.round((entry.value / total) * 100)) : 0,
+    }));
+  }, [stats?.carePlanReviews, stats?.medicationAudits, stats?.riskAssessments]);
+
   const formatTimeAgo = useCallback((dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -320,6 +395,17 @@ export default function Dashboard() {
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${Math.floor(diffHours / 24)}d ago`;
+  }, []);
+
+  const formatDiscrepancyType = useCallback((value: string) => {
+    if (!value) {
+      return "General";
+    }
+    return value
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
   }, []);
 
   
@@ -510,13 +596,26 @@ export default function Dashboard() {
           </p>
           <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
           <p className="page-subtitle max-w-lg">Unified operations overview &mdash; last 24 hours.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {topStatusChips.map((chip) => (
+                  <span
+                    key={chip.label}
+                    className={cn(
+                      "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.02em]",
+                      chip.toneClass,
+                    )}
+                  >
+                    {chip.label}
+                  </span>
+                ))}
+              </div>
             </>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-start sm:justify-end gap-2">
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" data-testid="button-customize-dashboard">
+              <Button variant="outline" className="min-w-[8.25rem]" data-testid="button-customize-dashboard">
                 <Settings className="h-4 w-4 mr-2" />
                 Customize
               </Button>
@@ -549,6 +648,7 @@ export default function Dashboard() {
           </Dialog>
           <Button 
             variant="outline" 
+            className="min-w-[7.75rem]"
             onClick={() => refetch()}
             disabled={isRefetching}
             data-testid="button-refresh-dashboard"
@@ -558,10 +658,10 @@ export default function Dashboard() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button data-testid="button-new-analysis">
+              <Button className="min-w-[9.5rem] justify-between" data-testid="button-new-analysis">
                 <Brain className="h-4 w-4 mr-2" />
                 New Analysis
-                <ChevronDown className="h-4 w-4 ml-2" />
+                <ChevronDown className="h-4 w-4 ml-2 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -668,17 +768,35 @@ export default function Dashboard() {
             <Link key={index} href={action.href}>
               <motion.div whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }} className="h-full">
               <Card className=" group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
-                <CardContent className={`p-4 relative border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-[var(--shadow-medium)]`}>
-                  <div className={`relative h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center mb-3 shadow-[var(--shadow-xs)]`}>
+                <CardContent className={`relative overflow-hidden p-4 border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-[var(--shadow-medium)]`}>
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-70"
+                    aria-hidden="true"
+                    style={{
+                      background:
+                        "radial-gradient(120% 80% at 16% -12%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 68%)",
+                    }}
+                  />
+                  <div className="relative z-10 mb-3 flex items-start justify-between gap-2">
+                    <div className={`h-9 w-9 rounded-lg ${action.iconTone} flex items-center justify-center shadow-[var(--shadow-xs)]`}>
                     <action.icon className="h-4 w-4" />
+                    </div>
+                    <span className="inline-flex items-center rounded-full border border-border/55 bg-background/78 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      {action.badge}
+                    </span>
                   </div>
                   
-                  <h3 className="font-semibold text-[13px] mb-0.5 group-hover:text-primary transition-colors duration-150 text-foreground tracking-[-0.01em]">{action.label}</h3>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground/65">{action.description}</p>
+                  <h3 className="relative z-10 font-semibold text-[13px] mb-0.5 group-hover:text-primary transition-colors duration-150 text-foreground tracking-[-0.01em]">{action.label}</h3>
+                  <p className="relative z-10 text-[11px] leading-relaxed text-muted-foreground/65">{action.description}</p>
                   
-                  <div className="mt-3 flex items-center gap-1 text-[10px] font-semibold text-primary/60 opacity-100 transition-all duration-200 sm:opacity-0 sm:group-hover:translate-x-0.5 sm:group-hover:opacity-100">
+                  <div className="relative z-10 mt-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-[10px] font-semibold text-primary/60 opacity-100 transition-all duration-200 sm:opacity-0 sm:group-hover:translate-x-0.5 sm:group-hover:opacity-100">
                     <span>Open</span>
                     <ArrowRight className="h-3 w-3" />
+                    </div>
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full border border-primary/22 bg-primary/8 text-primary/80 transition-transform duration-200 group-hover:translate-x-0.5">
+                      <ArrowUpRight className="h-3 w-3" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -795,6 +913,25 @@ export default function Dashboard() {
                        </p>
                     </div>
                  </div>
+                 <div className="mt-5 border-t border-border/35 pt-4">
+                   <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/78">Workflow Distribution</p>
+                   <div className="mt-2.5 space-y-2.5">
+                     {auditDistribution.map((entry) => (
+                       <div key={entry.id} className="space-y-1.5">
+                         <div className="flex items-center justify-between gap-2 text-[11px]">
+                           <span className="font-medium text-muted-foreground">{entry.label}</span>
+                           <span className="font-semibold text-foreground tabular-nums">{entry.value}</span>
+                         </div>
+                         <div className="h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                           <div
+                             className={cn("h-full rounded-full transition-all duration-300", entry.barClass)}
+                             style={{ width: `${entry.percentage}%` }}
+                           />
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
               </CardContent>
             </Card>
           )}
@@ -836,6 +973,11 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between gap-2 mb-0.5">
                             <p className="text-sm font-semibold truncate text-foreground">{alert.careWorkerName}</p>
                             <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">{formatTimeAgo(alert.createdAt)}</span>
+                          </div>
+                          <div className="mb-1">
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-border/60 bg-background/70">
+                              {formatDiscrepancyType(alert.discrepancyType)}
+                            </Badge>
                           </div>
                           <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{alert.message}</p>
                         </div>

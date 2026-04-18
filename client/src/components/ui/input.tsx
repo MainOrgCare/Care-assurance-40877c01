@@ -16,7 +16,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         type={type}
         className={cn(
           formControlClassName,
-          "flex h-10 px-3.5 py-2 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
+          "flex h-10 px-3.5 py-2 leading-tight file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
           className
         )}
         ref={ref}

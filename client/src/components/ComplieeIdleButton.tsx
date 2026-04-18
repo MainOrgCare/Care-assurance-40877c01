@@ -1,8 +1,12 @@
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 /* ── Sparkle particle component ─────────────────────────── */
-function Sparkle({ delay, x, y }: { delay: number; x: number; y: number }) {
+function Sparkle({ delay, x, y, reduceMotion }: { delay: number; x: number; y: number; reduceMotion: boolean }) {
+  if (reduceMotion) {
+    return null;
+  }
+
   return (
     <motion.div
       className="absolute w-1 h-1 rounded-full bg-primary-foreground/70 pointer-events-none"
@@ -24,19 +28,15 @@ function Sparkle({ delay, x, y }: { delay: number; x: number; y: number }) {
 }
 
 /* ── Mini inline compli-ee face ─────────────────────────── */
-function MiniCompliee({ className = "" }: { className?: string }) {
+function MiniCompliee({ className = "", reduceMotion = false }: { className?: string; reduceMotion?: boolean }) {
   return (
     <motion.svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 64 80"
-      drag
-      dragConstraints={{ left: -150, right: 150, top: -300, bottom: 50 }}
-      dragElastic={0.4}
-      dragTransition={{ bounceStiffness: 400, bounceDamping: 15 }}
       className={cn("overflow-visible", className)}
       initial="rest"
       whileHover="hover"
-      animate="idle"
+      animate={reduceMotion ? "rest" : "idle"}
     >
       <motion.g
         className="origin-[32px_30px]"
@@ -105,25 +105,33 @@ function MiniCompliee({ className = "" }: { className?: string }) {
           cy="32"
           r="3"
           fill="white"
-          animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
-          transition={{
-            repeat: Infinity,
-            duration: 2,
-            ease: "easeInOut",
-          }}
+          animate={reduceMotion ? undefined : { scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
+          transition={
+            reduceMotion
+              ? undefined
+              : {
+                  repeat: Infinity,
+                  duration: 2,
+                  ease: "easeInOut",
+                }
+          }
         />
         <motion.circle
           cx="49"
           cy="32"
           r="3"
           fill="white"
-          animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
-          transition={{
-            repeat: Infinity,
-            duration: 2,
-            ease: "easeInOut",
-            delay: 0.3,
-          }}
+          animate={reduceMotion ? undefined : { scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
+          transition={
+            reduceMotion
+              ? undefined
+              : {
+                  repeat: Infinity,
+                  duration: 2,
+                  ease: "easeInOut",
+                  delay: 0.3,
+                }
+          }
         />
 
         {/* Smile */}
@@ -171,27 +179,44 @@ export default function ComplieeIdleButton({
   onClick: () => void;
   className?: string;
 }) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <motion.button
       onClick={onClick}
       whileHover={{ scale: 1.07, y: -5 }}
       whileTap={{ scale: 0.92 }}
       initial={{ opacity: 0, y: 24, scale: 0.9 }}
-      animate={{
-        opacity: 1,
-        y: [0, -4, 0],
-        scale: 1,
-      }}
-      transition={{
-        opacity: { duration: 0.4 },
-        y: {
-          duration: 3,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 0.5,
-        },
-        scale: { type: "spring", stiffness: 300, damping: 20 },
-      }}
+      animate={
+        prefersReducedMotion
+          ? {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+            }
+          : {
+              opacity: 1,
+              y: [0, -4, 0],
+              scale: 1,
+            }
+      }
+      transition={
+        prefersReducedMotion
+          ? {
+              opacity: { duration: 0.2 },
+              y: { duration: 0.2 },
+            }
+          : {
+              opacity: { duration: 0.4 },
+              y: {
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 0.5,
+              },
+              scale: { type: "spring", stiffness: 300, damping: 20 },
+            }
+      }
       className={cn(
         "group relative isolate flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all duration-200 overflow-hidden",
         "bg-gradient-to-r from-secondary to-secondary/80 text-secondary-foreground text-sm font-semibold shadow-[0_12px_24px_-14px_color-mix(in_oklab,var(--color-secondary)_50%,transparent)]",
@@ -201,27 +226,34 @@ export default function ComplieeIdleButton({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
-      aria-label="Get help"
+      aria-label="Open Compli-ee assistant"
     >
-      <MiniCompliee className="h-6 w-5 relative z-10 transition-transform group-hover:scale-110 drop-shadow-md text-primary-foreground" />
+      <MiniCompliee
+        className="h-6 w-5 relative z-10 transition-transform group-hover:scale-110 drop-shadow-md text-primary-foreground"
+        reduceMotion={prefersReducedMotion}
+      />
       <span className="relative z-10 tracking-tight ml-1">Ask Compli-ee</span>
 
       {/* Sparkle particles */}
-      <Sparkle delay={0} x={12} y={18} />
-      <Sparkle delay={0.8} x={78} y={25} />
-      <Sparkle delay={1.6} x={45} y={10} />
+      <Sparkle delay={0} x={12} y={18} reduceMotion={prefersReducedMotion} />
+      <Sparkle delay={0.8} x={78} y={25} reduceMotion={prefersReducedMotion} />
+      <Sparkle delay={1.6} x={45} y={10} reduceMotion={prefersReducedMotion} />
 
       {/* Animated glow ring */}
       <motion.div
         className="absolute inset-0 rounded-[inherit] -z-10"
-        animate={{
-          boxShadow: [
-            "0 0 0 0px color-mix(in oklab, var(--color-secondary) 40%, transparent)",
-            "0 0 0 6px color-mix(in oklab, var(--color-secondary) 0%, transparent)",
-            "0 0 0 0px color-mix(in oklab, var(--color-secondary) 40%, transparent)",
-          ],
-        }}
-        transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : {
+                boxShadow: [
+                  "0 0 0 0px color-mix(in oklab, var(--color-secondary) 40%, transparent)",
+                  "0 0 0 6px color-mix(in oklab, var(--color-secondary) 0%, transparent)",
+                  "0 0 0 0px color-mix(in oklab, var(--color-secondary) 40%, transparent)",
+                ],
+              }
+        }
+        transition={prefersReducedMotion ? undefined : { repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
       />
 
       {/* Shimmer sweep on hover */}
@@ -232,8 +264,8 @@ export default function ComplieeIdleButton({
             "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%)",
           backgroundSize: "200% 100%",
         }}
-        animate={{ backgroundPosition: ["200% 0", "-200% 0"] }}
-        transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+        animate={prefersReducedMotion ? undefined : { backgroundPosition: ["200% 0", "-200% 0"] }}
+        transition={prefersReducedMotion ? undefined : { repeat: Infinity, duration: 2, ease: "linear" }}
       />
     </motion.button>
   );

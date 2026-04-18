@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, normalizeApiPayload } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Label } from "@/components/ui/label";
@@ -10,11 +10,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
 import { useAuth } from "@/context/AuthContext";
-import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Settings as SettingsIcon, Eye, Info } from "lucide-react";
+import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Settings as SettingsIcon, Eye, Info, ShieldCheck, ClipboardCopy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +95,7 @@ const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} ch
 export default function Settings() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, refetchUser } = useAuth();
   usePageTitle("Settings");
   const {
     theme,
@@ -119,9 +120,66 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(Boolean(user?.twoFactorEnabled));
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [twoFactorHasPendingSetup, setTwoFactorHasPendingSetup] = useState(false);
+  const [twoFactorSetupSecret, setTwoFactorSetupSecret] = useState("");
+  const [twoFactorSetupUri, setTwoFactorSetupUri] = useState("");
+  const [twoFactorSetupCode, setTwoFactorSetupCode] = useState("");
+  const [twoFactorDisablePassword, setTwoFactorDisablePassword] = useState("");
+  const [twoFactorDisableCode, setTwoFactorDisableCode] = useState("");
   const [exporting, setExporting] = useState(false);
   const workspaceProfile = compactMode ? "Compact" : "Comfortable";
-  const securityStatus = user?.isDemo ? "Demo access" : "Protected";
+  const securityStatus = user?.isDemo ? "Demo access" : twoFactorEnabled ? "Protected + 2FA" : "Protected";
+
+  useEffect(() => {
+    setTwoFactorEnabled(Boolean(user?.twoFactorEnabled));
+  }, [user?.twoFactorEnabled]);
+
+  useEffect(() => {
+    if (!user || user.isDemo) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTwoFactorStatus = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/auth/2fa/status");
+        const payload = await response.json();
+        const data = normalizeApiPayload<{ enabled: boolean; hasPendingSetup?: boolean }>(payload);
+        if (cancelled) {
+          return;
+        }
+        setTwoFactorEnabled(Boolean(data.enabled));
+        setTwoFactorHasPendingSetup(Boolean(data.hasPendingSetup));
+      } catch {
+        if (!cancelled) {
+          setTwoFactorHasPendingSetup(false);
+        }
+      }
+    };
+
+    void loadTwoFactorStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.isDemo]);
+
+  const readApiErrorMessage = (error: any, fallback: string) => {
+    try {
+      if (error?.body) {
+        const parsed = JSON.parse(error.body);
+        if (typeof parsed?.message === "string" && parsed.message.length > 0) {
+          return parsed.message;
+        }
+      }
+    } catch {
+      // Ignore parse errors and use fallback.
+    }
+    return fallback;
+  };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) {
@@ -153,6 +211,123 @@ export default function Settings() {
       toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const handleStartTwoFactorSetup = async () => {
+    setTwoFactorLoading(true);
+    try {
+      const response = await apiRequest("POST", "/api/auth/2fa/setup", {});
+      const payload = await response.json();
+      const data = normalizeApiPayload<{ secret: string; otpauthUri: string }>(payload);
+
+      setTwoFactorSetupSecret(data.secret);
+      setTwoFactorSetupUri(data.otpauthUri);
+      setTwoFactorSetupCode("");
+      setTwoFactorHasPendingSetup(true);
+
+      toast({
+        title: "2FA Setup Started",
+        description: "Add the key to your authenticator app, then enter the 6-digit code to enable.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Unable to Start 2FA",
+        description: readApiErrorMessage(error, "Could not start two-factor setup."),
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleEnableTwoFactor = async () => {
+    if (twoFactorSetupCode.replace(/\D/g, "").length !== 6) {
+      toast({
+        title: "Invalid Code",
+        description: "Enter a valid 6-digit verification code.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTwoFactorLoading(true);
+    try {
+      await apiRequest("POST", "/api/auth/2fa/enable", { code: twoFactorSetupCode });
+      await refetchUser();
+
+      setTwoFactorEnabled(true);
+      setTwoFactorHasPendingSetup(false);
+      setTwoFactorSetupSecret("");
+      setTwoFactorSetupUri("");
+      setTwoFactorSetupCode("");
+
+      toast({
+        title: "2FA Enabled",
+        description: "Two-factor authentication is now active on your account.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Unable to Enable 2FA",
+        description: readApiErrorMessage(error, "Could not verify the code."),
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    if (!twoFactorDisablePassword || twoFactorDisableCode.replace(/\D/g, "").length !== 6) {
+      toast({
+        title: "Missing Verification",
+        description: "Enter your current password and a valid 6-digit code.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTwoFactorLoading(true);
+    try {
+      await apiRequest("POST", "/api/auth/2fa/disable", {
+        password: twoFactorDisablePassword,
+        code: twoFactorDisableCode,
+      });
+      await refetchUser();
+
+      setTwoFactorEnabled(false);
+      setTwoFactorHasPendingSetup(false);
+      setTwoFactorDisablePassword("");
+      setTwoFactorDisableCode("");
+
+      toast({
+        title: "2FA Disabled",
+        description: "Two-factor authentication has been removed from your account.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Unable to Disable 2FA",
+        description: readApiErrorMessage(error, "Could not disable two-factor authentication."),
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const copyTwoFactorValue = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({
+        title: "Copied",
+        description: `${label} copied to clipboard.`,
+      });
+    } catch {
+      toast({
+        title: "Copy Failed",
+        description: `Could not copy ${label.toLowerCase()}.`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -349,6 +524,170 @@ export default function Settings() {
                 Change Password
               </Button>
             </form>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary/70" />
+                <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Two-Factor Authentication</h3>
+              </div>
+              <Badge variant={twoFactorEnabled ? "default" : "secondary"}>
+                {twoFactorEnabled ? "Enabled" : "Disabled"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Add an authenticator app step to protect your account if your password is compromised.
+            </p>
+
+            {user?.isDemo ? (
+              <div className="rounded-xl border border-border/50 bg-muted/20 p-3 text-xs text-muted-foreground">
+                Two-factor authentication is unavailable in demo mode.
+              </div>
+            ) : twoFactorEnabled ? (
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/10 p-4">
+                <p className="text-xs text-muted-foreground">
+                  Two-factor authentication is active. To disable it, confirm with your current password and authenticator code.
+                </p>
+                <Input
+                  type="password"
+                  placeholder="Current password"
+                  value={twoFactorDisablePassword}
+                  onChange={(e) => setTwoFactorDisablePassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Current authenticator code</Label>
+                  <div className="flex justify-center sm:justify-start py-1">
+                    <InputOTP
+                      maxLength={6}
+                      value={twoFactorDisableCode}
+                      onChange={setTwoFactorDisableCode}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={twoFactorLoading || !twoFactorDisablePassword || twoFactorDisableCode.length !== 6}
+                  onClick={handleDisableTwoFactor}
+                >
+                  {twoFactorLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Disable 2FA
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/10 p-4">
+                {!twoFactorSetupSecret ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {twoFactorHasPendingSetup
+                        ? "A previous setup is still pending. Restart setup to generate a fresh authenticator key."
+                        : "Start setup to generate your authenticator key, then verify with a one-time code."}
+                    </p>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={twoFactorLoading}
+                      onClick={handleStartTwoFactorSetup}
+                    >
+                      {twoFactorLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {twoFactorHasPendingSetup ? "Restart 2FA Setup" : "Start 2FA Setup"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Authenticator key</Label>
+                      <div className="flex gap-2">
+                        <Input value={twoFactorSetupSecret} readOnly className="font-mono text-xs" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void copyTwoFactorValue(twoFactorSetupSecret, "Authenticator key")}
+                        >
+                          <ClipboardCopy className="mr-2 h-4 w-4" />
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Provisioning URI (optional)</Label>
+                      <div className="flex gap-2">
+                        <Input value={twoFactorSetupUri} readOnly className="text-xs" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void copyTwoFactorValue(twoFactorSetupUri, "Provisioning URI")}
+                        >
+                          <ClipboardCopy className="mr-2 h-4 w-4" />
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Verification code</Label>
+                      <div className="flex justify-center sm:justify-start py-1">
+                        <InputOTP
+                          maxLength={6}
+                          value={twoFactorSetupCode}
+                          onChange={setTwoFactorSetupCode}
+                        >
+                          <InputOTPGroup>
+                            <InputOTPSlot index={0} />
+                            <InputOTPSlot index={1} />
+                            <InputOTPSlot index={2} />
+                            <InputOTPSlot index={3} />
+                            <InputOTPSlot index={4} />
+                            <InputOTPSlot index={5} />
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        className="w-full"
+                        disabled={twoFactorLoading || twoFactorSetupCode.length !== 6}
+                        onClick={handleEnableTwoFactor}
+                      >
+                        {twoFactorLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Enable 2FA
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        disabled={twoFactorLoading}
+                        onClick={() => {
+                          setTwoFactorSetupSecret("");
+                          setTwoFactorSetupUri("");
+                          setTwoFactorSetupCode("");
+                          setTwoFactorHasPendingSetup(false);
+                        }}
+                      >
+                        Cancel Setup
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </section>
 
           <Separator />

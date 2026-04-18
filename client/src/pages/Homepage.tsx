@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
@@ -279,9 +280,11 @@ export default function Homepage() {
   }, []);
 
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const { login, verifyTwoFactorLogin } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [twoFactorChallengeId, setTwoFactorChallengeId] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof NAV_SECTIONS)[number]["id"]>("platform");
@@ -292,14 +295,45 @@ export default function Homepage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
-      const success = await login(username, password);
+      const result = await login(username, password);
       setLoading(false);
-      if (success) {
+
+      if (result.status === "success") {
         setLoginOpen(false);
+        setTwoFactorChallengeId(null);
+        setTwoFactorCode("");
         setLocation("/dashboard");
+        return;
+      }
+
+      if (result.status === "requiresTwoFactor") {
+        setTwoFactorChallengeId(result.challengeId);
+        setTwoFactorCode("");
+        setPassword("");
       }
     },
     [username, password, login, setLocation]
+  );
+
+  const handleTwoFactorVerification = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!twoFactorChallengeId) {
+        return;
+      }
+
+      setLoading(true);
+      const result = await verifyTwoFactorLogin(twoFactorChallengeId, twoFactorCode);
+      setLoading(false);
+
+      if (result.status === "success") {
+        setLoginOpen(false);
+        setTwoFactorChallengeId(null);
+        setTwoFactorCode("");
+        setLocation("/dashboard");
+      }
+    },
+    [twoFactorChallengeId, twoFactorCode, verifyTwoFactorLogin, setLocation]
   );
 
   const openLoginFromCTA = useCallback(() => {
@@ -386,11 +420,15 @@ export default function Homepage() {
   return (
     <div className="homepage-theme min-h-screen overflow-x-hidden">
       <div className="home-pattern fixed inset-0 pointer-events-none opacity-25" />
+      <div className="home-spectrum home-spectrum-top" aria-hidden="true" />
+      <div className="home-spectrum home-spectrum-bottom" aria-hidden="true" />
+      <div className="home-grain-overlay" aria-hidden="true" />
       <div className="home-atmosphere home-atmosphere-left" aria-hidden="true" />
+      <div className="home-atmosphere home-atmosphere-center" aria-hidden="true" />
       <div className="home-atmosphere home-atmosphere-right" aria-hidden="true" />
 
       <header className={`home-header ${headerScrolled ? "is-scrolled" : ""}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex items-center justify-between gap-3">
+        <div className="home-header-shell max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl home-brand-mark flex items-center justify-center shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-4.5 w-4.5" />
@@ -399,6 +437,7 @@ export default function Homepage() {
               <div className="text-base font-semibold">CareAssurance</div>
               <div className="text-[11px] tracking-wide font-medium">Compliance Platform</div>
             </div>
+            <span className="home-brand-pill hidden xl:inline-flex">UK Care Ops</span>
           </div>
 
           <nav className="hidden md:flex items-center gap-2 text-sm font-medium">
@@ -415,11 +454,20 @@ export default function Homepage() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="home-header-actions flex items-center gap-2">
             <Button variant="outline" className="home-outline hidden sm:inline-flex" onClick={() => scrollToSection("contact")}>
               Contact
             </Button>
-            <Popover open={loginOpen} onOpenChange={setLoginOpen}>
+            <Popover
+              open={loginOpen}
+              onOpenChange={(open) => {
+                setLoginOpen(open);
+                if (!open) {
+                  setTwoFactorChallengeId(null);
+                  setTwoFactorCode("");
+                }
+              }}
+            >
               <PopoverTrigger asChild>
                 <Button className="home-cta" data-testid="button-header-login">
                   Login
@@ -448,52 +496,106 @@ export default function Homepage() {
                     </div>
                   </div>
                 </div>
-                <form onSubmit={handleLogin} className="p-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-username" className="text-sm text-muted-foreground">Username</Label>
-                    <Input
-                      id="login-username"
-                      placeholder="Enter username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                      minLength={2}
-                      autoComplete="username"
-                      autoFocus
-                      aria-describedby="login-hint"
-                      data-testid="input-dropdown-username"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-sm text-muted-foreground">Password</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="Enter password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={8}
-                      autoComplete="current-password"
-                      data-testid="input-dropdown-password"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    className="home-cta w-full"
-                    disabled={loading || username.trim().length < 2 || password.length < 8}
-                  >
-                    {loading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="animate-spin h-4 w-4" /> Signing in...
-                      </span>
-                    ) : (
-                      "Sign In"
-                    )}
-                  </Button>
-                </form>
+                {!twoFactorChallengeId ? (
+                  <form onSubmit={handleLogin} className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-username" className="text-sm text-muted-foreground">Username</Label>
+                      <Input
+                        id="login-username"
+                        placeholder="Enter username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                        minLength={2}
+                        autoComplete="username"
+                        autoFocus
+                        aria-describedby="login-hint"
+                        data-testid="input-dropdown-username"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password" className="text-sm text-muted-foreground">Password</Label>
+                      <Input
+                        id="login-password"
+                        type="password"
+                        placeholder="Enter password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        autoComplete="current-password"
+                        data-testid="input-dropdown-password"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="home-cta w-full"
+                      disabled={loading || username.trim().length < 2 || password.length < 8}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="animate-spin h-4 w-4" /> Signing in...
+                        </span>
+                      ) : (
+                        "Sign In"
+                      )}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleTwoFactorVerification} className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-2fa-code" className="text-sm text-muted-foreground">Verification Code</Label>
+                      <div className="flex justify-center py-1" id="login-2fa-code">
+                        <InputOTP
+                          maxLength={6}
+                          value={twoFactorCode}
+                          onChange={(value) => setTwoFactorCode(value)}
+                          data-testid="input-login-2fa"
+                          autoFocus
+                        >
+                          <InputOTPGroup>
+                            <InputOTPSlot index={0} />
+                            <InputOTPSlot index={1} />
+                            <InputOTPSlot index={2} />
+                            <InputOTPSlot index={3} />
+                            <InputOTPSlot index={4} />
+                            <InputOTPSlot index={5} />
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="home-cta w-full"
+                      disabled={loading || twoFactorCode.length !== 6}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="animate-spin h-4 w-4" /> Verifying...
+                        </span>
+                      ) : (
+                        "Verify and Sign In"
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setTwoFactorChallengeId(null);
+                        setTwoFactorCode("");
+                      }}
+                    >
+                      Back to Password Login
+                    </Button>
+                  </form>
+                )}
                 <div className="px-4 pb-4 text-center space-y-1">
-                  <p id="login-hint" className="text-xs text-muted-foreground">Need access? Contact your administrator</p>
+                  <p id="login-hint" className="text-xs text-muted-foreground">
+                    {twoFactorChallengeId
+                      ? "Enter the code from your authenticator app."
+                      : "Need access? Contact your administrator"}
+                  </p>
                 </div>
               </PopoverContent>
             </Popover>
@@ -579,7 +681,7 @@ export default function Homepage() {
               </div>
               <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {HERO_STATS.map((stat) => (
-                  <div key={stat.label} className="home-card-soft p-4 text-left group">
+                  <div key={stat.label} className="home-card-soft home-stat-card p-4 text-left group">
                     <div className="home-text-soft flex items-center gap-2.5 text-xs font-medium">
                       <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-primary/8 border border-primary/10">
                         <stat.icon className="h-3.5 w-3.5 text-primary" />
@@ -595,7 +697,7 @@ export default function Homepage() {
 
             <motion.div {...reveal(0.1)} className="relative">
               <div className="home-hero-glow" aria-hidden="true" />
-              <div className="home-card p-6">
+              <div className="home-card home-hero-panel p-6">
                 <div className="space-y-4">
                   {HERO_ACTIVITY.map((item) => (
                     <div key={item.title} className={`home-signal home-signal-${item.tone}`}>
@@ -617,6 +719,22 @@ export default function Homepage() {
                   <div className="home-card-soft p-3 home-mini-stat">
                     <p className="text-xs">Open issues flagged</p>
                     <p className="text-lg font-semibold">7</p>
+                  </div>
+                </div>
+                <div className="home-hero-trend" aria-hidden="true">
+                  <div className="home-hero-trend-header">
+                    <span>Risk drift index</span>
+                    <span>stable</span>
+                  </div>
+                  <div className="home-hero-trend-bars">
+                    <span className="home-hero-trend-bar bar-1" />
+                    <span className="home-hero-trend-bar bar-2" />
+                    <span className="home-hero-trend-bar bar-3" />
+                    <span className="home-hero-trend-bar bar-4" />
+                    <span className="home-hero-trend-bar bar-5" />
+                    <span className="home-hero-trend-bar bar-6" />
+                    <span className="home-hero-trend-bar bar-7" />
+                    <span className="home-hero-trend-bar bar-8" />
                   </div>
                 </div>
               </div>
@@ -727,7 +845,7 @@ export default function Homepage() {
             </motion.div>
             <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {PRIMARY_FEATURES.map((feature) => (
-                <motion.div key={feature.title} {...reveal(0.05)} className="home-card p-6">
+                <motion.div key={feature.title} {...reveal(0.05)} className="home-card home-feature-card p-6">
                   <div className="flex items-center justify-between">
                     <div className="h-10 w-10 rounded-xl flex items-center justify-center home-icon-chip">
                       <feature.icon className="h-5 w-5" />
@@ -1025,64 +1143,75 @@ export default function Homepage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border/60 bg-card/44 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 py-7 grid gap-5 md:grid-cols-[1.25fr_0.75fr_0.8fr] text-[13px]">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
-              <ShieldCheck className="h-4.5 w-4.5" />
+      <footer className="home-footer relative z-10 border-t border-border/60 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 py-6 sm:py-7">
+          <div className="home-footer-shell">
+            <div className="home-footer-grid grid gap-5 md:grid-cols-[1.25fr_0.75fr_0.8fr] text-[13px]">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
+                    <ShieldCheck className="h-4.5 w-4.5" />
+                  </div>
+                  <div>
+                    <span className="font-bold home-text-heading tracking-[-0.01em]">CareAssurance</span>
+                    <span className="ml-2 home-text-soft text-[13px]">careassurance.uk</span>
+                  </div>
+                </div>
+                <p className="max-w-md home-text-soft leading-relaxed">
+                  Professional compliance operations for domiciliary care teams, with consistent workflows across the website and extension.
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Explore</p>
+                <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
+                  <button
+                    type="button"
+                    className="home-footer-link bg-transparent p-0 text-left font-semibold transition-colors"
+                    onClick={() => scrollToSection("platform")}
+                  >
+                    Platform overview
+                  </button>
+                  <button
+                    type="button"
+                    className="home-footer-link bg-transparent p-0 text-left font-semibold transition-colors"
+                    onClick={() => scrollToSection("roi")}
+                  >
+                    Efficiency model
+                  </button>
+                  <button
+                    type="button"
+                    className="home-footer-link bg-transparent p-0 text-left font-semibold transition-colors"
+                    onClick={() => scrollToSection("contact")}
+                  >
+                    Contact
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Policies</p>
+                <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
+                  <Link href="/terms" className="home-footer-link font-semibold transition-colors">
+                    Terms & Conditions
+                  </Link>
+                  <Link href="/privacy" className="home-footer-link font-semibold transition-colors">
+                    Privacy Policy
+                  </Link>
+                  <button
+                    type="button"
+                    className="home-footer-link bg-transparent p-0 text-left font-semibold transition-colors"
+                    onClick={openLoginFromCTA}
+                  >
+                    Login to platform
+                  </button>
+                </div>
+              </div>
             </div>
-            <div>
-              <span className="font-bold home-text-heading tracking-[-0.01em]">CareAssurance</span>
-              <span className="ml-2 home-text-soft text-[13px]">careassurance.uk</span>
-            </div>
-          </div>
-            <p className="max-w-md home-text-soft leading-relaxed">
-              Professional compliance operations for domiciliary care teams, with consistent workflows across the website and extension.
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Explore</p>
-            <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
-              <button
-                type="button"
-                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
-                onClick={() => scrollToSection("platform")}
-              >
-                Platform overview
-              </button>
-              <button
-                type="button"
-                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
-                onClick={() => scrollToSection("roi")}
-              >
-                Efficiency model
-              </button>
-              <button
-                type="button"
-                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
-                onClick={() => scrollToSection("contact")}
-              >
-                Contact
-              </button>
-            </div>
-          </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Policies</p>
-            <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
-              <Link href="/terms" className="font-semibold hover:text-foreground transition-colors">
-                Terms & Conditions
-              </Link>
-              <Link href="/privacy" className="font-semibold hover:text-foreground transition-colors">
-                Privacy Policy
-              </Link>
-              <button
-                type="button"
-                className="bg-transparent p-0 text-left font-semibold hover:text-foreground transition-colors"
-                onClick={openLoginFromCTA}
-              >
-                Login to platform
-              </button>
+
+            <div className="home-footer-meta mt-5 flex flex-col gap-1.5 border-t border-border/55 pt-3 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                &copy; {new Date().getFullYear()} CareAssurance
+              </p>
+              <p className="sm:text-right">Built for UK domiciliary care operations and compliance oversight.</p>
             </div>
           </div>
         </div>

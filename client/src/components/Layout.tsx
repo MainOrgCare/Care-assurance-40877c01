@@ -89,6 +89,9 @@ type PlatformBannerControls = {
   updatedAt: string;
 };
 
+const COMPLIEE_INTRO_SEEN_KEY = "compliee_intro_seen";
+const COMPLIEE_INTRO_SNOOZE_KEY = "compliee_intro_snoozed_until";
+
 const formatBannerDate = (value: string | null | undefined): string => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -567,6 +570,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return username.toLowerCase() === "admin" ? "Administrator" : username;
   }, [user?.firstName, user?.lastName, user?.username]);
 
+  const isApplePlatform = useMemo(() => {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+    return /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  }, []);
+
+  const commandPaletteShortcutLabel = isApplePlatform ? "⌘K" : "Ctrl+K";
+  const assistantShortcutLabel = isApplePlatform ? "⌘ + /" : "Ctrl + /";
+
   const routeLabelLookup = useMemo(() => {
     const entries = [
       ...TOP_NAV_LINKS,
@@ -722,11 +735,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Show Compli-ee intro after user has accepted terms
   useEffect(() => {
-    if (user?.termsAcceptedAt && !localStorage.getItem('compliee_intro_seen')) {
-      // Small delay so the page loads first
-      const timer = setTimeout(() => setShowComplieeIntro(true), 500);
-      return () => clearTimeout(timer);
+    if (!user?.termsAcceptedAt) return;
+
+    const hasSeenIntro = localStorage.getItem(COMPLIEE_INTRO_SEEN_KEY);
+    if (hasSeenIntro) return;
+
+    const snoozedUntilRaw = localStorage.getItem(COMPLIEE_INTRO_SNOOZE_KEY);
+    const snoozedUntil = snoozedUntilRaw ? Number(snoozedUntilRaw) : 0;
+    const isSnoozed = Number.isFinite(snoozedUntil) && snoozedUntil > Date.now();
+
+    if (isSnoozed) {
+      return;
     }
+
+    if (snoozedUntilRaw && !isSnoozed) {
+      localStorage.removeItem(COMPLIEE_INTRO_SNOOZE_KEY);
+    }
+
+    // Small delay so the page loads first
+    const timer = setTimeout(() => setShowComplieeIntro(true), 500);
+    return () => clearTimeout(timer);
   }, [user?.termsAcceptedAt]);
 
   const contentWrapperClass = cn(
@@ -902,7 +930,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             role="banner"
             aria-label="Page header"
           >
-            <div className="mx-auto flex h-[3.8rem] w-full max-w-[var(--content-max-width)] items-center justify-between gap-3">
+            <div className="workspace-header-shell mx-auto flex h-[4rem] w-full max-w-[var(--content-max-width)] items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -980,11 +1008,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
                 className="hidden md:flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 px-3 py-1.5 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/72 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 transition-colors cursor-pointer"
-                title="Command Palette (Ctrl+K)"
+                title={`Command Palette (${commandPaletteShortcutLabel})`}
               >
                 <Search className="h-3.5 w-3.5" />
                 <span className="hidden lg:inline">Search...</span>
-                <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">⌘K</kbd>
+                <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">{commandPaletteShortcutLabel}</kbd>
               </button>
 
               {/* Notification Center (admin alerts) */}
@@ -1093,7 +1121,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             />
             <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
-              <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">Ctrl + /</kbd>
+              <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">{assistantShortcutLabel}</kbd>
             </div>
           </div>
         )}
@@ -1243,30 +1271,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Footer */}
         {!isSingleScreenRoute && (
           <footer className="workspace-footer flex-shrink-0 border-t border-border/60 px-4 py-2.5 sm:px-6 transition-[background-color,border-color] duration-200">
-            <div className="mx-auto flex w-full max-w-[var(--content-max-width)] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground">
-              <div className="flex flex-wrap items-center gap-2.5 font-medium">
-                <span className="text-foreground/60">&copy; {new Date().getFullYear()} CareAssurance</span>
-                <span className="hidden sm:inline text-border/70">&middot;</span>
-                <span className="hidden lg:inline text-muted-foreground/68">Operational assurance workspace</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/85">
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 rounded-full transition-colors",
-                      isConnected ? "bg-success" : "bg-destructive"
-                    )}
-                  />
-                  {isConnected ? "Connected" : "Offline"}
-                </span>
-                <span className="hidden md:inline text-muted-foreground/70 tabular-nums">{sessionDuration}</span>
-                <span className="h-3 w-px bg-border/30" />
-                <Link href="/terms" className="text-[10px] font-medium transition-colors hover:text-foreground hover:underline underline-offset-2" data-testid="link-footer-terms">
-                  Terms
-                </Link>
-                <Link href="/privacy" className="text-[10px] font-medium transition-colors hover:text-foreground hover:underline underline-offset-2" data-testid="link-footer-privacy">
-                  Privacy
-                </Link>
+            <div className="mx-auto w-full max-w-[var(--content-max-width)]">
+              <div className="workspace-footer-shell flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-[10px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2.5 font-medium">
+                  <span className="inline-flex items-center gap-1.5 text-foreground/68">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+                    &copy; {new Date().getFullYear()} CareAssurance
+                  </span>
+                  <span className="hidden sm:inline text-border/70">&middot;</span>
+                  <span className="hidden md:inline text-muted-foreground/76 truncate max-w-[13rem]">{pageMeta.title}</span>
+                  <span className="hidden lg:inline text-border/70">&middot;</span>
+                  <span className="hidden lg:inline text-muted-foreground/68">Operational assurance workspace</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="workspace-status-pill inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/90">
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full transition-colors",
+                        isConnected ? "bg-success" : "bg-destructive"
+                      )}
+                    />
+                    {isConnected ? "Connected" : "Offline"}
+                  </span>
+                  <span className="hidden md:inline rounded-full border border-border/55 bg-background/70 px-2 py-0.5 text-muted-foreground/82 tabular-nums">{sessionDuration}</span>
+                  <span className="h-3 w-px bg-border/30" />
+                  <Link href="/terms" className="workspace-footer-link text-[10px] font-medium transition-colors" data-testid="link-footer-terms">
+                    Terms
+                  </Link>
+                  <Link href="/privacy" className="workspace-footer-link text-[10px] font-medium transition-colors" data-testid="link-footer-privacy">
+                    Privacy
+                  </Link>
+                </div>
               </div>
             </div>
           </footer>

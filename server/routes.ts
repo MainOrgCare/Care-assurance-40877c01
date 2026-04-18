@@ -13,7 +13,7 @@ import {
 } from "./utils/apiResponse";
 import express from "express";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import os from "node:os";
 import { createServer, type Server } from "http";
@@ -96,10 +96,21 @@ import {
   recordLoginFailure,
   clearLoginFailures,
 } from "./utils/passwordPolicy";
+import {
+  buildTotpOtpauthUri,
+  decryptTotpSecret,
+  encryptTotpSecret,
+  generateTotpSecret,
+  normalizeTotpCode,
+  verifyTotpCode,
+} from "./utils/totp";
 // Vision-based extraction for improved EMAR accuracy
 
 const MAX_NON_ADMIN_SESSIONS = 2;
 const FORCE_LOGOUT_WARNING_SECONDS = 30;
+const TWO_FACTOR_LOGIN_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const TWO_FACTOR_SETUP_TTL_MS = 10 * 60 * 1000;
+const TWO_FACTOR_ISSUER = process.env.TWO_FACTOR_ISSUER?.trim() || "CareAssurance";
 
 const formatZodErrors = (errors: z.ZodIssue[]): Array<{ field: string; message: string }> =>
   errors.map((issue) => ({
@@ -4974,10 +4985,24 @@ function detectTableStructure(text: string): TableStructureInfo {
 }
 
 // Session type extension
+interface PendingTwoFactorLoginChallenge {
+  challengeId: string;
+  userId: string;
+  createdAt: number;
+  clientIp: string;
+}
+
+interface PendingTwoFactorSetup {
+  secret: string;
+  createdAt: number;
+}
+
 declare module "express-session" {
   interface SessionData {
     userId?: string;
     isDemo?: boolean;
+    pendingTwoFactorLogin?: PendingTwoFactorLoginChallenge;
+    pendingTwoFactorSetup?: PendingTwoFactorSetup;
   }
 }
 
@@ -5136,6 +5161,90 @@ export async function registerRoutes(
 
       await storage.deleteActiveSession(activeSession.sessionId);
     }, FORCE_LOGOUT_WARNING_SECONDS * 1000);
+  };
+
+  const enforceSessionCapacityForUser = async (user: { id: string; role: string }) => {
+    const isAdmin = user.role === "admin";
+    const existingSession = await storage.getActiveSessionByUserId(user.id);
+    const nonAdminCount = await storage.getNonAdminSessionCount();
+
+    if (!isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
+      return {
+        allowed: false,
+        forcingLogout: false,
+        message: `System is at capacity (${MAX_NON_ADMIN_SESSIONS} users). Please try again later.`,
+      };
+    }
+
+    let forcingLogout = false;
+    if (isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
+      const nonAdminSessions = await storage.getNonAdminActiveSessions();
+      if (nonAdminSessions.length > 0) {
+        const oldestSession = nonAdminSessions[0];
+        await forceLogoutUser(oldestSession);
+        forcingLogout = true;
+      }
+    }
+
+    return {
+      allowed: true,
+      forcingLogout,
+      message: null,
+    };
+  };
+
+  const establishAuthenticatedSession = async (
+    req: Request,
+    user: any,
+    clientIp: string,
+    forcingLogout: boolean,
+  ): Promise<void> => {
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate((err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    req.session.userId = user.id;
+    req.session.isDemo = false;
+    req.session.pendingTwoFactorLogin = undefined;
+    req.session.pendingTwoFactorSetup = undefined;
+
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    await storage.createActiveSession({
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      sessionId: req.sessionID,
+      ipAddress: clientIp !== "unknown" ? clientIp : null,
+    });
+
+    await storage.createSystemLog({
+      eventType: "user_login",
+      userId: user.id,
+      username: user.username,
+      details: {
+        ipAddress: clientIp,
+        role: user.role,
+        forced_logout: forcingLogout,
+      },
+    });
+
+    await storage.createSessionHistory({
+      userId: user.id,
+      username: user.username,
+      sessionId: req.sessionID,
+      ipAddress: clientIp !== "unknown" ? clientIp : null,
+    });
+
+    await storage.updateLastOnlineAt(user.id);
   };
 
   if (!process.env.SESSION_SECRET) {
@@ -5361,6 +5470,7 @@ export async function registerRoutes(
     role: "staff",
     status: "active",
     isDemo: true,
+    twoFactorEnabled: false,
     termsAcceptedAt: new Date().toISOString(),
     termsVersion: "1.0",
   });
@@ -5378,6 +5488,7 @@ export async function registerRoutes(
     termsVersion: user.termsVersion ?? null,
     termsSignatureName: user.termsSignatureName ?? null,
     termsSignatureDate: user.termsSignatureDate ?? null,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
     isDemo: Boolean(user.isDemo),
   });
 
@@ -5680,78 +5791,60 @@ export async function registerRoutes(
         return apiForbidden(res, `Account suspended. Please try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`);
       }
 
-      // Check session limits for non-admin users
-      const isAdmin = user.role === "admin";
-      const existingSession = await storage.getActiveSessionByUserId(user.id);
-      const nonAdminCount = await storage.getNonAdminSessionCount();
-      
-      let forcingLogout = false;
-      
-      if (!isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
-        return apiError(res, 503, `System is at capacity (${MAX_NON_ADMIN_SESSIONS} users). Please try again later.`, { code: "SYSTEM_CAPACITY" });
-      }
-      
-      // Admin priority: if admin logs in and all slots are full, force logout oldest non-admin
-      if (isAdmin && nonAdminCount >= MAX_NON_ADMIN_SESSIONS && !existingSession) {
-        const nonAdminSessions = await storage.getNonAdminActiveSessions();
-        if (nonAdminSessions.length > 0) {
-          const oldestSession = nonAdminSessions[0];
-          await forceLogoutUser(oldestSession);
-          forcingLogout = true;
-        }
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err: any) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      req.session.userId = user.id;
-      req.session.isDemo = false;
-      
-      // Explicitly save session before responding
-      await new Promise<void>((resolve, reject) => {
-        req.session.save((err: any) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
       clearLoginFailures(attemptKey);
-      
-      // Create active session record with IP address
-      await storage.createActiveSession({
-        userId: user.id,
-        username: user.username,
-        role: user.role,
-        sessionId: req.sessionID,
-        ipAddress: clientIp !== 'unknown' ? clientIp : null,
-      });
-      
-      // Audit log: User login
-      await storage.createSystemLog({
-        eventType: 'user_login',
-        userId: user.id,
-        username: user.username,
-        details: {
-          ipAddress: clientIp,
-          role: user.role,
-          forced_logout: forcingLogout,
-        },
-      });
-      
-      // Create session history entry with IP address
-      await storage.createSessionHistory({
-        userId: user.id,
-        username: user.username,
-        sessionId: req.sessionID,
-        ipAddress: clientIp !== 'unknown' ? clientIp : null,
-      });
-      
-      // Update last online
-      await storage.updateLastOnlineAt(user.id);
+
+      if (user.twoFactorEnabled) {
+        if (!user.twoFactorSecret) {
+          logSecurityEvent({
+            eventType: "AUTH_FAILURE",
+            endpoint: "/api/auth/login",
+            ipAddress: clientIp,
+            userId: user.id,
+            username: user.username,
+            details: {
+              reason: "2FA enabled without secret",
+            },
+          });
+          return apiError(
+            res,
+            503,
+            "Two-factor authentication is not configured correctly for this account. Please contact an administrator.",
+            { code: "TWO_FACTOR_NOT_CONFIGURED" },
+          );
+        }
+
+        const challengeId = randomUUID();
+        req.session.pendingTwoFactorLogin = {
+          challengeId,
+          userId: user.id,
+          createdAt: Date.now(),
+          clientIp,
+        };
+        req.session.pendingTwoFactorSetup = undefined;
+
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+        return apiSuccess(res, {
+          requiresTwoFactor: true,
+          challengeId,
+          expiresInSeconds: Math.floor(TWO_FACTOR_LOGIN_CHALLENGE_TTL_MS / 1000),
+          twoFactorEnabled: true,
+        });
+      }
+
+      const capacity = await enforceSessionCapacityForUser(user);
+      if (!capacity.allowed) {
+        return apiError(res, 503, capacity.message || "System is at capacity. Please try again later.", {
+          code: "SYSTEM_CAPACITY",
+        });
+      }
+
+      await establishAuthenticatedSession(req, user, clientIp, capacity.forcingLogout);
       
       return apiSuccess(res, {
         id: user.id,
@@ -5763,7 +5856,8 @@ export async function registerRoutes(
         jobTitle: user.jobTitle,
         termsAcceptedAt: user.termsAcceptedAt,
         termsVersion: user.termsVersion,
-        forcingLogout,
+        forcingLogout: capacity.forcingLogout,
+        twoFactorEnabled: Boolean(user.twoFactorEnabled),
       });
     } catch (error: any) {
       const message = String(error?.message || error || "").toLowerCase();
@@ -5792,6 +5886,140 @@ export async function registerRoutes(
     }
   });
 
+  // Two-factor login completion
+  app.post("/api/auth/login-2fa", async (req, res) => {
+    try {
+      if (!hasDatabaseUrl) {
+        return apiError(res, 503, "Authentication is unavailable in this environment.", {
+          code: "AUTH_DB_UNAVAILABLE",
+        });
+      }
+
+      const pendingChallenge = req.session.pendingTwoFactorLogin;
+      const { challengeId, code } = req.body ?? {};
+
+      if (!pendingChallenge?.challengeId) {
+        return apiUnauthorized(res, "Two-factor verification session not found. Please sign in again.");
+      }
+
+      if (typeof challengeId !== "string" || challengeId !== pendingChallenge.challengeId) {
+        return apiUnauthorized(res, "Invalid two-factor challenge. Please sign in again.");
+      }
+
+      if (Date.now() - pendingChallenge.createdAt > TWO_FACTOR_LOGIN_CHALLENGE_TTL_MS) {
+        req.session.pendingTwoFactorLogin = undefined;
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        return apiUnauthorized(res, "Two-factor challenge expired. Please sign in again.");
+      }
+
+      const normalizedCode = normalizeTotpCode(typeof code === "string" ? code : "");
+      if (!normalizedCode) {
+        return apiBadRequest(res, "A valid 6-digit verification code is required.");
+      }
+
+      const user = await storage.getUser(pendingChallenge.userId);
+      if (!user || user.status !== "active") {
+        req.session.pendingTwoFactorLogin = undefined;
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        return apiUnauthorized(res, "Your session is no longer valid. Please sign in again.");
+      }
+
+      if (!user.twoFactorEnabled || !user.twoFactorSecret) {
+        req.session.pendingTwoFactorLogin = undefined;
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        return apiConflict(res, "Two-factor authentication is not configured for this account.");
+      }
+
+      const secret = decryptTotpSecret(user.twoFactorSecret);
+      if (!secret) {
+        return apiError(
+          res,
+          503,
+          "Two-factor authentication is temporarily unavailable. Please contact an administrator.",
+          { code: "TWO_FACTOR_SECRET_INVALID" },
+        );
+      }
+
+      const isValidCode = verifyTotpCode(secret, normalizedCode);
+      if (!isValidCode) {
+        logSecurityEvent({
+          eventType: "LOGIN_FAILED",
+          endpoint: "/api/auth/login-2fa",
+          ipAddress: pendingChallenge.clientIp,
+          userId: user.id,
+          username: user.username,
+          details: {
+            reason: "Invalid two-factor code",
+          },
+        });
+        return apiUnauthorized(res, "Invalid verification code.");
+      }
+
+      const capacity = await enforceSessionCapacityForUser(user);
+      if (!capacity.allowed) {
+        return apiError(res, 503, capacity.message || "System is at capacity. Please try again later.", {
+          code: "SYSTEM_CAPACITY",
+        });
+      }
+
+      const effectiveClientIp = pendingChallenge.clientIp || getClientIp(req);
+      await establishAuthenticatedSession(req, user, effectiveClientIp, capacity.forcingLogout);
+
+      return apiSuccess(res, {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        status: user.status,
+        jobTitle: user.jobTitle,
+        termsAcceptedAt: user.termsAcceptedAt,
+        termsVersion: user.termsVersion,
+        forcingLogout: capacity.forcingLogout,
+        twoFactorEnabled: true,
+      });
+    } catch (error: any) {
+      const message = String(error?.message || error || "").toLowerCase();
+      const isTransientDbFailure =
+        message.includes("arrayparser.create is not a function") ||
+        message.includes("self-signed certificate") ||
+        message.includes("ssl off") ||
+        message.includes("connect econnrefused") ||
+        message.includes("enotfound") ||
+        message.includes("connection terminated") ||
+        message.includes("timeout") ||
+        message.includes("no pg_hba.conf entry") ||
+        message.includes("remaining connection slots are reserved");
+
+      if (isTransientDbFailure) {
+        return apiError(
+          res,
+          503,
+          "Login is temporarily unavailable due to a database connection issue. Please try again shortly.",
+          { code: "AUTH_DB_UNAVAILABLE" },
+        );
+      }
+
+      console.error("[Auth] 2FA login failed:", error);
+      return apiInternalError(res, safeErrorMessage(error, "Two-factor login failed"));
+    }
+  });
+
   // Demo Login DISABLED for security (previously development only)
   // Re-enable by setting ENABLE_DEMO_MODE=true in development only
   if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEMO_MODE === "true") {
@@ -5817,6 +6045,7 @@ export async function registerRoutes(
           status: 'active' as const,
           jobTitle: 'Demo Account',
           isDemo: true,
+          twoFactorEnabled: false,
           termsVersion: '1.0',
           termsAcceptedAt: new Date().toISOString(),
           termsSignatureName: 'Demo User',
@@ -5893,6 +6122,7 @@ export async function registerRoutes(
     jobTitle: user.jobTitle,
     termsAcceptedAt: user.termsAcceptedAt,
     termsVersion: user.termsVersion,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
     isDemo: Boolean(user.isDemo),
   });
 
@@ -6363,6 +6593,195 @@ export async function registerRoutes(
       return res.json({ message: "Password changed successfully" });
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to change password") });
+    }
+  });
+
+  // Get own 2FA status
+  app.get("/api/auth/2fa/status", requireAuth, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return apiNotFound(res, "User not found");
+      }
+
+      return apiSuccess(res, {
+        enabled: Boolean(user.twoFactorEnabled),
+        hasPendingSetup: Boolean(req.session.pendingTwoFactorSetup),
+      });
+    } catch (error: any) {
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load 2FA status"));
+    }
+  });
+
+  // Start 2FA setup for authenticated user
+  app.post("/api/auth/2fa/setup", requireAuth, blockDemoWrites, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return apiNotFound(res, "User not found");
+      }
+
+      if (user.twoFactorEnabled) {
+        return apiConflict(res, "Two-factor authentication is already enabled for this account.");
+      }
+
+      const secret = generateTotpSecret();
+      const accountName = `${user.username}@${process.env.CANONICAL_DOMAIN || "careassurance.uk"}`;
+      const otpauthUri = buildTotpOtpauthUri({
+        issuer: TWO_FACTOR_ISSUER,
+        accountName,
+        secret,
+      });
+
+      req.session.pendingTwoFactorSetup = {
+        secret,
+        createdAt: Date.now(),
+      };
+
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      return apiSuccess(res, {
+        secret,
+        otpauthUri,
+        issuer: TWO_FACTOR_ISSUER,
+        accountName,
+        expiresInSeconds: Math.floor(TWO_FACTOR_SETUP_TTL_MS / 1000),
+      });
+    } catch (error: any) {
+      return apiInternalError(res, safeErrorMessage(error, "Failed to start 2FA setup"));
+    }
+  });
+
+  // Verify and enable 2FA
+  app.post("/api/auth/2fa/enable", requireAuth, blockDemoWrites, async (req: any, res) => {
+    try {
+      const pendingSetup = req.session.pendingTwoFactorSetup;
+      if (!pendingSetup) {
+        return apiBadRequest(res, "No pending 2FA setup found. Please start setup again.");
+      }
+
+      if (Date.now() - pendingSetup.createdAt > TWO_FACTOR_SETUP_TTL_MS) {
+        req.session.pendingTwoFactorSetup = undefined;
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        return apiUnauthorized(res, "Two-factor setup expired. Please start setup again.");
+      }
+
+      const normalizedCode = normalizeTotpCode(typeof req.body?.code === "string" ? req.body.code : "");
+      if (!normalizedCode) {
+        return apiBadRequest(res, "A valid 6-digit verification code is required.");
+      }
+
+      const valid = verifyTotpCode(pendingSetup.secret, normalizedCode);
+      if (!valid) {
+        return apiUnauthorized(res, "Invalid verification code.");
+      }
+
+      const encryptedSecret = encryptTotpSecret(pendingSetup.secret);
+      const updatedUser = await storage.updateUserTwoFactor(req.user.id, true, encryptedSecret);
+      if (!updatedUser) {
+        return apiNotFound(res, "User not found");
+      }
+
+      req.session.pendingTwoFactorSetup = undefined;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      authSessionCache.delete(`${req.user.id}:${req.sessionID}`);
+      req.user.twoFactorEnabled = true;
+
+      return apiSuccess(
+        res,
+        {
+          enabled: true,
+        },
+        { message: "Two-factor authentication enabled." },
+      );
+    } catch (error: any) {
+      return apiInternalError(res, safeErrorMessage(error, "Failed to enable two-factor authentication"));
+    }
+  });
+
+  // Disable 2FA
+  app.post("/api/auth/2fa/disable", requireAuth, blockDemoWrites, async (req: any, res) => {
+    try {
+      const { password, code } = req.body ?? {};
+      if (!password || typeof password !== "string") {
+        return apiBadRequest(res, "Current password is required.");
+      }
+
+      const normalizedCode = normalizeTotpCode(typeof code === "string" ? code : "");
+      if (!normalizedCode) {
+        return apiBadRequest(res, "A valid 6-digit verification code is required.");
+      }
+
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return apiNotFound(res, "User not found");
+      }
+
+      if (!user.twoFactorEnabled || !user.twoFactorSecret) {
+        return apiBadRequest(res, "Two-factor authentication is not enabled for this account.");
+      }
+
+      const passwordValid = await storage.verifyPassword(password, user.password);
+      if (!passwordValid) {
+        return apiUnauthorized(res, "Current password is incorrect.");
+      }
+
+      const secret = decryptTotpSecret(user.twoFactorSecret);
+      if (!secret) {
+        return apiError(
+          res,
+          503,
+          "Two-factor authentication is temporarily unavailable. Please contact an administrator.",
+          { code: "TWO_FACTOR_SECRET_INVALID" },
+        );
+      }
+
+      const codeValid = verifyTotpCode(secret, normalizedCode);
+      if (!codeValid) {
+        return apiUnauthorized(res, "Invalid verification code.");
+      }
+
+      const updatedUser = await storage.updateUserTwoFactor(req.user.id, false, null);
+      if (!updatedUser) {
+        return apiNotFound(res, "User not found");
+      }
+
+      req.session.pendingTwoFactorSetup = undefined;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      authSessionCache.delete(`${req.user.id}:${req.sessionID}`);
+      req.user.twoFactorEnabled = false;
+
+      return apiSuccess(
+        res,
+        {
+          enabled: false,
+        },
+        { message: "Two-factor authentication disabled." },
+      );
+    } catch (error: any) {
+      return apiInternalError(res, safeErrorMessage(error, "Failed to disable two-factor authentication"));
     }
   });
 

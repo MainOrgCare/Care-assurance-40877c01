@@ -4,26 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "whitespace-nowrap inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.045em] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:ring-offset-1",
+  "whitespace-nowrap inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.05em] transition-[border-color,background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-1",
   {
     variants: {
       variant: {
         default:
-          "border-primary/20 bg-primary/8 text-primary",
+          "border-primary/24 bg-primary/10 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]",
         secondary:
-          "border-secondary/20 bg-secondary/8 text-secondary",
+          "border-secondary/22 bg-secondary/10 text-secondary",
         destructive:
-          "border-destructive/16 bg-destructive/8 text-destructive dark:border-destructive/20 dark:bg-destructive/100/10 dark:text-destructive",
+          "border-destructive/24 bg-destructive/10 text-destructive dark:border-destructive/26 dark:bg-destructive/100/12 dark:text-destructive",
         success:
-          "border-success/16 bg-success/8 text-success dark:border-success/20 dark:bg-success/100/10 dark:text-success-400",
+          "border-success/24 bg-success/10 text-success dark:border-success/28 dark:bg-success/100/12 dark:text-success-400",
         warning:
-          "border-warning/18 bg-warning/100/8 text-warning dark:border-warning/40/20 dark:bg-warning/100/10 dark:text-warning",
+          "border-warning/24 bg-warning/100/12 text-warning dark:border-warning/40/24 dark:bg-warning/100/12 dark:text-warning",
         outline:
-          "text-foreground/80 border-border bg-transparent",
+          "text-foreground/80 border-border/90 bg-transparent",
         muted:
-          "text-muted-foreground border-border bg-muted/50",
+          "text-muted-foreground border-border bg-muted/60",
         premium:
-          "border-primary/20 bg-primary/8 text-primary",
+          "border-primary/30 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_10%,transparent)_0%,color-mix(in_oklab,var(--color-secondary)_16%,transparent)_100%)] text-primary",
       },
     },
     defaultVariants: {
