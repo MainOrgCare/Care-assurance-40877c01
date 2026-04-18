@@ -8027,27 +8027,56 @@ export async function registerRoutes(
       sendEvent('progress', { percent, status, stage });
     };
     
+    const UNKNOWN_CARE_WORKER_TOKENS = new Set([
+      "unknown",
+      "n.n.",
+      "n.n",
+      "nn",
+      "n/a",
+      "na",
+      "not recorded",
+      "not available",
+    ]);
+
+    const normalizeCareWorkerValue = (value: unknown): string => String(value || "").trim();
+    const normalizeCareWorkerLetters = (value: unknown): string =>
+      normalizeCareWorkerValue(value).toUpperCase().replace(/[^A-Z]/g, "");
+    const isMaskedCareWorkerToken = (value: unknown): boolean => {
+      const normalized = normalizeCareWorkerLetters(value);
+      return normalized.length > 6 && normalized.startsWith("PII");
+    };
+    const isUnknownCareWorkerToken = (value: unknown): boolean => {
+      const normalizedValue = normalizeCareWorkerValue(value);
+      if (!normalizedValue) return true;
+      return UNKNOWN_CARE_WORKER_TOKENS.has(normalizedValue.toLowerCase()) || isMaskedCareWorkerToken(normalizedValue);
+    };
+    const normalizeCareWorkerInitialsToken = (value: unknown): string => {
+      const rawValue = normalizeCareWorkerValue(value);
+      const normalized = normalizeCareWorkerLetters(rawValue);
+      if (!normalized || normalized === "MANUAL") return "";
+      if (isUnknownCareWorkerToken(rawValue)) return "";
+      return normalized.length <= 4 ? normalized : "";
+    };
+
     // Helper: Resolve care worker initials to display name based on privacy settings
     async function resolveCareWorkerName(
       initials: string | undefined,
       allowSensitiveView: boolean
     ): Promise<string> {
-      if (!initials || initials.trim() === "") {
+      const rawValue = normalizeCareWorkerValue(initials);
+      if (!rawValue) {
         return "N.N."; // No initials = call documentation not completed
       }
 
-      const splitNames = String(initials)
+      const splitNames = rawValue
         .split(/[;,/|]+/)
         .map((part) => part.trim())
         .filter(Boolean);
 
-      const unknownTokens = new Set(["unknown", "n.n.", "n.n", "nn", "n/a", "na", "not recorded"]);
-      const normalizeToken = (token: string) => token.trim().toLowerCase();
-
       if (splitNames.length > 1) {
         const resolved = await Promise.all(
           splitNames.map(async (token) => {
-            if (!token || unknownTokens.has(normalizeToken(token))) return token || "N.N.";
+            if (!token || isUnknownCareWorkerToken(token)) return "N.N.";
             if (!allowSensitiveView) return token;
             try {
               const worker = await storage.getCareWorkerByInitials(token);
@@ -8059,36 +8088,30 @@ export async function registerRoutes(
         );
         return Array.from(new Set(resolved.filter(Boolean))).join(", ") || "N.N.";
       }
+
+      if (isUnknownCareWorkerToken(rawValue)) {
+        return "N.N.";
+      }
       
       if (!allowSensitiveView) {
-        return initials; // Privacy mode - show only initials
+        return rawValue; // Privacy mode - show only initials
       }
       
       // Allow sensitive view - try to get full name from database
       try {
-        const worker = await storage.getCareWorkerByInitials(initials);
-        return worker?.name || initials; // Full name if mapped, otherwise initials
+        const worker = await storage.getCareWorkerByInitials(rawValue);
+        return worker?.name || rawValue; // Full name if mapped, otherwise initials
       } catch {
-        return initials; // Fallback to initials on error
+        return rawValue; // Fallback to initials on error
       }
     }
 
-    const UNKNOWN_CARE_WORKER_VALUES = new Set([
-      "",
-      "unknown",
-      "n.n.",
-      "n.n",
-      "nn",
-      "n/a",
-      "na",
-      "not recorded",
-      "not available",
-    ]);
+    const UNKNOWN_CARE_WORKER_VALUES = new Set(["", ...UNKNOWN_CARE_WORKER_TOKENS]);
 
-    const normalizeWorkerValue = (value: unknown): string => String(value || "").trim();
+    const normalizeWorkerValue = (value: unknown): string => normalizeCareWorkerValue(value);
 
     const isUnknownCareWorker = (value: unknown): boolean =>
-      UNKNOWN_CARE_WORKER_VALUES.has(normalizeWorkerValue(value).toLowerCase());
+      UNKNOWN_CARE_WORKER_VALUES.has(normalizeWorkerValue(value).toLowerCase()) || isMaskedCareWorkerToken(value);
 
     const splitWorkerNames = (value: unknown): string[] =>
       normalizeWorkerValue(value)
@@ -11724,7 +11747,7 @@ CARE WORKER INITIALS (IMPORTANT):
       };
 
       const normalizeInitialsToken = (value: unknown): string =>
-        String(value || "").toUpperCase().replace(/[^A-Z]/g, "");
+        normalizeCareWorkerInitialsToken(value);
 
       // Calculate expected total cells (for non-PRN medications)
       const nonPrnMedsList = metadata.medications?.filter((m: any) => !m.isPRN) || [];
@@ -11768,7 +11791,8 @@ CARE WORKER INITIALS (IMPORTANT):
         const rawCareWorker = String(entry.careWorker || "").trim();
         const rawInitials = normalizeInitialsToken(entry.careWorkerInitials || rawCareWorker);
         const initials = rawInitials === "MANUAL" ? "" : rawInitials;
-        const looksLikeName = rawCareWorker.split(/\s+/).filter(Boolean).length >= 2;
+        const hasUnknownRawCareWorker = isUnknownCareWorkerToken(rawCareWorker);
+        const looksLikeName = !hasUnknownRawCareWorker && rawCareWorker.split(/\s+/).filter(Boolean).length >= 2;
         let careWorkerValue = rawCareWorker;
 
         if (looksLikeName && rawCareWorker) {
@@ -11778,14 +11802,14 @@ CARE WORKER INITIALS (IMPORTANT):
           if (fullName) {
             careWorkerValue = fullName;
           } else {
-            // Keep original initials but track as unknown
-            careWorkerValue = rawCareWorker || initials;
+            // Keep the extracted initials visible until they are mapped to a care worker.
+            careWorkerValue = initials;
             unknownInitials.add(initials);
           }
-        } else if (rawCareWorker) {
+        } else if (rawCareWorker && !hasUnknownRawCareWorker) {
           careWorkerValue = rawCareWorker;
         } else {
-          careWorkerValue = "Not recorded";
+          careWorkerValue = "N.N.";
         }
 
         // Resolve medication name from medicationId or fallback to name matching
@@ -14803,33 +14827,54 @@ Respond ONLY with valid JSON in this exact format:
         const label = scrubbedChunks.length > 1 ? ` (${i + 1}/${scrubbedChunks.length})` : "";
         sendProgress(30, `Running AI analysis${label}...`, "ai_analysis");
 
-        const response = await executeSecureTextCompletion({
-          endpoint: "/api/ai/analyze-visit",
-          feature: "visit_audit",
-          model: visitAuditModel,
-          userContext: aiUserContext,
-          inputText: `Analyze these visit logs:\n\n${scrubbedChunks[i]}`,
-          systemPrompt,
-          maxCompletionTokens: 4000,
-          temperature: 0,
-          seed: DETERMINISTIC_SEED,
-          responseFormat: { type: "json_object" },
-          useCache: false,
-        });
+        try {
+          const response = await executeSecureTextCompletion({
+            endpoint: "/api/ai/analyze-visit",
+            feature: "visit_audit",
+            model: visitAuditModel,
+            userContext: aiUserContext,
+            inputText: `Analyze these visit logs:\n\n${scrubbedChunks[i]}`,
+            systemPrompt,
+            maxCompletionTokens: 4000,
+            temperature: 0,
+            seed: DETERMINISTIC_SEED,
+            responseFormat: { type: "json_object" },
+            useCache: false,
+          });
 
-        const content = response.restoredText || "";
-        const parsed = parseVisitAuditResult(content);
-        if (parsed) {
-          chunkResults.push(parsed);
-        } else {
-          const hasBrace = content.includes("{");
-          console.warn(`[Visit Audit] Chunk ${i + 1} returned unparsable JSON output (length=${content.length}, hasBrace=${hasBrace}).`);
+          const content = response.restoredText || "";
+          const parsed = parseVisitAuditResult(content);
+          if (parsed) {
+            chunkResults.push(parsed);
+          } else {
+            const hasBrace = content.includes("{");
+            console.warn(`[Visit Audit] Chunk ${i + 1} returned unparsable JSON output (length=${content.length}, hasBrace=${hasBrace}).`);
+          }
+        } catch (chunkError) {
+          console.error(`[Visit Audit] AI chunk ${i + 1} failed:`, chunkError);
         }
       }
 
       if (progressInterval) clearInterval(progressInterval);
 
       if (chunkResults.length === 0) {
+        if (Array.isArray(preprocessing.lines) && preprocessing.lines.length > 1) {
+          console.warn("[Visit Audit] AI returned no usable chunks; falling back to deterministic audit.");
+          const fallbackResult = applyAuditHints(
+            buildDeterministicVisitAudit(preprocessing.lines),
+            auditHints,
+            allowSensitiveView
+          );
+          if (allowSensitiveView && serviceUserFullName && fallbackResult.serviceUserName !== "Multiple") {
+            fallbackResult.serviceUserName = serviceUserFullName;
+          }
+          sendProgress(100, "Analysis complete using fallback audit.", "complete");
+          sendEvent('result', fallbackResult);
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          visitPIIVault.clear();
+          return res.end();
+        }
+
         throw new Error("No result received from analysis");
       }
 

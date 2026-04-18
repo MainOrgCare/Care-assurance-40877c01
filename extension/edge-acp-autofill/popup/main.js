@@ -2074,9 +2074,12 @@ const isMobizioHostName = (hostName) => {
   return host === "clece.mobizio.com" || host.endsWith(".mobizio.com");
 };
 
-const executeScriptInTab = async (tabId, func, args = []) => {
+const executeScriptInTab = async (tabId, func, args = [], options = {}) => {
+  const requestedWorld = String(options?.world || "").trim().toUpperCase();
+  const world = requestedWorld === "MAIN" || requestedWorld === "ISOLATED" ? requestedWorld : undefined;
   const results = await chrome.scripting.executeScript({
     target: { tabId },
+    ...(world ? { world } : {}),
     func,
     args,
   });
@@ -2182,15 +2185,19 @@ const normalizeScrapedDocuments = (documents) => {
     const uploadedDate = String(entry.uploadedDate || "").trim();
     const uploadedBy = String(entry.uploadedBy || "").trim();
     const downloadId = String(entry.downloadId || "").trim();
+    const downloadStrategy = String(entry.downloadStrategy || "").trim();
+    const exportButtonId = String(entry.exportButtonId || "").trim();
+    const orientationButtonId = String(entry.orientationButtonId || "").trim();
+    const orientationValue = String(entry.orientationValue || entry.orientation || "").trim();
     const candidateUrls = Array.isArray(entry.candidateUrls)
       ? entry.candidateUrls.map((url) => String(url || "").trim()).filter(Boolean)
       : [];
 
-    if (!downloadId && candidateUrls.length === 0) {
+    if (!downloadId && candidateUrls.length === 0 && !downloadStrategy) {
       continue;
     }
 
-    const dedupeKey = `${downloadId}:${fileName.toLowerCase()}:${uploadedDate.toLowerCase()}`;
+    const dedupeKey = `${downloadStrategy}:${downloadId}:${fileName.toLowerCase()}:${uploadedDate.toLowerCase()}`;
     if (seen.has(dedupeKey)) {
       continue;
     }
@@ -2200,6 +2207,10 @@ const normalizeScrapedDocuments = (documents) => {
       id: `${downloadId || "row"}-${index}`,
       rowId: String(entry.rowId || index + 1),
       downloadId,
+      downloadStrategy,
+      exportButtonId,
+      orientationButtonId,
+      orientationValue,
       name,
       fileName,
       description,
@@ -2714,6 +2725,54 @@ const scrapeMobizioDocumentsInPage = async () => {
       window.setTimeout(resolve, ms);
     });
 
+  const currentPath = String(window.location.pathname || "").toLowerCase();
+
+  const buildCarePlanDashboardDocument = () => {
+    if (!currentPath.includes("case_care_plans_dashboard")) {
+      return null;
+    }
+
+    const exportButton = document.getElementById("download-workplans-as-pdf") || document.querySelector("#download-workplans-as-pdf");
+    if (!exportButton) {
+      return null;
+    }
+
+    const portraitOption =
+      document.getElementById("orientation-portrait") ||
+      document.querySelector("#orientation-portrait, .select-pdf-orientation[data-orientation='0']");
+    const workplanCount = document.querySelectorAll(".workplan-container").length;
+    let caseId = "";
+
+    try {
+      caseId = String(new URL(window.location.href).searchParams.get("caseId") || "").trim();
+    } catch {
+      caseId = "";
+    }
+
+    return {
+      rowId: "care-plan-dashboard-export",
+      downloadId: "",
+      downloadStrategy: "carePlanDashboardPdf",
+      exportButtonId: exportButton.id || "download-workplans-as-pdf",
+      orientationButtonId: portraitOption?.id || "orientation-portrait",
+      orientationValue: String(portraitOption?.getAttribute?.("data-orientation") || "0").trim() || "0",
+      name: "Care Plan PDF Export",
+      fileName: caseId ? `care-plan-${caseId}.pdf` : "care-plan.pdf",
+      description:
+        workplanCount > 0
+          ? `${workplanCount} care plan${workplanCount === 1 ? "" : "s"} ready for portrait PDF export.`
+          : "Care plan portrait PDF export.",
+      uploadedDate: "",
+      uploadedBy: "",
+      candidateUrls: [],
+    };
+  };
+
+  const carePlanDashboardDocument = buildCarePlanDashboardDocument();
+  if (carePlanDashboardDocument) {
+    return { ok: true, documents: [carePlanDashboardDocument] };
+  }
+
   const toAbsoluteUrl = (candidate, baseUrl = window.location.href) => {
     const raw = String(candidate || "").trim();
     if (!raw || raw === "#" || raw.toLowerCase().startsWith("javascript:")) return "";
@@ -3014,7 +3073,6 @@ const scrapeMobizioDocumentsInPage = async () => {
     return lastSeenTable || findDocumentsTable();
   };
 
-  const currentPath = String(window.location.pathname || "").toLowerCase();
   const tableWaitTimeout = currentPath.includes("case_document_list")
     ? 18000
     : currentPath.includes("case_data_group")
@@ -3094,6 +3152,7 @@ const scrapeMobizioDocumentsInPage = async () => {
     const rowId = toText(row.getAttribute("id")) || String(index + 1);
 
     const downloadElement = row.querySelector('[id^="download-document_"], .download-document, [data-document-id], [onclick*="download"]');
+    const openDocumentTrigger = row.querySelector(".document-filename .open-document, .document-name .open-document, .open-document");
     const downloadIds = new Set();
     collectDownloadIds(downloadElement?.id, downloadIds);
     collectDownloadIds(row.getAttribute("id"), downloadIds);
@@ -3135,10 +3194,12 @@ const scrapeMobizioDocumentsInPage = async () => {
       });
 
     downloadIdList.forEach((id) => addTemplateUrlsForDownloadId(id, candidateUrls));
+    const downloadStrategy = !downloadId && candidateUrls.size === 0 && openDocumentTrigger ? "rowClickDownload" : "";
 
     return {
       rowId,
       downloadId,
+      downloadStrategy,
       name,
       fileName: fileName || name,
       description,
@@ -3149,7 +3210,10 @@ const scrapeMobizioDocumentsInPage = async () => {
   });
 
   const normalizedDocuments = documents.filter(
-    (entry) => String(entry?.downloadId || "").trim() || (Array.isArray(entry?.candidateUrls) && entry.candidateUrls.length > 0)
+    (entry) =>
+      String(entry?.downloadId || "").trim() ||
+      String(entry?.downloadStrategy || "").trim() ||
+      (Array.isArray(entry?.candidateUrls) && entry.candidateUrls.length > 0)
   );
 
   if (normalizedDocuments.length === 0) {
@@ -3164,6 +3228,10 @@ const scrapeMobizioDocumentsInPage = async () => {
 
 const downloadMobizioDocumentInPage = async (documentEntry) => {
   const toText = (value) => String(value || "").trim();
+  const waitInPage = (ms) =>
+    new Promise((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
 
   const toAbsoluteUrl = (candidate, baseUrl = window.location.href) => {
     const raw = String(candidate || "").trim();
@@ -3331,6 +3399,752 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
     queued.add(absoluteUrl);
     candidateQueue.push(absoluteUrl);
   };
+
+  const runRowClickDownload = async () => {
+    if (String(documentEntry?.downloadStrategy || "").trim() !== "rowClickDownload") {
+      return null;
+    }
+
+    const isDownloadLikeResponse = (contentType, contentDisposition, urlHint = "") => {
+      const type = String(contentType || "").toLowerCase();
+      const disposition = String(contentDisposition || "").toLowerCase();
+      const url = String(urlHint || "").toLowerCase();
+
+      return (
+        disposition.includes("attachment") ||
+        /(pdf|msword|wordprocessingml|text\/plain|csv|application\/octet-stream)/i.test(type) ||
+        /\.(pdf|doc|docx|txt|csv)(\?|$)/i.test(url) ||
+        url.includes("/_content") ||
+        url.includes("/download")
+      );
+    };
+
+    const buildDownloadedPayload = async (captured) => {
+      const fallbackName =
+        toText(documentEntry?.fileName) || toText(documentEntry?.name) || "mobizio-document";
+      const fileName = sanitizeFileName(
+        getFileNameFromDisposition(captured.contentDisposition) || fallbackName,
+        captured.contentType || captured.blob.type || "application/octet-stream"
+      );
+
+      return {
+        ok: true,
+        file: {
+          name: fileName,
+          mimeType: captured.contentType || captured.blob.type || "application/octet-stream",
+          size: captured.blob.size,
+          base64Data: arrayBufferToBase64(await captured.blob.arrayBuffer()),
+          sourceFileName: toText(documentEntry?.fileName),
+          sourceName: toText(documentEntry?.name),
+          sourceDescription: toText(documentEntry?.description),
+          downloadedFrom: captured.url || window.location.href,
+        },
+      };
+    };
+
+    const locateTargetRow = () => {
+      const table =
+        document.querySelector("#documentsTable") ||
+        document.querySelector("table#documentsTable") ||
+        document.querySelector("table[id*='documents'][id*='table']") ||
+        document.querySelector("table[id*='document'][id*='table']");
+      const rows = Array.from(table?.querySelectorAll("tbody tr") || []).filter((row) => row.querySelectorAll("td").length > 0);
+      if (rows.length === 0) return null;
+
+      const requestedRowId = toText(documentEntry?.rowId);
+      if (requestedRowId) {
+        const exactRow = document.getElementById(requestedRowId);
+        if (exactRow instanceof HTMLTableRowElement) {
+          return exactRow;
+        }
+
+        const numericIndex = Number(requestedRowId);
+        if (Number.isInteger(numericIndex) && numericIndex > 0 && rows[numericIndex - 1]) {
+          return rows[numericIndex - 1];
+        }
+      }
+
+      const requestedName = toText(documentEntry?.name).toLowerCase();
+      const requestedFileName = toText(documentEntry?.fileName).toLowerCase();
+      const requestedUploadedDate = toText(documentEntry?.uploadedDate).toLowerCase();
+      let bestRow = null;
+      let bestScore = 0;
+
+      rows.forEach((row) => {
+        const rowName = toText(row.querySelector(".document-name")?.textContent).toLowerCase();
+        const rowFileName = toText(row.querySelector(".document-filename")?.textContent).toLowerCase();
+        const rowUploadedDate = toText(row.querySelector(".document-uploaded-date-time")?.textContent).toLowerCase();
+        let score = 0;
+
+        if (requestedFileName && rowFileName === requestedFileName) score += 8;
+        else if (requestedFileName && rowFileName && (rowFileName.includes(requestedFileName) || requestedFileName.includes(rowFileName))) score += 4;
+
+        if (requestedName && rowName === requestedName) score += 6;
+        else if (requestedName && rowName && (rowName.includes(requestedName) || requestedName.includes(rowName))) score += 3;
+
+        if (requestedUploadedDate && rowUploadedDate === requestedUploadedDate) score += 2;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestRow = row;
+        }
+      });
+
+      return bestScore > 0 ? bestRow : null;
+    };
+
+    const targetRow = locateTargetRow();
+    const triggerElement = targetRow?.querySelector(
+      ".document-filename .open-document, .document-name .open-document, .open-document, [onclick*='download'], [data-document-id]"
+    );
+
+    if (!targetRow || !triggerElement) {
+      return {
+        ok: false,
+        error: "Could not find the selected document row on the Mobizio documents page.",
+      };
+    }
+
+    const recordedFiles = [];
+    const restoreHooks = [];
+
+    const clickElement = (element) => {
+      if (!element) return false;
+      const mouseOptions = { bubbles: true, cancelable: true, view: window };
+      element.dispatchEvent(new MouseEvent("mousedown", mouseOptions));
+      element.dispatchEvent(new MouseEvent("mouseup", mouseOptions));
+      element.dispatchEvent(new MouseEvent("click", mouseOptions));
+      if (typeof element.click === "function") {
+        element.click();
+      }
+      return true;
+    };
+
+    const recordCandidateUrl = (candidate, baseUrl = window.location.href) => {
+      if (!candidate) return;
+      enqueueUrl(candidate, { allowAny: true, baseUrl });
+    };
+
+    const scanDynamicDownloadHints = () => {
+      document
+        .querySelectorAll(
+          "iframe[src], frame[src], embed[src], object[data], a[download], a[href*='download'], a[href*='.pdf'], [data-download-url], [data-document-url], [onclick*='download'], [onclick*='.pdf']"
+        )
+        .forEach((element) => {
+          const baseUrl = String(element?.ownerDocument?.baseURI || window.location.href || "");
+          const discoveredUrls = new Set();
+          collectUrlsFromElement(element, discoveredUrls);
+          discoveredUrls.forEach((url) => recordCandidateUrl(url, baseUrl));
+        });
+    };
+
+    const captureResponse = async (response, urlHint = "") => {
+      if (!response) return;
+
+      const contentType = response.headers?.get?.("content-type") || "";
+      const contentDisposition = response.headers?.get?.("content-disposition") || "";
+      const responseUrl = String(response.url || urlHint || "").trim();
+
+      if (isDownloadLikeResponse(contentType, contentDisposition, responseUrl)) {
+        const blob = await response.blob();
+        if (blob && blob.size > 0) {
+          recordedFiles.push({
+            blob,
+            contentType,
+            contentDisposition,
+            url: responseUrl,
+          });
+        }
+        return;
+      }
+
+      if (/text\/html/i.test(contentType) && !/attachment/i.test(contentDisposition)) {
+        const html = await response.text();
+        if (!html) return;
+
+        const responseBaseUrl = responseUrl || window.location.href;
+        const parsed = new DOMParser().parseFromString(html, "text/html");
+        parsed
+          .querySelectorAll("a[href], iframe[src], frame[src], embed[src], object[data], source[src], form[action], [onclick]")
+          .forEach((element) => {
+            const candidate =
+              element.getAttribute("href") ||
+              element.getAttribute("src") ||
+              element.getAttribute("data") ||
+              element.getAttribute("action") ||
+              "";
+            if (candidate) {
+              recordCandidateUrl(candidate, responseBaseUrl);
+            }
+            extractUrlsFromText(element.getAttribute("onclick"), responseBaseUrl).forEach((url) => recordCandidateUrl(url, responseBaseUrl));
+          });
+      }
+    };
+
+    const createWindowOpenStub = (absoluteUrl) => ({
+      closed: false,
+      close() {},
+      focus() {},
+      location: { href: absoluteUrl || "" },
+    });
+
+    const patch = (target, key, replacement) => {
+      if (!target || !key) return;
+      const original = target[key];
+      if (typeof original !== "function") return;
+      target[key] = replacement(original);
+      restoreHooks.push(() => {
+        target[key] = original;
+      });
+    };
+
+    patch(window, "fetch", (originalFetch) => async (...args) => {
+      const requestUrl = (() => {
+        const candidate = args[0];
+        if (typeof candidate === "string") return candidate;
+        if (candidate && typeof candidate.url === "string") return candidate.url;
+        return "";
+      })();
+
+      const response = await originalFetch.apply(window, args);
+      try {
+        await captureResponse(response.clone(), requestUrl);
+      } catch {
+        // Ignore capture failures and allow the original request to complete.
+      }
+      return response;
+    });
+
+    if (typeof XMLHttpRequest !== "undefined") {
+      const originalOpen = XMLHttpRequest.prototype.open;
+      const originalSend = XMLHttpRequest.prototype.send;
+
+      XMLHttpRequest.prototype.open = function patchedOpen(method, url, ...rest) {
+        this.__caExportUrl = toAbsoluteUrl(url, window.location.href);
+        return originalOpen.call(this, method, url, ...rest);
+      };
+
+      XMLHttpRequest.prototype.send = function patchedSend(...args) {
+        this.addEventListener(
+          "loadend",
+          async () => {
+            try {
+              const responseUrl = String(this.responseURL || this.__caExportUrl || "").trim();
+              const contentType = this.getResponseHeader("content-type") || "";
+              const contentDisposition = this.getResponseHeader("content-disposition") || "";
+
+              if (isDownloadLikeResponse(contentType, contentDisposition, responseUrl)) {
+                let blob = null;
+                if (this.response instanceof Blob) {
+                  blob = this.response;
+                } else if (this.response instanceof ArrayBuffer) {
+                  blob = new Blob([this.response], { type: contentType || "application/octet-stream" });
+                }
+
+                if (blob && blob.size > 0) {
+                  recordedFiles.push({
+                    blob,
+                    contentType,
+                    contentDisposition,
+                    url: responseUrl,
+                  });
+                }
+              } else if (responseUrl) {
+                recordCandidateUrl(responseUrl);
+              }
+            } catch {
+              // Ignore XHR capture failures.
+            }
+          },
+          { once: true }
+        );
+
+        return originalSend.apply(this, args);
+      };
+
+      restoreHooks.push(() => {
+        XMLHttpRequest.prototype.open = originalOpen;
+        XMLHttpRequest.prototype.send = originalSend;
+      });
+    }
+
+    patch(window, "open", () => (url, ...rest) => {
+      const absoluteUrl = toAbsoluteUrl(url, window.location.href);
+      if (absoluteUrl) {
+        recordCandidateUrl(absoluteUrl);
+      }
+      return createWindowOpenStub(absoluteUrl);
+    });
+
+    if (typeof HTMLAnchorElement !== "undefined") {
+      patch(HTMLAnchorElement.prototype, "click", (originalClick) => function patchedAnchorClick(...args) {
+        const href = this.getAttribute("href") || this.href || "";
+        const baseUrl = String(this.ownerDocument?.baseURI || window.location.href || "");
+        if (href) {
+          recordCandidateUrl(href, baseUrl);
+        }
+
+        if (this.hasAttribute("download") || isLikelyDocumentUrl(href)) {
+          return undefined;
+        }
+
+        return originalClick.apply(this, args);
+      });
+    }
+
+    if (typeof HTMLFormElement !== "undefined") {
+      patch(HTMLFormElement.prototype, "submit", (originalSubmit) => function patchedFormSubmit(...args) {
+        const baseUrl = String(this.ownerDocument?.baseURI || window.location.href || "");
+        const action = this.getAttribute("action") || this.action || window.location.href;
+        const method = String(this.method || "get").trim().toLowerCase();
+
+        if (method === "get") {
+          try {
+            const url = new URL(action, baseUrl);
+            const formData = new FormData(this);
+            for (const [key, value] of formData.entries()) {
+              if (typeof value === "string") {
+                url.searchParams.append(key, value);
+              }
+            }
+            recordCandidateUrl(url.toString(), baseUrl);
+            return undefined;
+          } catch {
+            recordCandidateUrl(action, baseUrl);
+          }
+        } else {
+          recordCandidateUrl(action, baseUrl);
+        }
+
+        return originalSubmit.apply(this, args);
+      });
+    }
+
+    try {
+      clickElement(triggerElement);
+
+      const captureDeadline = Date.now() + 10000;
+      while (Date.now() < captureDeadline) {
+        scanDynamicDownloadHints();
+        if (recordedFiles.length > 0 || candidateQueue.length > 0) {
+          break;
+        }
+        await waitInPage(250);
+      }
+
+      if (recordedFiles.length > 0) {
+        return await buildDownloadedPayload(recordedFiles[0]);
+      }
+
+      if (candidateQueue.length > 0) {
+        return null;
+      }
+
+      return {
+        ok: false,
+        error: "Could not trigger the selected Mobizio document download from the documents table.",
+      };
+    } finally {
+      while (restoreHooks.length > 0) {
+        const restore = restoreHooks.pop();
+        try {
+          restore?.();
+        } catch {
+          // Ignore hook restoration failures.
+        }
+      }
+    }
+  };
+
+  const runCarePlanDashboardExport = async () => {
+    if (String(documentEntry?.downloadStrategy || "").trim() !== "carePlanDashboardPdf") {
+      return null;
+    }
+
+    const currentPath = String(window.location.pathname || "").toLowerCase();
+    if (!currentPath.includes("case_care_plans_dashboard")) {
+      return {
+        ok: false,
+        error: "Care plan PDF export must run from the Mobizio Care Plans dashboard.",
+      };
+    }
+
+    const isPdfLikeResponse = (contentType, contentDisposition, urlHint = "") => {
+      const type = String(contentType || "").toLowerCase();
+      const disposition = String(contentDisposition || "").toLowerCase();
+      const url = String(urlHint || "").toLowerCase();
+
+      return type.includes("pdf") || disposition.includes("attachment") || /\.pdf(\?|$)/i.test(url);
+    };
+
+    const recordedFiles = [];
+    const restoreHooks = [];
+
+    const recordCandidateUrl = (candidate, baseUrl = window.location.href) => {
+      if (!candidate) return;
+      enqueueUrl(candidate, { allowAny: true, baseUrl });
+    };
+
+    const scanDynamicDownloadHints = () => {
+      document
+        .querySelectorAll(
+          "iframe[src], frame[src], embed[src], object[data], a[download], a[href*='download'], a[href*='.pdf'], [data-download-url], [data-document-url], [onclick*='download'], [onclick*='.pdf']"
+        )
+        .forEach((element) => {
+          const baseUrl = String(element?.ownerDocument?.baseURI || window.location.href || "");
+          const discoveredUrls = new Set();
+          collectUrlsFromElement(element, discoveredUrls);
+          discoveredUrls.forEach((url) => recordCandidateUrl(url, baseUrl));
+          [
+            element.getAttribute?.("href"),
+            element.getAttribute?.("src"),
+            element.getAttribute?.("data"),
+            element.getAttribute?.("action"),
+            element.getAttribute?.("data-download-url"),
+            element.getAttribute?.("data-document-url"),
+          ]
+            .filter(Boolean)
+            .forEach((value) => recordCandidateUrl(value, baseUrl));
+
+          extractUrlsFromText(element.getAttribute?.("onclick"), baseUrl).forEach((url) => recordCandidateUrl(url, baseUrl));
+
+          if (element instanceof HTMLFormElement) {
+            const action = element.getAttribute("action") || element.action || window.location.href;
+            const method = String(element.method || "get").trim().toLowerCase();
+            if (method === "get") {
+              try {
+                const url = new URL(action, baseUrl);
+                const formData = new FormData(element);
+                for (const [key, value] of formData.entries()) {
+                  if (typeof value === "string") {
+                    url.searchParams.append(key, value);
+                  }
+                }
+                recordCandidateUrl(url.toString(), baseUrl);
+              } catch {
+                recordCandidateUrl(action, baseUrl);
+              }
+            } else {
+              recordCandidateUrl(action, baseUrl);
+            }
+          }
+        });
+    };
+
+    const captureResponse = async (response, urlHint = "") => {
+      if (!response) return;
+
+      const contentType = response.headers?.get?.("content-type") || "";
+      const contentDisposition = response.headers?.get?.("content-disposition") || "";
+      const responseUrl = String(response.url || urlHint || "").trim();
+
+      if (isPdfLikeResponse(contentType, contentDisposition, responseUrl)) {
+        const blob = await response.blob();
+        if (blob && blob.size > 0) {
+          recordedFiles.push({
+            blob,
+            contentType,
+            contentDisposition,
+            url: responseUrl,
+          });
+        }
+        return;
+      }
+
+      if (/text\/html/i.test(contentType) && !/attachment/i.test(contentDisposition)) {
+        const html = await response.text();
+        if (!html) return;
+
+        const responseBaseUrl = responseUrl || window.location.href;
+        const parsed = new DOMParser().parseFromString(html, "text/html");
+        parsed
+          .querySelectorAll("a[href], iframe[src], frame[src], embed[src], object[data], source[src], form[action], [onclick]")
+          .forEach((element) => {
+            const candidate =
+              element.getAttribute("href") ||
+              element.getAttribute("src") ||
+              element.getAttribute("data") ||
+              element.getAttribute("action") ||
+              "";
+            if (candidate) {
+              recordCandidateUrl(candidate, responseBaseUrl);
+            }
+            extractUrlsFromText(element.getAttribute("onclick"), responseBaseUrl).forEach((url) => recordCandidateUrl(url, responseBaseUrl));
+          });
+      }
+    };
+
+    const createWindowOpenStub = (absoluteUrl) => ({
+      closed: false,
+      close() {},
+      focus() {},
+      location: { href: absoluteUrl || "" },
+    });
+
+    const patch = (target, key, replacement) => {
+      if (!target || !key) return;
+      const original = target[key];
+      if (typeof original !== "function") return;
+      target[key] = replacement(original);
+      restoreHooks.push(() => {
+        target[key] = original;
+      });
+    };
+
+    patch(window, "fetch", (originalFetch) => async (...args) => {
+      const requestUrl = (() => {
+        const candidate = args[0];
+        if (typeof candidate === "string") return candidate;
+        if (candidate && typeof candidate.url === "string") return candidate.url;
+        return "";
+      })();
+
+      const response = await originalFetch.apply(window, args);
+      try {
+        await captureResponse(response.clone(), requestUrl);
+      } catch {
+        // Ignore capture failures and allow the original request to complete.
+      }
+      return response;
+    });
+
+    if (typeof XMLHttpRequest !== "undefined") {
+      const originalOpen = XMLHttpRequest.prototype.open;
+      const originalSend = XMLHttpRequest.prototype.send;
+
+      XMLHttpRequest.prototype.open = function patchedOpen(method, url, ...rest) {
+        this.__caExportUrl = toAbsoluteUrl(url, window.location.href);
+        return originalOpen.call(this, method, url, ...rest);
+      };
+
+      XMLHttpRequest.prototype.send = function patchedSend(...args) {
+        this.addEventListener(
+          "loadend",
+          async () => {
+            try {
+              const responseUrl = String(this.responseURL || this.__caExportUrl || "").trim();
+              const contentType = this.getResponseHeader("content-type") || "";
+              const contentDisposition = this.getResponseHeader("content-disposition") || "";
+
+              if (isPdfLikeResponse(contentType, contentDisposition, responseUrl)) {
+                let blob = null;
+                if (this.response instanceof Blob) {
+                  blob = this.response;
+                } else if (this.response instanceof ArrayBuffer) {
+                  blob = new Blob([this.response], { type: contentType || "application/pdf" });
+                }
+
+                if (blob && blob.size > 0) {
+                  recordedFiles.push({
+                    blob,
+                    contentType,
+                    contentDisposition,
+                    url: responseUrl,
+                  });
+                }
+              } else if (responseUrl) {
+                recordCandidateUrl(responseUrl);
+              }
+            } catch {
+              // Ignore XHR capture failures.
+            }
+          },
+          { once: true }
+        );
+
+        return originalSend.apply(this, args);
+      };
+
+      restoreHooks.push(() => {
+        XMLHttpRequest.prototype.open = originalOpen;
+        XMLHttpRequest.prototype.send = originalSend;
+      });
+    }
+
+    patch(window, "open", () => (url, ...rest) => {
+      const absoluteUrl = toAbsoluteUrl(url, window.location.href);
+      if (absoluteUrl) {
+        recordCandidateUrl(absoluteUrl);
+      }
+      return createWindowOpenStub(absoluteUrl);
+    });
+
+    if (typeof HTMLAnchorElement !== "undefined") {
+      patch(HTMLAnchorElement.prototype, "click", (originalClick) => function patchedAnchorClick(...args) {
+        const href = this.getAttribute("href") || this.href || "";
+        const baseUrl = String(this.ownerDocument?.baseURI || window.location.href || "");
+        if (href) {
+          recordCandidateUrl(href, baseUrl);
+        }
+
+        if (this.hasAttribute("download") || isLikelyDocumentUrl(href)) {
+          return undefined;
+        }
+
+        return originalClick.apply(this, args);
+      });
+    }
+
+    if (typeof HTMLFormElement !== "undefined") {
+      patch(HTMLFormElement.prototype, "submit", (originalSubmit) => function patchedFormSubmit(...args) {
+        const baseUrl = String(this.ownerDocument?.baseURI || window.location.href || "");
+        const action = this.getAttribute("action") || this.action || window.location.href;
+        const method = String(this.method || "get").trim().toLowerCase();
+
+        if (method === "get") {
+          try {
+            const url = new URL(action, baseUrl);
+            const formData = new FormData(this);
+            for (const [key, value] of formData.entries()) {
+              if (typeof value === "string") {
+                url.searchParams.append(key, value);
+              }
+            }
+            recordCandidateUrl(url.toString(), baseUrl);
+            return undefined;
+          } catch {
+            recordCandidateUrl(action, baseUrl);
+          }
+        } else {
+          recordCandidateUrl(action, baseUrl);
+        }
+
+        return originalSubmit.apply(this, args);
+      });
+    }
+
+    const clickElement = (element) => {
+      if (!element) return false;
+      const mouseOptions = { bubbles: true, cancelable: true, view: window };
+      element.dispatchEvent(new MouseEvent("mousedown", mouseOptions));
+      element.dispatchEvent(new MouseEvent("mouseup", mouseOptions));
+      element.dispatchEvent(new MouseEvent("click", mouseOptions));
+      if (typeof element.click === "function") {
+        element.click();
+      }
+      return true;
+    };
+
+    const findPortraitOption = () => {
+      const explicitId = String(documentEntry?.orientationButtonId || "").trim();
+      if (explicitId) {
+        const byId = document.getElementById(explicitId);
+        if (byId) return byId;
+      }
+
+      const explicitValue = String(documentEntry?.orientationValue || "").trim();
+      if (explicitValue) {
+        const byValue = document.querySelector(`.select-pdf-orientation[data-orientation='${explicitValue}']`);
+        if (byValue) return byValue;
+      }
+
+      return document.querySelector("#orientation-portrait, .select-pdf-orientation[data-orientation='0']");
+    };
+
+    try {
+      const exportButtonId = String(documentEntry?.exportButtonId || "").trim();
+      const exportButton =
+        (exportButtonId && document.getElementById(exportButtonId)) ||
+        document.querySelector("#download-workplans-as-pdf");
+
+      if (!exportButton) {
+        return {
+          ok: false,
+          error: "Could not find the care plan PDF download button on the Mobizio page.",
+        };
+      }
+
+      clickElement(exportButton);
+
+      let portraitOption = null;
+      const portraitDeadline = Date.now() + 6000;
+      while (Date.now() < portraitDeadline) {
+        scanDynamicDownloadHints();
+        if (recordedFiles.length > 0 || candidateQueue.length > 0) {
+          break;
+        }
+
+        portraitOption = findPortraitOption();
+        if (portraitOption) {
+          break;
+        }
+
+        await waitInPage(200);
+      }
+
+      if (portraitOption) {
+        clickElement(portraitOption);
+      }
+
+      const captureDeadline = Date.now() + 10000;
+      while (Date.now() < captureDeadline) {
+        scanDynamicDownloadHints();
+        if (recordedFiles.length > 0 || candidateQueue.length > 0) {
+          break;
+        }
+        await waitInPage(250);
+      }
+
+      if (recordedFiles.length > 0) {
+        const captured = recordedFiles[0];
+        const fileName = sanitizeFileName(
+          getFileNameFromDisposition(captured.contentDisposition) ||
+            toText(documentEntry?.fileName) ||
+            toText(documentEntry?.name) ||
+            "care-plan.pdf",
+          captured.contentType || captured.blob.type || "application/pdf"
+        );
+
+        return {
+          ok: true,
+          file: {
+            name: fileName,
+            mimeType: captured.contentType || captured.blob.type || "application/pdf",
+            size: captured.blob.size,
+            base64Data: arrayBufferToBase64(await captured.blob.arrayBuffer()),
+            sourceFileName: toText(documentEntry?.fileName),
+            sourceName: toText(documentEntry?.name),
+            sourceDescription: toText(documentEntry?.description),
+            downloadedFrom: captured.url || window.location.href,
+          },
+        };
+      }
+
+      if (candidateQueue.length > 0) {
+        return null;
+      }
+
+      return {
+        ok: false,
+        error: "Could not resolve the care plan PDF export after choosing Portrait.",
+      };
+    } finally {
+      while (restoreHooks.length > 0) {
+        const restore = restoreHooks.pop();
+        try {
+          restore?.();
+        } catch {
+          // Ignore hook restoration failures.
+        }
+      }
+    }
+  };
+
+  const rowClickResult = await runRowClickDownload();
+  if (rowClickResult?.ok) {
+    return rowClickResult;
+  }
+  if (rowClickResult?.error && candidateQueue.length === 0) {
+    return rowClickResult;
+  }
+
+  const carePlanDashboardResult = await runCarePlanDashboardExport();
+  if (carePlanDashboardResult?.ok) {
+    return carePlanDashboardResult;
+  }
+  if (carePlanDashboardResult?.error && candidateQueue.length === 0) {
+    return carePlanDashboardResult;
+  }
 
   const initialCandidateUrls = Array.isArray(documentEntry?.candidateUrls) ? documentEntry.candidateUrls : [];
   initialCandidateUrls.forEach((url) => enqueueUrl(url, { allowAny: true }));
@@ -3652,9 +4466,9 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       }
     }
 
-    const executeInCollectionTab = async (func, args = []) => {
+    const executeInCollectionTab = async (func, args = [], options = {}) => {
       try {
-        return await executeScriptInTab(collectionTabId, func, args);
+        return await executeScriptInTab(collectionTabId, func, args, options);
       } catch (error) {
         let latestTab = null;
         try {
@@ -3686,7 +4500,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
           await wait(delayMs);
         }
 
-        const attempt = await executeInCollectionTab(scrapeMobizioDocumentsInPage);
+        const attempt = await executeInCollectionTab(scrapeMobizioDocumentsInPage, [], { world: "MAIN" });
         attempts += 1;
         const discoveredCount = Array.isArray(attempt?.documents) ? attempt.documents.length : 0;
 
@@ -3720,10 +4534,11 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         return false;
       }
 
-      const discoveredUrl = await executeInCollectionTab(getMobizioDocumentsPageUrlInPage, [
-        caseId,
-        MOBIZIO_DOCUMENT_SERVICE_ID,
-      ]);
+      const discoveredUrl = await executeInCollectionTab(
+        getMobizioDocumentsPageUrlInPage,
+        [caseId, MOBIZIO_DOCUMENT_SERVICE_ID],
+        { world: "MAIN" }
+      );
 
       const fallbackDocumentsUrl = String(discoveredUrl || "").trim() || buildMobizioDocumentListUrl(caseId);
       updateUploadSyncStatus("Switching to Mobizio Documents for downloadable records...");
@@ -3887,7 +4702,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         note: `Downloading ${index + 1} of ${selectedForDownload.length}: ${label}`,
       });
 
-      const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument]);
+      const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument], { world: "MAIN" });
       if (!result?.ok || !result?.file?.base64Data) {
         failedDownloads.push(label);
         const attemptedPaths = Array.isArray(result?.attempted)
