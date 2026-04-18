@@ -930,7 +930,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             role="banner"
             aria-label="Page header"
           >
-            <div className="workspace-header-shell mx-auto flex h-[4rem] w-full max-w-[var(--content-max-width)] items-center justify-between gap-3">
+            <div className="workspace-header-shell mx-auto flex min-h-[4.25rem] w-full max-w-[var(--content-max-width)] items-center justify-between gap-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>

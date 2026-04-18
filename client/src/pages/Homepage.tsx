@@ -440,7 +440,7 @@ export default function Homepage() {
             <span className="home-brand-pill hidden xl:inline-flex">UK Care Ops</span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-2 text-sm font-medium">
+          <nav className="home-nav-rail hidden md:flex items-center gap-1.5 text-sm font-medium">
             {NAV_SECTIONS.map((section) => (
               <button
                 key={section.id}
@@ -831,7 +831,7 @@ export default function Homepage() {
           </div>
         </section>
 
-        <section className="home-section px-4 py-12 sm:py-16">
+        <section className="home-section home-section-after-band px-4 py-12 sm:py-16">
           <div className="max-w-6xl mx-auto">
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Platform capabilities</span>
