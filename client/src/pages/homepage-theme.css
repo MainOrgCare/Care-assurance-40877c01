@@ -3,43 +3,19 @@
   isolation: isolate;
   color: var(--color-foreground);
   font-family: var(--font-sans);
-  background:
-    radial-gradient(1200px 700px at -6% -14%, color-mix(in oklab, var(--color-primary) 14%, white), transparent 62%),
-    radial-gradient(980px 560px at 104% -10%, color-mix(in oklab, var(--color-secondary) 14%, white), transparent 56%),
-    radial-gradient(800px 480px at 48% 112%, color-mix(in oklab, var(--color-primary) 9%, transparent), transparent 70%),
-    linear-gradient(180deg, color-mix(in oklab, var(--color-background) 97%, white), color-mix(in oklab, var(--color-background) 90%, var(--color-muted)));
+  background: linear-gradient(180deg, color-mix(in oklab, var(--color-background) 98%, white), color-mix(in oklab, var(--color-background) 94%, var(--color-muted)));
 }
 
 .homepage-theme::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  pointer-events: none;
-  background: radial-gradient(66% 52% at 50% -12%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 74%);
-  opacity: 0.85;
+  content: none;
 }
 
 .homepage-theme::after {
-  content: "";
-  position: fixed;
-  inset: auto 0 0;
-  height: 34vh;
-  z-index: -2;
-  pointer-events: none;
-  background: radial-gradient(110% 85% at 50% 112%, color-mix(in oklab, var(--color-secondary) 14%, transparent), transparent 74%);
-  opacity: 0.72;
+  content: none;
 }
 
 .homepage-theme .home-spectrum {
-  position: fixed;
-  pointer-events: none;
-  z-index: -1;
-  mix-blend-mode: plus-lighter;
-  opacity: 0.3;
-  filter: blur(4px);
-  transform: translateZ(0);
-  animation: home-spectrum-sweep 28s ease-in-out infinite alternate;
+  display: none;
 }
 
 .homepage-theme .home-spectrum-top {
@@ -60,28 +36,11 @@
 }
 
 .homepage-theme .home-grain-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.18;
-  background-image:
-    radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.08) 0.6px, transparent 0.8px),
-    radial-gradient(circle at 78% 80%, rgba(15, 23, 42, 0.08) 0.5px, transparent 0.8px);
-  background-size: 3px 3px, 4px 4px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 84%);
+  display: none;
 }
 
 .homepage-theme .home-atmosphere {
-  position: fixed;
-  pointer-events: none;
-  z-index: -1;
-  border-radius: 999px;
-  filter: blur(14px);
-  transform: translateZ(0);
-  opacity: 0.66;
-  mix-blend-mode: screen;
-  animation: home-atmosphere-drift 22s ease-in-out infinite alternate;
+  display: none;
 }
 
 .homepage-theme .home-atmosphere-left {
@@ -111,13 +70,7 @@
 }
 
 .homepage-theme .home-pattern {
-  background-image:
-    linear-gradient(color-mix(in oklab, var(--color-foreground) 8%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--color-foreground) 8%, transparent) 1px, transparent 1px),
-    radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--color-primary) 7%, transparent), transparent 62%);
-  background-size: 46px 46px, 46px 46px, 100% 100%;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 84%);
-  animation: home-grid-drift 24s linear infinite;
+  display: none;
 }
 
 .homepage-theme .home-section {
@@ -144,21 +97,13 @@
 }
 
 .homepage-theme .home-section-after-band {
-  margin-top: -2rem;
-  padding-top: calc(3rem + 2rem);
+  margin-top: 0;
+  padding-top: 3rem;
+  background: color-mix(in oklab, var(--color-card) 96%, white);
 }
 
 .homepage-theme .home-section-after-band::before {
-  content: "";
-  position: absolute;
-  inset: 0.75rem 1rem auto;
-  height: calc(100% - 0.75rem);
-  border-radius: 2rem 2rem 0 0;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--color-card) 97%, white) 0%, color-mix(in oklab, var(--color-card) 92%, transparent) 22%, transparent 100%),
-    radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 62%);
-  box-shadow: 0 -18px 40px -34px rgba(15, 23, 42, 0.35);
+  content: none;
 }
 
 .homepage-theme .home-hero-section {
@@ -166,17 +111,7 @@
 }
 
 .homepage-theme .home-hero-glow {
-  position: absolute;
-  inset: -12% -10% -16%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(72% 62% at 14% 28%, color-mix(in oklab, var(--color-primary) 20%, transparent), transparent 72%),
-    radial-gradient(62% 56% at 86% 16%, color-mix(in oklab, var(--color-secondary) 16%, transparent), transparent 72%);
-  opacity: 0.88;
-  filter: blur(8px);
-  transform: translateZ(0);
-  animation: home-atmosphere-drift 26s ease-in-out infinite alternate;
+  display: none;
 }
 
 .homepage-theme .home-trust-strip {
@@ -192,8 +127,8 @@
   gap: 0.45rem;
   border-radius: 999px;
   border: 1px solid color-mix(in oklab, var(--color-border) 74%, transparent);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white), color-mix(in oklab, var(--color-card) 88%, transparent));
-  box-shadow: var(--shadow-xs);
+  background: color-mix(in oklab, var(--color-card) 98%, white);
+  box-shadow: none;
   padding: 0.42rem 0.72rem;
   font-size: 0.67rem;
   font-weight: 780;
@@ -212,31 +147,18 @@
   top: 0;
   z-index: 40;
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 70%, white), color-mix(in oklab, var(--color-card) 54%, transparent));
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  background: color-mix(in oklab, var(--color-card) 96%, white);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, backdrop-filter 0.24s ease;
 }
 
 .homepage-theme .home-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(100deg, color-mix(in oklab, var(--color-primary) 7%, transparent), transparent 46%, color-mix(in oklab, var(--color-secondary) 6%, transparent) 84%);
-  opacity: 0.72;
+  content: none;
 }
 
 .homepage-theme .home-header::after {
-  content: "";
-  position: absolute;
-  left: 4rem;
-  right: 4rem;
-  bottom: 0;
-  height: 1px;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 18%, transparent), transparent);
-  opacity: 0.6;
+  content: none;
 }
 
 .homepage-theme .home-header-shell {
@@ -249,25 +171,25 @@
 }
 
 .homepage-theme .home-header.is-scrolled {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 94%, white), color-mix(in oklab, var(--color-card) 86%, transparent));
+  background: color-mix(in oklab, var(--color-card) 98%, white);
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 65%, transparent);
-  box-shadow: 0 16px 34px -28px rgba(15, 23, 42, 0.35);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 24px -24px rgba(15, 23, 42, 0.18);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .homepage-theme .home-nav-rail {
-  border: 1px solid color-mix(in oklab, var(--color-border) 60%, transparent);
-  border-radius: 1rem;
-  padding: 0.22rem;
-  background: color-mix(in oklab, var(--color-card) 76%, transparent);
-  box-shadow: 0 10px 24px -24px rgba(15, 23, 42, 0.4);
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .homepage-theme .home-brand-mark {
   background-image: linear-gradient(145deg, color-mix(in oklab, var(--color-primary) 90%, white), color-mix(in oklab, var(--color-secondary) 42%, var(--color-primary)));
   color: var(--color-primary-foreground);
-  box-shadow: 0 18px 28px -22px color-mix(in oklab, var(--color-primary) 52%, transparent);
+  box-shadow: none;
 }
 
 .homepage-theme .home-brand-copy {
@@ -285,16 +207,7 @@
 }
 
 .homepage-theme .home-brand-pill {
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
-  background: color-mix(in oklab, var(--color-primary) 8%, white);
-  color: color-mix(in oklab, var(--color-primary) 86%, var(--color-foreground));
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  padding: 0.28rem 0.62rem;
-  text-transform: uppercase;
+  display: none;
 }
 
 .homepage-theme .home-header-actions {
@@ -343,8 +256,7 @@
 }
 
 .homepage-theme .home-footer {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--color-card) 72%, transparent), color-mix(in oklab, var(--color-card) 94%, white));
+  background: color-mix(in oklab, var(--color-card) 96%, white);
 }
 
 .homepage-theme .home-footer-shell {
@@ -353,13 +265,7 @@
 }
 
 .homepage-theme .home-footer-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-secondary) 24%, transparent), transparent);
-  opacity: 0.72;
+  content: none;
 }
 
 .homepage-theme .home-footer-grid {
@@ -411,38 +317,24 @@
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--color-border) 74%, white);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--color-card) 98%, white) 0%, color-mix(in oklab, var(--color-card) 90%, transparent) 56%, color-mix(in oklab, var(--color-card) 84%, transparent) 100%);
+  background: color-mix(in oklab, var(--color-card) 98%, white);
   border-radius: 20px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
 .homepage-theme .home-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(120% 80% at 10% -10%, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 64%),
-    linear-gradient(110deg, color-mix(in oklab, var(--color-primary) 5%, transparent), transparent 44%, color-mix(in oklab, var(--color-secondary) 5%, transparent) 76%);
-  opacity: 0.9;
+  content: none;
 }
 
 .homepage-theme .home-card::after {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  border: 1px solid color-mix(in oklab, white 44%, transparent);
-  opacity: 0.34;
+  content: none;
 }
 
 .homepage-theme .home-card:hover {
   border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  box-shadow: var(--shadow-medium);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+  transform: none;
 }
 
 .homepage-theme .home-hero-panel {
@@ -459,34 +351,27 @@
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--color-border) 72%, white);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 92%, white), color-mix(in oklab, var(--color-card) 84%, transparent));
+  background: color-mix(in oklab, var(--color-card) 98%, white);
   border-radius: 16px;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .homepage-theme .home-card-soft:hover {
   border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .homepage-theme .home-stat-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 48%);
-  opacity: 0.8;
+  content: none;
 }
 
 .homepage-theme .home-feature-card {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--color-card) 98%, white), color-mix(in oklab, var(--color-card) 88%, transparent)),
-    linear-gradient(120deg, color-mix(in oklab, var(--color-primary) 3%, transparent), transparent 58%);
+  background: color-mix(in oklab, var(--color-card) 98%, white);
 }
 
 .homepage-theme .home-feature-card:hover {
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .homepage-theme .home-pill {
@@ -547,13 +432,13 @@
   color: var(--color-primary-foreground);
   border: 1px solid var(--color-primary-border);
   font-weight: 700;
-  box-shadow: 0 22px 34px -24px color-mix(in oklab, var(--color-primary) 50%, transparent);
+  box-shadow: none;
   transition: all 0.2s ease;
 }
 
 .homepage-theme .home-cta:hover {
-  box-shadow: 0 26px 38px -26px color-mix(in oklab, var(--color-primary) 58%, transparent);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 .homepage-theme .home-outline {
@@ -575,7 +460,8 @@
   align-items: flex-start;
   gap: 1rem;
   border-radius: 18px;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
+  background: color-mix(in oklab, var(--color-card) 98%, white);
   padding: 1rem;
 }
 
@@ -590,8 +476,8 @@
 }
 
 .homepage-theme .home-signal-success {
-  border-color: color-mix(in oklab, var(--color-success) 26%, transparent);
-  background-color: color-mix(in oklab, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in oklab, var(--color-success) 20%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-card) 98%, white);
 }
 
 .homepage-theme .home-signal-success .home-signal-icon {
@@ -600,8 +486,8 @@
 }
 
 .homepage-theme .home-signal-info {
-  border-color: color-mix(in oklab, var(--color-primary) 24%, transparent);
-  background-color: color-mix(in oklab, var(--color-primary) 8%, var(--color-card));
+  border-color: color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
+  background-color: color-mix(in oklab, var(--color-card) 98%, white);
 }
 
 .homepage-theme .home-signal-info .home-signal-icon {
@@ -683,23 +569,11 @@
   position: relative;
   overflow: hidden;
   background-color: hsl(214 34% 13%);
-  background-image:
-    radial-gradient(860px 420px at 10% 10%, color-mix(in oklab, var(--color-sidebar-primary) 22%, transparent), transparent 64%),
-    radial-gradient(780px 360px at 90% 0%, color-mix(in oklab, var(--color-secondary) 18%, transparent), transparent 68%),
-    linear-gradient(145deg, hsl(214 34% 13%), hsl(216 36% 9%));
+  background-image: linear-gradient(180deg, hsl(214 34% 13%), hsl(216 36% 10%));
 }
 
 .homepage-theme .home-band::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.06) 0%, transparent 28%, transparent 72%, rgba(255, 255, 255, 0.05) 100%),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: auto, 34px 34px, 34px 34px;
-  opacity: 0.54;
+  content: none;
 }
 
 .homepage-theme .home-band h1,
@@ -729,7 +603,7 @@
 
 .homepage-theme .home-section-muted,
 .homepage-theme .home-section-surface {
-  background: color-mix(in oklab, var(--color-card) 68%, transparent);
+  background: color-mix(in oklab, var(--color-card) 96%, white);
 }
 
 .homepage-theme .home-workflow-grid {
@@ -737,15 +611,15 @@
 }
 
 .homepage-theme .home-workflow-card {
-  background: color-mix(in oklab, var(--color-card) 88%, transparent);
-  box-shadow: var(--shadow-soft);
+  background: color-mix(in oklab, var(--color-card) 98%, white);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
 .homepage-theme .home-workflow-card:hover {
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-sm);
   border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  transform: translateY(-1px);
+  transform: none;
 }
 
 @keyframes home-spectrum-sweep {

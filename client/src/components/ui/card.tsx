@@ -9,7 +9,7 @@ const Card = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border/75 bg-card/98 text-card-foreground shadow-[var(--shadow-soft)] transition-[box-shadow,border-color,transform,background-color] duration-200 ease-[var(--ease-standard)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(120%_70%_at_8%_-20%,color-mix(in_oklab,var(--color-primary)_8%,transparent),transparent_68%)]",
+        "rounded-2xl border border-border/75 bg-card/98 text-card-foreground shadow-[var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-200 ease-[var(--ease-standard)]",
         className
       )}
       {...props}

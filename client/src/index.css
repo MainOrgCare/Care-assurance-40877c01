@@ -104,10 +104,7 @@
   --surface-shell-border: hsl(214 18% 84% / 0.78);
   --surface-shell-shadow: 0 14px 30px -24px rgba(15, 23, 42, 0.18);
   --surface-noise-opacity: 0.035;
-  --surface-bg-gradient: radial-gradient(1250px 740px at -8% -14%, hsl(210 66% 92% / 0.74), transparent 62%),
-    radial-gradient(1080px 620px at 102% -8%, hsl(172 52% 88% / 0.6), transparent 58%),
-    radial-gradient(820px 520px at 48% 118%, hsl(200 42% 92% / 0.36), transparent 66%),
-    linear-gradient(180deg, hsl(214 30% 98%) 0%, hsl(214 24% 96%) 46%, hsl(214 22% 94%) 100%);
+  --surface-bg-gradient: linear-gradient(180deg, hsl(214 30% 98%) 0%, hsl(214 24% 96%) 100%);
   --surface-grid: linear-gradient(90deg, hsl(214 20% 90% / 0.45) 1px, transparent 1px),
     linear-gradient(180deg, hsl(214 20% 90% / 0.45) 1px, transparent 1px);
   --surface-grid-size: 120px 120px;
@@ -189,27 +186,10 @@
     letter-spacing: -0.008em;
   }
   body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background-image: var(--surface-grid);
-    background-size: var(--surface-grid-size);
-    opacity: 0.2;
-    mask-image: radial-gradient(circle at 50% -12%, rgba(0, 0, 0, 0.56), transparent 72%);
+    content: none;
   }
   body::after {
-    content: "";
-    position: fixed;
-    inset: -22% -16% -14%;
-    z-index: -2;
-    pointer-events: none;
-    background-image: var(--surface-orb-a), var(--surface-orb-b), var(--surface-orb-c);
-    opacity: 0.78;
-    filter: blur(2px) saturate(1.04);
-    transform: translateZ(0);
-    animation: surface-orb-drift 34s ease-in-out infinite alternate;
+    content: none;
   }
   #root {
     min-height: 100vh;
@@ -536,41 +516,17 @@
     isolation: isolate;
   }
   .workspace-root::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 360px;
-    pointer-events: none;
-    z-index: 0;
-    background:
-      radial-gradient(120% 120% at 50% -25%, color-mix(in oklab, var(--color-primary) 16%, transparent), transparent 68%),
-      conic-gradient(from 212deg at 52% 0%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 66%);
-    opacity: 0.72;
+    content: none;
   }
   .workspace-root::after {
-    content: "";
-    position: absolute;
-    inset: auto 0 0;
-    height: 280px;
-    pointer-events: none;
-    z-index: 0;
-    background: radial-gradient(110% 100% at 50% 120%, color-mix(in oklab, var(--color-secondary) 14%, transparent), transparent 72%);
-    opacity: 0.44;
+    content: none;
   }
   .workspace-content-shell {
     position: relative;
     z-index: 1;
   }
   .workspace-content-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background-image:
-      radial-gradient(140% 90% at 14% -12%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 72%),
-      linear-gradient(115deg, color-mix(in oklab, var(--color-primary) 3%, transparent), transparent 56%);
-    opacity: 0.78;
+    content: none;
   }
   .workspace-content-shell > * {
     position: relative;
@@ -580,30 +536,15 @@
       position: relative;
       overflow: hidden;
     background: var(--color-sidebar);
-      background-image:
-        radial-gradient(135% 68% at 10% 8%, color-mix(in oklab, var(--color-sidebar-primary) 22%, transparent), transparent 66%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 32%);
+      background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar) 94%, black), color-mix(in oklab, var(--color-sidebar) 100%, black));
     border-color: var(--color-sidebar-border);
     box-shadow: 1px 0 0 var(--color-sidebar-border);
   }
     .workspace-sidebar::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-      background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%);
-      opacity: 0.42;
+      content: none;
     }
     .workspace-sidebar::after {
-      content: "";
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: 1px;
-      pointer-events: none;
-      z-index: 0;
-      background: linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar-primary) 38%, transparent), transparent 65%);
-      opacity: 0.72;
+      content: none;
     }
     .workspace-sidebar > * {
       position: relative;
@@ -691,28 +632,16 @@
     position: relative;
     overflow: hidden;
     border-color: var(--color-border);
-    background-color: color-mix(in oklab, var(--color-card) 88%, transparent);
-    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 97%, white) 0%, color-mix(in oklab, var(--color-card) 90%, transparent) 100%);
-    -webkit-backdrop-filter: blur(18px);
-    backdrop-filter: blur(18px);
+    background-color: color-mix(in oklab, var(--color-card) 96%, white);
+    background-image: none;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
   .workspace-header::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(105deg, color-mix(in oklab, var(--color-primary) 7%, transparent), transparent 42%, color-mix(in oklab, var(--color-secondary) 5%, transparent) 82%);
-    opacity: 0.76;
+    content: none;
   }
   .workspace-header::after {
-    content: "";
-    position: absolute;
-    left: 8%;
-    right: 8%;
-    top: 0;
-    height: 1px;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 24%, transparent), transparent);
+    content: none;
   }
   .workspace-header-shell {
     position: relative;
@@ -725,18 +654,12 @@
     position: relative;
     overflow: hidden;
     isolation: isolate;
-    border-color: color-mix(in oklab, var(--color-border) 66%, transparent);
-    background: color-mix(in oklab, var(--color-card) 90%, transparent);
-    box-shadow: 0 12px 26px -24px rgba(15, 23, 42, 0.45);
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
   }
   .workspace-header-tools::before {
-    content: "";
-    position: absolute;
-    inset: 0 18% auto;
-    height: 1px;
-    pointer-events: none;
-    z-index: 0;
-    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 24%, transparent), transparent);
+    content: none;
   }
   .workspace-header-tools > * {
     position: relative;
@@ -747,29 +670,15 @@
     overflow: hidden;
     isolation: isolate;
     border-color: color-mix(in oklab, var(--color-border) 76%, white);
-    background: linear-gradient(175deg, color-mix(in oklab, var(--color-card) 96%, white), color-mix(in oklab, var(--color-card) 90%, transparent));
-    box-shadow: var(--shadow-soft);
+    background: color-mix(in oklab, var(--color-card) 98%, white);
+    box-shadow: var(--shadow-sm);
     transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .workspace-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background: radial-gradient(110% 82% at 10% -16%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 68%);
-    opacity: 0.9;
+    content: none;
   }
   .workspace-card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background: linear-gradient(108deg, transparent 12%, color-mix(in oklab, white 38%, transparent) 42%, transparent 72%);
-    opacity: 0.16;
-    transform: translateX(-10%);
-    animation: workspace-sheen-shift 16s ease-in-out infinite;
+    content: none;
   }
   .workspace-card > * {
     position: relative;
@@ -777,8 +686,8 @@
   }
   .workspace-card:hover {
     border-color: color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
-    box-shadow: var(--shadow-medium);
-    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+    transform: none;
   }
   .workspace-card > * + * {
     margin-top: 0;
@@ -787,22 +696,17 @@
     position: relative;
     overflow: hidden;
     border-color: var(--color-border);
-    background-color: color-mix(in oklab, var(--color-card) 90%, transparent);
-    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 78%, transparent), color-mix(in oklab, var(--color-card) 96%, white));
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+    background-color: color-mix(in oklab, var(--color-card) 96%, white);
+    background-image: none;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
   .workspace-footer-shell {
     position: relative;
     padding: 0.3rem 0;
   }
   .workspace-footer-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(90deg, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 28%, transparent 72%, color-mix(in oklab, var(--color-secondary) 10%, transparent));
-    opacity: 0.55;
+    content: none;
   }
   .workspace-footer-shell > * {
     position: relative;
@@ -820,18 +724,10 @@
     border: 1px solid color-mix(in oklab, var(--color-border) 52%, transparent);
     border-radius: 999px;
     padding: 0.2rem 0.55rem;
-    background: color-mix(in oklab, var(--color-card) 78%, transparent);
+    background: transparent;
   }
   .workspace-footer::before {
-    content: "";
-    position: absolute;
-    left: 10%;
-    right: 10%;
-    top: 0;
-    height: 1px;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-secondary) 26%, transparent), transparent);
-    opacity: 0.75;
+    content: none;
   }
   .workspace-quick-access {
     position: relative;
@@ -839,13 +735,7 @@
     isolation: isolate;
   }
   .workspace-quick-access::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background: linear-gradient(118deg, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 52%);
-    opacity: 0.86;
+    content: none;
   }
   .workspace-quick-access > * {
     position: relative;
