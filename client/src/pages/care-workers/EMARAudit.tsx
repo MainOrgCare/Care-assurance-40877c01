@@ -591,7 +591,99 @@ export default function EMARAudit() {
       return (a.medication || "").localeCompare(b.medication || "");
     });
   }, [result?.warnings]);
-  const analyzedRecords = useMemo(() => emarRecords.filter(record => record.analyzed), [emarRecords]);
+  const recordQueueSummary = useMemo(() => {
+    const total = emarRecords.length;
+    const analyzedCount = emarRecords.filter(record => record.analyzed).length;
+    const checkedCount = emarRecords.filter(record => Boolean(record.preflightResult)).length;
+    const flaggedCount = emarRecords.filter(
+      record => Boolean(record.preflightError) || (record.preflightResult?.warnings?.length || 0) > 0
+    ).length;
+    const readyCount = emarRecords.filter(record => !record.analyzed && record.state.fileReady).length;
+    const preparingCount = emarRecords.filter(record => !record.state.fileReady).length;
+
+    return {
+      total,
+      analyzedCount,
+      checkedCount,
+      flaggedCount,
+      readyCount,
+      preparingCount,
+      pendingCount: Math.max(total - analyzedCount, 0),
+    };
+  }, [emarRecords]);
+
+  const getRecordStatusMeta = useCallback((record: EmarRecord) => {
+    if (record.id === activeRecordId && loading) {
+      return {
+        label: "Analyzing",
+        helper: progressStatus || "AI analysis in progress",
+        badgeClass: "border-primary/30 bg-primary/10 text-primary",
+      };
+    }
+
+    if (record.id === activeRecordId && preflightLoading) {
+      return {
+        label: "Quick Check",
+        helper: "Running preflight checks",
+        badgeClass: "border-primary/30 bg-primary/10 text-primary",
+      };
+    }
+
+    if (record.preflightError) {
+      return {
+        label: "Check Failed",
+        helper: record.preflightError,
+        badgeClass: "border-destructive/30 bg-destructive/10 text-destructive",
+      };
+    }
+
+    if (record.analyzed && record.result) {
+      const discrepancyCount = record.result.discrepancies?.length || 0;
+      const warningCount = record.result.warnings?.length || 0;
+      return {
+        label: "Analyzed",
+        helper:
+          discrepancyCount > 0
+            ? `${discrepancyCount} discrepanc${discrepancyCount === 1 ? "y" : "ies"}`
+            : warningCount > 0
+            ? `${warningCount} warning${warningCount === 1 ? "" : "s"}`
+            : "Audit complete",
+        badgeClass:
+          discrepancyCount > 0
+            ? "border-destructive/30 bg-destructive/10 text-destructive"
+            : "border-success/30 bg-success/10 text-success",
+      };
+    }
+
+    if (record.preflightResult) {
+      const warningCount = record.preflightResult.warnings?.length || 0;
+      return {
+        label: warningCount > 0 ? "Checked" : "Check Passed",
+        helper:
+          warningCount > 0
+            ? `${warningCount} quick-check warning${warningCount === 1 ? "" : "s"}`
+            : "Quick Check passed",
+        badgeClass:
+          warningCount > 0
+            ? "border-warning/30 bg-warning/10 text-warning"
+            : "border-success/30 bg-success/10 text-success",
+      };
+    }
+
+    if (record.state.fileReady) {
+      return {
+        label: "Ready",
+        helper: "Ready to analyze",
+        badgeClass: "border-primary/30 bg-primary/10 text-primary",
+      };
+    }
+
+    return {
+      label: "Preparing",
+      helper: "Preparing file for audit",
+      badgeClass: "border-border/60 bg-muted/40 text-muted-foreground",
+    };
+  }, [activeRecordId, loading, preflightLoading, progressStatus]);
 
   const highestWarningSeverity = sortedWarnings.length > 0
     ? sortedWarnings[0].severity ?? "low"
@@ -2838,14 +2930,24 @@ ${generatedProtocol.additionalComments}`;
 
               {emarRecords.length > 0 && (
                 <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                  <div className="flex items-center justify-between text-sm font-semibold text-foreground">
-                    <span>Uploaded EMARs</span>
-                    <span className="text-xs text-muted-foreground">{emarRecords.length} file{emarRecords.length !== 1 ? "s" : ""}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-foreground">
+                    <span>EMAR Queue</span>
+                    <span className="text-xs text-muted-foreground">{recordQueueSummary.total} file{recordQueueSummary.total !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="bg-background/60">{recordQueueSummary.readyCount} ready</Badge>
+                    <Badge variant="outline" className="bg-background/60">{recordQueueSummary.checkedCount} checked</Badge>
+                    <Badge variant="outline" className="bg-background/60">{recordQueueSummary.analyzedCount} analyzed</Badge>
+                    {recordQueueSummary.flaggedCount > 0 && (
+                      <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
+                        {recordQueueSummary.flaggedCount} flagged
+                      </Badge>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     {emarRecords.map((record) => {
                       const isActive = record.id === activeRecordId;
-                      const status = record.analyzed ? "Analyzed" : "Ready";
+                      const status = getRecordStatusMeta(record);
                       return (
                         <button
                           key={record.id}
@@ -2855,11 +2957,16 @@ ${generatedProtocol.additionalComments}`;
                             isActive ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
                           }`}
                         >
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{record.file.name}</p>
-                            <p className="text-xs text-muted-foreground">{formatFileSize(record.file.size)}</p>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-medium text-foreground">{record.file.name}</p>
+                              {isActive && <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">Active</Badge>}
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {formatFileSize(record.file.size)} • {status.helper}
+                            </p>
                           </div>
-                          <Badge variant={record.analyzed ? "success" : "outline"}>{status}</Badge>
+                          <Badge variant="outline" className={status.badgeClass}>{status.label}</Badge>
                         </button>
                       );
                     })}
@@ -3238,19 +3345,27 @@ ${generatedProtocol.additionalComments}`;
               </button>
             </div>
           )}
-          {analyzedRecords.length > 1 && (
-            <div className="flex items-center gap-4 bg-muted/20 border border-border/40 p-4 rounded-2xl">
-              <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Current EMAR:</span>
+          {emarRecords.length > 1 && (
+            <div className="flex flex-col gap-3 bg-muted/20 border border-border/40 p-4 rounded-2xl sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">EMAR Queue</span>
+                <p className="text-sm text-muted-foreground">
+                  Switch between analyzed audits and pending EMARs without clearing the current result.
+                </p>
+              </div>
               <Select value={activeRecordId ?? ""} onValueChange={(value) => loadRecordById(value)}>
                 <SelectTrigger className="w-full sm:w-80 bg-background border-border/60 rounded-xl font-semibold">
-                  <SelectValue placeholder="Select an EMAR file" />
+                  <SelectValue placeholder="Switch EMAR file" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-border/60">
-                  {analyzedRecords.map((record) => (
+                  {emarRecords.map((record) => {
+                    const status = getRecordStatusMeta(record);
+                    return (
                     <SelectItem key={record.id} value={record.id} className="font-medium">
-                      {record.file.name}
+                      {record.file.name} • {status.label}
                     </SelectItem>
-                  ))}
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

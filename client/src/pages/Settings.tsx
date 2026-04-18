@@ -104,8 +104,6 @@ export default function Settings() {
     setFontSize,
     compactMode,
     setCompactMode,
-    showQuickAccessBar,
-    setShowQuickAccessBar,
     showCopyConfirmation,
     setShowCopyConfirmation,
     autoExpandSections,
@@ -736,19 +734,6 @@ export default function Settings() {
                   checked={compactMode}
                   onCheckedChange={setCompactMode}
                   data-testid="switch-compact-mode"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
-                <div>
-                  <Label htmlFor="quick-access" className="cursor-pointer text-sm font-medium text-foreground">Quick Access Bar</Label>
-                  <p className="text-xs text-muted-foreground/70">Show pinned and recent page shortcuts below the header</p>
-                </div>
-                <Switch
-                  id="quick-access"
-                  checked={showQuickAccessBar}
-                  onCheckedChange={setShowQuickAccessBar}
-                  data-testid="switch-quick-access"
                 />
               </div>
 

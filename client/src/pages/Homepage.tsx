@@ -48,10 +48,10 @@ const TASKS = {
 } as const;
 
 const HERO_STATS = [
-  { label: "Avg audit time", value: "6 min", detail: "from 45 min", icon: Timer },
-  { label: "Care plan sections", value: "11", detail: "auto-drafted", icon: FileText },
-  { label: "Records parsed", value: "98%", detail: "structured capture", icon: BarChart3 },
-  { label: "UK-ready", value: "CQC focus", detail: "audit trails", icon: ShieldCheck },
+  { label: "Audit cycle", value: "6 min", detail: "manager review-ready", icon: Timer },
+  { label: "Workflow coverage", value: "11", detail: "core documentation modules", icon: FileText },
+  { label: "Structured capture", value: "98%", detail: "records normalised", icon: BarChart3 },
+  { label: "Governance focus", value: "CQC", detail: "audit evidence built in", icon: ShieldCheck },
 ] as const;
 
 const PRIMARY_FEATURES = [
@@ -96,18 +96,18 @@ const PRIMARY_FEATURES = [
 const CERTIFICATIONS = [
   {
     icon: ShieldCheck,
-    title: "CQC-Aligned",
-    description: "Workflows designed around inspection priorities and audit-ready reporting.",
+    title: "Governance Controls",
+    description: "Workflows structured around inspection evidence, controlled review, and accountable sign-off.",
   },
   {
     icon: Lock,
-    title: "Privacy Focused",
-    description: "Data minimisation, sealing, and role-based access built in.",
+    title: "Access & Accountability",
+    description: "Role-based access, sealed data handling, and clearer ownership across operational workflows.",
   },
   {
     icon: ClipboardCheck,
-    title: "Audit Trails",
-    description: "Every change is logged with time, user, and document context.",
+    title: "Inspection-Ready Reporting",
+    description: "Evidence trails, review history, and operational commentary remain available for management assurance.",
   },
 ] as const;
 
@@ -132,28 +132,28 @@ const EXTENSION_FEATURES = [
 const WORKFLOW_STEPS = [
   {
     step: "01",
-    title: "Upload Records",
-    description: "Drag and drop EMAR sheets, care plans, or visit logs. Supports PDF, CSV, and common care system exports.",
+    title: "Capture Evidence",
+    description: "Bring EMAR sheets, care plans, assessments, and visit logs into one controlled intake workflow.",
     icon: FileText,
   },
   {
     step: "02",
-    title: "AI Analysis",
-    description: "Our system parses documents, detects discrepancies, and highlights compliance risks automatically.",
+    title: "Review Intelligence",
+    description: "Standardised analysis highlights discrepancies, documentation gaps, and operational risk for management review.",
     icon: Brain,
   },
   {
     step: "03",
-    title: "Review & Action",
-    description: "Clear summaries show what needs attention. Export reports or generate corrective action plans instantly.",
+    title: "Direct Action",
+    description: "Teams move from flagged findings to structured action, reporting, and controlled follow-up without leaving the platform.",
     icon: ClipboardCheck,
   },
 ] as const;
 
 const OVERVIEW_BULLETS = [
-  "Unified record review for EMARs, care plans, and audits.",
-  "Automated checks highlight issues before inspections.",
-  "Clear reports for managers, auditors, and care teams.",
+  "Executive visibility across assurance, documentation, and service delivery review.",
+  "Standardised controls reduce fragmented spreadsheet and email workflows.",
+  "Clear outputs for operations leads, quality managers, and auditors.",
 ] as const;
 
 const NAV_SECTIONS = [
@@ -165,29 +165,38 @@ const NAV_SECTIONS = [
 
 const HERO_ACTIVITY = [
   {
-    title: "EMAR compliance audit",
-    detail: "12 medication records reviewed • 0 discrepancies",
+    title: "Medication governance",
+    detail: "Scheduled and PRN review aligned into one controlled assurance workflow",
     tone: "success",
-    icon: CheckCircle2,
+    icon: ShieldCheck,
   },
   {
-    title: "Care plan generated",
-    detail: "11 sections • inspection-ready format",
+    title: "Documentation control",
+    detail: "Care plans, assessments, and updates prepared inside one governed record set",
     tone: "success",
     icon: FileText,
   },
   {
-    title: "Visit reconciliation",
-    detail: "Analysing 48 visits • 2 variances flagged",
+    title: "Service delivery review",
+    detail: "Visit variance, drift, and missed-call analysis available for operational follow-up",
     tone: "info",
-    icon: ClipboardCheck,
+    icon: BarChart3,
   },
 ] as const;
 
 const TRUST_PILLARS = [
-  { icon: ShieldCheck, label: "Inspection-ready evidence" },
-  { icon: Lock, label: "Secure by design" },
-  { icon: Building2, label: "Built for UK care teams" },
+  { icon: ShieldCheck, label: "Governed workflows" },
+  { icon: Lock, label: "Role-based control" },
+  { icon: Building2, label: "Built for regulated care" },
+] as const;
+
+const HERO_COVERAGE = [
+  "Medication oversight",
+  "Care documentation",
+  "Visit assurance",
+  "Risk governance",
+  "Workforce visibility",
+  "Management reporting",
 ] as const;
 
 const calculateROI = (users: number) => {
@@ -647,28 +656,27 @@ export default function Homepage() {
         <section className="home-section home-hero-section px-4 pt-8 pb-16 sm:pt-12 sm:pb-20">
           <div className="max-w-6xl mx-auto grid gap-12 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <motion.div {...reveal()} className="text-center lg:text-left">
-              <span className="home-eyebrow">Compliance &amp; Assurance for UK Care Providers</span>
-              <h1 className="home-text-heading mt-5 text-3xl sm:text-4xl lg:text-[3.25rem] font-heading font-bold leading-[1.08] tracking-[-0.03em]">
-                Compliance assurance and operational intelligence for domiciliary care.
+              <span className="home-eyebrow">Corporate compliance platform for UK care providers</span>
+              <h1 className="home-text-heading mt-5 max-w-[13ch] text-3xl sm:text-4xl lg:text-[2.92rem] font-heading font-bold leading-[1.05] tracking-[-0.035em]">
+                Executive oversight for domiciliary care operations.
               </h1>
               <p className="home-text-body mt-6 text-lg max-w-xl mx-auto lg:mx-0 leading-[1.7]">
-                CareAssurance provides a structured workspace for EMAR audits,
-                care plan documentation, visit reconciliation, and evidence-led oversight.
-                Consolidate operational risk, records, and assurance reporting into one
-                governed system.
+                Give operations, quality, and compliance teams a single controlled environment for
+                EMAR review, care documentation, visit variance, and management reporting.
+                CareAssurance brings evidence, commentary, and oversight into one professional workflow.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:justify-center lg:justify-start">
                 <Button className="home-cta w-full sm:w-auto" size="lg" onClick={() => setLoginOpen(true)}>
-                  Login to platform
+                  Access platform
                   <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
                   size="lg"
                   className="home-outline w-full sm:w-auto"
-                  onClick={() => scrollToSection("roi")}
+                  onClick={() => scrollToSection("contact")}
                 >
-                  Estimate savings
+                  Arrange consultation
                 </Button>
               </div>
               <div className="home-trust-strip mt-6 justify-center lg:justify-start" aria-label="Key platform assurances">
@@ -698,6 +706,10 @@ export default function Homepage() {
             <motion.div {...reveal(0.1)} className="relative">
               <div className="home-hero-glow" aria-hidden="true" />
               <div className="home-card home-hero-panel p-6">
+                <div className="home-panel-heading">
+                  <p className="home-panel-eyebrow">Executive snapshot</p>
+                  <h3 className="home-panel-title">A single operating view across compliance, documentation, and service delivery.</h3>
+                </div>
                 <div className="space-y-4">
                   {HERO_ACTIVITY.map((item) => (
                     <div key={item.title} className={`home-signal home-signal-${item.tone}`}>
@@ -711,30 +723,25 @@ export default function Homepage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="mt-5 grid grid-cols-2 gap-3">
                   <div className="home-card-soft p-3 home-mini-stat">
-                    <p className="text-xs">Live audits reviewed</p>
-                    <p className="text-lg font-semibold">248</p>
+                    <p className="text-xs">Modules aligned</p>
+                    <p className="text-lg font-semibold">6</p>
                   </div>
                   <div className="home-card-soft p-3 home-mini-stat">
-                    <p className="text-xs">Open issues flagged</p>
-                    <p className="text-lg font-semibold">7</p>
+                    <p className="text-xs">Leadership view</p>
+                    <p className="text-lg font-semibold">1 workspace</p>
                   </div>
                 </div>
-                <div className="home-hero-trend" aria-hidden="true">
-                  <div className="home-hero-trend-header">
-                    <span>Risk drift index</span>
-                    <span>stable</span>
+                <div className="home-coverage-panel">
+                  <div className="home-coverage-header">
+                    <span>Operational coverage</span>
+                    <span>Live</span>
                   </div>
-                  <div className="home-hero-trend-bars">
-                    <span className="home-hero-trend-bar bar-1" />
-                    <span className="home-hero-trend-bar bar-2" />
-                    <span className="home-hero-trend-bar bar-3" />
-                    <span className="home-hero-trend-bar bar-4" />
-                    <span className="home-hero-trend-bar bar-5" />
-                    <span className="home-hero-trend-bar bar-6" />
-                    <span className="home-hero-trend-bar bar-7" />
-                    <span className="home-hero-trend-bar bar-8" />
+                  <div className="home-coverage-grid">
+                    {HERO_COVERAGE.map((item) => (
+                      <span key={item} className="home-coverage-chip">{item}</span>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -768,33 +775,39 @@ export default function Homepage() {
 
             <motion.div {...reveal(0.1)} className="grid gap-4">
               <div className="home-card p-5">
-                <p className="home-eyebrow">Audit snapshot</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="home-eyebrow">Management snapshot</p>
+                    <h3 className="mt-3 text-xl font-semibold home-text-heading">Operational control across the record lifecycle.</h3>
+                  </div>
+                  <span className="home-pill">Executive view</span>
+                </div>
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="home-text-soft">Service users</p>
+                    <p className="home-text-soft">Active records</p>
                     <p className="home-text-heading text-2xl font-semibold">52</p>
                   </div>
                   <div>
-                    <p className="home-text-soft">Flagged calls</p>
+                    <p className="home-text-soft">Exceptions</p>
                     <p className="home-text-heading text-2xl font-semibold">13</p>
                   </div>
                   <div>
-                    <p className="home-text-soft">Avg start drift</p>
+                    <p className="home-text-soft">Variance window</p>
                     <p className="home-text-heading text-2xl font-semibold">+1h 3m</p>
                   </div>
                   <div>
-                    <p className="home-text-soft">Avg duration</p>
+                    <p className="home-text-soft">Completion rate</p>
                     <p className="home-text-heading text-2xl font-semibold">122%</p>
                   </div>
                 </div>
               </div>
               <div className="home-card-soft p-5">
-                <p className="home-text-soft text-xs uppercase tracking-[0.2em]">Included modules</p>
+                <p className="home-text-soft text-xs uppercase tracking-[0.2em]">Core control domains</p>
                 <div className="home-text-heading mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <span>EMAR audits</span>
-                  <span>Care plan drafts</span>
-                  <span>Visit audits</span>
-                  <span>Risk assessments</span>
+                  <span>Medication assurance</span>
+                  <span>Care documentation</span>
+                  <span>Visit review</span>
+                  <span>Risk governance</span>
                 </div>
               </div>
             </motion.div>
@@ -806,11 +819,11 @@ export default function Homepage() {
             <motion.div {...reveal()} className="text-center">
               <p className="home-eyebrow text-white/85">Compliance foundations</p>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight">
-                Governance you can stand behind.
+                Governance designed for professional care operations.
               </h2>
               <p className="mt-4 max-w-2xl mx-auto leading-relaxed">
-                 Designed for regulated care environments with governance controls, audit trails,
-                 and reporting standards that underpin management assurance.
+                 Built for regulated care environments where leadership teams need stronger controls,
+                 clearer reporting lines, and dependable operational evidence.
               </p>
             </motion.div>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
@@ -865,11 +878,10 @@ export default function Homepage() {
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">How it works</span>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                Three steps to structured compliance.
+                A cleaner operating model for compliance work.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                 Start with your existing records and transition to a structured review workflow
-                 without adding operational friction.
+                 Standardise how evidence is captured, reviewed, and actioned without adding unnecessary admin overhead.
               </p>
             </motion.div>
             <div className="mt-12 grid gap-8 md:grid-cols-3 home-workflow-grid">
@@ -898,11 +910,11 @@ export default function Homepage() {
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Extension workflow</span>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                Keep the browser extension aligned with the platform.
+                Keep browser workflows aligned with the corporate platform.
               </h2>
               <p className="mt-4 text-base max-w-3xl mx-auto leading-relaxed home-text-soft">
-                The CareAssurance extension is designed to mirror key website workflows so teams can move between service users,
-                carers, uploaded records, and guided autofill with a consistent experience.
+                The CareAssurance extension mirrors core website workflows so teams can move between uploaded records,
+                service users, and guided autofill without losing governance or operational context.
               </p>
             </motion.div>
 
@@ -925,11 +937,10 @@ export default function Homepage() {
             <motion.div {...reveal()} className="text-center">
               <span className="home-eyebrow">Efficiency analysis</span>
               <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                Quantify operational time savings.
+                Quantify operational return with a clearer business case.
               </h2>
               <p className="mt-4 text-base max-w-2xl mx-auto leading-relaxed home-text-soft">
-                 Model the operational hours returned when assurance work is standardised and
-                 care documentation is accelerated.
+                 Model the hours returned when assurance work is standardised and documentation moves into a controlled digital workflow.
               </p>
             </motion.div>
 
@@ -1017,11 +1028,10 @@ export default function Homepage() {
                 <div>
                   <span className="home-eyebrow">Contact</span>
                   <h2 className="mt-4 text-3xl sm:text-4xl font-heading font-bold leading-tight home-text-heading">
-                    Arrange a consultation with our team.
+                    Arrange a professional consultation with our team.
                   </h2>
                   <p className="mt-4 text-base leading-relaxed home-text-soft">
-                     Share your compliance priorities and we will provide a focused walkthrough
-                     tailored to your organisation.
+                    Share your compliance, documentation, or assurance priorities and we will tailor a focused walkthrough to your organisation.
                   </p>
                   <div className="mt-6 space-y-3 text-sm home-text-body">
                     <div className="flex items-center gap-3">
@@ -1146,24 +1156,24 @@ export default function Homepage() {
       <footer className="home-footer relative z-10 border-t border-border/60 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-4 py-6 sm:py-7">
           <div className="home-footer-shell">
-            <div className="home-footer-grid grid gap-5 md:grid-cols-[1.25fr_0.75fr_0.8fr] text-[13px]">
-              <div className="space-y-3">
+            <div className="home-footer-grid grid gap-5 md:grid-cols-[1.35fr_1fr] text-[13px]">
+              <div className="space-y-2.5">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-xs)]">
+                  <div className="h-9 w-9 rounded-xl text-white flex items-center justify-center bg-primary shadow-[var(--shadow-xs)]">
                     <ShieldCheck className="h-4.5 w-4.5" />
                   </div>
                   <div>
                     <span className="font-bold home-text-heading tracking-[-0.01em]">CareAssurance</span>
-                    <span className="ml-2 home-text-soft text-[13px]">careassurance.uk</span>
+                    <span className="ml-2 home-text-soft text-[13px]">Compliance operations platform</span>
                   </div>
                 </div>
                 <p className="max-w-md home-text-soft leading-relaxed">
-                  Professional compliance operations for domiciliary care teams, with consistent workflows across the website and extension.
+                  Professional compliance operations for UK domiciliary care organisations, with consistent workflows across the website and extension.
                 </p>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Explore</p>
-                <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Quick access</p>
+                <div className="mt-2.5 grid gap-2 sm:grid-cols-2 home-text-soft text-[13px]">
                   <button
                     type="button"
                     className="home-footer-link bg-transparent p-0 text-left font-semibold transition-colors"
@@ -1185,11 +1195,6 @@ export default function Homepage() {
                   >
                     Contact
                   </button>
-                </div>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/55">Policies</p>
-                <div className="mt-2.5 flex flex-col gap-2.5 home-text-soft text-[13px]">
                   <Link href="/terms" className="home-footer-link font-semibold transition-colors">
                     Terms & Conditions
                   </Link>

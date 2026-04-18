@@ -45,7 +45,7 @@
   --color-destructive-foreground: hsl(0 0% 100%);
 
   --color-warning: hsl(38 92% 46%);
-  --color-warning-foreground: hsl(38 100% 96%);
+  --color-warning-foreground: hsl(28 46% 12%);
 
   --color-success: hsl(152 56% 36%);
   --color-success-foreground: hsl(0 0% 100%);
@@ -1497,9 +1497,13 @@ body.reduce-motion .workspace-card::after {
 }
 
 html.high-contrast {
+  --color-card: color-mix(in oklab, var(--color-card) 92%, var(--color-background));
+  --color-popover: color-mix(in oklab, var(--color-popover) 94%, var(--color-background));
+  --color-muted: color-mix(in oklab, var(--color-background) 84%, var(--color-foreground));
   --color-muted-foreground: color-mix(in oklab, var(--color-foreground) 72%, var(--color-background));
-  --color-border: color-mix(in oklab, var(--color-foreground) 28%, var(--color-background));
-  --color-input: color-mix(in oklab, var(--color-foreground) 28%, var(--color-background));
+  --color-border: color-mix(in oklab, var(--color-foreground) 34%, var(--color-background));
+  --color-input: color-mix(in oklab, var(--color-foreground) 34%, var(--color-background));
+  --color-accent: color-mix(in oklab, var(--color-primary) 18%, var(--color-background));
   --color-primary: color-mix(in oklab, var(--color-primary) 88%, black);
   --color-ring: color-mix(in oklab, var(--color-primary) 92%, black);
 }
@@ -1648,25 +1652,33 @@ html.theme-ocean {
 
 /* Default Dark Theme Overrides */
 .dark, .theme-dark, .theme-aurora {
-  --color-background: hsl(222.2 84% 4.9%);
-  --color-foreground: hsl(210 40% 98%);
-  --color-card: hsl(222.2 84% 4.9%);
-  --color-card-foreground: hsl(210 40% 98%);
-  --color-popover: hsl(222.2 84% 4.9%);
-  --color-popover-foreground: hsl(210 40% 98%);
-  --color-primary: hsl(217.2 91.2% 59.8%);
-  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-secondary: hsl(217.2 32.6% 17.5%);
-  --color-secondary-foreground: hsl(210 40% 98%);
-  --color-muted: hsl(217.2 32.6% 17.5%);
-  --color-muted-foreground: hsl(215 20.2% 65.1%);
-  --color-accent: hsl(217.2 32.6% 17.5%);
-  --color-accent-foreground: hsl(210 40% 98%);
-  --color-destructive: hsl(0 62.8% 30.6%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(217.2 32.6% 17.5%);
-  --color-input: hsl(217.2 32.6% 17.5%);
-  --color-ring: hsl(224.3 76.3% 48%);
+  --color-background: hsl(222 30% 8%);
+  --color-foreground: hsl(210 32% 96%);
+  --color-card: hsl(221 24% 12% / 0.92);
+  --color-card-foreground: hsl(210 32% 96%);
+  --color-popover: hsl(221 24% 13% / 0.98);
+  --color-popover-foreground: hsl(210 32% 96%);
+  --color-primary: hsl(217 85% 62%);
+  --color-primary-foreground: hsl(220 42% 10%);
+  --color-secondary: hsl(217 24% 18%);
+  --color-secondary-foreground: hsl(210 32% 96%);
+  --color-muted: hsl(217 20% 18% / 0.88);
+  --color-muted-foreground: hsl(214 18% 78%);
+  --color-accent: hsl(217 24% 20% / 0.94);
+  --color-accent-foreground: hsl(210 32% 96%);
+  --color-destructive: hsl(0 72% 56%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 96% 60%);
+  --color-warning-foreground: hsl(30 58% 10%);
+  --color-success: hsl(152 60% 46%);
+  --color-success-foreground: hsl(152 70% 9%);
+  --color-border: hsl(217 18% 27% / 0.88);
+  --color-input: hsl(217 18% 27% / 0.88);
+  --color-ring: hsl(217 85% 62%);
+  --color-primary-border: hsl(217 85% 62% / 0.42);
+  --color-secondary-border: hsl(217 26% 38% / 0.42);
+  --button-outline: hsl(217 18% 32% / 0.84);
+  --badge-outline: hsl(217 18% 36% / 0.84);
   --surface-shell-border: rgba(148, 163, 184, 0.24);
   --surface-shell-shadow: 0 4px 16px -8px rgba(2, 6, 23, 0.4);
   --surface-noise-opacity: 0;
@@ -1675,27 +1687,27 @@ html.theme-ocean {
 /* Theme: Midnight - Deep purple tones */
 html.theme-midnight {
   --color-primary: hsl(200 70% 50%);
-  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(206 56% 9%);
   --color-secondary: hsl(28 90% 55%);
-  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-secondary-foreground: hsl(28 68% 10%);
   --color-background: hsl(220 25% 7%);
   --color-foreground: hsl(210 20% 98%);
-  --color-card: hsl(220 25% 12% / 0.7);
+  --color-card: hsl(220 25% 12% / 0.9);
   --color-card-foreground: hsl(210 20% 98%);
-  --color-popover: hsl(220 25% 12% / 0.9);
+  --color-popover: hsl(220 25% 13% / 0.98);
   --color-popover-foreground: hsl(210 20% 98%);
-  --color-muted: hsl(220 22% 18% / 0.6);
-  --color-muted-foreground: hsl(220 16% 70%);
+  --color-muted: hsl(220 22% 18% / 0.84);
+  --color-muted-foreground: hsl(220 16% 78%);
   --color-accent: hsl(200 70% 50% / 0.14);
-  --color-accent-foreground: hsl(200 70% 70%);
-  --color-border: hsl(220 20% 22% / 0.6);
-  --color-input: hsl(220 20% 22% / 0.6);
+  --color-accent-foreground: hsl(200 84% 78%);
+  --color-border: hsl(220 20% 28% / 0.82);
+  --color-input: hsl(220 20% 28% / 0.82);
   --color-ring: hsl(200 70% 50%);
   --color-primary-border: hsl(200 70% 42% / 0.6);
   --color-secondary-border: hsl(28 90% 45% / 0.6);
   --color-destructive-border: hsl(0 84% 45% / 0.55);
-  --button-outline: hsl(220 18% 28% / 0.6);
-  --badge-outline: hsl(220 18% 32% / 0.6);
+  --button-outline: hsl(220 18% 34% / 0.82);
+  --badge-outline: hsl(220 18% 38% / 0.82);
   --color-sidebar: hsl(220 25% 6% / 0.9);
   --color-sidebar-foreground: hsl(210 20% 90%);
   --color-sidebar-primary: hsl(200 70% 50%);
@@ -1712,27 +1724,27 @@ html.theme-midnight {
 /* Theme: Ocean - Blue-green palette */
 html.theme-ocean {
   --color-primary: hsl(168 76% 42%);
-  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(172 70% 8%);
   --color-secondary: hsl(199 89% 48%);
-  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-secondary-foreground: hsl(201 72% 10%);
   --color-background: hsl(200 35% 10%);
   --color-foreground: hsl(200 20% 98%);
-  --color-card: hsl(200 35% 14% / 0.6);
+  --color-card: hsl(200 35% 14% / 0.9);
   --color-card-foreground: hsl(200 20% 98%);
-  --color-popover: hsl(200 35% 14% / 0.9);
+  --color-popover: hsl(200 35% 15% / 0.98);
   --color-popover-foreground: hsl(200 20% 98%);
-  --color-muted: hsl(200 35% 22% / 0.5);
-  --color-muted-foreground: hsl(200 20% 70%);
+  --color-muted: hsl(200 35% 22% / 0.84);
+  --color-muted-foreground: hsl(200 18% 79%);
   --color-accent: hsl(168 76% 42% / 0.15);
-  --color-accent-foreground: hsl(168 76% 55%);
-  --color-border: hsl(200 35% 28% / 0.5);
-  --color-input: hsl(200 35% 28% / 0.5);
+  --color-accent-foreground: hsl(168 78% 66%);
+  --color-border: hsl(200 35% 30% / 0.82);
+  --color-input: hsl(200 35% 30% / 0.82);
   --color-ring: hsl(168 76% 42%);
   --color-primary-border: hsl(168 76% 34% / 0.55);
   --color-secondary-border: hsl(199 89% 38% / 0.55);
   --color-destructive-border: hsl(0 84% 45% / 0.55);
-  --button-outline: hsl(200 35% 32% / 0.6);
-  --badge-outline: hsl(200 35% 36% / 0.6);
+  --button-outline: hsl(200 35% 34% / 0.82);
+  --badge-outline: hsl(200 35% 38% / 0.82);
   --color-sidebar: hsl(200 35% 8% / 0.8);
   --color-sidebar-foreground: hsl(200 20% 90%);
   --color-sidebar-primary: hsl(168 76% 42%);
@@ -1755,20 +1767,22 @@ html.theme-light {
   --color-secondary-foreground: hsl(0 0% 100%);
   --color-background: hsl(203 38% 97%);
   --color-foreground: hsl(217 36% 13%);
-  --color-card: hsl(0 0% 100% / 0.95);
+  --color-card: hsl(0 0% 100% / 0.97);
   --color-card-foreground: hsl(217 36% 13%);
   --color-popover: hsl(0 0% 100% / 0.98);
   --color-popover-foreground: hsl(217 36% 13%);
   --color-muted: hsl(205 26% 92%);
-  --color-muted-foreground: hsl(216 15% 37%);
+  --color-muted-foreground: hsl(216 16% 33%);
   --color-accent: hsl(206 88% 37% / 0.1);
   --color-accent-foreground: hsl(217 36% 13%);
   --color-destructive: hsl(0 72% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 92% 46%);
+  --color-warning-foreground: hsl(28 46% 12%);
   --color-success: hsl(154 63% 34%);
   --color-success-foreground: hsl(0 0% 100%);
-  --color-border: hsl(206 21% 81%);
-  --color-input: hsl(206 21% 81%);
+  --color-border: hsl(206 21% 77%);
+  --color-input: hsl(206 21% 77%);
   --color-ring: hsl(206 88% 37%);
   --color-primary-border: hsl(206 88% 33% / 0.32);
   --color-secondary-border: hsl(172 71% 25% / 0.32);
@@ -1808,26 +1822,28 @@ html.theme-light {
 html.theme-sunrise {
   color-scheme: light;
   --color-primary: hsl(18 82% 44%);
-  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(20 54% 10%);
   --color-secondary: hsl(38 84% 45%);
-  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-secondary-foreground: hsl(30 52% 11%);
   --color-background: hsl(34 60% 96%);
-  --color-foreground: hsl(18 34% 18%);
-  --color-card: hsl(0 0% 100% / 0.95);
-  --color-card-foreground: hsl(18 34% 18%);
+  --color-foreground: hsl(18 36% 16%);
+  --color-card: hsl(0 0% 100% / 0.97);
+  --color-card-foreground: hsl(18 36% 16%);
   --color-popover: hsl(0 0% 100% / 0.98);
-  --color-popover-foreground: hsl(18 34% 18%);
+  --color-popover-foreground: hsl(18 36% 16%);
   --color-muted: hsl(33 42% 92%);
-  --color-muted-foreground: hsl(20 16% 38%);
+  --color-muted-foreground: hsl(20 18% 32%);
   --color-accent: hsl(18 82% 44% / 0.1);
-  --color-accent-foreground: hsl(18 34% 18%);
-  --color-border: hsl(28 28% 78%);
-  --color-input: hsl(28 28% 78%);
+  --color-accent-foreground: hsl(18 36% 16%);
+  --color-warning: hsl(38 84% 45%);
+  --color-warning-foreground: hsl(30 52% 11%);
+  --color-border: hsl(28 28% 73%);
+  --color-input: hsl(28 28% 73%);
   --color-ring: hsl(18 82% 44%);
   --color-primary-border: hsl(18 82% 36% / 0.32);
   --color-secondary-border: hsl(38 84% 38% / 0.3);
-  --button-outline: hsl(28 26% 74%);
-  --badge-outline: hsl(28 26% 74%);
+  --button-outline: hsl(28 26% 70%);
+  --badge-outline: hsl(28 26% 70%);
   --color-sidebar: hsl(0 0% 100% / 0.9);
   --color-sidebar-foreground: hsl(18 34% 18%);
   --color-sidebar-primary: hsl(18 82% 44%);
@@ -1853,26 +1869,26 @@ html.theme-sunrise {
 html.theme-aurora {
   color-scheme: dark;
   --color-primary: hsl(148 62% 44%);
-  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(150 58% 9%);
   --color-secondary: hsl(178 72% 40%);
-  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-secondary-foreground: hsl(182 70% 9%);
   --color-background: hsl(164 30% 10%);
   --color-foreground: hsl(156 24% 94%);
-  --color-card: hsl(166 28% 14% / 0.72);
+  --color-card: hsl(166 28% 14% / 0.92);
   --color-card-foreground: hsl(156 24% 94%);
-  --color-popover: hsl(166 28% 14% / 0.9);
+  --color-popover: hsl(166 28% 15% / 0.98);
   --color-popover-foreground: hsl(156 24% 94%);
-  --color-muted: hsl(166 21% 19% / 0.6);
-  --color-muted-foreground: hsl(156 14% 72%);
+  --color-muted: hsl(166 21% 19% / 0.84);
+  --color-muted-foreground: hsl(156 14% 80%);
   --color-accent: hsl(148 62% 44% / 0.15);
-  --color-accent-foreground: hsl(148 62% 60%);
-  --color-border: hsl(164 18% 30% / 0.58);
-  --color-input: hsl(164 18% 30% / 0.58);
+  --color-accent-foreground: hsl(148 66% 68%);
+  --color-border: hsl(164 18% 32% / 0.82);
+  --color-input: hsl(164 18% 32% / 0.82);
   --color-ring: hsl(148 62% 44%);
   --color-primary-border: hsl(148 62% 34% / 0.56);
   --color-secondary-border: hsl(178 72% 30% / 0.52);
-  --button-outline: hsl(164 18% 34% / 0.62);
-  --badge-outline: hsl(164 18% 38% / 0.62);
+  --button-outline: hsl(164 18% 36% / 0.82);
+  --badge-outline: hsl(164 18% 40% / 0.82);
   --color-sidebar: hsl(164 34% 8% / 0.84);
   --color-sidebar-foreground: hsl(156 24% 90%);
   --color-sidebar-primary: hsl(148 62% 44%);
@@ -1973,32 +1989,33 @@ html.theme-aurora {
    ======================================== */
 
 /* Hardcoded dark backgrounds → theme-aware in light mode */
-html.theme-light .bg-slate-900,
-html.theme-light .bg-slate-800 {
+:is(html.theme-light, html.theme-sunrise) .bg-slate-900,
+:is(html.theme-light, html.theme-sunrise) .bg-slate-800 {
   background-color: var(--color-card) !important;
 }
 
-html.theme-light .bg-black\/20,
-html.theme-light .bg-black\/10 {
+:is(html.theme-light, html.theme-sunrise) .bg-black\/20,
+:is(html.theme-light, html.theme-sunrise) .bg-black\/10 {
   background-color: var(--color-muted) !important;
 }
 
 /* Hardcoded light-on-dark text → theme-aware in light mode */
-html.theme-light .text-slate-100,
-html.theme-light .text-slate-200 {
+:is(html.theme-light, html.theme-sunrise) .text-slate-100,
+:is(html.theme-light, html.theme-sunrise) .text-slate-200 {
   color: var(--color-foreground) !important;
 }
 
-html.theme-light .text-slate-300,
-html.theme-light .text-slate-400 {
+:is(html.theme-light, html.theme-sunrise) .text-slate-300,
+:is(html.theme-light, html.theme-sunrise) .text-slate-400,
+:is(html.theme-light, html.theme-sunrise) .text-slate-500 {
   color: var(--color-muted-foreground) !important;
 }
 
 /* Hardcoded dark borders → theme-aware */
-html.theme-light .border-slate-700,
-html.theme-light .border-slate-600,
-html.theme-light .border-white\/10,
-html.theme-light .border-white\/5 {
+:is(html.theme-light, html.theme-sunrise) .border-slate-700,
+:is(html.theme-light, html.theme-sunrise) .border-slate-600,
+:is(html.theme-light, html.theme-sunrise) .border-white\/10,
+:is(html.theme-light, html.theme-sunrise) .border-white\/5 {
   border-color: var(--color-border) !important;
 }
 

@@ -3,7 +3,7 @@
   isolation: isolate;
   color: var(--color-foreground);
   font-family: var(--font-sans);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--color-background) 98%, white), color-mix(in oklab, var(--color-background) 94%, var(--color-muted)));
+  background: linear-gradient(180deg, hsl(210 25% 99%), color-mix(in oklab, var(--color-background) 97%, white) 36%, color-mix(in oklab, var(--color-background) 93%, var(--color-muted)) 100%);
 }
 
 .homepage-theme::before {
@@ -88,7 +88,7 @@
   inset-inline: 1rem;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-border) 82%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-border) 88%, transparent), transparent);
 }
 
 .homepage-theme .home-section:last-of-type::after,
@@ -98,7 +98,7 @@
 
 .homepage-theme .home-section-after-band {
   margin-top: 0;
-  padding-top: 3rem;
+  padding-top: 2.35rem;
   background: color-mix(in oklab, var(--color-card) 96%, white);
 }
 
@@ -107,7 +107,7 @@
 }
 
 .homepage-theme .home-hero-section {
-  padding-top: clamp(2.5rem, 6vw, 4.5rem);
+  padding-top: clamp(1.9rem, 4.5vw, 3.5rem);
 }
 
 .homepage-theme .home-hero-glow {
@@ -125,14 +125,15 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--color-border) 74%, transparent);
+  border-radius: 0.8rem;
+  border: 1px solid color-mix(in oklab, var(--color-border) 78%, transparent);
   background: color-mix(in oklab, var(--color-card) 98%, white);
   box-shadow: none;
-  padding: 0.42rem 0.72rem;
-  font-size: 0.67rem;
+  padding: 0.48rem 0.76rem;
+  font-size: 0.66rem;
   font-weight: 780;
-  letter-spacing: 0.045em;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   color: color-mix(in oklab, var(--color-foreground) 84%, var(--color-primary));
 }
 
@@ -144,9 +145,10 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent);
-  background: white;
-  transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 58%, transparent);
+  background: color-mix(in oklab, white 92%, var(--color-background));
+  backdrop-filter: blur(14px);
+  transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, backdrop-filter 0.24s ease;
 }
 
 .homepage-theme .home-header::before {
@@ -159,7 +161,7 @@
 
 .homepage-theme .home-header-shell {
   position: relative;
-  min-height: 4.5rem;
+  min-height: 4.15rem;
 }
 
 .homepage-theme .home-header-shell::before {
@@ -167,9 +169,9 @@
 }
 
 .homepage-theme .home-header.is-scrolled {
-  background: white;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 65%, transparent);
-  box-shadow: none;
+  background: color-mix(in oklab, white 96%, var(--color-background));
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
+  box-shadow: 0 14px 34px -30px rgba(15, 23, 42, 0.18);
 }
 
 .homepage-theme .home-nav-rail {
@@ -212,12 +214,13 @@
 
 .homepage-theme .home-nav-link {
   border: 1px solid transparent;
-  border-radius: 0.55rem;
+  border-radius: 0.7rem;
   color: var(--color-muted-foreground);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  padding: 0.45rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.62rem;
   transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
@@ -229,8 +232,8 @@
 
 .homepage-theme .home-nav-link.is-active {
   color: var(--color-primary);
-  border-color: transparent;
-  background: transparent;
+  border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
+  background: color-mix(in oklab, var(--color-primary) 5%, white);
   box-shadow: none;
 }
 
@@ -241,18 +244,18 @@
 }
 
 .homepage-theme .home-mobile-menu {
-  border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
-  border-radius: 18px;
+  border: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
+  border-radius: 16px;
   background: white;
   box-shadow: var(--shadow-sm);
 }
 
 .homepage-theme .home-footer {
-  background: color-mix(in oklab, var(--color-card) 96%, white);
+  background: color-mix(in oklab, white 94%, var(--color-card));
 }
 
 .homepage-theme .home-footer-shell {
-  padding: 0.25rem 0 0;
+  padding: 0.1rem 0 0;
   position: relative;
 }
 
@@ -261,8 +264,8 @@
 }
 
 .homepage-theme .home-footer-grid {
-  padding: 0.9rem 0 1rem;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 58%, transparent);
+  padding: 0.45rem 0 0.8rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 62%, transparent);
 }
 
 .homepage-theme .home-footer-link {
@@ -310,8 +313,8 @@
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--color-border) 74%, white);
   background: color-mix(in oklab, var(--color-card) 98%, white);
-  border-radius: 20px;
-  box-shadow: var(--shadow-sm);
+  border-radius: 16px;
+  box-shadow: 0 18px 42px -36px rgba(15, 23, 42, 0.18), 0 8px 18px -16px rgba(15, 23, 42, 0.08);
   transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
@@ -330,8 +333,9 @@
 }
 
 .homepage-theme .home-hero-panel {
-  border-color: color-mix(in oklab, var(--color-border) 76%, white);
-  box-shadow: var(--shadow-sm);
+  border-color: color-mix(in oklab, var(--color-border) 84%, white);
+  background: linear-gradient(180deg, color-mix(in oklab, white 97%, var(--color-card)), color-mix(in oklab, var(--color-card) 90%, var(--color-background)));
+  box-shadow: 0 24px 48px -40px rgba(15, 23, 42, 0.22), 0 10px 24px -18px rgba(15, 23, 42, 0.08);
 }
 
 .homepage-theme .home-hero-panel::after {
@@ -343,7 +347,7 @@
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--color-border) 72%, white);
   background: color-mix(in oklab, var(--color-card) 98%, white);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
@@ -369,13 +373,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border-radius: 999px;
+  border-radius: 0.75rem;
   border: 1px solid var(--color-primary-border);
-  padding: 0.38rem 0.85rem;
-  font-size: 0.68rem;
+  padding: 0.44rem 0.82rem;
+  font-size: 0.64rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   color: var(--color-primary);
   background-color: color-mix(in oklab, var(--color-primary) 7%, white);
 }
@@ -403,8 +407,8 @@
   align-items: center;
   gap: 0.55rem;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.69rem;
+  letter-spacing: 0.2em;
+  font-size: 0.66rem;
   font-weight: 800;
   color: var(--color-primary);
 }
@@ -418,26 +422,28 @@
 }
 
 .homepage-theme .home-cta {
-  border-radius: 14px;
+  border-radius: 12px;
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
   border: 1px solid var(--color-primary-border);
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   box-shadow: none;
   transition: all 0.2s ease;
 }
 
 .homepage-theme .home-cta:hover {
-  box-shadow: none;
+  background-color: color-mix(in oklab, var(--color-primary) 92%, black);
   transform: none;
 }
 
 .homepage-theme .home-outline {
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid color-mix(in oklab, var(--color-border) 75%, transparent);
   color: var(--color-foreground);
-  background-color: color-mix(in oklab, var(--color-card) 84%, transparent);
-  font-weight: 700;
+  background-color: color-mix(in oklab, white 90%, transparent);
+  font-weight: 800;
+  letter-spacing: 0.01em;
   transition: all 0.18s ease;
 }
 
@@ -450,7 +456,7 @@
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
   background: color-mix(in oklab, var(--color-card) 98%, white);
   padding: 1rem;
@@ -514,6 +520,74 @@
   padding: 0.7rem 0.82rem 0.76rem;
 }
 
+.homepage-theme .home-panel-heading {
+  margin-bottom: 1.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 78%, transparent);
+}
+
+.homepage-theme .home-panel-eyebrow {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.homepage-theme .home-panel-title {
+  margin-top: 0.7rem;
+  font-size: 1.12rem;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+
+.homepage-theme .home-coverage-panel {
+  margin-top: 1.05rem;
+  border: 1px solid color-mix(in oklab, var(--color-border) 76%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, white 92%, var(--color-card));
+  padding: 0.85rem 0.9rem 0.95rem;
+}
+
+.homepage-theme .home-coverage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.homepage-theme .home-coverage-header span:last-child {
+  color: var(--color-success);
+}
+
+.homepage-theme .home-coverage-grid {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.homepage-theme .home-coverage-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--color-border) 78%, transparent);
+  background: color-mix(in oklab, var(--color-background) 44%, white);
+  padding: 0.45rem 0.6rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
 .homepage-theme .home-hero-trend-header {
   display: flex;
   align-items: center;
@@ -559,8 +633,9 @@
 .homepage-theme .home-band {
   position: relative;
   overflow: hidden;
-  background-color: hsl(214 34% 13%);
-  background-image: linear-gradient(180deg, hsl(214 34% 13%), hsl(216 36% 10%));
+  border-block: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: hsl(216 34% 13%);
+  background-image: linear-gradient(180deg, hsl(216 34% 13%), hsl(218 35% 11%));
 }
 
 .homepage-theme .home-band::before {
@@ -581,13 +656,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 0.8rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   padding: 0.48rem 1rem;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.13em;
   color: rgba(255, 255, 255, 0.9);
   background-color: rgba(255, 255, 255, 0.08);
 }
@@ -603,7 +678,7 @@
 
 .homepage-theme .home-workflow-card {
   background: color-mix(in oklab, var(--color-card) 98%, white);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 16px 38px -34px rgba(15, 23, 42, 0.16), 0 8px 18px -16px rgba(15, 23, 42, 0.07);
   transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
 }
 
@@ -710,13 +785,13 @@ body.reduce-motion .homepage-theme .home-hero-glow {
 .homepage-theme h3 {
   font-family: var(--font-heading);
   font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+  letter-spacing: -0.032em;
+  line-height: 1.1;
   color: var(--color-foreground) !important;
 }
 
 .homepage-theme p {
-  line-height: 1.72;
+  line-height: 1.68;
   color: var(--color-muted-foreground);
 }
 
@@ -746,11 +821,11 @@ body.reduce-motion .homepage-theme .home-hero-glow {
   }
 
   .homepage-theme .home-card {
-    border-radius: 20px;
+    border-radius: 16px;
   }
 
   .homepage-theme .home-card-soft {
-    border-radius: 16px;
+    border-radius: 14px;
   }
 
   .homepage-theme h1 {

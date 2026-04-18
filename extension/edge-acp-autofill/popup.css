@@ -1533,12 +1533,18 @@ body {
 .auto-collect-info-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-top: 2px;
 }
 
 .auto-collect-info-actions .btn {
   width: auto;
   min-width: 0;
+}
+
+.auto-collect-info-actions .btn[hidden] {
+  display: none;
 }
 
 .upload-bucket-grid {
@@ -1567,10 +1573,59 @@ body {
   gap: 2px;
 }
 
+.upload-bucket-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .upload-bucket-header strong {
   font-size: 12px;
   color: var(--color-foreground);
   letter-spacing: -0.01em;
+}
+
+.upload-bucket-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid hsla(214, 25%, 70%, 0.45);
+  background: hsla(214, 35%, 95%, 0.95);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(214, 46%, 35%);
+  white-space: nowrap;
+}
+
+.upload-bucket-status[data-state="running"] {
+  border-color: hsla(215, 80%, 56%, 0.45);
+  color: hsl(214, 75%, 40%);
+  background: hsl(214, 100%, 96%);
+}
+
+.upload-bucket-status[data-state="success"],
+.upload-bucket-status[data-state="staged"] {
+  border-color: hsla(152, 60%, 36%, 0.45);
+  color: hsl(152, 55%, 30%);
+  background: hsl(152, 66%, 95%);
+}
+
+.upload-bucket-status[data-state="partial"] {
+  border-color: hsla(38, 92%, 45%, 0.45);
+  color: hsl(38, 75%, 30%);
+  background: hsl(45, 100%, 95%);
+}
+
+.upload-bucket-status[data-state="error"],
+.upload-bucket-status[data-state="cancelled"] {
+  border-color: hsla(0, 72%, 50%, 0.45);
+  color: hsl(0, 66%, 40%);
+  background: hsl(0, 100%, 96%);
 }
 
 .upload-bucket-header span {

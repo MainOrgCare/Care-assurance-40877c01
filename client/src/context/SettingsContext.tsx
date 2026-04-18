@@ -95,8 +95,6 @@ interface SettingsContextType {
   setFontSize: (size: FontSize) => void;
   compactMode: boolean;
   setCompactMode: (compact: boolean) => void;
-  showQuickAccessBar: boolean;
-  setShowQuickAccessBar: (show: boolean) => void;
   showCopyConfirmation: boolean;
   setShowCopyConfirmation: (show: boolean) => void;
   autoExpandSections: boolean;
@@ -147,11 +145,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const saved = getStorageItem("lewis-compact-mode");
     return saved === "true";
   });
-
-  const [showQuickAccessBar, setShowQuickAccessBarState] = useState(() => {
-    const saved = getStorageItem("lewis-show-quick-access");
-    return saved !== "false";
-  });
   
   const [showCopyConfirmation, setShowCopyConfirmationState] = useState(() => {
     const saved = getStorageItem("lewis-copy-confirmation");
@@ -194,11 +187,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setCompactMode = useCallback((compact: boolean) => {
     setCompactModeState(compact);
     setStorageItem("lewis-compact-mode", String(compact));
-  }, []);
-
-  const setShowQuickAccessBar = useCallback((show: boolean) => {
-    setShowQuickAccessBarState(show);
-    setStorageItem("lewis-show-quick-access", String(show));
   }, []);
 
   const setShowCopyConfirmation = useCallback((show: boolean) => {
@@ -263,8 +251,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setFontSize,
     compactMode,
     setCompactMode,
-    showQuickAccessBar,
-    setShowQuickAccessBar,
     showCopyConfirmation,
     setShowCopyConfirmation,
     autoExpandSections,
@@ -280,8 +266,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setFontSize,
     compactMode,
     setCompactMode,
-    showQuickAccessBar,
-    setShowQuickAccessBar,
     showCopyConfirmation,
     setShowCopyConfirmation,
     autoExpandSections,

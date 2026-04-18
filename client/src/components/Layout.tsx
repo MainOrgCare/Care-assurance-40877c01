@@ -30,7 +30,6 @@ import {
   AlertTriangle,
   Megaphone,
   Search,
-  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy, Fragment } from "react";
@@ -60,15 +59,10 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
-import { useRecentPages } from "@/hooks/useRecentPages";
-import { useFavorites } from "@/hooks/useFavorites";
 import { useSessionTimer } from "@/hooks/useSessionTimer";
 import {
   resolvePageMeta,
   buildBreadcrumbs,
-  TOP_NAV_LINKS,
-  NAV_GROUPS,
-  type PageMeta,
 } from "@/config/navigation";
 
 // Page metadata and breadcrumbs are now defined in @/config/navigation.ts
@@ -480,6 +474,7 @@ const SidebarContent = memo(function SidebarContent({
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const pageMeta = useMemo(() => resolvePageMeta(location), [location]);
+  const isDashboardRoute = location === "/dashboard";
   const isFullBleed = location === "/rostering-unified";
   const isSingleScreenRoute =
     location === "/rostering-unified" || location === "/care-worker-rotas";
@@ -488,10 +483,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout, refetchUser } = useAuth();
   const {
     autoExpandSections,
-    showQuickAccessBar,
-    setShowQuickAccessBar,
   } = useSettings();
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { isConnected } = useSession();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -527,9 +519,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // Scroll to top on route change
   useScrollToTop();
-
-  // Track recently visited pages (persisted to localStorage)
-  const recentPages = useRecentPages();
 
   // Session duration timer
   const sessionDuration = useSessionTimer();
@@ -579,36 +568,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const commandPaletteShortcutLabel = isApplePlatform ? "⌘K" : "Ctrl+K";
   const assistantShortcutLabel = isApplePlatform ? "⌘ + /" : "Ctrl + /";
-
-  const routeLabelLookup = useMemo(() => {
-    const entries = [
-      ...TOP_NAV_LINKS,
-      ...NAV_GROUPS.flatMap((group) => group.children),
-    ];
-    const map = new Map<string, string>();
-    entries.forEach((entry) => map.set(entry.href, entry.label));
-    return map;
-  }, []);
-
-  const favoriteQuickLinks = useMemo(() => {
-    return favorites
-      .filter((path) => path !== location)
-      .map((path) => ({
-        path,
-        label: routeLabelLookup.get(path) || resolvePageMeta(path).title,
-      }))
-      .slice(0, 5);
-  }, [favorites, location, routeLabelLookup]);
-
-  const recentQuickLinks = useMemo(() => {
-    return recentPages
-      .filter((entry) => entry.path !== location && !favorites.includes(entry.path))
-      .slice(0, 4)
-      .map((entry) => ({ path: entry.path, label: entry.label }));
-  }, [recentPages, location, favorites]);
-
-  const currentPageIsFavorite = useMemo(() => isFavorite(location), [isFavorite, location]);
-  const shouldRenderQuickAccess = !isFullBleed && showQuickAccessBar;
 
   // Fetch unread message count (visibility-aware to reduce background work)
   useEffect(() => {
@@ -883,6 +842,35 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     critical: "Critical",
   };
 
+  const footerContent = (
+    <div className="mx-auto w-full max-w-[var(--content-max-width)]">
+      <div className="workspace-footer-shell flex items-center justify-between gap-2 text-[8px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 font-medium">
+          <span className="inline-flex items-center gap-1 text-foreground/68">
+            <span className="h-1 w-1 rounded-full bg-primary/70" />
+            &copy; {new Date().getFullYear()} CareAssurance
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex items-center" title={isConnected ? "Connected" : "Offline"}>
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full transition-colors",
+                isConnected ? "bg-success" : "bg-destructive"
+              )}
+            />
+          </span>
+          <Link href="/terms" className="workspace-footer-link text-[9px] font-medium transition-colors" data-testid="link-footer-terms">
+            Terms
+          </Link>
+          <Link href="/privacy" className="workspace-footer-link text-[9px] font-medium transition-colors" data-testid="link-footer-privacy">
+            Privacy
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="workspace-root relative flex h-[100dvh] min-h-screen w-full overflow-hidden bg-background">
       {/* Skip Navigation Link */}
@@ -922,16 +910,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {!isFullBleed && (
           <header
             className={cn(
-              "workspace-header sticky top-0 z-30 border-b px-3 sm:px-4 lg:px-6 transition-all duration-300",
+              "workspace-header sticky top-0 z-30 border-b border-border/60 bg-background/92 px-3 sm:px-4 lg:px-6 transition-shadow duration-200 supports-[backdrop-filter]:bg-background/82 supports-[backdrop-filter]:backdrop-blur-xl",
               isScrolled
-                ? "border-border/70 bg-card/92 shadow-[0_16px_34px_-30px_rgba(15,23,42,0.72)]"
-                : "border-transparent bg-card/62 shadow-none"
+                ? "shadow-[0_12px_30px_-24px_rgba(15,23,42,0.32)]"
+                : "shadow-none"
             )}
             role="banner"
             aria-label="Page header"
           >
-            <div className="workspace-header-shell mx-auto flex min-h-[4.25rem] w-full max-w-[var(--content-max-width)] items-center justify-between gap-3 py-2">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="workspace-header-shell mx-auto flex min-h-14 w-full max-w-[var(--content-max-width)] items-center justify-between gap-2.5 py-1.5">
+            <div className="flex min-w-0 items-center gap-2.5">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
                 <SheetTrigger asChild>
@@ -965,13 +953,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
 
-              <div className="hidden min-[480px]:flex items-center gap-3 min-w-0 ml-1.5">
+              <div className="hidden min-[480px]:flex items-center gap-2.5 min-w-0 ml-1">
                 <div className="min-w-0">
-                  <p className="text-[9px] uppercase tracking-[0.16em] font-bold text-primary/45">{pageMeta.section}</p>
-                  <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
+                  <p className="text-[8px] uppercase tracking-[0.14em] font-bold text-primary/45">{pageMeta.section}</p>
+                  <h2 className="text-[0.875rem] font-semibold tracking-[-0.02em] text-foreground truncate leading-tight">{pageMeta.title}</h2>
                 </div>
                 {breadcrumbs.length > 0 && (
-                  <div className="hidden xl:block border-l border-border/30 pl-3 ml-1">
+                  <div className="hidden 2xl:block border-l border-border/30 pl-2.5 ml-0.5">
                     <Breadcrumb>
                       <BreadcrumbList>
                         {breadcrumbs.map((crumb, i) => (
@@ -994,25 +982,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
             </div>
 
-            <div className="workspace-header-tools flex items-center gap-2 rounded-xl border border-border/55 bg-background/76 px-2 py-1.5 shadow-[var(--shadow-xs)] backdrop-blur-lg">
+            <div className="workspace-header-tools flex items-center gap-1.5 min-w-0 flex-nowrap">
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
-                className="md:hidden flex items-center justify-center h-8 w-8 rounded-xl bg-muted/48 hover:bg-muted/65 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
-                title="Command Palette"
-                aria-label="Open command palette"
-              >
-                <Search className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {/* Command Palette Trigger */}
-              <button
-                onClick={() => setIsCommandPaletteOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 px-3 py-1.5 text-[0.75rem] font-medium text-muted-foreground hover:bg-muted/72 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 transition-colors cursor-pointer"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 bg-background/82 text-muted-foreground hover:bg-muted/72 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 transition-colors cursor-pointer"
                 title={`Command Palette (${commandPaletteShortcutLabel})`}
+                aria-label="Open search"
               >
                 <Search className="h-3.5 w-3.5" />
-                <span className="hidden lg:inline">Search...</span>
-                <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] leading-none text-muted-foreground">{commandPaletteShortcutLabel}</kbd>
               </button>
 
               {/* Notification Center (admin alerts) */}
@@ -1040,33 +1017,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               
               {/* Compli-ee Help Button */}
-              <ComplieeIdleButton onClick={openChatAssistant} />
+              <ComplieeIdleButton
+                onClick={openChatAssistant}
+                className="h-7 w-7 justify-center rounded-lg px-0 py-0 shadow-[var(--shadow-xs)] [&>span]:hidden"
+              />
 
               {/* Divider between tools and profile */}
-              <div className="hidden sm:block h-6 w-px bg-border/50 mx-0.5" />
+              <div className="hidden lg:block h-5 w-px bg-border/45 mx-0.5" />
               
-               <div className="group flex items-center gap-2.5 rounded-xl py-1 pl-2.5 pr-1.5 transition-all duration-150 hover:bg-background/60">
-                <div className="text-right hidden sm:block">
-                     <p className="text-[11px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
+                <div className="group flex items-center gap-1.5 rounded-lg border border-border/55 bg-background/88 py-0.5 pl-1 pr-1 shadow-[var(--shadow-xs)] transition-all duration-150 hover:border-border/72 hover:bg-background">
+                <div className="hidden xl:flex min-w-0 items-center gap-1.5">
+                     <p className="max-w-[7.5rem] truncate text-[10px] font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
                     {displayName}
                   </p>
-                  <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                    <span
-                      title={isConnected ? "Online" : "Offline"}
-                      className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-success" : "bg-destructive")}
-                    />
-                    {user?.role === "admin" && (
-                      <span className="inline-flex items-center rounded-full border border-border bg-background/80 px-1.5 py-0 text-[7px] font-medium uppercase tracking-[0.04em] leading-[1.2] text-muted-foreground">
-                        admin
-                      </span>
-                    )}
-                  </div>
+                  <span
+                    title={isConnected ? "Online" : "Offline"}
+                    className={cn("h-1.5 w-1.5 rounded-full transition-colors", isConnected ? "bg-success" : "bg-destructive")}
+                  />
                 </div>
-                 <div className="relative h-9 w-9 rounded-xl flex items-center justify-center font-bold uppercase text-[10px] bg-primary text-primary-foreground shadow-[0_10px_18px_-14px_rgba(15,23,42,0.55)] ring-2 ring-primary/14">
+                 <div className="relative h-7 w-7 rounded-lg flex items-center justify-center font-bold uppercase text-[8.5px] bg-primary text-primary-foreground shadow-[0_10px_18px_-14px_rgba(15,23,42,0.55)] ring-2 ring-primary/14">
                   {user?.firstName ? user.firstName.substring(0, 1) : user?.username?.substring(0, 1) || "?"}
                   {user?.lastName ? user.lastName.substring(0, 1) : ""}
                   <div className={cn(
-                    "absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card transition-colors",
+                    "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-card transition-colors",
                     isConnected ? "bg-success" : "bg-destructive"
                   )} />
                 </div>
@@ -1117,89 +1090,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Compli-ee access for full-bleed studio routes */}
             <ComplieeIdleButton
               onClick={openChatAssistant}
-              className="h-8 rounded-lg px-3 py-0 text-xs shadow-[var(--shadow-medium)] shadow-success/25"
+              className="h-7 w-7 justify-center rounded-lg px-0 py-0 shadow-[var(--shadow-xs)] [&>span]:hidden"
             />
             <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-[var(--shadow-xs)]">
               <span>Open</span>
               <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none text-foreground">{assistantShortcutLabel}</kbd>
-            </div>
-          </div>
-        )}
-
-        {shouldRenderQuickAccess && (
-          <div className="px-3 sm:px-4 lg:px-6 pt-2">
-            <div className="workspace-quick-access rounded-2xl border border-border/60 bg-card/72 backdrop-blur-sm shadow-[var(--shadow-sm)] px-2.5 sm:px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleFavorite(location)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
-                    currentPageIsFavorite
-                      ? "border-warning/30 bg-warning/10 text-warning"
-                      : "border-border/65 bg-background/72 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  )}
-                  title={currentPageIsFavorite ? "Remove current page from favorites" : "Add current page to favorites"}
-                >
-                  <Star
-                    className={cn(
-                      "h-3.5 w-3.5",
-                      currentPageIsFavorite ? "fill-warning text-warning" : "text-muted-foreground"
-                    )}
-                  />
-                  {currentPageIsFavorite ? "Pinned" : "Pin page"}
-                </button>
-
-                {favoriteQuickLinks.length > 0 && (
-                  <span className="quick-access-group-label inline-flex items-center rounded-md border border-border/55 bg-background/58 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
-                    Pinned
-                  </span>
-                )}
-
-                {favoriteQuickLinks.map((link) => (
-                  <Link
-                    key={`quick-favorite-${link.path}`}
-                    href={link.path}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border/65 bg-background/78 px-2.5 py-1.5 text-[11px] font-medium text-foreground/85 hover:bg-muted/55 transition-colors"
-                    title={`Open ${link.label}`}
-                  >
-                    <Star className="h-3 w-3 text-warning/90" />
-                    {link.label}
-                  </Link>
-                ))}
-
-                {recentQuickLinks.length > 0 && (
-                  <span className="quick-access-group-label inline-flex items-center rounded-md border border-border/55 bg-background/58 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
-                    Recent
-                  </span>
-                )}
-
-                {recentQuickLinks.map((link) => (
-                  <Link
-                    key={`quick-recent-${link.path}`}
-                    href={link.path}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border/65 bg-muted/25 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/45 transition-colors"
-                    title={`Re-open ${link.label}`}
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/55" aria-hidden="true" />
-                    {link.label}
-                  </Link>
-                ))}
-
-                {favoriteQuickLinks.length === 0 && recentQuickLinks.length === 0 && (
-                  <span className="text-[10px] font-medium text-muted-foreground/78 px-1.5 py-1">
-                    Pin pages to build your quick bar.
-                  </span>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setShowQuickAccessBar(false)}
-                  className="ml-auto inline-flex items-center rounded-lg border border-transparent px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 hover:text-foreground hover:bg-muted/50 transition-colors"
-                >
-                  Hide
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -1266,44 +1161,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
+        {isDashboardRoute && !isSingleScreenRoute && (
+          <footer className="workspace-footer workspace-footer--inline mt-auto flex-shrink-0 border-t border-border/60 px-2 py-0.5 sm:px-3 transition-[background-color,border-color] duration-200">
+            {footerContent}
+          </footer>
+        )}
+
         </main>
 
         {/* Footer */}
-        {!isSingleScreenRoute && (
-          <footer className="workspace-footer flex-shrink-0 border-t border-border/60 px-4 py-2.5 sm:px-6 transition-[background-color,border-color] duration-200">
-            <div className="mx-auto w-full max-w-[var(--content-max-width)]">
-              <div className="workspace-footer-shell flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-[10px] text-muted-foreground">
-                <div className="flex flex-wrap items-center gap-2.5 font-medium">
-                  <span className="inline-flex items-center gap-1.5 text-foreground/68">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
-                    &copy; {new Date().getFullYear()} CareAssurance
-                  </span>
-                  <span className="hidden sm:inline text-border/70">&middot;</span>
-                  <span className="hidden md:inline text-muted-foreground/76 truncate max-w-[13rem]">{pageMeta.title}</span>
-                  <span className="hidden lg:inline text-border/70">&middot;</span>
-                  <span className="hidden lg:inline text-muted-foreground/68">Operational assurance workspace</span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="workspace-status-pill inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/90">
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full transition-colors",
-                        isConnected ? "bg-success" : "bg-destructive"
-                      )}
-                    />
-                    {isConnected ? "Connected" : "Offline"}
-                  </span>
-                  <span className="hidden md:inline rounded-full border border-border/55 bg-background/70 px-2 py-0.5 text-muted-foreground/82 tabular-nums">{sessionDuration}</span>
-                  <span className="h-3 w-px bg-border/30" />
-                  <Link href="/terms" className="workspace-footer-link text-[10px] font-medium transition-colors" data-testid="link-footer-terms">
-                    Terms
-                  </Link>
-                  <Link href="/privacy" className="workspace-footer-link text-[10px] font-medium transition-colors" data-testid="link-footer-privacy">
-                    Privacy
-                  </Link>
-                </div>
-              </div>
-            </div>
+        {!isSingleScreenRoute && !isDashboardRoute && (
+          <footer className="workspace-footer flex-shrink-0 border-t border-border/60 px-2 py-0.5 sm:px-3 transition-[background-color,border-color] duration-200">
+            {footerContent}
           </footer>
         )}
       </div>

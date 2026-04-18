@@ -518,14 +518,111 @@ export default function PlanEnhancer() {
     return { missing, ambiguous, total: missing + ambiguous };
   }, [displayResult]);
 
+  const sourceDocuments = useMemo(() => {
+    const documents: Array<{
+      key: string;
+      label: string;
+      name: string;
+      contentLength: number;
+      isParsing: boolean;
+      parseError?: string;
+      dataTestId?: string;
+      highlighted?: boolean;
+    }> = [];
+
+    if (serviceUserData.carePlan) {
+      documents.push({
+        key: "care-plan",
+        label: "Legacy Plan",
+        name: serviceUserData.carePlan.name,
+        contentLength: serviceUserData.carePlan.content?.length || 0,
+        isParsing: Boolean(serviceUserData.carePlan.isParsing),
+        parseError: serviceUserData.carePlan.parseError,
+        dataTestId: "text-care-plan-doc",
+        highlighted: true,
+      });
+    }
+
+    if (serviceUserData.socialWork) {
+      documents.push({
+        key: "social-work",
+        label: "Social Work",
+        name: serviceUserData.socialWork.name,
+        contentLength: serviceUserData.socialWork.content?.length || 0,
+        isParsing: Boolean(serviceUserData.socialWork.isParsing),
+        parseError: serviceUserData.socialWork.parseError,
+        dataTestId: "text-social-work-doc",
+      });
+    }
+
+    if (serviceUserData.initialAssessment) {
+      documents.push({
+        key: "initial-assessment",
+        label: "Assessment",
+        name: serviceUserData.initialAssessment.name,
+        contentLength: serviceUserData.initialAssessment.content?.length || 0,
+        isParsing: Boolean(serviceUserData.initialAssessment.isParsing),
+        parseError: serviceUserData.initialAssessment.parseError,
+        dataTestId: "text-initial-assessment-doc",
+      });
+    }
+
+    if (serviceUserData.movingHandling) {
+      documents.push({
+        key: "moving-handling",
+        label: "Moving & Handling",
+        name: serviceUserData.movingHandling.name,
+        contentLength: serviceUserData.movingHandling.content?.length || 0,
+        isParsing: Boolean(serviceUserData.movingHandling.isParsing),
+        parseError: serviceUserData.movingHandling.parseError,
+        dataTestId: "text-moving-handling-doc",
+      });
+    }
+
+    (serviceUserData.additionalDocuments || []).forEach((document, index) => {
+      documents.push({
+        key: document.id || `additional-document-${index}`,
+        label: `Additional Document ${index + 1}`,
+        name: document.name,
+        contentLength: document.content?.length || 0,
+        isParsing: Boolean(document.isParsing),
+        parseError: document.parseError,
+        dataTestId: index === 0 ? "text-additional-docs" : `text-additional-document-${index}`,
+      });
+    });
+
+    return documents;
+  }, [
+    serviceUserData.carePlan,
+    serviceUserData.socialWork,
+    serviceUserData.initialAssessment,
+    serviceUserData.movingHandling,
+    serviceUserData.additionalDocuments,
+  ]);
+
+  const hasAdditionalNotes = Boolean(serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0);
+  const hasUpdateNotes = Boolean(updateNotes.trim().length > 0);
+  const sourceStatusSummary = useMemo(() => ({
+    total: sourceDocuments.length,
+    ready: sourceDocuments.filter((document) => document.contentLength > 0 && !document.parseError && !document.isParsing).length,
+    parsing: sourceDocuments.filter((document) => document.isParsing).length,
+    failed: sourceDocuments.filter((document) => Boolean(document.parseError)).length,
+  }), [sourceDocuments]);
+  const parseErrors = useMemo(
+    () => sourceDocuments
+      .filter((document) => Boolean(document.parseError))
+      .map((document) => ({
+        label: document.label,
+        name: document.name,
+        message: document.parseError || "Parsing failed",
+      })),
+    [sourceDocuments]
+  );
+
   const hasData = Boolean(
-    serviceUserData.carePlan ||
-    serviceUserData.socialWork ||
-    serviceUserData.initialAssessment ||
-    serviceUserData.movingHandling ||
-    (serviceUserData.additionalDocuments && serviceUserData.additionalDocuments.length > 0) ||
-    (serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0) ||
-    updateNotes.trim().length > 0
+    sourceDocuments.length > 0 ||
+    hasAdditionalNotes ||
+    hasUpdateNotes
   );
 
   const enhanceMutation = useMutation({
@@ -704,8 +801,8 @@ export default function PlanEnhancer() {
       setResultRaw(raw);
       setResultScrubbed(scrubbed);
       toast({
-        title: "Care Plan Generated",
-        description: "Complete template ready for copying into your forms.",
+        title: "Plan Enhanced",
+        description: "Enhanced template ready for review, export, or extension autofill.",
       });
     },
     onError: (error: Error) => {
@@ -1266,75 +1363,134 @@ export default function PlanEnhancer() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="bg-background/70">{sourceStatusSummary.total} source{sourceStatusSummary.total === 1 ? "" : "s"}</Badge>
+            <Badge variant="outline" className="bg-background/70">{sourceStatusSummary.ready} ready</Badge>
+            {sourceStatusSummary.parsing > 0 && (
+              <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
+                {sourceStatusSummary.parsing} parsing
+              </Badge>
+            )}
+            {sourceStatusSummary.failed > 0 && (
+              <Badge variant="outline" className="border-destructive/25 bg-destructive/10 text-destructive">
+                {sourceStatusSummary.failed} failed
+              </Badge>
+            )}
+            {hasAdditionalNotes && <Badge variant="outline" className="bg-background/70">Notes attached</Badge>}
+            {hasUpdateNotes && <Badge variant="outline" className="bg-background/70">Updates staged</Badge>}
+          </div>
+
+          {parseErrors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Some source documents failed to parse</AlertTitle>
+              <AlertDescription>
+                Generation will continue using only the content that was successfully extracted.
+                <ul className="mt-2 space-y-1 text-xs">
+                  {parseErrors.map((error) => (
+                    <li key={`${error.label}-${error.name}`}>
+                      {error.label}: {error.name} - {error.message}
+                    </li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {serviceUserData.carePlan && (
-              <div className="p-4 rounded-xl bg-success/5 border border-success-500/20 text-sm flex items-center gap-3" data-testid="text-care-plan-doc">
-                <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center text-success-500 shadow-sm">
-                  <FileText size={16} />
-                </div>
-                <div>
-                  <p className="font-semibold text-success-500 tracking-tight">Legacy Plan</p>
-                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.carePlan.name}</p>
-                </div>
-              </div>
-            )}
-            {serviceUserData.socialWork && (
-              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-social-work-doc">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
-                  <FileText size={16} />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground tracking-tight">Social Work</p>
-                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.socialWork.name}</p>
-                </div>
-              </div>
-            )}
-            {serviceUserData.initialAssessment && (
-              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-initial-assessment-doc">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
-                  <FileText size={16} />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground tracking-tight">Assessment</p>
-                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.initialAssessment.name}</p>
-                </div>
-              </div>
-            )}
-            {serviceUserData.movingHandling && (
-              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-moving-handling-doc">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
-                  <FileText size={16} />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground tracking-tight">Moving & Handling</p>
-                  <p className="text-[10px] text-muted-foreground font-medium truncate max-w-[120px]">{serviceUserData.movingHandling.name}</p>
-                </div>
-              </div>
-            )}
-            {serviceUserData.additionalDocuments && serviceUserData.additionalDocuments.length > 0 && (
-              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-additional-docs">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
-                  <FileText size={16} />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground tracking-tight">Additional Docs</p>
-                  <p className="text-[10px] text-muted-foreground font-medium">
-                    {serviceUserData.additionalDocuments.length} file{serviceUserData.additionalDocuments.length === 1 ? "" : "s"}
+            {sourceDocuments.map((document) => {
+              const statusBadge = document.isParsing
+                ? { label: "Parsing", className: "border-primary/25 bg-primary/10 text-primary" }
+                : document.parseError
+                  ? { label: "Parsing failed", className: "border-destructive/25 bg-destructive/10 text-destructive" }
+                  : { label: "Ready", className: "border-success/25 bg-success/10 text-success" };
+
+              return (
+                <div
+                  key={document.key}
+                  className={document.highlighted
+                    ? "rounded-xl border border-success-500/20 bg-success/5 p-4 text-sm"
+                    : "rounded-xl border border-border/40 bg-muted/20 p-4 text-sm"
+                  }
+                  data-testid={document.dataTestId}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={document.highlighted
+                        ? "flex h-8 w-8 items-center justify-center rounded-lg bg-success/10 text-success shadow-sm"
+                        : "flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground"
+                      }>
+                        {document.isParsing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : document.parseError ? (
+                          <AlertTriangle size={16} className="text-destructive" />
+                        ) : (
+                          <FileText size={16} />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={document.highlighted ? "font-semibold tracking-tight text-success" : "font-semibold tracking-tight text-foreground"}>
+                          {document.label}
+                        </p>
+                        <p className="truncate text-[10px] font-medium text-muted-foreground">{document.name}</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={`shrink-0 text-[10px] ${statusBadge.className}`}>
+                      {statusBadge.label}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-[10px] text-muted-foreground">
+                    {document.parseError
+                      ? "This document was excluded from the extracted source set."
+                      : document.isParsing
+                        ? "Extraction in progress. This source will be included once parsing completes."
+                        : `${document.contentLength.toLocaleString()} extracted characters available for synthesis.`}
                   </p>
                 </div>
+              );
+            })}
+
+            {hasAdditionalNotes && (
+              <div className="rounded-xl border border-border/40 bg-muted/20 p-4 text-sm" data-testid="text-additional-notes">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground">
+                      <FileText size={16} />
+                    </div>
+                    <div>
+                      <p className="font-semibold tracking-tight text-foreground">Additional Notes</p>
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        {serviceUserData.additionalNotes.trim().length.toLocaleString()} chars
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-success/25 bg-success/10 text-success">Ready</Badge>
+                </div>
+                <p className="mt-3 text-[10px] text-muted-foreground">
+                  Manual notes are included in the synthesis payload as supporting context.
+                </p>
               </div>
             )}
-            {serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0 && (
-              <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm flex items-center gap-3" data-testid="text-additional-notes">
-                <div className="h-8 w-8 rounded-lg bg-background border border-border/60 flex items-center justify-center text-muted-foreground">
-                  <FileText size={16} />
+
+            {hasUpdateNotes && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm" data-testid="text-update-notes">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary shadow-sm">
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <p className="font-semibold tracking-tight text-primary">Pending Updates</p>
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        {updateNotes.trim().length.toLocaleString()} chars staged
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-primary/25 bg-primary/10 text-primary">Queued</Badge>
                 </div>
-                <div>
-                  <p className="font-semibold text-foreground tracking-tight">Additional Notes</p>
-                  <p className="text-[10px] text-muted-foreground font-medium">
-                    {serviceUserData.additionalNotes.trim().length.toLocaleString()} chars
-                  </p>
-                </div>
+                <p className="mt-3 text-[10px] text-muted-foreground">
+                  These notes will be appended to the next generation request as operator corrections.
+                </p>
               </div>
             )}
           </div>

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { SafeXLSX, RawXLSX } from "@/lib/safe-xlsx";
 
 interface DiscrepancyAction {
   performanceNote: boolean;
@@ -50,6 +51,312 @@ interface VisitAnalysisResult {
   discrepancies: Discrepancy[];
   themesAndTrends: string;
   gapsInKnowledge: string;
+}
+
+interface VisitInputSummary {
+  sourceLabel: string;
+  methodLabel: string;
+  rowCount?: number;
+  sheetName?: string;
+  matchedColumns: string[];
+}
+
+interface VisitWorkbookExtraction {
+  content: string;
+  rowCount: number;
+  sheetName: string;
+  matchedColumns: string[];
+  usedCompactMapping: boolean;
+}
+
+const VISIT_SERVICE_USER_KEYS = [
+  "service user",
+  "service user name",
+  "customer name",
+  "client name",
+  "service location name",
+  "service location",
+  "resident",
+  "patient",
+];
+const VISIT_PLANNED_START_KEYS = [
+  "planned start date and time",
+  "planned start time",
+  "planned start",
+];
+const VISIT_PLANNED_DURATION_KEYS = [
+  "planned duration",
+  "scheduled duration",
+  "planned time",
+];
+const VISIT_ACTUAL_START_KEYS = [
+  "actual start date and time",
+  "actual start time",
+  "actual start",
+];
+const VISIT_ACTUAL_DURATION_KEYS = [
+  "actual duration",
+  "delivered duration",
+  "actual time",
+];
+const VISIT_SERVICE_REQ_START_KEYS = [
+  "service requirement start date and time",
+  "service requirement start time",
+  "service requirement time",
+];
+const VISIT_SERVICE_REQ_DURATION_KEYS = ["service requirement duration"];
+const VISIT_ACTUAL_WORKER_KEYS = [
+  "actual employee name",
+  "actual employee",
+  "actual worker",
+  "actual carer",
+  "delivered worker",
+];
+const VISIT_LOCATION_KEYS = [
+  "actual location analysis",
+  "planned location analysis",
+  "service requirement location analysis",
+  "location analysis",
+];
+const VISIT_NOTES_KEYS = [
+  "notes",
+  "timesheet notes",
+  "service duty notes",
+  "service duty timesheet notes",
+  "actual booked on notes",
+  "actual booked off notes",
+];
+const VISIT_MAX_COMPACT_CHARS = 180000;
+
+function normalizeVisitHeaderKey(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findVisitColumnIndex(headers: string[], keywords: string[]): number {
+  if (!headers.length || !keywords.length) return -1;
+  for (let index = 0; index < headers.length; index += 1) {
+    const header = headers[index];
+    if (!header) continue;
+    if (keywords.some((keyword) => header.includes(keyword))) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function sanitizeVisitCellValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const day = String(value.getDate()).padStart(2, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const hours = String(value.getHours()).padStart(2, "0");
+    const minutes = String(value.getMinutes()).padStart(2, "0");
+    return `${day}/${month}@${hours}:${minutes}`.trim();
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = (RawXLSX as any).SSF?.parse_date_code?.(value);
+    if (parsed) {
+      const day = String(parsed.d ?? parsed.D ?? "").padStart(2, "0");
+      const month = String(parsed.m ?? parsed.M ?? "").padStart(2, "0");
+      const hours = String(parsed.H ?? parsed.h ?? 0).padStart(2, "0");
+      const minutes = String(parsed.M ?? parsed.m ?? 0).padStart(2, "0");
+      if (day && month) {
+        return `${day}/${month}@${hours}:${minutes}`.trim();
+      }
+    }
+    return String(value);
+  }
+  const text = String(value).replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  if (lower === "true" || lower === "yes") return "Y";
+  if (lower === "false" || lower === "no") return "N";
+  const dateTimeMatch = text.match(/(\d{1,2})[\\/-](\d{1,2})[\\/-](\d{2,4}).*?(\d{1,2}:\d{2})/);
+  if (dateTimeMatch) {
+    const day = dateTimeMatch[1].padStart(2, "0");
+    const month = dateTimeMatch[2].padStart(2, "0");
+    return `${day}/${month}@${dateTimeMatch[4]}`;
+  }
+  const dateMatch = text.match(/(\d{1,2})[\\/-](\d{1,2})[\\/-](\d{2,4})/);
+  if (dateMatch) {
+    const day = dateMatch[1].padStart(2, "0");
+    const month = dateMatch[2].padStart(2, "0");
+    return `${day}/${month}`;
+  }
+  const timeMatch = text.match(/\b\d{1,2}:\d{2}\b/);
+  if (timeMatch) return timeMatch[0];
+  return text;
+}
+
+function toVisitInitials(value: unknown): string {
+  const text = sanitizeVisitCellValue(value).replace(/[^A-Za-z\s,'-]/g, " ").trim();
+  if (!text) return "";
+  const parts = text.includes(",")
+    ? text.split(",").map((part) => part.trim()).filter(Boolean)
+    : text.split(/\s+/).filter(Boolean);
+  const ordered = parts.length >= 2 && text.includes(",") ? [parts[1], parts[0]] : parts;
+  const initials = ordered.map((part) => part[0]?.toUpperCase()).filter(Boolean).join(".");
+  return initials ? `${initials}.` : "";
+}
+
+function toVisitInitialLast(value: unknown): string {
+  const text = sanitizeVisitCellValue(value).replace(/[^A-Za-z\s,'-]/g, " ").trim();
+  if (!text) return "";
+  if (text.includes(",")) {
+    const [last, first] = text.split(",").map((part) => part.trim());
+    if (first && last) return `${first[0].toUpperCase()}.${last}`;
+  }
+  const parts = text.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    return `${first[0].toUpperCase()}.${last}`;
+  }
+  return text;
+}
+
+function extractVisitWorkbookContent(workbook: any): VisitWorkbookExtraction | null {
+  if (!workbook?.SheetNames?.length) return null;
+
+  const sheetName = String(workbook.SheetNames[0] || "Sheet 1");
+  const worksheet = workbook.Sheets?.[sheetName];
+  if (!worksheet) return null;
+
+  const data = SafeXLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, raw: true });
+  if (!Array.isArray(data) || data.length === 0) return null;
+
+  const headers = Array.isArray(data[0]) ? data[0].map((cell) => normalizeVisitHeaderKey(cell)) : [];
+  const columns = {
+    serviceUser: findVisitColumnIndex(headers, VISIT_SERVICE_USER_KEYS),
+    plannedStart: findVisitColumnIndex(headers, VISIT_PLANNED_START_KEYS),
+    plannedDuration: findVisitColumnIndex(headers, VISIT_PLANNED_DURATION_KEYS),
+    actualStart: findVisitColumnIndex(headers, VISIT_ACTUAL_START_KEYS),
+    actualDuration: findVisitColumnIndex(headers, VISIT_ACTUAL_DURATION_KEYS),
+    serviceReqStart: findVisitColumnIndex(headers, VISIT_SERVICE_REQ_START_KEYS),
+    serviceReqDuration: findVisitColumnIndex(headers, VISIT_SERVICE_REQ_DURATION_KEYS),
+    actualWorker: findVisitColumnIndex(headers, VISIT_ACTUAL_WORKER_KEYS),
+    location: findVisitColumnIndex(headers, VISIT_LOCATION_KEYS),
+    notes: findVisitColumnIndex(headers, VISIT_NOTES_KEYS),
+  };
+
+  const matchedColumns = [
+    columns.serviceUser >= 0 ? "Service user" : null,
+    columns.actualWorker >= 0 ? "Care worker" : null,
+    columns.serviceReqStart >= 0 || columns.actualStart >= 0 || columns.plannedStart >= 0 ? "Visit date" : null,
+    columns.serviceReqDuration >= 0 || columns.plannedDuration >= 0 ? "Expected duration" : null,
+    columns.actualDuration >= 0 ? "Actual duration" : null,
+    columns.location >= 0 ? "Location" : null,
+    columns.notes >= 0 ? "Notes" : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const fallbackContent = SafeXLSX.utils.sheet_to_csv(worksheet).trim();
+  if (matchedColumns.length < 2) {
+    if (!fallbackContent) return null;
+    return {
+      content: fallbackContent,
+      rowCount: Math.max(data.length - 1, 0),
+      sheetName,
+      matchedColumns,
+      usedCompactMapping: false,
+    };
+  }
+
+  const buildCompactLines = (includeNotes: boolean) => {
+    const baseColumns: Array<{ label: string; value: (row: any[]) => string }> = [];
+
+    if (columns.serviceUser >= 0) {
+      baseColumns.push({ label: "SU", value: (row) => toVisitInitials(row[columns.serviceUser]) });
+    }
+    if (columns.actualWorker >= 0) {
+      baseColumns.push({ label: "CWa", value: (row) => toVisitInitialLast(row[columns.actualWorker]) });
+    }
+    baseColumns.push({
+      label: "Date",
+      value: (row) => {
+        const candidates = [columns.actualStart, columns.serviceReqStart, columns.plannedStart].filter((index) => index >= 0);
+        for (const index of candidates) {
+          const value = sanitizeVisitCellValue(row[index]);
+          if (value) return value.split("@")[0];
+        }
+        return "";
+      },
+    });
+
+    if (columns.serviceReqDuration >= 0 || columns.plannedDuration >= 0) {
+      baseColumns.push({
+        label: "ExpDur",
+        value: (row) => {
+          const primary = columns.serviceReqDuration >= 0 ? sanitizeVisitCellValue(row[columns.serviceReqDuration]) : "";
+          if (primary) return primary;
+          return columns.plannedDuration >= 0 ? sanitizeVisitCellValue(row[columns.plannedDuration]) : "";
+        },
+      });
+    }
+
+    if (columns.actualDuration >= 0) {
+      baseColumns.push({ label: "ActDur", value: (row) => sanitizeVisitCellValue(row[columns.actualDuration]) });
+    }
+    if (columns.location >= 0) {
+      baseColumns.push({ label: "Loc", value: (row) => sanitizeVisitCellValue(row[columns.location]) });
+    }
+
+    const columnDefs = includeNotes && columns.notes >= 0
+      ? [
+          ...baseColumns,
+          {
+            label: "Notes",
+            value: (row: any[]) => {
+              let value = sanitizeVisitCellValue(row[columns.notes]);
+              if (value.length > 80) value = `${value.slice(0, 77)}...`;
+              return value;
+            },
+          },
+        ]
+      : baseColumns;
+
+    const lines: string[] = [];
+    lines.push(`Columns:${columnDefs.map((column) => column.label).join("|")}`);
+
+    for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
+      const row = Array.isArray(data[rowIndex]) ? data[rowIndex] : [];
+      const values = columnDefs.map((column) => column.value(row));
+      const hasContent = values.some((value) => value && String(value).trim().length > 0);
+      if (!hasContent) continue;
+      lines.push(values.map((value) => value || "").join("|"));
+    }
+
+    return lines;
+  };
+
+  let compactLines = buildCompactLines(true);
+  let compactContent = compactLines.join("\n").trim();
+  if (compactContent.length > VISIT_MAX_COMPACT_CHARS && columns.notes >= 0) {
+    compactLines = buildCompactLines(false);
+    compactContent = compactLines.join("\n").trim();
+  }
+
+  if (compactLines.length <= 1 || !compactContent) {
+    if (!fallbackContent) return null;
+    return {
+      content: fallbackContent,
+      rowCount: Math.max(data.length - 1, 0),
+      sheetName,
+      matchedColumns,
+      usedCompactMapping: false,
+    };
+  }
+
+  return {
+    content: compactContent,
+    rowCount: compactLines.length - 1,
+    sheetName,
+    matchedColumns,
+    usedCompactMapping: true,
+  };
 }
 
 function formatDate(date: Date): string {
@@ -127,6 +434,7 @@ export default function VisitAudit() {
   const prevContentRef = useRef("");
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
+  const [inputSummary, setInputSummary] = useState<VisitInputSummary | null>(null);
   const [auditContext, setAuditContext] = useState({
     serviceUserName: "",
     auditPeriodStart: "",
@@ -155,45 +463,104 @@ export default function VisitAudit() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
+      const lowerName = selectedFile.name.toLowerCase();
+      const isPdfFile = selectedFile.type === "application/pdf" || lowerName.endsWith(".pdf");
+      const isCsvFile = selectedFile.type === "text/csv" || lowerName.endsWith(".csv");
+      const isSpreadsheetFile = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
+
       setFile(selectedFile);
-      
-      if (selectedFile.type === "application/pdf") {
-        setLoading(true);
-        try {
+      setAnalyzed(false);
+      setResult(null);
+      setDocumentContent("");
+      setInputSummary(null);
+      setLoading(true);
+      setProgress(12);
+      setProgressStatus(
+        isPdfFile
+          ? "Extracting PDF text..."
+          : isCsvFile || isSpreadsheetFile
+          ? "Preparing workbook data..."
+          : "Loading source file..."
+      );
+
+      try {
+        if (isPdfFile) {
           const formData = new FormData();
           formData.append("file", selectedFile);
-          
+
           const res = await fetch("/api/parse-pdf", {
             method: "POST",
             credentials: "include",
             body: formData,
           });
-          
+
           if (!res.ok) {
             throw new Error("Failed to parse PDF");
           }
-          
+
           const data = await res.json();
           setDocumentContent(data.text);
+          setInputSummary({
+            sourceLabel: "PDF",
+            methodLabel: "Extracted text from uploaded PDF",
+            matchedColumns: [],
+          });
           resetTimer();
           toast({ title: "PDF Loaded", description: "Document content extracted successfully." });
-        } catch (error: any) {
-          toast({
-            title: "PDF Error",
-            description: error.message || "Failed to read PDF file",
-            variant: "destructive",
-          });
-        } finally {
-          setLoading(false);
+          return;
         }
-      } else {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const content = event.target?.result as string;
-          setDocumentContent(content);
+
+        if (isCsvFile || isSpreadsheetFile) {
+          const workbook = isCsvFile
+            ? SafeXLSX.read(await selectedFile.text(), { type: "string", cellDates: true })
+            : SafeXLSX.read(await selectedFile.arrayBuffer(), { type: "array", cellDates: true });
+          const extraction = extractVisitWorkbookContent(workbook);
+
+          if (!extraction?.content) {
+            throw new Error("No usable visit audit data was found in the uploaded workbook.");
+          }
+
+          setDocumentContent(extraction.content);
+          setInputSummary({
+            sourceLabel: isCsvFile ? "CSV" : "Spreadsheet",
+            methodLabel: extraction.usedCompactMapping
+              ? "Mapped into compact visit-audit rows"
+              : "Loaded sheet as raw table text",
+            rowCount: extraction.rowCount,
+            sheetName: extraction.sheetName,
+            matchedColumns: extraction.matchedColumns,
+          });
           resetTimer();
-        };
-        reader.readAsText(selectedFile);
+          toast({
+            title: isCsvFile ? "CSV Loaded" : "Spreadsheet Loaded",
+            description: extraction.usedCompactMapping
+              ? `Prepared ${extraction.rowCount} visit row${extraction.rowCount === 1 ? "" : "s"} for audit analysis.`
+              : `Loaded ${extraction.rowCount} row${extraction.rowCount === 1 ? "" : "s"} from ${extraction.sheetName}.`,
+          });
+          return;
+        }
+
+        const content = await selectedFile.text();
+        setDocumentContent(content);
+        setInputSummary({
+          sourceLabel: "Text",
+          methodLabel: "Loaded raw text file",
+          matchedColumns: [],
+        });
+        resetTimer();
+        toast({ title: "File Loaded", description: "Text content is ready for audit analysis." });
+      } catch (error: any) {
+        setDocumentContent("");
+        setInputSummary(null);
+        toast({
+          title: "File Error",
+          description: error.message || "Failed to read uploaded file",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+        setProgress(0);
+        setProgressStatus("");
       }
     }
   };
@@ -380,6 +747,7 @@ export default function VisitAudit() {
       setAnalyzed(false);
       setFile(null);
       setDocumentContent("");
+      setInputSummary(null);
       setResult(null);
     } catch (error: any) {
       toast({
@@ -519,6 +887,42 @@ The AI will automatically extract:
                 )}
               </Button>
             </div>
+
+            {file && inputSummary && (
+              <div className="rounded-2xl border border-border/40 bg-background/80 p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{inputSummary.methodLabel}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      {inputSummary.sourceLabel}
+                    </span>
+                    {typeof inputSummary.rowCount === "number" && (
+                      <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+                        {inputSummary.rowCount} row{inputSummary.rowCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {inputSummary.sheetName && (
+                      <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        {inputSummary.sheetName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {inputSummary.matchedColumns.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Mapped fields: {inputSummary.matchedColumns.join(", ")}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No structured visit-audit columns were detected, so the uploaded content was loaded as raw text.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="rounded-2xl border border-border/40 bg-muted/20 p-5 space-y-4">
               <div className="space-y-1">

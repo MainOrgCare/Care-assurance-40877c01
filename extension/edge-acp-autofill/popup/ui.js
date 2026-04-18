@@ -62,7 +62,7 @@ export function cacheDomElements() {
     "upload-moving-handling-input", "upload-moving-handling-files",
     "upload-additional-documents-input", "upload-additional-documents-files",
     "upload-handoff-state", "upload-handoff-meta", "upload-handoff-primary", "upload-handoff-secondary",
-    "auto-collect-info", "auto-collect-info-state", "auto-collect-info-title", "auto-collect-info-detail", "copy-auto-collect-info",
+    "auto-collect-info", "auto-collect-info-state", "auto-collect-info-title", "auto-collect-info-detail", "auto-collect-primary-action", "auto-collect-secondary-action", "copy-auto-collect-info",
     "upload-sync-status", "upload-sync-summary", "sync-upload-btn", "reset-upload-btn", "upload-notes", "analyze-documents",
     "analysis-status", "analysis-progress", "clear-uploads",
     "uploaded-docs-summary", "uploaded-docs-list",

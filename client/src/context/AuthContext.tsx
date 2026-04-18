@@ -120,6 +120,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const handleSessionInvalidation = useCallback(async () => {
+    if (authExpiryHandledRef.current) {
+      return;
+    }
+
+    const hadActiveUser = Boolean(activeUserRef.current);
+    if (!hadActiveUser) {
+      clearAuthState();
+      return;
+    }
+
+    authExpiryHandledRef.current = true;
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Ignore failures; the current session is already invalid.
+    } finally {
+      clearAuthState();
+      setLocation("/");
+      toast({
+        title: "Session expired",
+        description: "You were signed out because your session is no longer valid. Please sign in again.",
+        variant: "destructive",
+      });
+      authExpiryHandledRef.current = false;
+    }
+  }, [clearAuthState, setLocation, toast]);
+
   const checkSession = useCallback(async () => {
     try {
       const response = await fetch("/api/auth/session", {
@@ -127,7 +158,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        clearAuthState();
+        if (response.status === 401 || response.status === 403) {
+          await handleSessionInvalidation();
+        } else {
+          console.error("Session check failed with status:", response.status);
+        }
         return;
       }
 
@@ -135,14 +170,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionData?.authenticated && sessionData?.user) {
         setUser(sessionData.user);
       } else {
-        clearAuthState();
+        await handleSessionInvalidation();
       }
     } catch (error) {
       console.error("Session check failed:", error);
     } finally {
       setLoading(false);
     }
-  }, [clearAuthState]);
+  }, [handleSessionInvalidation]);
 
   useEffect(() => {
     checkSession();
@@ -185,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          clearAuthState();
+          await handleSessionInvalidation();
         }
         return;
       }
@@ -194,48 +229,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionData?.authenticated && sessionData?.user) {
         setUser(sessionData.user);
       } else {
-        clearAuthState();
+        await handleSessionInvalidation();
       }
     } catch (error) {
       console.error("Refetch user failed:", error);
     }
-  }, [clearAuthState]);
-
-  const handleCredentialsExpired = useCallback(async () => {
-    if (!activeUserRef.current || authExpiryHandledRef.current) {
-      return;
-    }
-
-    authExpiryHandledRef.current = true;
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch {
-      // Ignore failures; credential expiry already invalidated the active session.
-    } finally {
-      clearAuthState();
-      setLocation("/");
-      toast({
-        title: "Session expired",
-        description: "Your credentials expired. Please sign in again.",
-        variant: "destructive",
-      });
-      authExpiryHandledRef.current = false;
-    }
-  }, [clearAuthState, setLocation, toast]);
+  }, [handleSessionInvalidation]);
 
   useEffect(() => {
     const onAuthExpired = () => {
-      void handleCredentialsExpired();
+      void handleSessionInvalidation();
     };
 
     window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired as EventListener);
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired as EventListener);
     };
-  }, [handleCredentialsExpired]);
+  }, [handleSessionInvalidation]);
 
   const fetchUsers = useCallback(async () => {
     try {

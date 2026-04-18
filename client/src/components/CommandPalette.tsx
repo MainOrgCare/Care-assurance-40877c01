@@ -37,14 +37,10 @@ import {
   LogOut,
   Keyboard,
   Clock,
-  Star,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings, type AppTheme, type FontSize } from "@/context/SettingsContext";
-import { useRecentPages } from "@/hooks/useRecentPages";
-import { useFavorites } from "@/hooks/useFavorites";
-import { cn } from "@/lib/utils";
 
 interface CommandRoute {
   label: string;
@@ -118,7 +114,7 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShortcuts }: CommandPaletteProps) {
-  const [currentPath, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
   const {
     theme,
@@ -131,14 +127,8 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
     setReduceMotion,
     highContrast,
     setHighContrast,
-    showQuickAccessBar,
-    setShowQuickAccessBar,
   } = useSettings();
-  const recentPages = useRecentPages();
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const isAdmin = user?.role === "admin";
-  const currentPageName = ALL_ROUTES_MAP.get(currentPath)?.label;
-  const currentPageIsFav = isFavorite(currentPath);
   const [search, setSearch] = useState("");
 
   // Reset search when palette opens
@@ -188,11 +178,6 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
     onOpenChange(false);
   }, [highContrast, setHighContrast, onOpenChange]);
 
-  const toggleQuickAccessBar = useCallback(() => {
-    setShowQuickAccessBar(!showQuickAccessBar);
-    onOpenChange(false);
-  }, [showQuickAccessBar, setShowQuickAccessBar, onOpenChange]);
-
   const handleLogout = useCallback(() => {
     onOpenChange(false);
     logout();
@@ -221,51 +206,6 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
             <p className="text-xs text-muted-foreground">Try a different search term</p>
           </div>
         </CommandEmpty>
-
-        {/* Favorite pages — shown when there's no search query */}
-        {!search && favorites.length > 0 && (
-          <>
-            <CommandGroup heading="Favorites">
-              {favorites.map((path) => {
-                const route = ALL_ROUTES_MAP.get(path);
-                if (!route) return null;
-                return (
-                  <CommandItem
-                    key={`fav-${path}`}
-                    value={`favorite ${route.label}`}
-                    onSelect={() => navigate(path)}
-                  >
-                    <Star className="mr-2 h-4 w-4 text-warning fill-warning" />
-                    <span>{route.label}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            <CommandSeparator />
-          </>
-        )}
-
-        {/* Recent pages — shown when there's no search query */}
-        {!search && recentPages.length > 1 && (
-          <>
-            <CommandGroup heading="Recent">
-              {recentPages.slice(1).map((page) => (
-                <CommandItem
-                  key={`recent-${page.path}`}
-                  value={`recent ${page.label}`}
-                  onSelect={() => navigate(page.path)}
-                >
-                  <Clock className="mr-2 h-4 w-4 text-muted-foreground/60" />
-                  <span>{page.label}</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {formatTimeAgo(page.visitedAt)}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandSeparator />
-          </>
-        )}
 
         <CommandGroup heading="Navigation">
           {NAVIGATION_ROUTES.map((route) => (
@@ -398,34 +338,11 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
             <CommandShortcut>{highContrast ? "On" : "Off"}</CommandShortcut>
           </CommandItem>
 
-          <CommandItem
-            value={`quick access favorites recents ${showQuickAccessBar ? "hide" : "show"}`}
-            onSelect={toggleQuickAccessBar}
-          >
-            <Star className="mr-2 h-4 w-4 text-muted-foreground" />
-            <span>{showQuickAccessBar ? "Hide Quick Access Bar" : "Show Quick Access Bar"}</span>
-            <CommandShortcut>{showQuickAccessBar ? "On" : "Off"}</CommandShortcut>
-          </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />
 
         <CommandGroup heading="Actions">
-          {currentPageName && (
-            <CommandItem
-              value={`favorite star bookmark ${currentPageName}`}
-              onSelect={() => {
-                toggleFavorite(currentPath);
-                onOpenChange(false);
-              }}
-            >
-              <Star className={cn(
-                "mr-2 h-4 w-4",
-                currentPageIsFav ? "text-warning fill-warning" : "text-muted-foreground"
-              )} />
-              <span>{currentPageIsFav ? `Remove ${currentPageName} from Favorites` : `Add ${currentPageName} to Favorites`}</span>
-            </CommandItem>
-          )}
           {onOpenKeyboardShortcuts && (
             <CommandItem
               value="keyboard shortcuts help hotkeys"

@@ -321,6 +321,8 @@
                 <strong id="auto-collect-info-title" class="auto-collect-info-title">No auto-collect run yet</strong>
                 <div id="auto-collect-info-detail" class="auto-collect-info-detail">Run Auto-Collect in any Intake section to capture source, selection, and download diagnostics.</div>
                 <div class="auto-collect-info-actions">
+                  <button id="auto-collect-primary-action" type="button" class="btn btn-primary btn-sm" hidden></button>
+                  <button id="auto-collect-secondary-action" type="button" class="btn btn-secondary btn-sm" hidden></button>
                   <button id="copy-auto-collect-info" type="button" class="btn btn-ghost btn-sm" disabled>Copy Report</button>
                 </div>
               </div>
@@ -328,7 +330,10 @@
               <div class="upload-bucket-grid">
                 <div class="upload-bucket-card" data-upload-section="socialWork">
                   <div class="upload-bucket-header">
-                    <strong>Social Work</strong>
+                    <div class="upload-bucket-header-row">
+                      <strong>Social Work</strong>
+                      <span class="upload-bucket-status" data-upload-status="socialWork" hidden></span>
+                    </div>
                     <span>C2, C3, support plans, emails</span>
                   </div>
                   <input id="upload-social-work-input" type="file" accept=".pdf,.doc,.docx,.txt,.csv" multiple class="file-input" />
@@ -342,7 +347,10 @@
 
                 <div class="upload-bucket-card" data-upload-section="initialAssessment">
                   <div class="upload-bucket-header">
-                    <strong>Initial Assessment</strong>
+                    <div class="upload-bucket-header-row">
+                      <strong>Initial Assessment</strong>
+                      <span class="upload-bucket-status" data-upload-status="initialAssessment" hidden></span>
+                    </div>
                     <span>Risk and needs</span>
                   </div>
                   <input id="upload-initial-assessment-input" type="file" accept=".pdf,.doc,.docx,.txt,.csv" multiple class="file-input" />
@@ -356,7 +364,10 @@
 
                 <div class="upload-bucket-card" data-upload-section="carePlan">
                   <div class="upload-bucket-header">
-                    <strong>Care Plan</strong>
+                    <div class="upload-bucket-header-row">
+                      <strong>Care Plan</strong>
+                      <span class="upload-bucket-status" data-upload-status="carePlan" hidden></span>
+                    </div>
                     <span>Current care plan</span>
                   </div>
                   <input id="upload-care-plan-input" type="file" accept=".pdf,.doc,.docx,.txt,.csv" class="file-input" />
@@ -370,7 +381,10 @@
 
                 <div class="upload-bucket-card" data-upload-section="movingHandling">
                   <div class="upload-bucket-header">
-                    <strong>Moving &amp; Handling</strong>
+                    <div class="upload-bucket-header-row">
+                      <strong>Moving &amp; Handling</strong>
+                      <span class="upload-bucket-status" data-upload-status="movingHandling" hidden></span>
+                    </div>
                     <span>Mobility guidance</span>
                   </div>
                   <input id="upload-moving-handling-input" type="file" accept=".pdf,.doc,.docx,.txt,.csv" class="file-input" />
@@ -384,7 +398,10 @@
 
                 <div class="upload-bucket-card" data-upload-section="additionalDocuments">
                   <div class="upload-bucket-header">
-                    <strong>Additional Documents</strong>
+                    <div class="upload-bucket-header-row">
+                      <strong>Additional Documents</strong>
+                      <span class="upload-bucket-status" data-upload-status="additionalDocuments" hidden></span>
+                    </div>
                     <span>Supports multiple files</span>
                   </div>
                   <input id="upload-additional-documents-input" type="file" accept=".pdf,.doc,.docx,.txt,.csv" multiple class="file-input" />

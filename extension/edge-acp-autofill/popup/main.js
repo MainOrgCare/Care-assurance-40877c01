@@ -161,11 +161,38 @@ let lastLogFingerprint = "";
 let lastPayloadAutofillSyncKey = "";
 let lastPayloadAutofillAttemptKey = "";
 let pendingPayloadAutofillContext = null;
+let lastVerificationNavigationKey = "";
 
 const buildLogFingerprint = (logs) => {
   if (!Array.isArray(logs) || logs.length === 0) return "0";
   const lastEntry = logs[logs.length - 1] || "";
   return `${logs.length}:${String(lastEntry)}`;
+};
+
+const normalizeVerificationFieldLabel = (field, index) => {
+  const preferred = [field?.field, field?.name, field?.id, field?.label];
+  for (const value of preferred) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return `field-${index}`;
+};
+
+const buildVerificationNavigationKey = (pageContext, verificationFields) => {
+  const tabKey = String(pageContext?.tabId || pageContext?.routeLabel || "no-page");
+  const fieldKey = Array.isArray(verificationFields) && verificationFields.length > 0
+    ? verificationFields
+        .map((field, index) => `${normalizeVerificationFieldLabel(field, index)}:${String(field?.reason || "")}`)
+        .join("|")
+    : "none";
+  return `${tabKey}|${fieldKey}`;
+};
+
+const syncVerificationNavigationState = (pageContext, verificationFields) => {
+  const nextKey = buildVerificationNavigationKey(pageContext, verificationFields);
+  if (nextKey === lastVerificationNavigationKey) return;
+  lastVerificationNavigationKey = nextKey;
+  state.currentVerificationIndex = -1;
 };
 
 const pickFirstNonEmptyString = (...values) => {
@@ -807,6 +834,144 @@ const describeAttemptedDownloadPath = (candidate) => {
   }
 };
 
+const setAutoCollectActionButton = (button, config = {}) => {
+  if (!button) return;
+
+  const {
+    label = "",
+    action = "",
+    disabled = false,
+    hidden = true,
+  } = config;
+
+  if (hidden || !label || !action) {
+    button.hidden = true;
+    button.disabled = true;
+    button.dataset.action = "";
+    button.textContent = "";
+    return;
+  }
+
+  button.hidden = false;
+  button.disabled = Boolean(disabled);
+  button.dataset.action = action;
+  button.textContent = label;
+};
+
+const renderUploadBucketStatuses = () => {
+  ensureUploadBuckets();
+
+  document.querySelectorAll("[data-upload-status]").forEach((element) => {
+    const sectionKey = String(element.getAttribute("data-upload-status") || "").trim();
+    if (!sectionKey) return;
+
+    const sectionFiles = Array.isArray(state.uploadBuckets?.[sectionKey]) ? state.uploadBuckets[sectionKey] : [];
+    const snapshot = autoCollectInfoSnapshot || createAutoCollectInfoSnapshot();
+    const snapshotSectionKey = String(snapshot?.sectionKey || "").trim();
+    const snapshotStatus = String(snapshot?.status || "idle").trim();
+
+    let label = "";
+    let stateLabel = "idle";
+
+    if (snapshotSectionKey === sectionKey && snapshotStatus === "running") {
+      label = "Running";
+      stateLabel = "running";
+    } else if (snapshotSectionKey === sectionKey && snapshotStatus === "success") {
+      const count = Number(snapshot?.downloadedCount || sectionFiles.length || 0);
+      label = count > 0 ? `Added ${count}` : "Added";
+      stateLabel = "success";
+    } else if (snapshotSectionKey === sectionKey && snapshotStatus === "partial") {
+      const count = Number(snapshot?.downloadedCount || sectionFiles.length || 0);
+      label = count > 0 ? `Partial ${count}` : "Partial";
+      stateLabel = "partial";
+    } else if (snapshotSectionKey === sectionKey && (snapshotStatus === "error" || snapshotStatus === "cancelled")) {
+      label = snapshotStatus === "cancelled" ? "Cancelled" : "Failed";
+      stateLabel = snapshotStatus;
+    } else if (sectionFiles.length > 0) {
+      label = sectionFiles.length === 1 ? "Staged 1" : `Staged ${sectionFiles.length}`;
+      stateLabel = "staged";
+    }
+
+    if (!label) {
+      element.hidden = true;
+      element.textContent = "";
+      element.dataset.state = "idle";
+      return;
+    }
+
+    element.hidden = false;
+    element.textContent = label;
+    element.dataset.state = stateLabel;
+  });
+};
+
+const getAutoCollectInfoActions = (snapshot) => {
+  const status = String(snapshot?.status || "idle");
+  const sourceUrl = String(snapshot?.sourceUrl || "").trim();
+  const hasSourceUrl = Boolean(sourceUrl);
+  const stagedCount = flattenUploadBuckets().length;
+  const downloadedCount = Number(snapshot?.downloadedCount || 0);
+  const hasAnalysisReady =
+    Number(state.currentAnalysisResults?.recommendedAssessments?.length || 0) > 0 &&
+    Boolean(dom.selectionSection) &&
+    !dom.selectionSection.hidden;
+
+  if (status === "idle") {
+    return {
+      primary: { hidden: true },
+      secondary: { hidden: true },
+    };
+  }
+
+  if (status === "running") {
+    return {
+      primary: hasSourceUrl
+        ? { label: "Open Source", action: "open-source" }
+        : { hidden: true },
+      secondary: {
+        label: "Open Autofill",
+        action: "open-autofill",
+      },
+    };
+  }
+
+  if (status === "error" || status === "cancelled") {
+    return {
+      primary: snapshot?.sectionKey
+        ? { label: "Retry Auto-Download", action: "retry" }
+        : { hidden: true },
+      secondary: hasSourceUrl
+        ? { label: "Open Source", action: "open-source" }
+        : { hidden: true },
+    };
+  }
+
+  if ((status === "success" || status === "partial") && downloadedCount > 0) {
+    const primary = hasAnalysisReady
+      ? { label: "Review Autofill", action: "open-autofill" }
+      : stagedCount > 0
+      ? { label: "Analyze Staged Files", action: "analyze" }
+      : { hidden: true };
+
+    const secondary = state.isConnected && stagedCount > 0
+      ? { label: "Send to Upload", action: "send-upload" }
+      : hasSourceUrl
+      ? { label: "Open Source", action: "open-source" }
+      : { label: "Open Autofill", action: "open-autofill" };
+
+    return { primary, secondary };
+  }
+
+  return {
+    primary: snapshot?.sectionKey
+      ? { label: "Retry Auto-Download", action: "retry" }
+      : { hidden: true },
+    secondary: hasSourceUrl
+      ? { label: "Open Source", action: "open-source" }
+      : { hidden: true },
+  };
+};
+
 const buildAutoCollectInfoTitle = (snapshot) => {
   const status = String(snapshot?.status || "idle");
   const sectionLabel = String(snapshot?.sectionLabel || "Intake").trim() || "Intake";
@@ -898,6 +1063,11 @@ const renderAutoCollectInfoPanel = () => {
   dom.autoCollectInfoState.textContent = statusLabel;
   dom.autoCollectInfoTitle.textContent = buildAutoCollectInfoTitle(snapshot);
   dom.autoCollectInfoDetail.textContent = buildAutoCollectInfoDetail(snapshot);
+
+  const actions = getAutoCollectInfoActions(snapshot);
+  setAutoCollectActionButton(dom.autoCollectPrimaryAction, actions.primary);
+  setAutoCollectActionButton(dom.autoCollectSecondaryAction, actions.secondary);
+  renderUploadBucketStatuses();
 
   if (dom.copyAutoCollectInfo) {
     dom.copyAutoCollectInfo.disabled = status === "idle";
@@ -1150,6 +1320,64 @@ const launchDetachedPopupWindow = async (event) => {
   }
 };
 
+const openAutoCollectSource = async () => {
+  const sourceUrl = String(autoCollectInfoSnapshot?.sourceUrl || "").trim();
+  if (!sourceUrl) {
+    showInfo("No Mobizio source page is attached to this auto-download run.");
+    return;
+  }
+
+  await chrome.tabs.create({ url: sourceUrl, active: true });
+};
+
+const executeAutoCollectInfoAction = async (action) => {
+  const normalizedAction = String(action || "").trim();
+  if (!normalizedAction) return;
+
+  if (normalizedAction === "open-source") {
+    await openAutoCollectSource();
+    return;
+  }
+
+  if (normalizedAction === "retry") {
+    const sectionKey = String(autoCollectInfoSnapshot?.sectionKey || "").trim();
+    if (!sectionKey) {
+      showInfo("No previous auto-download section is available to retry.");
+      return;
+    }
+
+    if (isUploadWorkflowBusy()) {
+      showInfo("Please wait for the current upload operation to finish.");
+      return;
+    }
+
+    const triggerButton = document.querySelector(`[data-upload-autocollect="${sectionKey}"]`);
+    await autoCollectDocumentsForSection(
+      sectionKey,
+      triggerButton instanceof HTMLButtonElement ? triggerButton : null
+    );
+    return;
+  }
+
+  if (normalizedAction === "analyze") {
+    dom.analyzeDocuments?.click();
+    return;
+  }
+
+  if (normalizedAction === "send-upload") {
+    dom.syncUploadBtn?.click();
+    return;
+  }
+
+  if (normalizedAction === "open-autofill") {
+    switchTab("autofill");
+    setTimeout(() => {
+      if (getCaseIdForAutoCollect()) dom.caseId?.focus();
+      else dom.autofillUserSearch?.focus();
+    }, 0);
+  }
+};
+
 const updateWindowPosition = (windowId, left, top) =>
   new Promise((resolve, reject) => {
     chrome.windows.update(
@@ -1395,6 +1623,7 @@ const renderUploadBuckets = () => {
   if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = totalFileCount === 0;
   updateTabBadges(state.latestPayloadSnapshot?.payload, totalFileCount);
   updateUploadSteps(totalFileCount > 0 ? 1 : 0);
+  renderUploadBucketStatuses();
   updateUploadPendingStatus();
   updateUploadActionInterlocks();
 };
@@ -2042,6 +2271,107 @@ const findBestAutoCollectDefaultIndex = (documents) => {
   });
 
   return candidatePool[0]?.index ?? -1;
+};
+
+const getAutoCollectSelectionChallenger = (documents, bestIndex) => {
+  if (!Array.isArray(documents) || documents.length === 0) return null;
+
+  return documents
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ index }) => index !== bestIndex)
+    .sort((left, right) => {
+      const leftConfidence = Number(left.entry?.sectionConfidenceLevel || 0);
+      const rightConfidence = Number(right.entry?.sectionConfidenceLevel || 0);
+      if (rightConfidence !== leftConfidence) {
+        return rightConfidence - leftConfidence;
+      }
+
+      const leftScore = Number(left.entry?.sectionScore || 0);
+      const rightScore = Number(right.entry?.sectionScore || 0);
+      if (rightScore !== leftScore) {
+        return rightScore - leftScore;
+      }
+
+      const leftTimestamp = Number(left.entry?.uploadedTimestamp || 0);
+      const rightTimestamp = Number(right.entry?.uploadedTimestamp || 0);
+      if (rightTimestamp !== leftTimestamp) {
+        return rightTimestamp - leftTimestamp;
+      }
+
+      return left.index - right.index;
+    })[0]?.entry || null;
+};
+
+const hasClearAutoCollectLead = (sectionKey, bestEntry, challenger) => {
+  if (!bestEntry) return false;
+  if (!challenger) return true;
+
+  const bestConfidence = Number(bestEntry?.sectionConfidenceLevel || 0);
+  const challengerConfidence = Number(challenger?.sectionConfidenceLevel || 0);
+  if (bestConfidence !== challengerConfidence) {
+    return bestConfidence > challengerConfidence;
+  }
+
+  const bestScore = Number(bestEntry?.sectionScore || 0);
+  const challengerScore = Number(challenger?.sectionScore || 0);
+  if (bestScore !== challengerScore) {
+    return bestScore > challengerScore;
+  }
+
+  if (isAutoCollectRecencyFirstSection(sectionKey)) {
+    const bestTimestamp = Number(bestEntry?.uploadedTimestamp || 0);
+    const challengerTimestamp = Number(challenger?.uploadedTimestamp || 0);
+    if (bestTimestamp !== challengerTimestamp) {
+      return bestTimestamp > challengerTimestamp;
+    }
+  }
+
+  return false;
+};
+
+const resolveAutomaticAutoCollectSelection = ({ sectionKey, documents, single }) => {
+  if (!Array.isArray(documents) || documents.length === 0) {
+    return { documents: [], reason: "" };
+  }
+
+  const rule = getAutoCollectRule(sectionKey);
+  const bestIndex = findBestAutoCollectDefaultIndex(documents);
+  if (bestIndex < 0) {
+    return { documents: [], reason: "" };
+  }
+
+  const bestEntry = documents[bestIndex];
+  const suggestedDocuments = documents.filter((entry) => Number(entry?.sectionScore || 0) > 0);
+  const bestScore = Number(bestEntry?.sectionScore || 0);
+  const bestConfidence = Number(bestEntry?.sectionConfidenceLevel || 0);
+
+  if (documents.length === 1) {
+    return {
+      documents: [bestEntry],
+      reason: `Only one ${rule.sectionLabel} document was found.`,
+    };
+  }
+
+  if (suggestedDocuments.length === 1 && bestScore > 0) {
+    return {
+      documents: [bestEntry],
+      reason: `One suggested ${rule.sectionLabel} document matched this section.`,
+    };
+  }
+
+  if ((single || shouldDefaultLatestAutoCollectSelection(sectionKey)) && bestConfidence >= 3) {
+    const challenger = getAutoCollectSelectionChallenger(documents, bestIndex);
+    if (hasClearAutoCollectLead(sectionKey, bestEntry, challenger)) {
+      return {
+        documents: [bestEntry],
+        reason: single
+          ? `Auto-selected the highest-confidence ${rule.sectionLabel} match.`
+          : `Auto-selected the strongest latest ${rule.sectionLabel} document.`,
+      };
+    }
+  }
+
+  return { documents: [], reason: "" };
 };
 
 const showAutoCollectPickerDialog = ({
@@ -3472,24 +3802,34 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     const rankedDocuments = rankDocumentsForSection(sectionKey, normalizedDocuments);
     const suggestedCount = rankedDocuments.filter((entry) => Number(entry?.sectionScore || 0) > 0).length;
     const highConfidenceCount = rankedDocuments.filter((entry) => Number(entry?.sectionConfidenceLevel || 0) >= 3).length;
+    const automaticSelection = resolveAutomaticAutoCollectSelection({
+      sectionKey,
+      documents: rankedDocuments,
+      single: section.single || rule.single,
+    });
     updateAutoCollectInfoSnapshot({
       discoveredCount: rankedDocuments.length,
       suggestedCount,
       highConfidenceCount,
       scrapeAttempts,
       note:
-        rankedDocuments.length > 0
+        automaticSelection.documents.length > 0
+          ? `${automaticSelection.reason} Downloading automatically.`
+          : rankedDocuments.length > 0
           ? "Review the picker and confirm which documents to download."
           : "No downloadable documents were discovered.",
     });
 
-    const selectedDocuments = await showAutoCollectPickerDialog({
-      sectionKey,
-      documents: rankedDocuments,
-      single: section.single || rule.single,
-      sourceLabel: collectionSource.label,
-      caseId,
-    });
+    const selectedDocuments =
+      automaticSelection.documents.length > 0
+        ? automaticSelection.documents
+        : await showAutoCollectPickerDialog({
+            sectionKey,
+            documents: rankedDocuments,
+            single: section.single || rule.single,
+            sourceLabel: collectionSource.label,
+            caseId,
+          });
 
     if (!selectedDocuments || selectedDocuments.length === 0) {
       finalizeAutoCollectInfoSnapshot({
@@ -4588,7 +4928,11 @@ async function refreshPageCompanion(overrides = {}) {
 
     const url = new URL(tab.url);
     const payload = overrides.payload ?? state.latestPayloadSnapshot?.payload ?? null;
-    const verificationFields = overrides.verificationFields || [];
+    const verificationFields = Array.isArray(overrides.verificationFields)
+      ? overrides.verificationFields
+      : Array.isArray(state.latestVerificationFields)
+      ? state.latestVerificationFields
+      : [];
     const queueState = overrides.queueState || null;
     const lastError = overrides.lastError || null;
 
@@ -4720,6 +5064,8 @@ async function refreshPayloadStatus() {
   const queueState = data[STORAGE_KEYS.queueState] || null;
   const lastError = data[STORAGE_KEYS.lastError] || null;
 
+  state.latestVerificationFields = Array.isArray(verificationFields) ? verificationFields : [];
+
   if (dom.payloadStatus) {
     let statusHTML = "";
     if (payload?.formType === "initialAssessment") {
@@ -4814,6 +5160,7 @@ async function refreshPayloadStatus() {
   renderCommandCenter(commandCenterState);
   renderRuntimeDiagnostics(runtimeDiagnosticsState);
   renderUploadHandoffSummary();
+  syncVerificationNavigationState(state.pageCompanionContext, verificationFields);
   renderAutofillSessionSummary({
     payload,
     queueState,
@@ -4828,6 +5175,7 @@ async function refreshPayloadStatus() {
       queueState,
       lastError,
     });
+    syncVerificationNavigationState(refreshedPageContext, verificationFields);
     renderAutofillSessionSummary({
       payload,
       queueState,
@@ -5274,6 +5622,26 @@ function bindEvents() {
       showSuccess("Auto-download report copied");
     } catch {
       showError("Could not copy auto-download report. Try again.");
+    }
+  });
+
+  dom.autoCollectPrimaryAction?.addEventListener("click", async () => {
+    const action = String(dom.autoCollectPrimaryAction?.dataset.action || "");
+    try {
+      await executeAutoCollectInfoAction(action);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not run the auto-download action.";
+      showError(message);
+    }
+  });
+
+  dom.autoCollectSecondaryAction?.addEventListener("click", async () => {
+    const action = String(dom.autoCollectSecondaryAction?.dataset.action || "");
+    try {
+      await executeAutoCollectInfoAction(action);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not run the auto-download action.";
+      showError(message);
     }
   });
 

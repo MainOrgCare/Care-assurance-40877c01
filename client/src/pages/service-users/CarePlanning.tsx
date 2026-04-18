@@ -150,10 +150,97 @@ export default function CarePlanning() {
   );
   const isRuleBasedCarePlan = carePlan?.generationMode === "rule-based";
 
+  const sourceDocuments = useMemo(() => {
+    const documents: Array<{
+      key: string;
+      label: string;
+      name: string;
+      contentLength: number;
+      isParsing: boolean;
+      parseError?: string;
+      dataTestId: string;
+    }> = [];
+
+    if (serviceUserData.socialWork) {
+      documents.push({
+        key: "social-work",
+        label: "Social Work",
+        name: serviceUserData.socialWork.name,
+        contentLength: serviceUserData.socialWork.content?.length || 0,
+        isParsing: Boolean(serviceUserData.socialWork.isParsing),
+        parseError: serviceUserData.socialWork.parseError,
+        dataTestId: "text-social-work-doc",
+      });
+    }
+
+    if (serviceUserData.initialAssessment) {
+      documents.push({
+        key: "initial-assessment",
+        label: "Initial Assessment",
+        name: serviceUserData.initialAssessment.name,
+        contentLength: serviceUserData.initialAssessment.content?.length || 0,
+        isParsing: Boolean(serviceUserData.initialAssessment.isParsing),
+        parseError: serviceUserData.initialAssessment.parseError,
+        dataTestId: "text-initial-assessment-doc",
+      });
+    }
+
+    if (serviceUserData.carePlan) {
+      documents.push({
+        key: "care-plan",
+        label: "Current Care Plan",
+        name: serviceUserData.carePlan.name,
+        contentLength: serviceUserData.carePlan.content?.length || 0,
+        isParsing: Boolean(serviceUserData.carePlan.isParsing),
+        parseError: serviceUserData.carePlan.parseError,
+        dataTestId: "text-current-care-plan-doc",
+      });
+    }
+
+    if (serviceUserData.movingHandling) {
+      documents.push({
+        key: "moving-handling",
+        label: "Moving and Handling",
+        name: serviceUserData.movingHandling.name,
+        contentLength: serviceUserData.movingHandling.content?.length || 0,
+        isParsing: Boolean(serviceUserData.movingHandling.isParsing),
+        parseError: serviceUserData.movingHandling.parseError,
+        dataTestId: "text-moving-handling-doc",
+      });
+    }
+
+    (serviceUserData.additionalDocuments || []).forEach((document, index) => {
+      documents.push({
+        key: document.id || `additional-document-${index}`,
+        label: `Additional Document ${index + 1}`,
+        name: document.name,
+        contentLength: document.content?.length || 0,
+        isParsing: Boolean(document.isParsing),
+        parseError: document.parseError,
+        dataTestId: `text-additional-document-${index}`,
+      });
+    });
+
+    return documents;
+  }, [
+    serviceUserData.socialWork,
+    serviceUserData.initialAssessment,
+    serviceUserData.carePlan,
+    serviceUserData.movingHandling,
+    serviceUserData.additionalDocuments,
+  ]);
+
+  const hasAdditionalNotes = Boolean(serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0);
+  const sourceStatusSummary = useMemo(() => ({
+    total: sourceDocuments.length,
+    ready: sourceDocuments.filter((document) => document.contentLength > 0 && !document.parseError && !document.isParsing).length,
+    parsing: sourceDocuments.filter((document) => document.isParsing).length,
+    failed: sourceDocuments.filter((document) => Boolean(document.parseError)).length,
+  }), [sourceDocuments]);
+
   const hasData = Boolean(
-    serviceUserData.socialWork ||
-    serviceUserData.initialAssessment ||
-    (serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0)
+    sourceDocuments.length > 0 ||
+    hasAdditionalNotes
   );
   
   // Handle both new simplified format (content field) and legacy format (sections array)
@@ -228,14 +315,15 @@ export default function CarePlanning() {
     searchQuery.trim().length > 0 ||
     priorityFilter !== "all" ||
     sortMode !== "default";
-  const parseErrors = [
-    serviceUserData.socialWork?.parseError
-      ? { label: "Social Work", message: serviceUserData.socialWork.parseError }
-      : null,
-    serviceUserData.initialAssessment?.parseError
-      ? { label: "Initial Assessment", message: serviceUserData.initialAssessment.parseError }
-      : null,
-  ].filter(Boolean) as { label: string; message: string }[];
+  const parseErrors = useMemo(
+    () => sourceDocuments
+      .filter((document) => Boolean(document.parseError))
+      .map((document) => ({
+        label: document.label,
+        message: document.parseError || "Parsing failed",
+      })),
+    [sourceDocuments]
+  );
 
   // Fetch call types from database for this service user
   const fetchCallTypes = useCallback(async () => {
@@ -551,7 +639,7 @@ export default function CarePlanning() {
         <div className="max-w-md space-y-2">
           <h2 className="text-2xl font-semibold text-foreground" data-testid="text-no-data-title">No Data Available</h2>
           <p className="text-muted-foreground">
-            Please upload Social Work documents, an Initial Assessment, or add text notes to generate a Care Plan.
+            Please upload supporting documents such as Social Work, Initial Assessment, Current Care Plan, Moving and Handling, or add text notes to generate a Care Plan.
           </p>
         </div>
         <Link href="/service-users/upload">
@@ -595,52 +683,72 @@ export default function CarePlanning() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-6">
-          {serviceUserData.socialWork && (
-            <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30" data-testid="text-social-work-doc">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="bg-background/70">{sourceStatusSummary.total} source{sourceStatusSummary.total === 1 ? "" : "s"}</Badge>
+            <Badge variant="outline" className="bg-background/70">{sourceStatusSummary.ready} ready</Badge>
+            {sourceStatusSummary.parsing > 0 && (
+              <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
+                {sourceStatusSummary.parsing} parsing
+              </Badge>
+            )}
+            {sourceStatusSummary.failed > 0 && (
+              <Badge variant="outline" className="border-destructive/25 bg-destructive/10 text-destructive">
+                {sourceStatusSummary.failed} failed
+              </Badge>
+            )}
+            {hasAdditionalNotes && (
+              <Badge variant="outline" className="bg-background/70">Notes attached</Badge>
+            )}
+          </div>
+
+          {sourceDocuments.length > 0 ? sourceDocuments.map((document) => (
+            <div
+              key={document.key}
+              className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30"
+              data-testid={document.dataTestId}
+            >
               <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50">
-                {serviceUserData.socialWork.isParsing ? (
+                {document.isParsing ? (
                   <Loader2 size={16} className="animate-spin text-primary" />
+                ) : document.parseError ? (
+                  <AlertTriangle size={16} className="text-destructive" />
                 ) : (
                   <CheckCircle2 size={16} className="text-success" />
                 )}
               </div>
-              <div>
-                <p className="font-medium tracking-tight">Social Work</p>
-                <p className="text-xs text-muted-foreground font-medium">{serviceUserData.socialWork.name}</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium tracking-tight">{document.label}</p>
+                <p className="text-xs text-muted-foreground font-medium truncate">{document.name}</p>
               </div>
-              {serviceUserData.socialWork.parseError && (
+              {document.parseError && (
                 <span className="text-xs text-destructive font-semibold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
               )}
-              {serviceUserData.socialWork.content && !serviceUserData.socialWork.parseError && (
+              {document.contentLength > 0 && !document.parseError && !document.isParsing && (
                 <span className="text-xs font-semibold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
-                  {serviceUserData.socialWork.content.length.toLocaleString()} CHR
+                  {document.contentLength.toLocaleString()} CHR
                 </span>
               )}
             </div>
-          )}
-          {serviceUserData.initialAssessment && (
-            <div className="p-4 rounded-xl bg-muted/20 border border-border/40 text-sm text-foreground flex items-center gap-3 group transition-colors hover:bg-muted/30" data-testid="text-initial-assessment-doc">
-              <div className="h-8 w-8 rounded-lg bg-background flex items-center justify-center border border-border/50">
-                {serviceUserData.initialAssessment.isParsing ? (
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                ) : (
-                  <CheckCircle2 size={16} className="text-success" />
-                )}
-              </div>
-              <div>
-                <p className="font-medium tracking-tight">Initial Assessment</p>
-                <p className="text-xs text-muted-foreground font-medium">{serviceUserData.initialAssessment.name}</p>
-              </div>
-              {serviceUserData.initialAssessment.parseError && (
-                <span className="text-xs text-destructive font-semibold ml-auto bg-destructive/10 px-2 py-1 rounded-lg">Parsing failed</span>
-              )}
-              {serviceUserData.initialAssessment.content && !serviceUserData.initialAssessment.parseError && (
-                <span className="text-xs font-semibold text-muted-foreground ml-auto bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
-                  {serviceUserData.initialAssessment.content.length.toLocaleString()} CHR
-                </span>
-              )}
+          )) : (
+            <div className="rounded-xl border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
+              No uploaded documents yet. Additional notes will still be used for care-plan generation.
             </div>
           )}
+
+          {hasAdditionalNotes && (
+            <div className="rounded-xl border border-border/40 bg-background/70 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium tracking-tight text-foreground">Additional Notes</p>
+                  <p className="text-xs text-muted-foreground font-medium">User-entered context will be included in the generated care plan.</p>
+                </div>
+                <span className="text-xs font-semibold text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-lg tracking-tighter">
+                  {serviceUserData.additionalNotes?.trim().length.toLocaleString()} CHR
+                </span>
+              </div>
+            </div>
+          )}
+
           {parseErrors.length > 0 && (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs text-destructive/80">
               <div className="flex items-center gap-2 text-destructive font-semibold uppercase tracking-wider mb-2">
