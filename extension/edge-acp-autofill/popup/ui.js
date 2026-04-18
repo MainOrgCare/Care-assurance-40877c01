@@ -38,6 +38,8 @@ export function cacheDomElements() {
     "tab-content-connect", "tab-content-upload", "tab-content-autofill",
     // Header
     "header-subtitle", "connection-badge", "connection-uptime", "overlay-pin-btn",
+    // Shared context
+    "case-context-strip", "case-context-grid", "case-context-state",
     // Connect
     "connect-status", "connect-btn", "refresh-workspace-context",
     "workspace-context-status", "workspace-route-label", "workspace-route-path",
@@ -59,6 +61,7 @@ export function cacheDomElements() {
     "upload-care-plan-input", "upload-care-plan-files",
     "upload-moving-handling-input", "upload-moving-handling-files",
     "upload-additional-documents-input", "upload-additional-documents-files",
+    "upload-handoff-state", "upload-handoff-meta", "upload-handoff-primary", "upload-handoff-secondary",
     "auto-collect-info", "auto-collect-info-state", "auto-collect-info-title", "auto-collect-info-detail", "copy-auto-collect-info",
     "upload-sync-status", "upload-sync-summary", "sync-upload-btn", "reset-upload-btn", "upload-notes", "analyze-documents",
     "analysis-status", "analysis-progress", "clear-uploads",
@@ -69,8 +72,10 @@ export function cacheDomElements() {
     "interaction-mode", "auto-submit", "dry-run",
     // Autofill controls
     "payload-status", "progress-status", "start-autofill", "stop-autofill", "clear-data",
+    "autofill-session-state", "autofill-session-meta", "autofill-session-primary",
+    "autofill-session-focus", "autofill-session-diagnostics",
     // Selection
-    "selection-section", "assessment-list", "selection-count",
+    "selection-section", "assessment-list", "selection-count", "analysis-overview",
     "select-all-btn", "clear-selection-btn", "proceed-with-selection", "additional-notes",
     // Payload inspector
     "payload-inspector-section", "payload-summary", "payload-json", "copy-payload",
@@ -94,6 +99,7 @@ export function cacheDomElements() {
     // Command center
     "ops-refresh", "ops-copy-snapshot", "ops-copy-incident", "ops-clear-incident",
     "ops-health", "ops-reliability", "ops-queue", "ops-mode", "ops-timeline", "ops-recommendations", "ops-flags",
+    "command-center-section", "command-center-summary",
   ];
 
   for (const id of ids) {
@@ -549,6 +555,48 @@ export function renderWorkspaceContext(context, user = state.connectedWorkspaceU
   if (dom.searchSection) dom.searchSection.hidden = !state.isConnected || !isAdmin;
 
   renderMainViewLaunchpad(context);
+  renderCaseContextStrip();
+}
+
+export function renderCaseContextStrip(caseInfo = null) {
+  if (!dom.caseContextGrid || !dom.caseContextState) return;
+
+  const resolvedCaseId = String(
+    caseInfo?.caseId || dom.caseId?.value || state.selectedAutofillUser?.acpId || ""
+  ).trim();
+  const resolvedServiceGroup = String(
+    caseInfo?.serviceDataGroupId || dom.serviceDataGroupId?.value || ""
+  ).trim();
+  const resolvedServiceUser = String(
+    state.selectedAutofillUser?.name || state.selectedUser?.name || state.latestPayloadSnapshot?.payload?.serviceUserDisplayName || ""
+  ).trim();
+  const resolvedOperator = String(state.connectedWorkspaceUser?.username || "").trim();
+
+  const populatedCount = [resolvedServiceUser, resolvedCaseId, resolvedServiceGroup, resolvedOperator].filter(Boolean).length;
+
+  dom.caseContextState.textContent = populatedCount > 0
+    ? `${populatedCount} context field${populatedCount === 1 ? "" : "s"} ready`
+    : "Waiting for a case";
+
+  const buildItem = (label, value, emptyLabel, copyLabel) => {
+    const hasValue = Boolean(value);
+    return `
+      <div class="case-context-item${hasValue ? "" : " is-empty"}">
+        <span class="case-context-label">${escapeHtml(label)}</span>
+        <strong class="case-context-value">${escapeHtml(hasValue ? value : emptyLabel)}</strong>
+        ${hasValue ? `<button type="button" class="case-context-copy" data-copy-value="${escapeAttr(value)}" aria-label="Copy ${escapeAttr(copyLabel)}">Copy</button>` : ""}
+      </div>
+    `;
+  };
+
+  dom.caseContextGrid.innerHTML = [
+    buildItem("Service user", resolvedServiceUser, "No service user selected", "service user"),
+    buildItem("Case ID", resolvedCaseId, "Not set", "case ID"),
+    buildItem("Service Group", resolvedServiceGroup, "Not set", "service group"),
+    buildItem("Operator", resolvedOperator, state.isConnected ? "Connected" : "Not connected", "operator")
+  ].join("");
+
+  dom.caseContextStrip?.classList.toggle("has-context", populatedCount > 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -628,6 +676,7 @@ export function selectUser(userId) {
 
   if (dom.loadCarePlanBtn) dom.loadCarePlanBtn.disabled = !state.selectedUser.hasCarePlan;
   if (dom.loadRiskBtn) dom.loadRiskBtn.disabled = !state.selectedUser.hasRiskAssessment;
+  renderCaseContextStrip();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -673,6 +722,7 @@ export function selectAutofillUser(user) {
   if (!user) {
     if (dom.autofillSelectedUser) dom.autofillSelectedUser.hidden = true;
     if (dom.caseId) dom.caseId.value = "";
+    renderCaseContextStrip();
     return;
   }
 
@@ -701,6 +751,7 @@ export function selectAutofillUser(user) {
   }
 
   showSuccess(`${user.name} selected — Case ID ${user.acpId}`);
+  renderCaseContextStrip();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -842,6 +893,103 @@ export function renderPayloadReview(payload, storedAt) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AUTOFILL SESSION SUMMARY
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function renderAutofillSessionSummary(snapshot = {}) {
+  if (!dom.autofillSessionState || !dom.autofillSessionMeta) return;
+
+  const payload = snapshot.payload || state.latestPayloadSnapshot?.payload || null;
+  const queueState = snapshot.queueState || null;
+  const verificationFields = Array.isArray(snapshot.verificationFields) ? snapshot.verificationFields : [];
+  const lastError = snapshot.lastError || null;
+  const pageContext = snapshot.pageContext || state.pageCompanionContext || null;
+  const total = typeof queueState?.total === "number" ? queueState.total : null;
+  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : null;
+  const queueStep = total ? Math.min((currentIndex ?? 0) + 1, total) : null;
+  const payloadLabel = getPayloadWorkflowLabel(payload) || "No payload";
+
+  let stateClass = "is-idle";
+  let title = "No autofill session loaded";
+  let detail = "Analyze documents or load a payload to prepare the next run.";
+  let primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-primary btn-sm" };
+
+  if (lastError) {
+    stateClass = "is-warning";
+    title = "Needs attention";
+    detail = String(lastError);
+    primaryAction = pageContext?.canOverlay
+      ? { label: pageContext.overlayButtonLabel || "Open In-Page Status", action: "overlay", className: "btn btn-primary btn-sm" }
+      : { label: "Open Command Center", action: "diagnostics", className: "btn btn-primary btn-sm" };
+  } else if (total && currentIndex !== null && currentIndex < total) {
+    stateClass = "is-live";
+    title = "Queue in progress";
+    detail = `${pageContext?.routeLabel || "Workflow page"} is working through item ${queueStep} of ${total}.`;
+    primaryAction = { label: "Stop Autofill", action: "stop", className: "btn btn-danger btn-sm" };
+  } else if (total && currentIndex !== null && currentIndex >= total) {
+    stateClass = "is-ready";
+    title = "Queue complete";
+    detail = `The latest batch reached ${total} of ${total}. Refresh the live page or load the next payload.`;
+    primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-primary btn-sm" };
+  } else if (verificationFields.length > 0 && pageContext?.canVerify) {
+    stateClass = "is-warning";
+    title = "Review required";
+    detail = `${verificationFields.length} field${verificationFields.length === 1 ? "" : "s"} still need manual confirmation.`;
+    primaryAction = { label: "Next Review Field", action: "verify", className: "btn btn-primary btn-sm" };
+  } else if (payload?.formType) {
+    stateClass = "is-ready";
+    title = "Ready to start";
+    detail = `${payloadLabel} is staged${pageContext?.routeLabel ? ` for ${pageContext.routeLabel}` : ""}.`;
+    primaryAction = { label: "Start Autofill", action: "start", className: "btn btn-primary btn-sm" };
+  } else if (pageContext?.tabId) {
+    stateClass = "is-context";
+    title = "Workflow page attached";
+    detail = `${pageContext.routeLabel || "Workflow page"} is ready. Load or analyze content to prepare autofill data.`;
+    primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-secondary btn-sm" };
+  }
+
+  dom.autofillSessionState.className = `autofill-session-state ${stateClass}`;
+  dom.autofillSessionState.innerHTML = `
+    <span class="autofill-session-eyebrow">Next step</span>
+    <strong class="autofill-session-title">${escapeHtml(title)}</strong>
+    <span class="autofill-session-detail">${escapeHtml(detail)}</span>
+  `;
+
+  const metaItems = [
+    { label: "Workflow", value: pageContext?.routeLabel || "No page attached" },
+    { label: "Payload", value: payloadLabel },
+    { label: "Queue", value: total ? `${queueStep} of ${total}` : "Not running" },
+    {
+      label: "Review",
+      value: verificationFields.length > 0
+        ? `${verificationFields.length} flagged`
+        : pageContext?.reviewLabel || "No checks",
+    },
+  ];
+
+  dom.autofillSessionMeta.innerHTML = metaItems
+    .map(
+      (item) => `
+        <div class="autofill-session-meta-item">
+          <span class="autofill-session-meta-label">${escapeHtml(item.label)}</span>
+          <strong class="autofill-session-meta-value">${escapeHtml(item.value)}</strong>
+        </div>
+      `
+    )
+    .join("");
+
+  if (dom.autofillSessionPrimary) {
+    dom.autofillSessionPrimary.className = primaryAction.className;
+    dom.autofillSessionPrimary.textContent = primaryAction.label;
+    dom.autofillSessionPrimary.dataset.action = primaryAction.action;
+  }
+
+  if (dom.autofillSessionFocus) {
+    dom.autofillSessionFocus.disabled = !pageContext?.tabId;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIAGNOSTICS, LOGS, AND PROGRESS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -862,6 +1010,7 @@ export function renderCommandCenter(snapshot = {}) {
   if (dom.opsReliability) dom.opsReliability.textContent = model.reliabilityLabel;
   if (dom.opsQueue) dom.opsQueue.textContent = model.queueLabel;
   if (dom.opsMode) dom.opsMode.textContent = model.modeLabel;
+  if (dom.commandCenterSummary) dom.commandCenterSummary.textContent = model.healthTitle;
 
   if (dom.opsFlags) {
     const flags = Array.isArray(model.flags) ? model.flags : [];
@@ -1102,14 +1251,62 @@ export function displayAnalysisResults(results) {
   if (dom.selectionSection) dom.selectionSection.hidden = false;
 
   const assessments = results.recommendedAssessments || [];
+  const receipt = results?._uiReceipt || null;
+
+  if (dom.analysisOverview) {
+    if (!receipt) {
+      dom.analysisOverview.hidden = true;
+      dom.analysisOverview.innerHTML = "";
+    } else {
+      const detailItems = [
+        { label: "Files staged", value: String(receipt.fileCount || 0) },
+        { label: "Parsed", value: String(receipt.parsedCount || 0) },
+        { label: "Recommendations", value: String(assessments.length) },
+        { label: "Notes", value: receipt.hasNotes ? "Included" : "None" },
+      ];
+
+      const failedMarkup = Array.isArray(receipt.failedFiles) && receipt.failedFiles.length > 0
+        ? `<div class="analysis-overview-note warning">Skipped files: ${escapeHtml(receipt.failedFiles.join(", "))}</div>`
+        : "";
+      const sectionMarkup = Array.isArray(receipt.sections) && receipt.sections.length > 0
+        ? `<div class="analysis-overview-note">Sections: ${escapeHtml(receipt.sections.join(", "))}</div>`
+        : "";
+
+      dom.analysisOverview.hidden = false;
+      dom.analysisOverview.innerHTML = `
+        <div class="analysis-overview-head">
+          <span class="analysis-overview-eyebrow">Latest analysis</span>
+          <strong class="analysis-overview-title">Ready for assessment selection</strong>
+        </div>
+        <div class="analysis-overview-grid">
+          ${detailItems
+            .map(
+              (item) => `
+                <div class="analysis-overview-item">
+                  <span class="analysis-overview-label">${escapeHtml(item.label)}</span>
+                  <strong class="analysis-overview-value">${escapeHtml(item.value)}</strong>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+        ${sectionMarkup}
+        ${failedMarkup}
+      `;
+    }
+  }
+
   dom.assessmentList.innerHTML = assessments
     .map(
       (a, i) => `
     <div class="assessment-item">
-      <input type="checkbox" class="assessment-checkbox" data-index="${i}" checked />
-      <div class="assessment-info">
-        <div class="assessment-name">${escapeHtml(a.name)}</div>
-        <div class="assessment-reason">${escapeHtml(a.reason || "")}</div>
+      <div class="assessment-item-header">
+        <input type="checkbox" class="assessment-checkbox" data-index="${i}" checked />
+        <div class="assessment-content">
+          <div class="assessment-name">${escapeHtml(a.name)}</div>
+          <div class="assessment-reason">${escapeHtml(a.reason || "")}</div>
+          ${a.evidence ? `<div class="assessment-evidence">${escapeHtml(a.evidence)}</div>` : ""}
+        </div>
       </div>
     </div>
   `

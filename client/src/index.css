@@ -632,10 +632,8 @@
     position: relative;
     overflow: hidden;
     border-color: var(--color-border);
-    background-color: color-mix(in oklab, var(--color-card) 96%, white);
+    background-color: white;
     background-image: none;
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
   }
   .workspace-header::before {
     content: none;
@@ -696,10 +694,8 @@
     position: relative;
     overflow: hidden;
     border-color: var(--color-border);
-    background-color: color-mix(in oklab, var(--color-card) 96%, white);
+    background-color: white;
     background-image: none;
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
   }
   .workspace-footer-shell {
     position: relative;
@@ -742,23 +738,15 @@
     z-index: 1;
   }
   .quick-access-group-label {
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   .workspace-title-shell {
     position: relative;
-    padding-left: 0.75rem;
+    padding-left: 0;
   }
   .workspace-title-shell::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0.2rem;
-    bottom: 0.2rem;
-    width: 2px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 62%, transparent), color-mix(in oklab, var(--color-secondary) 42%, transparent));
-    opacity: 0.8;
+    content: none;
   }
   .workspace-title-kicker {
     text-wrap: balance;

@@ -56,6 +56,31 @@
           <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss" aria-label="Dismiss error">✕</button>
         </div>
 
+        <section id="case-context-strip" class="case-context-strip" aria-live="polite">
+          <div class="case-context-head">
+            <span class="case-context-eyebrow">Current context</span>
+            <span id="case-context-state" class="case-context-state">Waiting for a case</span>
+          </div>
+          <div id="case-context-grid" class="case-context-grid">
+            <div class="case-context-item is-empty">
+              <span class="case-context-label">Service user</span>
+              <strong class="case-context-value">No service user selected</strong>
+            </div>
+            <div class="case-context-item is-empty">
+              <span class="case-context-label">Case ID</span>
+              <strong class="case-context-value">Not set</strong>
+            </div>
+            <div class="case-context-item is-empty">
+              <span class="case-context-label">Service Group</span>
+              <strong class="case-context-value">Not set</strong>
+            </div>
+            <div class="case-context-item is-empty">
+              <span class="case-context-label">Operator</span>
+              <strong class="case-context-value">Not connected</strong>
+            </div>
+          </div>
+        </section>
+
         <details class="workspace-summary card collapsible">
           <summary class="collapsible-header">
             <span>Quick Overview</span>
@@ -230,6 +255,47 @@
             <div class="step" id="step-analyze"><span class="step-number">3</span> Analyze</div>
           </div>
 
+          <section class="card upload-handoff-card">
+            <div class="card-header">
+              <div>
+                <span class="section-kicker">Upload Target</span>
+                <h2 class="card-title">Target &amp; Readiness</h2>
+                <p class="card-description">Confirm which case the staged documents belong to before you send or analyze them.</p>
+              </div>
+            </div>
+            <div class="card-content upload-handoff-shell">
+              <div id="upload-handoff-state" class="upload-handoff-state is-idle">
+                <span class="upload-handoff-eyebrow">Upload status</span>
+                <strong class="upload-handoff-title">No upload target selected</strong>
+                <span class="upload-handoff-detail">Choose an Autofill service user or enter a Case ID before staging a handoff.</span>
+              </div>
+
+              <div id="upload-handoff-meta" class="upload-handoff-meta">
+                <div class="upload-handoff-meta-item">
+                  <span class="upload-handoff-meta-label">Target</span>
+                  <strong class="upload-handoff-meta-value">Not selected</strong>
+                </div>
+                <div class="upload-handoff-meta-item">
+                  <span class="upload-handoff-meta-label">Case ID</span>
+                  <strong class="upload-handoff-meta-value">Missing</strong>
+                </div>
+                <div class="upload-handoff-meta-item">
+                  <span class="upload-handoff-meta-label">Staged</span>
+                  <strong class="upload-handoff-meta-value">0 files</strong>
+                </div>
+                <div class="upload-handoff-meta-item">
+                  <span class="upload-handoff-meta-label">Ready</span>
+                  <strong class="upload-handoff-meta-value">Waiting for setup</strong>
+                </div>
+              </div>
+
+              <div class="upload-handoff-actions">
+                <button id="upload-handoff-primary" class="btn btn-primary btn-sm">Open Autofill</button>
+                <button id="upload-handoff-secondary" class="btn btn-secondary btn-sm">Refresh Context</button>
+              </div>
+            </div>
+          </section>
+
           <section class="card">
             <div class="card-header">
               <h2 class="card-title">
@@ -363,16 +429,65 @@
         <!-- ========== TAB 3: AUTOFILL ========== -->
         <div id="tab-content-autofill" class="tab-content" role="tabpanel" aria-labelledby="tab-autofill">
 
-          <section class="card ops-command-center-card">
+          <section class="card autofill-session-card">
             <div class="card-header">
               <div>
-                <span class="section-kicker">Operations</span>
-                <h2 class="card-title">Command Center</h2>
-                <p class="card-description">Live extension health, queue posture, and incident controls for fast operator decisions.</p>
+                <span class="section-kicker">Autofill</span>
+                <h2 class="card-title">Session Snapshot</h2>
+                <p class="card-description">See the next best operator action before opening the deeper runtime controls.</p>
               </div>
-              <button id="ops-refresh" class="btn btn-secondary btn-sm">Sync</button>
             </div>
+            <div class="card-content autofill-session-shell">
+              <div id="autofill-session-state" class="autofill-session-state is-idle">
+                <span class="autofill-session-eyebrow">Next step</span>
+                <strong class="autofill-session-title">No autofill session loaded</strong>
+                <span class="autofill-session-detail">Analyze documents or load a payload to prepare the next run.</span>
+              </div>
+
+              <div id="autofill-session-meta" class="autofill-session-meta">
+                <div class="autofill-session-meta-item">
+                  <span class="autofill-session-meta-label">Workflow</span>
+                  <strong class="autofill-session-meta-value">Waiting</strong>
+                </div>
+                <div class="autofill-session-meta-item">
+                  <span class="autofill-session-meta-label">Payload</span>
+                  <strong class="autofill-session-meta-value">No payload</strong>
+                </div>
+                <div class="autofill-session-meta-item">
+                  <span class="autofill-session-meta-label">Queue</span>
+                  <strong class="autofill-session-meta-value">Not running</strong>
+                </div>
+                <div class="autofill-session-meta-item">
+                  <span class="autofill-session-meta-label">Review</span>
+                  <strong class="autofill-session-meta-value">No checks</strong>
+                </div>
+              </div>
+
+              <div class="page-companion-actions">
+                <button id="autofill-session-primary" class="btn btn-primary btn-sm">Refresh Status</button>
+                <button id="autofill-session-focus" class="btn btn-secondary btn-sm" disabled>Focus Workflow Page</button>
+                <button id="autofill-session-diagnostics" class="btn btn-secondary btn-sm">Open Command Center</button>
+              </div>
+            </div>
+          </section>
+
+          <details id="command-center-section" class="card collapsible ops-command-center-card">
+            <summary class="collapsible-header">
+              <div class="collapsible-header-copy">
+                <span class="section-kicker">Operations</span>
+                <span class="collapsible-title-row">
+                  <span>Command Center</span>
+                  <span id="command-center-summary" class="collapsible-summary-pill">Idle</span>
+                </span>
+                <span class="collapsible-header-detail">Live extension health, queue posture, and incident controls.</span>
+              </div>
+              <span class="chevron">▼</span>
+            </summary>
             <div class="card-content ops-command-center-shell">
+              <div class="runtime-actions">
+                <button id="ops-refresh" class="btn btn-secondary btn-sm">Sync</button>
+              </div>
+
               <div id="ops-health" class="ops-health is-idle">
                 <span class="ops-health-eyebrow">System health</span>
                 <strong class="ops-health-title">Idle</strong>
@@ -418,7 +533,7 @@
                 <button id="ops-clear-incident" class="btn btn-ghost btn-sm">Clear Incident</button>
               </div>
             </div>
-          </section>
+          </details>
 
           <section class="card">
             <div class="card-header">
@@ -467,7 +582,7 @@
             </div>
           </section>
 
-          <details id="payload-inspector-section" class="card collapsible" hidden open>
+          <details id="payload-inspector-section" class="card collapsible" hidden>
             <summary class="collapsible-header">
               <span>Latest Payload</span>
               <span class="chevron">▼</span>
@@ -491,6 +606,7 @@
               </div>
             </div>
             <div class="card-content">
+              <div id="analysis-overview" class="analysis-overview" hidden></div>
               <div id="assessment-list" class="assessment-list"></div>
               <span id="selection-count" class="selection-badge">0 selected</span>
               <textarea id="additional-notes" class="form-textarea" placeholder="Additional notes..." rows="2"></textarea>

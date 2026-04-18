@@ -134,8 +134,6 @@
   font-weight: 780;
   letter-spacing: 0.045em;
   color: color-mix(in oklab, var(--color-foreground) 84%, var(--color-primary));
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 
 .homepage-theme .home-trust-pill svg {
@@ -147,10 +145,8 @@
   top: 0;
   z-index: 40;
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent);
-  background: color-mix(in oklab, var(--color-card) 96%, white);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, backdrop-filter 0.24s ease;
+  background: white;
+  transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
 }
 
 .homepage-theme .home-header::before {
@@ -171,11 +167,9 @@
 }
 
 .homepage-theme .home-header.is-scrolled {
-  background: color-mix(in oklab, var(--color-card) 98%, white);
+  background: white;
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 65%, transparent);
-  box-shadow: 0 10px 24px -24px rgba(15, 23, 42, 0.18);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  box-shadow: none;
 }
 
 .homepage-theme .home-nav-rail {
@@ -187,7 +181,7 @@
 }
 
 .homepage-theme .home-brand-mark {
-  background-image: linear-gradient(145deg, color-mix(in oklab, var(--color-primary) 90%, white), color-mix(in oklab, var(--color-secondary) 42%, var(--color-primary)));
+  background: var(--color-primary);
   color: var(--color-primary-foreground);
   box-shadow: none;
 }
@@ -218,26 +212,26 @@
 
 .homepage-theme .home-nav-link {
   border: 1px solid transparent;
-  border-radius: 0.8rem;
+  border-radius: 0.55rem;
   color: var(--color-muted-foreground);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.035em;
-  padding: 0.56rem 0.82rem;
-  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  padding: 0.45rem 0.5rem;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
 .homepage-theme .home-nav-link:hover {
   color: var(--color-foreground);
-  background: color-mix(in oklab, var(--color-card) 74%, var(--color-muted));
-  border-color: color-mix(in oklab, var(--color-border) 64%, transparent);
+  background: transparent;
+  border-color: transparent;
 }
 
 .homepage-theme .home-nav-link.is-active {
   color: var(--color-primary);
-  border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-  background: color-mix(in oklab, var(--color-primary) 6%, white);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .homepage-theme .home-nav-toggle {
@@ -249,10 +243,8 @@
 .homepage-theme .home-mobile-menu {
   border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
   border-radius: 18px;
-  background: color-mix(in oklab, var(--color-card) 90%, transparent);
-  box-shadow: var(--shadow-medium);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .homepage-theme .home-footer {
@@ -332,19 +324,18 @@
 }
 
 .homepage-theme .home-card:hover {
-  border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  box-shadow: var(--shadow-soft);
+  border-color: color-mix(in oklab, var(--color-border) 76%, white);
+  box-shadow: var(--shadow-sm);
   transform: none;
 }
 
 .homepage-theme .home-hero-panel {
-  border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  box-shadow: var(--shadow-medium);
+  border-color: color-mix(in oklab, var(--color-border) 76%, white);
+  box-shadow: var(--shadow-sm);
 }
 
 .homepage-theme .home-hero-panel::after {
-  border-color: color-mix(in oklab, white 58%, transparent);
-  opacity: 0.45;
+  content: none;
 }
 
 .homepage-theme .home-card-soft {

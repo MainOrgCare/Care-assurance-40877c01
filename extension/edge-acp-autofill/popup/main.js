@@ -57,6 +57,8 @@ import {
   renderLogs,
   updateLiveProgress,
   renderPageCompanion,
+  renderAutofillSessionSummary,
+  renderCaseContextStrip,
   displayRecentItems,
   displayAnalysisResults,
   updateSelectionCount,
@@ -555,6 +557,136 @@ const updateUploadSyncSummary = () => {
   dom.uploadSyncSummary.textContent = summaryParts.join(" • ");
 };
 
+const setUploadHandoffButton = (button, config = {}) => {
+  if (!button) return;
+
+  const {
+    label = "Open Autofill",
+    action = "open-autofill",
+    disabled = false,
+  } = config;
+
+  button.textContent = label;
+  button.dataset.action = action;
+  button.disabled = Boolean(disabled);
+};
+
+const renderUploadHandoffSummary = () => {
+  if (!dom.uploadHandoffState || !dom.uploadHandoffMeta) return;
+
+  const stats = getUploadStageStats();
+  const caseId = getCaseIdForAutoCollect();
+  const targetName = String(
+    state.selectedAutofillUser?.name || state.selectedUser?.name || ""
+  ).trim();
+  const analysisCount = Number(state.currentAnalysisResults?.recommendedAssessments?.length || 0);
+  const analysisReady = analysisCount > 0 && dom.selectionSection && !dom.selectionSection.hidden;
+  const busyMessage = getUploadWorkflowBusyMessage();
+  const stageLabel =
+    stats.fileCount > 0
+      ? `${stats.fileCount} file${stats.fileCount === 1 ? "" : "s"} • ${formatUploadBytes(stats.totalBytes)}`
+      : "0 files";
+
+  let stateClass = "is-idle";
+  let title = "No upload target selected";
+  let detail = "Choose an Autofill service user or enter a Case ID before staging a handoff.";
+  let readiness = "Waiting for setup";
+  let primaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+  let secondaryAction = state.isConnected
+    ? { label: "Refresh Context", action: "refresh-context", disabled: false }
+    : { label: "Open Dashboard", action: "open-dashboard", disabled: false };
+
+  if (!state.isConnected) {
+    stateClass = "is-warning";
+    title = "Connect CareAssurance first";
+    detail = stats.fileCount > 0
+      ? "Staged files are waiting, but the workspace session is disconnected. Sync before sending them to CareAssurance Upload."
+      : "Sync your CareAssurance session so the Upload mirror knows where to send staged documents.";
+    readiness = "Session disconnected";
+    primaryAction = { label: "Sync Session", action: "connect", disabled: false };
+    secondaryAction = { label: "Open Dashboard", action: "open-dashboard", disabled: false };
+  } else if (busyMessage) {
+    stateClass = "is-live";
+    title = "Upload workflow in progress";
+    detail = busyMessage;
+    readiness = "Working";
+    primaryAction = {
+      label: state.connectedWorkspaceContext?.tabId ? "Focus Workspace" : "Refresh Context",
+      action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "refresh-context",
+      disabled: false,
+    };
+    secondaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+  } else if (!caseId) {
+    stateClass = "is-warning";
+    title = "Choose the destination case";
+    detail = "Select an Autofill service user or type the Case ID before you send staged documents into the CareAssurance Upload mirror.";
+    readiness = "Target missing";
+    primaryAction = { label: "Select Target", action: "open-autofill", disabled: false };
+    secondaryAction = {
+      label: state.connectedWorkspaceContext?.tabId ? "Focus Workspace" : "Refresh Context",
+      action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "refresh-context",
+      disabled: false,
+    };
+  } else if (analysisReady) {
+    stateClass = "is-ready";
+    title = "Analysis ready for review";
+    detail = `${analysisCount} recommended assessment${analysisCount === 1 ? " is" : "s are"} ready for Autofill review before you start ACP.`;
+    readiness = `${analysisCount} recommendations ready`;
+    primaryAction = { label: "Review Autofill", action: "open-autofill", disabled: false };
+    secondaryAction = {
+      label: state.connectedWorkspaceContext?.tabId ? "Focus Workspace" : "Refresh Context",
+      action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "refresh-context",
+      disabled: false,
+    };
+  } else if (stats.fileCount > 0) {
+    stateClass = "is-ready";
+    title = "Ready to send or analyze";
+    detail = `The staged documents are aligned to Case ID ${caseId}. Send them to CareAssurance Upload or analyze them for Autofill recommendations.`;
+    readiness = "Ready now";
+    primaryAction = { label: "Analyze Staged Files", action: "analyze", disabled: false };
+    secondaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+  } else {
+    stateClass = "is-ready";
+    title = "Target locked in";
+    detail = `New uploads will be prepared for ${targetName || `Case ID ${caseId}`}. Add files in the sections below to continue.`;
+    readiness = "Waiting for files";
+    primaryAction = {
+      label: state.connectedWorkspaceContext?.tabId ? "Focus Workspace" : "Open Autofill",
+      action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "open-autofill",
+      disabled: false,
+    };
+    secondaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+  }
+
+  dom.uploadHandoffState.className = `upload-handoff-state ${stateClass}`;
+  dom.uploadHandoffState.innerHTML = `
+    <span class="upload-handoff-eyebrow">Upload status</span>
+    <strong class="upload-handoff-title">${escapeHtml(title)}</strong>
+    <span class="upload-handoff-detail">${escapeHtml(detail)}</span>
+  `;
+
+  const metaItems = [
+    { label: "Target", value: targetName || "Not selected" },
+    { label: "Case ID", value: caseId || "Missing" },
+    { label: "Staged", value: stageLabel },
+    { label: "Ready", value: readiness },
+  ];
+
+  dom.uploadHandoffMeta.innerHTML = metaItems
+    .map(
+      (item) => `
+        <div class="upload-handoff-meta-item">
+          <span class="upload-handoff-meta-label">${escapeHtml(item.label)}</span>
+          <strong class="upload-handoff-meta-value">${escapeHtml(item.value)}</strong>
+        </div>
+      `
+    )
+    .join("");
+
+  setUploadHandoffButton(dom.uploadHandoffPrimary, primaryAction);
+  setUploadHandoffButton(dom.uploadHandoffSecondary, secondaryAction);
+};
+
 const updateUploadActionInterlocks = () => {
   const stats = getUploadStageStats();
   const busy = isUploadWorkflowBusy();
@@ -863,6 +995,7 @@ const applyOverlayPinnedPreference = async (pinned, { broadcast = true } = {}) =
 };
 
 const updateUploadPendingStatus = () => {
+  renderUploadHandoffSummary();
   updateUploadSyncSummary();
 
   if (isUploadWorkflowBusy()) {
@@ -4256,6 +4389,7 @@ const resetUploadWorkspace = async ({ showToast = false } = {}) => {
   if (dom.analysisStatus) dom.analysisStatus.textContent = "";
   if (dom.additionalNotes) dom.additionalNotes.value = "";
   if (dom.assessmentList) dom.assessmentList.innerHTML = "";
+  if (dom.analysisOverview) { dom.analysisOverview.hidden = true; dom.analysisOverview.innerHTML = ""; }
   if (dom.selectionSection) dom.selectionSection.hidden = true;
   if (dom.uploadedDocsList) dom.uploadedDocsList.innerHTML = "";
   if (dom.uploadedDocsSummary) dom.uploadedDocsSummary.hidden = true;
@@ -4354,6 +4488,7 @@ async function refreshWorkspaceContext(user = state.connectedWorkspaceUser) {
     const tab = await findConnectedWorkspaceTab(getCareAssuranceUrl());
     if (!tab?.id || !tab.url) {
       renderWorkspaceContext(null, state.connectedWorkspaceUser);
+      renderUploadHandoffSummary();
       return null;
     }
 
@@ -4369,10 +4504,12 @@ async function refreshWorkspaceContext(user = state.connectedWorkspaceUser) {
       routeDetail: route.detail,
     };
     renderWorkspaceContext(context, state.connectedWorkspaceUser);
+    renderUploadHandoffSummary();
     return context;
   } catch (error) {
     console.warn("[CA Extension Popup] Failed to refresh workspace context:", error);
     renderWorkspaceContext(null, state.connectedWorkspaceUser);
+    renderUploadHandoffSummary();
     return null;
   }
 }
@@ -4637,6 +4774,8 @@ async function refreshPayloadStatus() {
     if (dom.serviceDataGroupId) dom.serviceDataGroupId.value = data[STORAGE_KEYS.caseInfo].serviceDataGroupId || "";
   }
 
+  renderCaseContextStrip(data[STORAGE_KEYS.caseInfo] || null);
+
   try {
     await maybeSyncAutofillUserFromPayload(payload, payloadStoredAt, data[STORAGE_KEYS.caseInfo] || null);
   } catch (syncError) {
@@ -4674,12 +4813,27 @@ async function refreshPayloadStatus() {
 
   renderCommandCenter(commandCenterState);
   renderRuntimeDiagnostics(runtimeDiagnosticsState);
+  renderUploadHandoffSummary();
+  renderAutofillSessionSummary({
+    payload,
+    queueState,
+    verificationFields,
+    lastError,
+    pageContext: state.pageCompanionContext,
+  });
   if (!document.hidden) {
-    await refreshPageCompanion({
+    const refreshedPageContext = await refreshPageCompanion({
       payload,
       verificationFields,
       queueState,
       lastError,
+    });
+    renderAutofillSessionSummary({
+      payload,
+      queueState,
+      verificationFields,
+      lastError,
+      pageContext: refreshedPageContext,
     });
   }
 }
@@ -4885,11 +5039,13 @@ async function autoDetectIds() {
       if (dom.caseId) dom.caseId.value = caseId;
       if (dom.serviceDataGroupId) dom.serviceDataGroupId.value = serviceDataGroupId;
       await setStorage({ [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId } });
+      renderCaseContextStrip({ caseId, serviceDataGroupId });
       showSuccess(`Detected: Case ID ${caseId}, Service Data Group ${serviceDataGroupId}`);
       return { detected: true, caseId, serviceDataGroupId };
     } else if (caseId || serviceDataGroupId) {
       if (caseId && dom.caseId) dom.caseId.value = caseId;
       if (serviceDataGroupId && dom.serviceDataGroupId) dom.serviceDataGroupId.value = serviceDataGroupId;
+      renderCaseContextStrip({ caseId, serviceDataGroupId });
       showSuccess(`Partial detection: ${caseId ? "Case ID" : "Service Data Group"} found`);
       return { detected: true, partial: true, caseId, serviceDataGroupId };
     } else {
@@ -4945,6 +5101,16 @@ function bindEvents() {
   dom.openRiskWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/risk-assessment").catch(() => showError("Could not open Risk Assessment.")));
   dom.openPlanEnhancerWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/plan-enhancer").catch(() => showError("Could not open Plan Enhancer.")));
   dom.openAdminWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/shadow-admin-portal").catch(() => showError("Could not open the Admin Portal.")));
+  dom.caseContextGrid?.addEventListener("click", async (event) => {
+    const button = event.target.closest(".case-context-copy[data-copy-value]");
+    if (!button) return;
+    try {
+      await writeToClipboard(button.dataset.copyValue || "");
+      showSuccess("Context copied to clipboard");
+    } catch {
+      showError("Could not copy context value.");
+    }
+  });
 
   // Main launchpad
   dom.mainViewPrimaryAction?.addEventListener("click", () => {
@@ -4986,6 +5152,8 @@ function bindEvents() {
   });
   dom.serviceUserSort?.addEventListener("change", () => { state.serviceUserShowCount = 10; displayServiceUsers(); });
   dom.serviceUserSearch?.addEventListener("input", displayServiceUsers);
+  dom.caseId?.addEventListener("input", () => { renderCaseContextStrip(); renderUploadHandoffSummary(); });
+  dom.serviceDataGroupId?.addEventListener("input", () => renderCaseContextStrip());
 
   // Load care plan / risk assessment
   dom.loadCarePlanBtn?.addEventListener("click", async () => {
@@ -5024,6 +5192,58 @@ function bindEvents() {
   bindUploadBucketInputs();
   bindUploadDropzones();
   bindUploadActionButtons();
+
+  dom.uploadHandoffPrimary?.addEventListener("click", async () => {
+    const action = String(dom.uploadHandoffPrimary?.dataset.action || "");
+    if (!action) return;
+    if (action === "connect") {
+      await connectToCareAssurance();
+      return;
+    }
+    if (action === "open-dashboard") {
+      await openCareAssuranceRoute("/dashboard");
+      return;
+    }
+    if (action === "refresh-context") {
+      schedulePopupRefresh({ workspace: true, forceWorkspace: true, immediate: true });
+      showInfo("Workspace context refreshed");
+      return;
+    }
+    if (action === "focus-workspace") {
+      await focusConnectedWorkspace();
+      return;
+    }
+    if (action === "analyze") {
+      dom.analyzeDocuments?.click();
+      return;
+    }
+    if (action === "open-autofill") {
+      switchTab("autofill");
+      setTimeout(() => {
+        if (getCaseIdForAutoCollect()) dom.caseId?.focus();
+        else dom.autofillUserSearch?.focus();
+      }, 0);
+    }
+  });
+
+  dom.uploadHandoffSecondary?.addEventListener("click", async () => {
+    const action = String(dom.uploadHandoffSecondary?.dataset.action || "");
+    if (!action) return;
+    if (action === "open-dashboard") {
+      await openCareAssuranceRoute("/dashboard");
+      return;
+    }
+    if (action === "refresh-context") {
+      schedulePopupRefresh({ workspace: true, forceWorkspace: true, immediate: true });
+      showInfo("Workspace context refreshed");
+      return;
+    }
+    if (action === "focus-workspace") {
+      await focusConnectedWorkspace();
+      return;
+    }
+    switchTab("autofill");
+  });
 
   dom.syncUploadBtn?.addEventListener("click", async () => {
     if (isUploadWorkflowBusy() && !uploadSyncInFlight) {
@@ -5141,6 +5361,17 @@ function bindEvents() {
 
       const result = response.data || response.result;
       if (!result) throw new Error("No analysis result returned");
+      const analysisReceipt = {
+        fileCount: selectedEntries.length,
+        parsedCount: selectedEntries.length - failedFiles.length,
+        failedFiles,
+        hasNotes: Boolean(dom.uploadNotes?.value?.trim()),
+        sections: Array.from(new Set(selectedEntries.map(({ section }) => {
+          const config = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
+          return config?.label || config?.title || section;
+        }).filter(Boolean))),
+      };
+      result._uiReceipt = analysisReceipt;
       state.currentAnalysisResults = result;
       displayAnalysisResults(result);
       switchTab("autofill");
@@ -5431,6 +5662,27 @@ function bindEvents() {
     navigateToVerificationField(1).catch((e) => showError(e.message || "Could not move to the next review field."));
   });
 
+  dom.autofillSessionPrimary?.addEventListener("click", () => {
+    const action = dom.autofillSessionPrimary?.dataset.action || "refresh";
+    if (action === "start") { dom.startAutofill?.click(); return; }
+    if (action === "stop") { dom.stopAutofill?.click(); return; }
+    if (action === "overlay") { dom.openPageOverlay?.click(); return; }
+    if (action === "verify") { dom.jumpPageVerification?.click(); return; }
+    if (action === "diagnostics") {
+      if (dom.commandCenterSection) dom.commandCenterSection.open = true;
+      return;
+    }
+    dom.refreshPageCompanion?.click();
+  });
+
+  dom.autofillSessionFocus?.addEventListener("click", () => {
+    dom.focusPageCompanion?.click();
+  });
+
+  dom.autofillSessionDiagnostics?.addEventListener("click", () => {
+    if (dom.commandCenterSection) dom.commandCenterSection.open = true;
+  });
+
   // Signature
   dom.signatureFile?.addEventListener("change", async () => {
     const file = dom.signatureFile.files?.[0];
@@ -5478,6 +5730,7 @@ function bindEvents() {
       name: option.dataset.name,
       initials: option.querySelector(".user-avatar")?.textContent || "??",
     });
+    renderUploadHandoffSummary();
   });
 
   dom.autofillUserSearch?.addEventListener("input", () => {
@@ -5671,6 +5924,7 @@ function bindStorageListener() {
   const savedAutofillUser = initialState?.[STORAGE_KEYS.lastAutofillUser];
   if (savedAutofillUser?.acpId) {
     selectAutofillUser(savedAutofillUser);
+    renderUploadHandoffSummary();
   }
 
   if (initialState?.[STORAGE_KEYS.payload]) {
