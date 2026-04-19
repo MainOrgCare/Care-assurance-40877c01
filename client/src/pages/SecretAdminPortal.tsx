@@ -5240,6 +5240,12 @@ export default function SecretAdminPortal() {
 
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild variant="outline">
+                        <Link href="/admin/extension-manager">
+                          <ExternalLink size={16} />
+                          Open Full Manager
+                        </Link>
+                      </Button>
                       <Button asChild data-testid="button-download-edge-extension">
                         <a href={extensionDownloadUrl} target="_blank" rel="noopener noreferrer">
                           <Download size={16} />

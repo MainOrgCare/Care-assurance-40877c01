@@ -1,6 +1,13 @@
 importScripts("constants.js");
 
-const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, SESSION_STORAGE_KEYS = [] } = self.CA_EXTENSION_CONSTANTS;
+const {
+  STORAGE_KEYS,
+  FORM_CONFIGS,
+  MESSAGE_TYPES,
+  SESSION_STORAGE_KEYS = [],
+  getRuntimeConfig: getSharedRuntimeConfig,
+  applyRuntimeConfig: applySharedRuntimeConfig,
+} = self.CA_EXTENSION_CONSTANTS;
 
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 
@@ -9,12 +16,22 @@ const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 // Prevents premature termination during long-running batch autofill operations
 // ============================================================================
 
-const KEEP_ALIVE_INTERVAL_MS = 25_000; // Well under the 5-minute MV3 timeout
-const FORM_COMPLETION_FALLBACK_DELAY_MS = 6000;
-const ADVANCE_DEDUPE_WINDOW_MS = 120000;
 let keepAliveTimer = null;
 let pendingFormCompletionFallback = null;
 const recentAdvanceKeys = new Map();
+let runtimeConfigCache = typeof getSharedRuntimeConfig === "function" ? getSharedRuntimeConfig() : null;
+
+const getDefaultWorkspaceOriginHost = () =>
+  String(runtimeConfigCache?.careAssurance?.defaultOriginHost || "careassurance.uk").trim() || "careassurance.uk";
+
+const getKeepAliveIntervalMs = () =>
+  Number(runtimeConfigCache?.background?.keepAliveIntervalMs || 25000);
+
+const getFormCompletionFallbackDelayMs = () =>
+  Number(runtimeConfigCache?.background?.formCompletionFallbackDelayMs || 6000);
+
+const getAdvanceDedupeWindowMs = () =>
+  Number(runtimeConfigCache?.background?.advanceDedupeWindowMs || 120000);
 
 const buildAdvanceKey = (batchId, index) => {
   if (!Number.isInteger(index)) return null;
@@ -24,7 +41,7 @@ const buildAdvanceKey = (batchId, index) => {
 const clearStaleAdvanceKeys = () => {
   const now = Date.now();
   for (const [key, timestamp] of recentAdvanceKeys.entries()) {
-    if (now - timestamp > ADVANCE_DEDUPE_WINDOW_MS) {
+    if (now - timestamp > getAdvanceDedupeWindowMs()) {
       recentAdvanceKeys.delete(key);
     }
   }
@@ -41,7 +58,7 @@ function startKeepAlive() {
     chrome.runtime.sendMessage({ type: "CA_KEEP_ALIVE_PING" }, () => {
       if (chrome.runtime.lastError) { /* expected when popup is closed */ }
     });
-  }, KEEP_ALIVE_INTERVAL_MS);
+  }, getKeepAliveIntervalMs());
   console.log("[CA Extension] Keep-alive started");
 }
 
@@ -181,6 +198,20 @@ const setStored = (items) =>
         : Promise.resolve(),
     ]).then(() => resolve());
   });
+
+const hydrateRuntimeConfigCache = async () => {
+  try {
+    const stored = await getStored([STORAGE_KEYS.runtimeConfig]);
+    runtimeConfigCache = typeof applySharedRuntimeConfig === "function"
+      ? applySharedRuntimeConfig(stored?.[STORAGE_KEYS.runtimeConfig] || null)
+      : stored?.[STORAGE_KEYS.runtimeConfig] || runtimeConfigCache;
+  } catch {
+    runtimeConfigCache = typeof getSharedRuntimeConfig === "function" ? getSharedRuntimeConfig() : runtimeConfigCache;
+  }
+  return runtimeConfigCache;
+};
+
+void hydrateRuntimeConfigCache();
 
 const RUNTIME_METRICS_FLUSH_DELAY_MS = 900;
 const WORKER_HEARTBEAT_INTERVAL_MS = 30_000;
@@ -427,7 +458,7 @@ const openNextForm = async (options = {}) => {
   if (advanceKey) {
     clearStaleAdvanceKeys();
     const lastAdvancedAt = recentAdvanceKeys.get(advanceKey);
-    if (lastAdvancedAt && Date.now() - lastAdvancedAt <= ADVANCE_DEDUPE_WINDOW_MS) {
+    if (lastAdvancedAt && Date.now() - lastAdvancedAt <= getAdvanceDedupeWindowMs()) {
       console.log(`[ACP Extension] Ignoring duplicate ${source} advance for ${advanceKey}`);
       return;
     }
@@ -547,6 +578,7 @@ const scheduleFormCompletionFallback = (queueSnapshot, completionContext = {}) =
       console.warn("[ACP Extension] Success-page fallback advance failed:", error?.message || error);
     }
   }, FORM_COMPLETION_FALLBACK_DELAY_MS);
+  }, getFormCompletionFallbackDelayMs());
 
   pendingFormCompletionFallback = {
     key: fallbackKey,
@@ -627,7 +659,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 const buildTargetPatterns = (targetOrigin) => {
   const normalized = String(targetOrigin || "").trim();
-  if (!normalized) return ["https://careassurance.uk/*", "https://www.careassurance.uk/*"];
+  if (!normalized) {
+    const fallback = getDefaultWorkspaceOriginHost();
+    return buildTargetPatterns(fallback);
+  }
   if (normalized.includes("localhost") || normalized.includes("127.0.0.1")) {
     return [`http://${normalized}/*`];
   }
@@ -686,7 +721,7 @@ const findContentScriptTab = async (targetOrigin) => {
 
 const resolveBaseUrl = (hostname) => {
   const h = String(hostname || "").trim();
-  if (!h) return "https://careassurance.uk";
+  if (!h) return `https://${getDefaultWorkspaceOriginHost()}`;
   if (h.includes("localhost") || h.includes("127.0.0.1")) return `http://${h}`;
   return `https://${h}`;
 };
@@ -763,7 +798,7 @@ const directFetch = async ({ endpoint, method = "GET", body, targetOrigin, apiOr
 
 const forwardProxyRequest = async (request, sendResponse) => {
   const { endpoint, method = "GET", body, targetOrigin, apiOrigin, requestId } = request || {};
-  const resolvedTargetOrigin = targetOrigin || "careassurance.uk";
+  const resolvedTargetOrigin = targetOrigin || getDefaultWorkspaceOriginHost();
   const resolvedApiOrigin = apiOrigin || resolvedTargetOrigin;
   console.log(`[CA Extension] API proxy request: ${method} ${endpoint} workspace=${resolvedTargetOrigin} api=${resolvedApiOrigin}`);
   await updateRuntimeMetrics((metrics) => ({
@@ -1075,7 +1110,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           documentContent,
           allowSensitive: false,
         },
-        targetOrigin: targetOrigin || "careassurance.uk",
+        targetOrigin: targetOrigin || getDefaultWorkspaceOriginHost(),
       },
       (response) => {
         if (!response?.ok) {
@@ -1133,6 +1168,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "local" && areaName !== "session") {
     return;
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.runtimeConfig)) {
+    runtimeConfigCache = typeof applySharedRuntimeConfig === "function"
+      ? applySharedRuntimeConfig(changes[STORAGE_KEYS.runtimeConfig]?.newValue || null)
+      : changes[STORAGE_KEYS.runtimeConfig]?.newValue || runtimeConfigCache;
   }
   if (!Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.runtimeMetrics)) {
     return;

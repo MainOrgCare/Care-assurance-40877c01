@@ -8,6 +8,7 @@ import {
   buildCareAssuranceTabPatterns,
   createRequestId,
   resolveCareAssuranceApiOrigin,
+  setRuntimeConfigStorage,
   state,
 } from "./state.js";
 
@@ -102,6 +103,27 @@ export async function apiProxy(endpoint, method = "GET", body = null, options = 
   }
 
   return lastResponse;
+}
+
+export async function fetchExtensionRuntimeConfig(options = {}) {
+  const response = await apiProxy("/api/extension/runtime-config", "GET", null, {
+    timeoutMs: typeof options.timeoutMs === "number" ? options.timeoutMs : 30000,
+    maxRetries: Number.isInteger(options.maxRetries) ? options.maxRetries : 1,
+  });
+
+  if (!response?.ok) {
+    return response;
+  }
+
+  const payload = response.data || response;
+  const runtimeConfig = await setRuntimeConfigStorage(payload?.config || payload || null);
+  return {
+    ...response,
+    data: {
+      ...payload,
+      config: runtimeConfig,
+    },
+  };
 }
 
 /**

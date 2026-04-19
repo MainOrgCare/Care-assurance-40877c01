@@ -22,6 +22,7 @@ const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const TermsConditions = React.lazy(() => import("@/pages/TermsConditions"));
 const PrivacyPolicy = React.lazy(() => import("@/pages/PrivacyPolicy"));
 const SecretAdminPortal = React.lazy(() => import("@/pages/SecretAdminPortal"));
+const ExtensionManager = React.lazy(() => import("@/pages/ExtensionManager"));
 const CallReconciliation = React.lazy(() => import("@/pages/CallReconciliation"));
 const EmailAssistant = React.lazy(() => import("@/pages/EmailAssistant"));
 const ServiceUserUpload = React.lazy(() => import("@/pages/service-users/Upload"));
@@ -138,6 +139,7 @@ function Router() {
 
           {/* Admin Dropdown */}
           <AdminRoute path="/shadow-admin-portal" component={SecretAdminPortal} />
+          <AdminRoute path="/admin/extension-manager" component={ExtensionManager} />
           <AdminRoute path="/call-reconciliation" component={CallReconciliation} />
           <ProtectedRoute path="/email-assistant" component={EmailAssistant} />
           <ProtectedRoute path="/compliance" component={Compliance} />

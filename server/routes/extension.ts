@@ -37,6 +37,352 @@ const EXTENSION_SOURCE_DIR = path.resolve(process.cwd(), "extension", "edge-acp-
 const EXTENSION_MANIFEST_PATH = path.resolve(EXTENSION_SOURCE_DIR, "manifest.json");
 const EXTENSION_PACKAGE_SCRIPT = path.resolve(process.cwd(), "script", "package-extension.mjs");
 const ACP_DASHBOARD_BASE_URL = "https://clece.mobizio.com/eoutcomeservice/branch/case_dashboard?id=";
+const EXTENSION_RUNTIME_CONFIG_KEY = "extension_runtime_config";
+const EXTENSION_RUNTIME_CONFIG_CACHE_TTL_MS = 10_000;
+
+interface ExtensionRuntimeConfig {
+  version: number;
+  careAssurance: {
+    defaultOriginHost: string;
+    knownHosts: string[];
+    workspaceToApiHosts: Record<string, string>;
+  };
+  popup: {
+    defaultServiceDataGroupId: string;
+    autoCollect: {
+      documentServiceId: string;
+      documentListPath: string;
+      initialAssessmentServiceDataGroupId: string;
+      initialAssessmentPath: string;
+      carePlanDashboardPath: string;
+      recencyFirstSections: string[];
+      latestSelectionSections: string[];
+    };
+  };
+  background: {
+    keepAliveIntervalMs: number;
+    formCompletionFallbackDelayMs: number;
+    advanceDedupeWindowMs: number;
+  };
+  meta: {
+    updatedAt: string | null;
+    updatedBy: string | null;
+  };
+}
+
+const EXTENSION_RUNTIME_CONFIG_FALLBACK: ExtensionRuntimeConfig = {
+  version: 1,
+  careAssurance: {
+    defaultOriginHost: "careassurance.uk",
+    knownHosts: [
+      "careassurance.uk",
+      "www.careassurance.uk",
+      "care-assurance.onrender.com",
+      "care-assurance-api.onrender.com",
+      "care-assurance-web.onrender.com",
+      "localhost:5000",
+      "localhost:3000",
+    ],
+    workspaceToApiHosts: {
+      "careassurance.uk": "care-assurance-api.onrender.com",
+      "www.careassurance.uk": "care-assurance-api.onrender.com",
+      "care-assurance-web.onrender.com": "care-assurance-api.onrender.com",
+    },
+  },
+  popup: {
+    defaultServiceDataGroupId: "1017650",
+    autoCollect: {
+      documentServiceId: "1000801",
+      documentListPath: "/case_document_list",
+      initialAssessmentServiceDataGroupId: "1014998",
+      initialAssessmentPath: "/case_data_group",
+      carePlanDashboardPath: "/eoutcomeservice/branch/case_care_plans_dashboard",
+      recencyFirstSections: ["initialAssessment", "carePlan", "additionalDocuments"],
+      latestSelectionSections: ["initialAssessment", "carePlan", "additionalDocuments"],
+    },
+  },
+  background: {
+    keepAliveIntervalMs: 25000,
+    formCompletionFallbackDelayMs: 6000,
+    advanceDedupeWindowMs: 120000,
+  },
+  meta: {
+    updatedAt: null,
+    updatedBy: null,
+  },
+};
+
+let extensionRuntimeConfigCache: ExtensionRuntimeConfig | null = null;
+let extensionRuntimeConfigCachedAt = 0;
+
+function normalizeRuntimeConfigString(value: unknown, fallback: string): string {
+  const normalized = String(value ?? "").trim();
+  return normalized || fallback;
+}
+
+function normalizeRuntimeConfigPath(value: unknown, fallback: string): string {
+  const normalized = normalizeRuntimeConfigString(value, fallback);
+  if (!normalized) return fallback;
+  return normalized.startsWith("/") ? normalized : `/${normalized.replace(/^\/+/, "")}`;
+}
+
+function normalizeRuntimeConfigInteger(
+  value: unknown,
+  fallback: number,
+  { min = 1, max = Number.MAX_SAFE_INTEGER }: { min?: number; max?: number } = {},
+): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const rounded = Math.round(parsed);
+  if (rounded < min) return fallback;
+  return Math.min(max, rounded);
+}
+
+function normalizeRuntimeConfigStringArray(
+  value: unknown,
+  fallback: string[],
+  { lowerCase = false }: { lowerCase?: boolean } = {},
+): string[] {
+  const source = Array.isArray(value) ? value : fallback;
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const entry of source) {
+    const nextValue = String(entry ?? "").trim();
+    if (!nextValue) continue;
+    const finalValue = lowerCase ? nextValue.toLowerCase() : nextValue;
+    const dedupeKey = finalValue.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    normalized.push(finalValue);
+  }
+
+  return normalized.length > 0 ? normalized : [...fallback];
+}
+
+function normalizeRuntimeConfigHostMap(
+  value: unknown,
+  fallback: Record<string, string>,
+): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...fallback };
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(value)) {
+    const key = String(rawKey ?? "").trim().toLowerCase();
+    const nextValue = String(rawValue ?? "").trim().toLowerCase();
+    if (!key || !nextValue) continue;
+    normalized[key] = nextValue;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : { ...fallback };
+}
+
+function normalizeExtensionRuntimeConfig(rawValue: unknown): ExtensionRuntimeConfig {
+  const raw = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+    ? (rawValue as Record<string, unknown>)
+    : {};
+  const rawCareAssurance = raw.careAssurance && typeof raw.careAssurance === "object" && !Array.isArray(raw.careAssurance)
+    ? (raw.careAssurance as Record<string, unknown>)
+    : {};
+  const rawPopup = raw.popup && typeof raw.popup === "object" && !Array.isArray(raw.popup)
+    ? (raw.popup as Record<string, unknown>)
+    : {};
+  const rawAutoCollect = rawPopup.autoCollect && typeof rawPopup.autoCollect === "object" && !Array.isArray(rawPopup.autoCollect)
+    ? (rawPopup.autoCollect as Record<string, unknown>)
+    : {};
+  const rawBackground = raw.background && typeof raw.background === "object" && !Array.isArray(raw.background)
+    ? (raw.background as Record<string, unknown>)
+    : {};
+  const rawMeta = raw.meta && typeof raw.meta === "object" && !Array.isArray(raw.meta)
+    ? (raw.meta as Record<string, unknown>)
+    : {};
+
+  const defaultOriginHost = normalizeRuntimeConfigString(
+    rawCareAssurance.defaultOriginHost,
+    EXTENSION_RUNTIME_CONFIG_FALLBACK.careAssurance.defaultOriginHost,
+  ).toLowerCase();
+
+  const knownHosts = normalizeRuntimeConfigStringArray(
+    rawCareAssurance.knownHosts,
+    EXTENSION_RUNTIME_CONFIG_FALLBACK.careAssurance.knownHosts,
+    { lowerCase: true },
+  );
+
+  if (!knownHosts.includes(defaultOriginHost)) {
+    knownHosts.unshift(defaultOriginHost);
+  }
+
+  return {
+    version: normalizeRuntimeConfigInteger(raw.version, EXTENSION_RUNTIME_CONFIG_FALLBACK.version, { min: 1, max: 99 }),
+    careAssurance: {
+      defaultOriginHost,
+      knownHosts,
+      workspaceToApiHosts: normalizeRuntimeConfigHostMap(
+        rawCareAssurance.workspaceToApiHosts,
+        EXTENSION_RUNTIME_CONFIG_FALLBACK.careAssurance.workspaceToApiHosts,
+      ),
+    },
+    popup: {
+      defaultServiceDataGroupId: normalizeRuntimeConfigString(
+        rawPopup.defaultServiceDataGroupId,
+        EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.defaultServiceDataGroupId,
+      ),
+      autoCollect: {
+        documentServiceId: normalizeRuntimeConfigString(
+          rawAutoCollect.documentServiceId,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.documentServiceId,
+        ),
+        documentListPath: normalizeRuntimeConfigPath(
+          rawAutoCollect.documentListPath,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.documentListPath,
+        ),
+        initialAssessmentServiceDataGroupId: normalizeRuntimeConfigString(
+          rawAutoCollect.initialAssessmentServiceDataGroupId,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.initialAssessmentServiceDataGroupId,
+        ),
+        initialAssessmentPath: normalizeRuntimeConfigPath(
+          rawAutoCollect.initialAssessmentPath,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.initialAssessmentPath,
+        ),
+        carePlanDashboardPath: normalizeRuntimeConfigPath(
+          rawAutoCollect.carePlanDashboardPath,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.carePlanDashboardPath,
+        ),
+        recencyFirstSections: normalizeRuntimeConfigStringArray(
+          rawAutoCollect.recencyFirstSections,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.recencyFirstSections,
+        ),
+        latestSelectionSections: normalizeRuntimeConfigStringArray(
+          rawAutoCollect.latestSelectionSections,
+          EXTENSION_RUNTIME_CONFIG_FALLBACK.popup.autoCollect.latestSelectionSections,
+        ),
+      },
+    },
+    background: {
+      keepAliveIntervalMs: normalizeRuntimeConfigInteger(
+        rawBackground.keepAliveIntervalMs,
+        EXTENSION_RUNTIME_CONFIG_FALLBACK.background.keepAliveIntervalMs,
+        { min: 5000, max: 300000 },
+      ),
+      formCompletionFallbackDelayMs: normalizeRuntimeConfigInteger(
+        rawBackground.formCompletionFallbackDelayMs,
+        EXTENSION_RUNTIME_CONFIG_FALLBACK.background.formCompletionFallbackDelayMs,
+        { min: 1000, max: 60000 },
+      ),
+      advanceDedupeWindowMs: normalizeRuntimeConfigInteger(
+        rawBackground.advanceDedupeWindowMs,
+        EXTENSION_RUNTIME_CONFIG_FALLBACK.background.advanceDedupeWindowMs,
+        { min: 10000, max: 600000 },
+      ),
+    },
+    meta: {
+      updatedAt: typeof rawMeta.updatedAt === "string" ? rawMeta.updatedAt : null,
+      updatedBy: typeof rawMeta.updatedBy === "string" ? rawMeta.updatedBy : null,
+    },
+  };
+}
+
+async function getExtensionRuntimeConfigRecord(forceRefresh = false): Promise<{
+  config: ExtensionRuntimeConfig;
+  defaults: ExtensionRuntimeConfig;
+  source: "default" | "stored";
+}> {
+  const isFresh = Date.now() - extensionRuntimeConfigCachedAt < EXTENSION_RUNTIME_CONFIG_CACHE_TTL_MS;
+  if (!forceRefresh && extensionRuntimeConfigCache && isFresh) {
+    return {
+      config: extensionRuntimeConfigCache,
+      defaults: EXTENSION_RUNTIME_CONFIG_FALLBACK,
+      source: "stored",
+    };
+  }
+
+  const rawValue = await storage.getAppSetting(EXTENSION_RUNTIME_CONFIG_KEY);
+  if (!rawValue) {
+    extensionRuntimeConfigCache = normalizeExtensionRuntimeConfig(EXTENSION_RUNTIME_CONFIG_FALLBACK);
+    extensionRuntimeConfigCachedAt = Date.now();
+    return {
+      config: extensionRuntimeConfigCache,
+      defaults: EXTENSION_RUNTIME_CONFIG_FALLBACK,
+      source: "default",
+    };
+  }
+
+  try {
+    extensionRuntimeConfigCache = normalizeExtensionRuntimeConfig(JSON.parse(rawValue));
+  } catch {
+    extensionRuntimeConfigCache = normalizeExtensionRuntimeConfig(EXTENSION_RUNTIME_CONFIG_FALLBACK);
+  }
+  extensionRuntimeConfigCachedAt = Date.now();
+  return {
+    config: extensionRuntimeConfigCache,
+    defaults: EXTENSION_RUNTIME_CONFIG_FALLBACK,
+    source: "stored",
+  };
+}
+
+async function updateExtensionRuntimeConfigRecord(
+  nextRawConfig: unknown,
+  updatedBy?: string | null,
+): Promise<{
+  config: ExtensionRuntimeConfig;
+  defaults: ExtensionRuntimeConfig;
+  source: "stored";
+}> {
+  const currentRecord = await getExtensionRuntimeConfigRecord(true);
+  const current = currentRecord.config;
+  const nextRaw = nextRawConfig && typeof nextRawConfig === "object" && !Array.isArray(nextRawConfig)
+    ? (nextRawConfig as Record<string, unknown>)
+    : {};
+  const nextCareAssurance = nextRaw.careAssurance && typeof nextRaw.careAssurance === "object" && !Array.isArray(nextRaw.careAssurance)
+    ? (nextRaw.careAssurance as Record<string, unknown>)
+    : {};
+  const nextPopup = nextRaw.popup && typeof nextRaw.popup === "object" && !Array.isArray(nextRaw.popup)
+    ? (nextRaw.popup as Record<string, unknown>)
+    : {};
+  const nextAutoCollect = nextPopup.autoCollect && typeof nextPopup.autoCollect === "object" && !Array.isArray(nextPopup.autoCollect)
+    ? (nextPopup.autoCollect as Record<string, unknown>)
+    : {};
+  const nextBackground = nextRaw.background && typeof nextRaw.background === "object" && !Array.isArray(nextRaw.background)
+    ? (nextRaw.background as Record<string, unknown>)
+    : {};
+
+  const merged = normalizeExtensionRuntimeConfig({
+    ...current,
+    ...nextRaw,
+    careAssurance: {
+      ...current.careAssurance,
+      ...nextCareAssurance,
+    },
+    popup: {
+      ...current.popup,
+      ...nextPopup,
+      autoCollect: {
+        ...current.popup.autoCollect,
+        ...nextAutoCollect,
+      },
+    },
+    background: {
+      ...current.background,
+      ...nextBackground,
+    },
+    meta: {
+      updatedAt: new Date().toISOString(),
+      updatedBy: updatedBy ?? null,
+    },
+  });
+
+  await storage.setAppSetting(EXTENSION_RUNTIME_CONFIG_KEY, JSON.stringify(merged), updatedBy ?? undefined);
+  extensionRuntimeConfigCache = merged;
+  extensionRuntimeConfigCachedAt = Date.now();
+
+  return {
+    config: merged,
+    defaults: EXTENSION_RUNTIME_CONFIG_FALLBACK,
+    source: "stored",
+  };
+}
 
 function buildAcpDashboardUrl(accessCarePlanningId: string): string {
   return `${ACP_DASHBOARD_BASE_URL}${encodeURIComponent(accessCarePlanningId)}`;
@@ -333,6 +679,22 @@ export function registerExtensionRoutes(
     }
   });
 
+  app.get("/api/extension/runtime-config", requireAuth, async (_req: any, res) => {
+    try {
+      const record = await getExtensionRuntimeConfigRecord();
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({
+        config: record.config,
+        updatedAt: record.config.meta.updatedAt,
+        updatedBy: record.config.meta.updatedBy,
+        source: record.source,
+      });
+    } catch (error: unknown) {
+      console.error("Extension runtime config error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load extension runtime config") });
+    }
+  });
+
   // Admin-only metadata endpoint to verify extension package freshness
   app.get("/api/admin/extension/info", requireAuth, requireAdmin, async (req: any, res) => {
     try {
@@ -369,6 +731,62 @@ export function registerExtensionRoutes(
     } catch (error: unknown) {
       console.error("Extension package metadata error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to load extension package metadata") });
+    }
+  });
+
+  app.get("/api/admin/extension/runtime-config", requireAuth, requireAdmin, async (_req: any, res) => {
+    try {
+      const record = await getExtensionRuntimeConfigRecord();
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({
+        config: record.config,
+        defaults: record.defaults,
+        updatedAt: record.config.meta.updatedAt,
+        updatedBy: record.config.meta.updatedBy,
+        source: record.source,
+      });
+    } catch (error: unknown) {
+      console.error("Admin extension runtime config error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load extension runtime config") });
+    }
+  });
+
+  app.put("/api/admin/extension/runtime-config", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const rawConfig = req.body?.config ?? req.body;
+      if (!rawConfig || typeof rawConfig !== "object" || Array.isArray(rawConfig)) {
+        return res.status(400).json({ message: "Runtime config must be a JSON object." });
+      }
+
+      const record = await updateExtensionRuntimeConfigRecord(rawConfig, req.user?.username || req.user?.id || null);
+
+      storage
+        .createSystemLog({
+          eventType: "extension_runtime_config_updated",
+          userId: req.user?.id,
+          username: req.user?.username,
+          serviceUserInitials: null,
+          details: {
+            action: "Updated extension runtime config",
+            target: EXTENSION_RUNTIME_CONFIG_KEY,
+            status: "Success",
+            updatedAt: record.config.meta.updatedAt,
+          },
+        })
+        .catch(() => {});
+
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({
+        message: "Extension runtime config updated",
+        config: record.config,
+        defaults: record.defaults,
+        updatedAt: record.config.meta.updatedAt,
+        updatedBy: record.config.meta.updatedBy,
+        source: record.source,
+      });
+    } catch (error: unknown) {
+      console.error("Admin extension runtime config update error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to update extension runtime config") });
     }
   });
 
@@ -682,42 +1100,4 @@ export function registerExtensionRoutes(
     }
   });
 
-  // Get recent assessments for extension quick access
-  app.get("/api/extension/recent", requireAuth, async (req: any, res) => {
-    try {
-      const [recentRiskLogs, recentServiceUsers] = await Promise.all([
-        storage.getAllRiskAssessmentLogs(),
-        storage.getAllAnalyzedServiceUsers()
-      ]);
-
-      const recentPlans = recentServiceUsers
-        .filter((su: AnalyzedServiceUser) => {
-          const metadata = (su.metadata || {}) as Record<string, any>;
-          return !!metadata.enhancedPlan;
-        })
-        .sort((a: AnalyzedServiceUser, b: AnalyzedServiceUser) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
-        .slice(0, 5)
-        .map((su: AnalyzedServiceUser) => ({
-          id: su.id,
-          name: su.serviceUserName,
-          type: "carePlan" as const,
-          updatedAt: su.updatedAt
-        }));
-
-      const recentRisks = recentRiskLogs.slice(0, 5).map((log: RiskAssessmentLog) => ({
-        id: log.id,
-        name: log.serviceUserInitials,
-        type: "riskAssessment" as const,
-        updatedAt: log.createdAt
-      }));
-
-      return res.json({
-        carePlans: recentPlans,
-        riskAssessments: recentRisks
-      });
-    } catch (error: unknown) {
-      console.error("Extension recent error:", error);
-      return res.status(500).json({ message: safeErrorMessage(error, "Failed to get recent items") });
-    }
-  });
 }

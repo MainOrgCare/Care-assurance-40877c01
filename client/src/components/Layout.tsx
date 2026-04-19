@@ -24,6 +24,7 @@ import {
   Calculator,
   FlaskConical,
   Terminal,
+  Download,
   ArrowUpRight,
   FileSpreadsheet,
   Inbox,
@@ -416,6 +417,9 @@ const SidebarContent = memo(function SidebarContent({
               <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Admin pages">
                 <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
                   <ShieldCheck size={14} /> Administrator Controls
+                </Link>
+                <Link href="/admin/extension-manager" className={subNavLinkClass(location === "/admin/extension-manager")}>
+                  <Download size={14} /> Extension Manager
                 </Link>
                 <Link href="/roi-calculator" className={subNavLinkClass(location === "/roi-calculator")} data-testid="link-roi-calculator">
                   <Calculator size={14} /> Features & Benefits

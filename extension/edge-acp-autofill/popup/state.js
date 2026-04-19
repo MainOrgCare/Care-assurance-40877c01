@@ -29,6 +29,7 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   lastTab: "caAcpLastTab",
   lastAutofillUser: "caAcpLastAutofillUser",
   appTheme: "caAcpAppTheme",
+  runtimeConfig: "caAcpRuntimeConfig",
 };
 
 export const MESSAGE_TYPES = _g.MESSAGE_TYPES || {
@@ -52,6 +53,59 @@ export const FORM_CONFIGS = _g.FORM_CONFIGS || {
   emar: { url: "https://clece.mobizio.com/new_case_form", formId: "1044009" },
   custom: { url: "https://clece.mobizio.com/new_case_form" },
 };
+
+export const RUNTIME_CONFIG_DEFAULTS = _g.RUNTIME_CONFIG_DEFAULTS || {
+  version: 1,
+  careAssurance: {
+    defaultOriginHost: "careassurance.uk",
+    knownHosts: [
+      "careassurance.uk",
+      "www.careassurance.uk",
+      "care-assurance.onrender.com",
+      "care-assurance-api.onrender.com",
+      "care-assurance-web.onrender.com",
+      "localhost:5000",
+      "localhost:3000",
+    ],
+    workspaceToApiHosts: {
+      "careassurance.uk": "care-assurance-api.onrender.com",
+      "www.careassurance.uk": "care-assurance-api.onrender.com",
+      "care-assurance-web.onrender.com": "care-assurance-api.onrender.com",
+    },
+  },
+  popup: {
+    defaultServiceDataGroupId: "1017650",
+    autoCollect: {
+      documentServiceId: "1000801",
+      documentListPath: "/case_document_list",
+      initialAssessmentServiceDataGroupId: "1014998",
+      initialAssessmentPath: "/case_data_group",
+      carePlanDashboardPath: "/eoutcomeservice/branch/case_care_plans_dashboard",
+      recencyFirstSections: ["initialAssessment", "carePlan", "additionalDocuments"],
+      latestSelectionSections: ["initialAssessment", "carePlan", "additionalDocuments"],
+    },
+  },
+  background: {
+    keepAliveIntervalMs: 25000,
+    formCompletionFallbackDelayMs: 6000,
+    advanceDedupeWindowMs: 120000,
+  },
+  meta: {
+    updatedAt: null,
+    updatedBy: null,
+  },
+};
+
+const fallbackNormalizeRuntimeConfig = (value) => value || RUNTIME_CONFIG_DEFAULTS;
+const sharedNormalizeRuntimeConfig = typeof _g.normalizeRuntimeConfig === "function"
+  ? _g.normalizeRuntimeConfig
+  : fallbackNormalizeRuntimeConfig;
+const sharedApplyRuntimeConfig = typeof _g.applyRuntimeConfig === "function"
+  ? _g.applyRuntimeConfig
+  : fallbackNormalizeRuntimeConfig;
+const sharedGetRuntimeConfig = typeof _g.getRuntimeConfig === "function"
+  ? _g.getRuntimeConfig
+  : (() => RUNTIME_CONFIG_DEFAULTS);
 
 export const DATA_TIMESTAMP_KEY = STORAGE_KEYS.dataTimestamp || "caAcpDataTimestamp";
 
@@ -81,6 +135,30 @@ const WORKSPACE_TO_API_HOSTS = {
   "www.careassurance.uk": "care-assurance-api.onrender.com",
   "care-assurance-web.onrender.com": "care-assurance-api.onrender.com",
 };
+
+export function getRuntimeConfig() {
+  return sharedGetRuntimeConfig();
+}
+
+export function applyRuntimeConfig(config) {
+  return sharedApplyRuntimeConfig(config);
+}
+
+export async function setRuntimeConfigStorage(config) {
+  const normalized = sharedNormalizeRuntimeConfig(config);
+  const applied = applyRuntimeConfig(normalized);
+  await setStorage({ [STORAGE_KEYS.runtimeConfig]: applied });
+  return applied;
+}
+
+export function getCareAssuranceUrls() {
+  const configured = getRuntimeConfig()?.careAssurance?.knownHosts;
+  return Array.isArray(configured) && configured.length > 0 ? configured : CARE_ASSURANCE_URLS;
+}
+
+export function getDefaultServiceDataGroupId() {
+  return String(getRuntimeConfig()?.popup?.defaultServiceDataGroupId || DEFAULT_SERVICE_DATA_GROUP_ID).trim() || DEFAULT_SERVICE_DATA_GROUP_ID;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STORAGE HELPERS
@@ -311,18 +389,25 @@ export function normalizeCareAssuranceOriginHost(url) {
 
 export function resolveCareAssuranceApiOrigin(origin) {
   const host = normalizeCareAssuranceOriginHost(origin);
+  const configuredHostMap = getRuntimeConfig()?.careAssurance?.workspaceToApiHosts;
+  const hostMap = configuredHostMap && typeof configuredHostMap === "object"
+    ? configuredHostMap
+    : WORKSPACE_TO_API_HOSTS;
   if (!host) return "care-assurance-api.onrender.com";
   if (host === "localhost:3000") return "localhost:5000";
   if (host === "127.0.0.1:3000") return "127.0.0.1:5000";
   if (host.endsWith("-web.onrender.com")) {
     return host.replace(/-web\.onrender\.com$/i, "-api.onrender.com");
   }
-  return WORKSPACE_TO_API_HOSTS[host] || host;
+  return hostMap[host] || host;
 }
 
 export function buildCareAssuranceTabPatterns(origin) {
   const raw = String(origin || "").trim();
-  if (!raw) return ["https://careassurance.uk/*", "https://www.careassurance.uk/*"];
+  const defaultOrigin = String(getRuntimeConfig()?.careAssurance?.defaultOriginHost || CARE_ASSURANCE_URLS[0] || "careassurance.uk").trim();
+  if (!raw) {
+    return buildCareAssuranceTabPatterns(defaultOrigin);
+  }
   // If it already has a scheme, use it directly
   if (raw.startsWith("http://") || raw.startsWith("https://")) {
     try { const u = new URL(raw); return [`${u.protocol}//${u.host}/*`]; } catch { /* fall through */ }
@@ -339,7 +424,7 @@ export function buildCareAssuranceTabPatterns(origin) {
 
 export function isLikelyCareAssuranceUrl(url) {
   if (!url) return false;
-  return CARE_ASSURANCE_URLS.some(u => {
+  return getCareAssuranceUrls().some(u => {
     try {
       const target = new URL(url);
       const baseHost = u.replace(/^(https?:\/\/)?/, "").replace(/\/.*$/, "").toLowerCase();

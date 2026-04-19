@@ -53,8 +53,6 @@ export function cacheDomElements() {
     "search-section", "service-user-search", "service-user-list", "service-user-sort",
     "service-user-count", "selected-user-section", "selected-user-info",
     "load-care-plan-btn", "load-risk-btn",
-    // Recent
-    "recent-section", "recent-list",
     // Upload
     "upload-social-work-input", "upload-social-work-files",
     "upload-initial-assessment-input", "upload-initial-assessment-files",
@@ -485,8 +483,6 @@ export function updateConnectionUI(connected, user = null) {
   if (dom.connectBtn) {
     dom.connectBtn.textContent = connected ? "Refresh Workspace" : "Sync CareAssurance Session";
   }
-
-  if (dom.recentSection) dom.recentSection.hidden = !connected;
 
   const isAdmin = connected && (user?.role?.toLowerCase() === "admin" || state.connectedWorkspaceUser?.role?.toLowerCase() === "admin");
   state.isAdmin = isAdmin;
@@ -1187,7 +1183,7 @@ export function renderPageCompanion(context) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DISPLAY FILE LIST / RECENT / ANALYSIS
+// DISPLAY FILE LIST / ANALYSIS
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function displayFileList() {
@@ -1220,30 +1216,6 @@ export function displayFileList() {
       if (dom.analyzeDocuments) dom.analyzeDocuments.disabled = state.selectedFilesList.length === 0;
     });
   });
-}
-
-export function displayRecentItems(data) {
-  if (!dom.recentList) return;
-  const items = [...(data.carePlans || []), ...(data.riskAssessments || [])]
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-    .slice(0, 5);
-
-  if (items.length === 0) {
-    dom.recentList.innerHTML = '<div class="empty-state">No recent items</div>';
-    return;
-  }
-
-  dom.recentList.innerHTML = items
-    .map(
-      (item) => `
-    <div class="recent-item" data-id="${item.id}" data-type="${item.type}">
-      <span class="recent-icon">${item.type === "carePlan" ? "\ud83d\udcdd" : "\ud83d\udee1\ufe0f"}</span>
-      <span class="recent-name">${escapeHtml(item.name)}</span>
-      <span class="recent-type">${item.type === "carePlan" ? "Care Plan" : "Risk"}</span>
-    </div>
-  `
-    )
-    .join("");
 }
 
 export function displayAnalysisResults(results) {

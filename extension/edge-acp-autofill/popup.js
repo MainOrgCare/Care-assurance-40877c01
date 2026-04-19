@@ -277,8 +277,6 @@ const openCarePlanningWorkspaceButton = document.getElementById("open-care-plann
 const openRiskWorkspaceButton = document.getElementById("open-risk-workspace");
 const openPlanEnhancerWorkspaceButton = document.getElementById("open-plan-enhancer-workspace");
 const openAdminWorkspaceButton = document.getElementById("open-admin-workspace");
-const recentSection = document.getElementById("recent-section");
-const recentList = document.getElementById("recent-list");
 const searchSection = document.getElementById("search-section");
 const serviceUserSearch = document.getElementById("service-user-search");
 const serviceUserList = document.getElementById("service-user-list");
@@ -1020,7 +1018,6 @@ function updateConnectionUI(connected, user = null) {
     connectBtn.textContent = connected ? "Refresh Workspace" : "Sync CareAssurance Session";
   }
   
-  if (recentSection) recentSection.hidden = !connected;
   if (searchSection) searchSection.hidden = !connected;
 
   // Toggle admin class on body for CSS-gated admin-only elements
@@ -1088,17 +1085,6 @@ async function connectToCareAssurance() {
           renderAutofillUserDropdown();
         } catch (e) {
           console.warn("Failed to fetch service users:", e);
-        }
-        
-        // Fetch recent items
-        try {
-          const recentRes = await apiProxy('/api/extension/recent');
-          if (recentRes.ok) {
-            const data = recentRes.data;
-            displayRecentItems(data);
-          }
-        } catch (e) {
-          console.warn("Failed to fetch recent items:", e);
         }
         
         break;
@@ -1496,52 +1482,6 @@ loadRiskBtn?.addEventListener("click", async () => {
     setButtonLoading(loadRiskBtn, false);
   }
 });
-
-function displayRecentItems(data) {
-  if (!recentList) return;
-  
-  const items = [...(data.carePlans || []), ...(data.riskAssessments || [])]
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-    .slice(0, 5);
-  
-  if (items.length === 0) {
-    recentList.innerHTML = '<div class="empty-state">No recent items</div>';
-    return;
-  }
-  
-  recentList.innerHTML = items.map(item => `
-    <div class="recent-item" data-id="${item.id}" data-type="${item.type}">
-      <span class="recent-icon">${item.type === "carePlan" ? "📝" : "🛡️"}</span>
-      <span class="recent-name">${item.name}</span>
-      <span class="recent-type">${item.type === "carePlan" ? "Care Plan" : "Risk"}</span>
-    </div>
-  `).join("");
-  
-  document.querySelectorAll(".recent-item").forEach(item => {
-    item.addEventListener("click", () => loadRecentItem(item.dataset.id, item.dataset.type));
-  });
-}
-
-async function loadRecentItem(id, type) {
-  try {
-    const endpoint = type === "carePlan" 
-      ? `/api/extension/care-plan/${id}`
-      : `/api/extension/risk-assessment/${id}`;
-    
-    const res = await apiProxy(endpoint);
-    if (!res.ok) throw new Error(res.error || "Failed to load");
-    
-    const payload = res.data;
-    await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
-    
-    showSuccess("Data loaded!");
-    switchTab("autofill");
-    refreshPayloadStatus();
-    
-  } catch (error) {
-    showError(error.message);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UPLOAD TAB (Keep existing logic but simplified)

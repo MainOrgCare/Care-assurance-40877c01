@@ -79,6 +79,7 @@
   /* Typography */
   --font-sans: "Manrope", "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --font-heading: "Manrope", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-readable: "Verdana", "Trebuchet MS", "Segoe UI", "Arial", sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   
   /* Border radius */
@@ -1516,6 +1517,70 @@ html.high-contrast .border-border,
 html.high-contrast .workspace-header,
 html.high-contrast .workspace-footer {
   border-color: var(--color-border) !important;
+}
+
+html.dyslexia-friendly,
+body.dyslexia-friendly {
+  --font-sans: var(--font-readable);
+  --font-heading: var(--font-readable);
+  --surface-bg-gradient: linear-gradient(180deg, var(--color-background) 0%, var(--color-background) 100%);
+  --surface-grid: none;
+  --surface-orb-a: none;
+  --surface-orb-b: none;
+  --surface-orb-c: none;
+}
+
+html.dyslexia-friendly.font-small {
+  font-size: 15px;
+}
+
+html.dyslexia-friendly.font-medium {
+  font-size: 17px;
+}
+
+html.dyslexia-friendly.font-large {
+  font-size: 19px;
+}
+
+html.dyslexia-friendly body,
+body.dyslexia-friendly {
+  font-family: var(--font-readable);
+  font-feature-settings: "kern" 1, "liga" 0, "calt" 0;
+  letter-spacing: 0.012em;
+  word-spacing: 0.08em;
+  line-height: 1.8;
+}
+
+html.dyslexia-friendly :where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-readable);
+  letter-spacing: 0.01em !important;
+  line-height: 1.35;
+}
+
+html.dyslexia-friendly :where(p, li, dt, dd, blockquote, label, legend, button, input, textarea, select, th, td, a, small, span) {
+  font-family: var(--font-readable);
+  letter-spacing: 0.012em !important;
+  word-spacing: 0.08em;
+}
+
+html.dyslexia-friendly :where(p, li, dt, dd, blockquote, label, legend, button, input, textarea, select, th, td, a) {
+  line-height: 1.8;
+  text-align: start;
+}
+
+html.dyslexia-friendly :where(.uppercase) {
+  text-transform: none !important;
+  letter-spacing: 0.04em !important;
+}
+
+html.dyslexia-friendly :where(a) {
+  text-decoration-thickness: 2px;
+}
+
+html.dyslexia-friendly :where(code, pre, kbd, samp) {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+  word-spacing: 0;
 }
 
 /* Theme transition effects - simplified */

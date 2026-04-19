@@ -25,6 +25,7 @@ import {
   BarChart,
   Settings,
   ShieldCheck,
+  Download,
   Calculator,
   FlaskConical,
   Terminal,
@@ -74,6 +75,7 @@ const CARE_WORKER_ROUTES: CommandRoute[] = [
 
 const ADMIN_ROUTES: CommandRoute[] = [
   { label: "Administrator Controls", icon: ShieldCheck, path: "/shadow-admin-portal", keywords: ["admin", "platform", "controls", "management"] },
+  { label: "Extension Manager", icon: Download, path: "/admin/extension-manager", keywords: ["extension", "edge", "autofill", "install", "update"] },
   { label: "Features & Benefits", icon: Calculator, path: "/roi-calculator", keywords: ["roi", "cost", "savings", "features"] },
   { label: "Testing Features", icon: FlaskConical, path: "/testing-features", keywords: ["test", "debug", "experiment"] },
   { label: "System Logs", icon: Terminal, path: "/system-logs", keywords: ["logs", "events", "activity", "audit trail"] },
@@ -127,6 +129,8 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
     setReduceMotion,
     highContrast,
     setHighContrast,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
   } = useSettings();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
@@ -177,6 +181,11 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
     setHighContrast(!highContrast);
     onOpenChange(false);
   }, [highContrast, setHighContrast, onOpenChange]);
+
+  const toggleDyslexiaFriendly = useCallback(() => {
+    setDyslexiaFriendly(!dyslexiaFriendly);
+    onOpenChange(false);
+  }, [dyslexiaFriendly, setDyslexiaFriendly, onOpenChange]);
 
   const handleLogout = useCallback(() => {
     onOpenChange(false);
@@ -336,6 +345,15 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
             <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>{highContrast ? "Disable High Contrast" : "Enable High Contrast"}</span>
             <CommandShortcut>{highContrast ? "On" : "Off"}</CommandShortcut>
+          </CommandItem>
+
+          <CommandItem
+            value={`dyslexia accessibility readability spacing font ${dyslexiaFriendly ? "disable" : "enable"}`}
+            onSelect={toggleDyslexiaFriendly}
+          >
+            <Type className="mr-2 h-4 w-4 text-muted-foreground" />
+            <span>{dyslexiaFriendly ? "Disable Dyslexia-Friendly Text" : "Enable Dyslexia-Friendly Text"}</span>
+            <CommandShortcut>{dyslexiaFriendly ? "On" : "Off"}</CommandShortcut>
           </CommandItem>
 
         </CommandGroup>

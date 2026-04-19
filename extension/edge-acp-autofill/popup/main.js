@@ -8,10 +8,12 @@ import {
   DATA_TIMESTAMP_KEY,
   MESSAGE_TYPES,
   FORM_WORKFLOW_DESCRIPTORS,
-  CARE_ASSURANCE_URLS,
   state,
   getCareAssuranceUrl,
   setCareAssuranceUrl,
+  getCareAssuranceUrls,
+  getRuntimeConfig,
+  applyRuntimeConfig,
   loadStorage,
   setStorage,
   setStorageWithTimestamp,
@@ -29,6 +31,7 @@ import {
 
 import {
   apiProxy,
+  fetchExtensionRuntimeConfig,
   findConnectedWorkspaceTab,
   sendMessageToPageCompanion,
 } from "./api.js";
@@ -59,7 +62,6 @@ import {
   renderPageCompanion,
   renderAutofillSessionSummary,
   renderCaseContextStrip,
-  displayRecentItems,
   displayAnalysisResults,
   updateSelectionCount,
   updateTabBadges,
@@ -85,7 +87,25 @@ const POPUP_INITIAL_STORAGE_KEYS = [
   STORAGE_KEYS.lastAutofillUser,
   STORAGE_KEYS.payload,
   STORAGE_KEYS.appTheme,
+  STORAGE_KEYS.runtimeConfig,
 ];
+
+const getPopupAutoCollectConfig = () => getRuntimeConfig()?.popup?.autoCollect || {};
+
+const getMobizioDocumentServiceId = () =>
+  String(getPopupAutoCollectConfig().documentServiceId || "1000801").trim() || "1000801";
+
+const getMobizioDocumentListPath = () =>
+  String(getPopupAutoCollectConfig().documentListPath || "/case_document_list").trim() || "/case_document_list";
+
+const getMobizioInitialAssessmentServiceDataGroupId = () =>
+  String(getPopupAutoCollectConfig().initialAssessmentServiceDataGroupId || "1014998").trim() || "1014998";
+
+const getMobizioInitialAssessmentPath = () =>
+  String(getPopupAutoCollectConfig().initialAssessmentPath || "/case_data_group").trim() || "/case_data_group";
+
+const getMobizioCarePlanDashboardPath = () =>
+  String(getPopupAutoCollectConfig().carePlanDashboardPath || "/eoutcomeservice/branch/case_care_plans_dashboard").trim() || "/eoutcomeservice/branch/case_care_plans_dashboard";
 
 const normalizePopupAppTheme = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -379,12 +399,6 @@ const URL_UPLOAD_EXTENSION_BY_MIME = {
 };
 const SUPPORTED_UPLOAD_EXTENSIONS = ["pdf", "doc", "docx", "txt", "csv"];
 
-const MOBIZIO_DOCUMENT_SERVICE_ID = "1000801";
-const MOBIZIO_DOCUMENT_LIST_PATH = "/case_document_list";
-const MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID = "1014998";
-const MOBIZIO_INITIAL_ASSESSMENT_PATH = "/case_data_group";
-const MOBIZIO_CARE_PLAN_DASHBOARD_PATH = "/eoutcomeservice/branch/case_care_plans_dashboard";
-
 const SECTION_AUTO_COLLECT_RULES = {
   socialWork: {
     sectionLabel: "Social Work",
@@ -420,9 +434,6 @@ const SECTION_AUTO_COLLECT_RULES = {
     single: false,
   },
 };
-
-const AUTO_COLLECT_RECENCY_FIRST_SECTIONS = new Set(["initialAssessment", "carePlan", "additionalDocuments"]);
-const AUTO_COLLECT_DEFAULT_LATEST_SELECTION_SECTIONS = new Set(["initialAssessment", "carePlan", "additionalDocuments"]);
 
 const UPLOAD_SECTION_CONFIG = [
   {
@@ -810,6 +821,8 @@ const createAutoCollectInfoSnapshot = (overrides = {}) => ({
   note: "",
   error: "",
   failedDetails: [],
+  selectedDocuments: [],
+  failedDocuments: [],
   ...overrides,
 });
 
@@ -832,6 +845,132 @@ const describeAttemptedDownloadPath = (candidate) => {
   } catch {
     return value;
   }
+};
+
+const getAutoCollectDocumentLabel = (documentEntry, fallbackIndex = 1) => {
+  const label = String(documentEntry?.fileName || documentEntry?.name || "").trim();
+  return label || `Document ${fallbackIndex}`;
+};
+
+const buildAutoCollectDownloadFailure = (documentEntry, result, fallbackMessage) => {
+  const label = getAutoCollectDocumentLabel(documentEntry);
+  const attemptedPaths = Array.isArray(result?.attempted)
+    ? result.attempted
+        .map((candidate) => describeAttemptedDownloadPath(candidate))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+
+  if (attemptedPaths.length > 0) {
+    return {
+      label,
+      detail: `${label}: ${attemptedPaths.join(" | ")}`,
+      document: documentEntry,
+    };
+  }
+
+  if (result?.error) {
+    return {
+      label,
+      detail: `${label}: ${String(result.error)}`,
+      document: documentEntry,
+    };
+  }
+
+  return {
+    label,
+    detail: `${label}: ${fallbackMessage}`,
+    document: documentEntry,
+  };
+};
+
+const createMobizioCollectionTabExecutor = (collectionTabId) => async (func, args = [], options = {}) => {
+  try {
+    return await executeScriptInTab(collectionTabId, func, args, options);
+  } catch (error) {
+    let latestTab = null;
+    try {
+      latestTab = await chrome.tabs.get(collectionTabId);
+    } catch {
+      // Ignore lookup failure; the tab may have been closed.
+    }
+
+    const latestHost = getTabHostName(latestTab);
+    if (latestHost && !isMobizioHostName(latestHost)) {
+      throw new Error(
+        "Mobizio redirected this tab outside clece.mobizio.com. Sign in to Mobizio in the browser, then retry auto-collect."
+      );
+    }
+
+    const details = error instanceof Error ? error.message : String(error || "Unknown script execution error.");
+    throw new Error(`Could not run auto-collect script on the Mobizio page. ${details}`);
+  }
+};
+
+const runAutoCollectDownloadLoop = async ({
+  documents,
+  executeInCollectionTab,
+  progressVerb = "Downloading",
+  baseDownloadedCount = 0,
+}) => {
+  const safeDocuments = Array.isArray(documents) ? documents.filter(Boolean) : [];
+  const downloadedFiles = [];
+  const failedDocuments = [];
+  const failedDetails = [];
+
+  for (let index = 0; index < safeDocuments.length; index += 1) {
+    const selectedDocument = safeDocuments[index];
+    const label = getAutoCollectDocumentLabel(selectedDocument, index + 1);
+    const progressMessage = `${progressVerb} ${index + 1} of ${safeDocuments.length}: ${label}`;
+
+    updateUploadSyncStatus(progressMessage);
+    updateAutoCollectInfoSnapshot({
+      note: progressMessage,
+    });
+
+    const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument], { world: "MAIN" });
+    if (!result?.ok || !result?.file?.base64Data) {
+      const failure = buildAutoCollectDownloadFailure(
+        selectedDocument,
+        result,
+        "no downloadable file URL resolved."
+      );
+      failedDocuments.push(failure.document);
+      failedDetails.push(failure.detail);
+      updateAutoCollectInfoSnapshot({
+        downloadedCount: baseDownloadedCount + downloadedFiles.length,
+        failedCount: failedDocuments.length,
+        failedDetails: [...failedDetails],
+        failedDocuments: [...failedDocuments],
+      });
+      continue;
+    }
+
+    try {
+      downloadedFiles.push(fileFromDownloadedPayload(result.file));
+    } catch {
+      const failure = buildAutoCollectDownloadFailure(
+        selectedDocument,
+        null,
+        "downloaded payload could not be converted to a file."
+      );
+      failedDocuments.push(failure.document);
+      failedDetails.push(failure.detail);
+    }
+
+    updateAutoCollectInfoSnapshot({
+      downloadedCount: baseDownloadedCount + downloadedFiles.length,
+      failedCount: failedDocuments.length,
+      failedDetails: [...failedDetails],
+      failedDocuments: [...failedDocuments],
+    });
+  }
+
+  return {
+    downloadedFiles,
+    failedDocuments,
+    failedDetails,
+  };
 };
 
 const setAutoCollectActionButton = (button, config = {}) => {
@@ -911,6 +1050,10 @@ const getAutoCollectInfoActions = (snapshot) => {
   const hasSourceUrl = Boolean(sourceUrl);
   const stagedCount = flattenUploadBuckets().length;
   const downloadedCount = Number(snapshot?.downloadedCount || 0);
+  const failedDocuments = Array.isArray(snapshot?.failedDocuments) ? snapshot.failedDocuments.filter(Boolean) : [];
+  const retryFailedConfig = failedDocuments.length > 0 && hasSourceUrl
+    ? { label: "Retry Failed Downloads", action: "retry-failed" }
+    : null;
   const hasAnalysisReady =
     Number(state.currentAnalysisResults?.recommendedAssessments?.length || 0) > 0 &&
     Boolean(dom.selectionSection) &&
@@ -937,9 +1080,9 @@ const getAutoCollectInfoActions = (snapshot) => {
 
   if (status === "error" || status === "cancelled") {
     return {
-      primary: snapshot?.sectionKey
-        ? { label: "Retry Auto-Download", action: "retry" }
-        : { hidden: true },
+      primary:
+        retryFailedConfig ||
+        (snapshot?.sectionKey ? { label: "Retry Auto-Download", action: "retry" } : { hidden: true }),
       secondary: hasSourceUrl
         ? { label: "Open Source", action: "open-source" }
         : { hidden: true },
@@ -947,13 +1090,25 @@ const getAutoCollectInfoActions = (snapshot) => {
   }
 
   if ((status === "success" || status === "partial") && downloadedCount > 0) {
-    const primary = hasAnalysisReady
-      ? { label: "Review Autofill", action: "open-autofill" }
-      : stagedCount > 0
-      ? { label: "Analyze Staged Files", action: "analyze" }
-      : { hidden: true };
+    const primary =
+      retryFailedConfig ||
+      (hasAnalysisReady
+        ? { label: "Review Autofill", action: "open-autofill" }
+        : stagedCount > 0
+        ? { label: "Analyze Staged Files", action: "analyze" }
+        : { hidden: true });
 
-    const secondary = state.isConnected && stagedCount > 0
+    const secondary = retryFailedConfig
+      ? state.isConnected && stagedCount > 0
+        ? { label: "Send to Upload", action: "send-upload" }
+        : hasAnalysisReady
+        ? { label: "Review Autofill", action: "open-autofill" }
+        : stagedCount > 0
+        ? { label: "Analyze Staged Files", action: "analyze" }
+        : hasSourceUrl
+        ? { label: "Open Source", action: "open-source" }
+        : { label: "Open Autofill", action: "open-autofill" }
+      : state.isConnected && stagedCount > 0
       ? { label: "Send to Upload", action: "send-upload" }
       : hasSourceUrl
       ? { label: "Open Source", action: "open-source" }
@@ -963,9 +1118,9 @@ const getAutoCollectInfoActions = (snapshot) => {
   }
 
   return {
-    primary: snapshot?.sectionKey
-      ? { label: "Retry Auto-Download", action: "retry" }
-      : { hidden: true },
+    primary:
+      retryFailedConfig ||
+      (snapshot?.sectionKey ? { label: "Retry Auto-Download", action: "retry" } : { hidden: true }),
     secondary: hasSourceUrl
       ? { label: "Open Source", action: "open-source" }
       : { hidden: true },
@@ -1136,6 +1291,164 @@ const buildAutoCollectReportText = () => {
   }
 
   return lines.join("\n");
+};
+
+const retryFailedAutoCollectDownloads = async () => {
+  if (autoCollectInFlight) {
+    showInfo("Auto-collect is already running. Please wait for it to complete.");
+    return false;
+  }
+
+  if (isUploadWorkflowBusy()) {
+    showInfo("Please wait for the current upload operation to finish.");
+    return false;
+  }
+
+  const snapshot = autoCollectInfoSnapshot || createAutoCollectInfoSnapshot();
+  const sectionKey = String(snapshot.sectionKey || "").trim();
+  const sourceUrl = String(snapshot.sourceUrl || "").trim();
+  const selectedDocuments = Array.isArray(snapshot.selectedDocuments) ? snapshot.selectedDocuments.filter(Boolean) : [];
+  const failedDocuments = Array.isArray(snapshot.failedDocuments) ? snapshot.failedDocuments.filter(Boolean) : [];
+  const existingDownloadedCount = Number(snapshot.downloadedCount || 0);
+
+  if (!sectionKey) {
+    showInfo("No previous auto-download section is available to retry.");
+    return false;
+  }
+
+  if (!sourceUrl) {
+    showInfo("No Mobizio source page is attached to retry failed downloads.");
+    return false;
+  }
+
+  if (failedDocuments.length === 0) {
+    showInfo("There are no failed downloads to retry.");
+    return false;
+  }
+
+  autoCollectInFlight = true;
+  updateUploadActionInterlocks();
+
+  const startedAtMs = Date.now();
+  let retryTabId = null;
+
+  updateAutoCollectInfoSnapshot({
+    status: "running",
+    startedAtMs,
+    error: "",
+    note: `Retrying ${failedDocuments.length} failed document${failedDocuments.length === 1 ? "" : "s"}...`,
+    selectedDocuments: [...selectedDocuments],
+    failedDocuments: [...failedDocuments],
+    failedCount: 0,
+  });
+
+  try {
+    const retryTab = await chrome.tabs.create({
+      url: sourceUrl,
+      active: false,
+    });
+    retryTabId = retryTab?.id;
+
+    if (!Number.isFinite(retryTabId)) {
+      throw new Error("Could not reopen the Mobizio source page to retry failed downloads.");
+    }
+
+    const retryTabState = await waitForTabComplete(retryTabId);
+    const retryHost = getTabHostName(retryTabState);
+    if (retryHost && !isMobizioHostName(retryHost)) {
+      throw new Error(
+        "Mobizio redirected this tab outside clece.mobizio.com. Sign in to Mobizio in the browser, then retry auto-collect."
+      );
+    }
+
+    const executeInCollectionTab = createMobizioCollectionTabExecutor(retryTabId);
+    const retryPass = await runAutoCollectDownloadLoop({
+      documents: failedDocuments,
+      executeInCollectionTab,
+      progressVerb: "Retrying failed download",
+      baseDownloadedCount: existingDownloadedCount,
+    });
+
+    if (retryPass.downloadedFiles.length > 0) {
+      applyUploadFiles(sectionKey, retryPass.downloadedFiles);
+    }
+
+    const totalDownloadedCount = existingDownloadedCount + retryPass.downloadedFiles.length;
+    const stagedCount = flattenUploadBuckets().length;
+
+    if (retryPass.failedDocuments.length > 0) {
+      const recoveredCount = retryPass.downloadedFiles.length;
+      updateUploadSyncStatus(
+        `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. ${retryPass.failedDocuments.length} document${
+          retryPass.failedDocuments.length === 1 ? " remains" : "s remain"
+        } in the failed queue.`,
+        "warning"
+      );
+      finalizeAutoCollectInfoSnapshot({
+        status: "partial",
+        downloadedCount: totalDownloadedCount,
+        failedCount: retryPass.failedDocuments.length,
+        failedDetails: retryPass.failedDetails,
+        failedDocuments: retryPass.failedDocuments,
+        selectedDocuments: [...selectedDocuments],
+        note:
+          recoveredCount > 0
+            ? `Recovered ${recoveredCount} failed document${recoveredCount === 1 ? "" : "s"}; ${retryPass.failedDocuments.length} still need manual review.`
+            : `Retried ${failedDocuments.length} failed document${failedDocuments.length === 1 ? "" : "s"}; none were recovered yet.`,
+        error: "",
+      });
+      showInfo(
+        recoveredCount > 0
+          ? `Recovered ${recoveredCount} document${recoveredCount === 1 ? "" : "s"}; ${retryPass.failedDocuments.length} still failed.`
+          : `Retried ${failedDocuments.length} document${failedDocuments.length === 1 ? "" : "s"}, but they still failed to download.`
+      );
+      return recoveredCount > 0;
+    }
+
+    updateUploadSyncStatus(
+      `Staged ${stagedCount} file${stagedCount === 1 ? "" : "s"}. Retry recovered all previously failed documents.`,
+      "success"
+    );
+    finalizeAutoCollectInfoSnapshot({
+      status: "success",
+      downloadedCount: totalDownloadedCount,
+      failedCount: 0,
+      failedDetails: [],
+      failedDocuments: [],
+      selectedDocuments: [...selectedDocuments],
+      note: `Recovered all ${failedDocuments.length} previously failed document${failedDocuments.length === 1 ? "" : "s"}.`,
+      error: "",
+    });
+    showSuccess(
+      `Recovered ${retryPass.downloadedFiles.length} failed document${retryPass.downloadedFiles.length === 1 ? "" : "s"}.`
+    );
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not retry failed Mobizio downloads.";
+    updateUploadSyncStatus(message, "error");
+    finalizeAutoCollectInfoSnapshot({
+      status: existingDownloadedCount > 0 ? "partial" : "error",
+      downloadedCount: existingDownloadedCount,
+      failedCount: failedDocuments.length,
+      failedDetails: Array.isArray(snapshot.failedDetails) ? snapshot.failedDetails : [],
+      failedDocuments: [...failedDocuments],
+      selectedDocuments: [...selectedDocuments],
+      error: message,
+      note: "Retry attempt stopped before failed files could be recovered.",
+    });
+    showError(message);
+    return false;
+  } finally {
+    if (Number.isFinite(retryTabId)) {
+      try {
+        await chrome.tabs.remove(retryTabId);
+      } catch {
+        // Ignore tab close failures.
+      }
+    }
+    autoCollectInFlight = false;
+    updateUploadActionInterlocks();
+  }
 };
 
 const renderOverlayPinButton = (pinned) => {
@@ -1356,6 +1669,11 @@ const executeAutoCollectInfoAction = async (action) => {
       sectionKey,
       triggerButton instanceof HTMLButtonElement ? triggerButton : null
     );
+    return;
+  }
+
+  if (normalizedAction === "retry-failed") {
+    await retryFailedAutoCollectDownloads();
     return;
   }
 
@@ -1835,9 +2153,14 @@ const inferMobizioDocumentTimestamp = (documentEntry) => {
 };
 
 const isAutoCollectRecencyFirstSection = (sectionKey) => AUTO_COLLECT_RECENCY_FIRST_SECTIONS.has(sectionKey);
+const isAutoCollectRecencyFirstSection = (sectionKey) => {
+  const configuredSections = getPopupAutoCollectConfig().recencyFirstSections;
+  return Array.isArray(configuredSections) && configuredSections.includes(sectionKey);
+};
 
 const shouldDefaultLatestAutoCollectSelection = (sectionKey) =>
-  AUTO_COLLECT_DEFAULT_LATEST_SELECTION_SECTIONS.has(sectionKey);
+  Array.isArray(getPopupAutoCollectConfig().latestSelectionSections) &&
+  getPopupAutoCollectConfig().latestSelectionSections.includes(sectionKey);
 
 const scoreDocumentForSectionDetailed = (sectionKey, documentEntry, uploadedTimestamp = 0) => {
   const rule = getAutoCollectRule(sectionKey);
@@ -1990,15 +2313,15 @@ const rankDocumentsForSection = (sectionKey, documents) =>
     });
 
 const buildMobizioDocumentListUrl = (caseId) =>
-  `https://clece.mobizio.com${MOBIZIO_DOCUMENT_LIST_PATH}?caseId=${encodeURIComponent(caseId)}&serviceId=${encodeURIComponent(MOBIZIO_DOCUMENT_SERVICE_ID)}`;
+  `https://clece.mobizio.com${getMobizioDocumentListPath()}?caseId=${encodeURIComponent(caseId)}&serviceId=${encodeURIComponent(getMobizioDocumentServiceId())}`;
 
 const buildMobizioInitialAssessmentUrl = (caseId) =>
-  `https://clece.mobizio.com${MOBIZIO_INITIAL_ASSESSMENT_PATH}?caseId=${encodeURIComponent(caseId)}&serviceDataGroupId=${encodeURIComponent(
-    MOBIZIO_INITIAL_ASSESSMENT_SERVICE_DATA_GROUP_ID
+  `https://clece.mobizio.com${getMobizioInitialAssessmentPath()}?caseId=${encodeURIComponent(caseId)}&serviceDataGroupId=${encodeURIComponent(
+    getMobizioInitialAssessmentServiceDataGroupId()
   )}`;
 
 const buildMobizioCarePlanDashboardUrl = (caseId) =>
-  `https://clece.mobizio.com${MOBIZIO_CARE_PLAN_DASHBOARD_PATH}?caseId=${encodeURIComponent(caseId)}`;
+  `https://clece.mobizio.com${getMobizioCarePlanDashboardPath()}?caseId=${encodeURIComponent(caseId)}`;
 
 const createMobizioDocumentsSource = (caseId, label = "Documents") => ({
   kind: "documents",
@@ -4466,28 +4789,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       }
     }
 
-    const executeInCollectionTab = async (func, args = [], options = {}) => {
-      try {
-        return await executeScriptInTab(collectionTabId, func, args, options);
-      } catch (error) {
-        let latestTab = null;
-        try {
-          latestTab = await chrome.tabs.get(collectionTabId);
-        } catch {
-          // Ignore lookup failure; the tab may have been closed.
-        }
-
-        const latestHost = getTabHostName(latestTab);
-        if (latestHost && !isMobizioHostName(latestHost)) {
-          throw new Error(
-            "Mobizio redirected this tab outside clece.mobizio.com. Sign in to Mobizio in the browser, then retry auto-collect."
-          );
-        }
-
-        const details = error instanceof Error ? error.message : String(error || "Unknown script execution error.");
-        throw new Error(`Could not run auto-collect script on the Mobizio page. ${details}`);
-      }
-    };
+    const executeInCollectionTab = createMobizioCollectionTabExecutor(collectionTabId);
 
     const scrapeDocumentsWithRetry = async () => {
       let bestAttempt = null;
@@ -4536,7 +4838,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
       const discoveredUrl = await executeInCollectionTab(
         getMobizioDocumentsPageUrlInPage,
-        [caseId, MOBIZIO_DOCUMENT_SERVICE_ID],
+        [caseId, getMobizioDocumentServiceId()],
         { world: "MAIN" }
       );
 
@@ -4544,6 +4846,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       updateUploadSyncStatus("Switching to Mobizio Documents for downloadable records...");
       updateAutoCollectInfoSnapshot({
         fallbackUsed: true,
+        sourceUrl: fallbackDocumentsUrl,
         note: "Switched to case Documents source for downloadable records.",
       });
       await chrome.tabs.update(collectionTabId, { url: fallbackDocumentsUrl });
@@ -4684,63 +4987,25 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       );
     }
 
-    const downloadedFiles = [];
-    const failedDownloads = [];
-    const failedDetails = [];
-
     updateAutoCollectInfoSnapshot({
       selectedCount: selectedForDownload.length,
       dedupedSelectionCount,
+      selectedDocuments: [...selectedForDownload],
+      failedDocuments: [],
+      failedDetails: [],
       note: `Downloading ${selectedForDownload.length} selected document${selectedForDownload.length === 1 ? "" : "s"}...`,
     });
 
-    for (let index = 0; index < selectedForDownload.length; index += 1) {
-      const selectedDocument = selectedForDownload[index];
-      const label = selectedDocument.fileName || selectedDocument.name || `Document ${index + 1}`;
-      updateUploadSyncStatus(`Downloading ${index + 1} of ${selectedForDownload.length}: ${label}`);
-      updateAutoCollectInfoSnapshot({
-        note: `Downloading ${index + 1} of ${selectedForDownload.length}: ${label}`,
-      });
-
-      const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument], { world: "MAIN" });
-      if (!result?.ok || !result?.file?.base64Data) {
-        failedDownloads.push(label);
-        const attemptedPaths = Array.isArray(result?.attempted)
-          ? result.attempted
-              .map((candidate) => describeAttemptedDownloadPath(candidate))
-              .filter(Boolean)
-              .slice(0, 3)
-          : [];
-
-        if (attemptedPaths.length > 0) {
-          failedDetails.push(`${label}: ${attemptedPaths.join(" | ")}`);
-        } else if (result?.error) {
-          failedDetails.push(`${label}: ${String(result.error)}`);
-        } else {
-          failedDetails.push(`${label}: no downloadable file URL resolved.`);
-        }
-
-        updateAutoCollectInfoSnapshot({
-          downloadedCount: downloadedFiles.length,
-          failedCount: failedDownloads.length,
-          failedDetails: [...failedDetails],
-        });
-        continue;
-      }
-
-      try {
-        downloadedFiles.push(fileFromDownloadedPayload(result.file));
-      } catch {
-        failedDownloads.push(label);
-        failedDetails.push(`${label}: downloaded payload could not be converted to a file.`);
-      }
-
-      updateAutoCollectInfoSnapshot({
-        downloadedCount: downloadedFiles.length,
-        failedCount: failedDownloads.length,
-        failedDetails: [...failedDetails],
-      });
-    }
+    const downloadPass = await runAutoCollectDownloadLoop({
+      documents: selectedForDownload,
+      executeInCollectionTab,
+      progressVerb: "Downloading",
+    });
+    const downloadedFiles = downloadPass.downloadedFiles;
+    const failedDownloads = downloadPass.failedDocuments.map((entry, index) =>
+      getAutoCollectDocumentLabel(entry, index + 1)
+    );
+    const failedDetails = downloadPass.failedDetails;
 
     if (downloadedFiles.length === 0) {
       throw new Error("The selected documents could not be downloaded from Mobizio.");
@@ -4768,6 +5033,8 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         downloadedCount: downloadedFiles.length,
         failedCount: failedDownloads.length,
         failedDetails,
+        failedDocuments: downloadPass.failedDocuments,
+        selectedDocuments: [...selectedForDownload],
         scrapeAttempts,
         selectedCount: selectedForDownload.length,
         dedupedSelectionCount,
@@ -4791,6 +5058,8 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         downloadedCount: downloadedFiles.length,
         failedCount: 0,
         failedDetails: [],
+        failedDocuments: [],
+        selectedDocuments: [...selectedForDownload],
         scrapeAttempts,
         selectedCount: selectedForDownload.length,
         dedupedSelectionCount,
@@ -6042,9 +6311,9 @@ async function refreshSignatureStatus() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Fetch ancillary data (service users, recent items) after connection is
- * already confirmed.  Safe to call multiple times — never resets connection
- * state on failure, just logs a warning.
+ * Fetch ancillary data (service users) after connection is already
+ * confirmed. Safe to call multiple times — never resets connection state on
+ * failure, just logs a warning.
  */
 async function fetchConnectedData(user) {
   try {
@@ -6074,13 +6343,6 @@ async function fetchConnectedData(user) {
   } catch (e) {
     console.warn("[CA Extension] Failed to fetch service users:", e);
   }
-
-  try {
-    const recentRes = await apiProxy("/api/extension/recent");
-    if (recentRes.ok) displayRecentItems(recentRes.data);
-  } catch (e) {
-    console.warn("[CA Extension] Failed to fetch recent items:", e);
-  }
 }
 
 async function connectToCareAssurance() {
@@ -6101,7 +6363,9 @@ async function connectToCareAssurance() {
   let lastError = null;
   let connected = false;
 
-  for (const targetOrigin of [getCareAssuranceUrl(), ...CARE_ASSURANCE_URLS.filter((u) => u !== getCareAssuranceUrl())]) {
+  const knownHosts = getCareAssuranceUrls();
+
+  for (const targetOrigin of [getCareAssuranceUrl(), ...knownHosts.filter((u) => u !== getCareAssuranceUrl())]) {
     setCareAssuranceUrl(targetOrigin);
     if (dom.connectStatus) dom.connectStatus.innerHTML = `<span>Trying ${escapeHtml(targetOrigin)}...</span>`;
 
@@ -6117,12 +6381,23 @@ async function connectToCareAssurance() {
         await refreshWorkspaceContext(user);
         connected = true;
 
+        await fetchExtensionRuntimeConfig().catch((error) => {
+          console.warn("[CA Extension] Failed to refresh runtime config:", error);
+        });
+
         await fetchConnectedData(user);
         if (state.selectedFilesList.length > 0) {
           updateUploadPendingStatus();
         }
 
         break;
+      if (changes[STORAGE_KEYS.runtimeConfig]) {
+        try {
+          applyRuntimeConfig(changes[STORAGE_KEYS.runtimeConfig].newValue || null);
+          schedulePopupRefresh({ payload: true, workspace: true });
+        } catch (e) { console.warn("[CA Extension] runtime config handler error:", e); }
+      }
+
       } else if (statusRes.status === 401 || statusRes.error === "Not logged in") {
         await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
         lastError = "Found server but not logged in. Please log in to Care Assurance in your browser first.";
@@ -6219,25 +6494,6 @@ async function autoDetectIds() {
     console.error("Auto-detect error:", error);
     showError("Failed to detect IDs from page URL");
     return { detected: false };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LOAD RECENT ITEM
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function loadRecentItem(id, type) {
-  try {
-    const endpoint = type === "carePlan" ? `/api/extension/care-plan/${id}` : `/api/extension/risk-assessment/${id}`;
-    const res = await apiProxy(endpoint);
-    if (!res.ok) throw new Error(res.error || "Failed to load");
-
-    await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
-    showSuccess("Data loaded!");
-    switchTab("autofill");
-    schedulePopupRefresh({ payload: true, immediate: true });
-  } catch (error) {
-    showError(error.message);
   }
 }
 
@@ -6343,12 +6599,6 @@ function bindEvents() {
       switchTab("autofill");
       schedulePopupRefresh({ payload: true, immediate: true });
     } catch (error) { showError(error.message); } finally { setButtonLoading(dom.loadRiskBtn, false); }
-  });
-
-  // Recent items
-  dom.recentList?.addEventListener("click", (e) => {
-    const item = e.target.closest(".recent-item[data-id]");
-    if (item) loadRecentItem(item.dataset.id, item.dataset.type);
   });
 
   // Upload tab
@@ -7090,6 +7340,8 @@ function bindStorageListener() {
 
   const initialState = await loadStorage(POPUP_INITIAL_STORAGE_KEYS);
 
+  applyRuntimeConfig(initialState?.[STORAGE_KEYS.runtimeConfig] || null);
+
   applyPopupAppTheme(initialState?.[STORAGE_KEYS.appTheme]);
 
   renderOverlayPinButton(Boolean(initialState?.[STORAGE_KEYS.overlayPinned]));
@@ -7162,7 +7414,8 @@ function bindStorageListener() {
       console.log("[CA Extension] Quick check user:", JSON.stringify(user));
       updateConnectionUI(true, user);
       void refreshWorkspaceContext(user);
-      fetchConnectedData(user); // Fetch service users + recent items (no reconnect)
+      void fetchExtensionRuntimeConfig().catch(() => null);
+      fetchConnectedData(user); // Fetch service users without forcing reconnect
       if (state.selectedFilesList.length > 0) {
         updateUploadPendingStatus();
       }

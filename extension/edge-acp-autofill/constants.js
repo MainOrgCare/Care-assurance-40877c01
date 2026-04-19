@@ -22,6 +22,7 @@
     lastTab: "caAcpLastTab",
     lastAutofillUser: "caAcpLastAutofillUser",
     appTheme: "caAcpAppTheme",
+    runtimeConfig: "caAcpRuntimeConfig",
   };
 
   const FORM_CONFIGS = {
@@ -57,7 +58,209 @@
     getVerificationStatus: "CA_EXTENSION_GET_VERIFICATION_STATUS",
     storageGet: "CA_EXTENSION_STORAGE_GET",
     storageSet: "CA_EXTENSION_STORAGE_SET",
+    syncRuntimeConfig: "CA_EXTENSION_SYNC_RUNTIME_CONFIG",
   };
+
+  const RUNTIME_CONFIG_DEFAULTS = {
+    version: 1,
+    careAssurance: {
+      defaultOriginHost: "careassurance.uk",
+      knownHosts: [
+        "careassurance.uk",
+        "www.careassurance.uk",
+        "care-assurance.onrender.com",
+        "care-assurance-api.onrender.com",
+        "care-assurance-web.onrender.com",
+        "localhost:5000",
+        "localhost:3000",
+      ],
+      workspaceToApiHosts: {
+        "careassurance.uk": "care-assurance-api.onrender.com",
+        "www.careassurance.uk": "care-assurance-api.onrender.com",
+        "care-assurance-web.onrender.com": "care-assurance-api.onrender.com",
+      },
+    },
+    popup: {
+      defaultServiceDataGroupId: "1017650",
+      autoCollect: {
+        documentServiceId: "1000801",
+        documentListPath: "/case_document_list",
+        initialAssessmentServiceDataGroupId: "1014998",
+        initialAssessmentPath: "/case_data_group",
+        carePlanDashboardPath: "/eoutcomeservice/branch/case_care_plans_dashboard",
+        recencyFirstSections: ["initialAssessment", "carePlan", "additionalDocuments"],
+        latestSelectionSections: ["initialAssessment", "carePlan", "additionalDocuments"],
+      },
+    },
+    background: {
+      keepAliveIntervalMs: 25000,
+      formCompletionFallbackDelayMs: 6000,
+      advanceDedupeWindowMs: 120000,
+    },
+    meta: {
+      updatedAt: null,
+      updatedBy: null,
+    },
+  };
+
+  const cloneRuntimeConfig = (value) => JSON.parse(JSON.stringify(value));
+
+  const isPlainObject = (value) => Boolean(value && typeof value === "object" && !Array.isArray(value));
+
+  const normalizeTrimmedString = (value, fallback = "") => {
+    const normalized = String(value ?? "").trim();
+    return normalized || fallback;
+  };
+
+  const normalizeRelativePath = (value, fallback) => {
+    const normalized = normalizeTrimmedString(value, fallback);
+    if (!normalized) return fallback;
+    return normalized.startsWith("/") ? normalized : `/${normalized.replace(/^\/+/, "")}`;
+  };
+
+  const normalizePositiveInteger = (value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    const rounded = Math.round(parsed);
+    if (rounded < min) return fallback;
+    return Math.min(max, rounded);
+  };
+
+  const normalizeStringArray = (value, fallback, { lowerCase = false } = {}) => {
+    const source = Array.isArray(value) ? value : fallback;
+    const seen = new Set();
+    const normalized = [];
+
+    for (const entry of source) {
+      const nextValue = normalizeTrimmedString(entry);
+      if (!nextValue) continue;
+      const finalValue = lowerCase ? nextValue.toLowerCase() : nextValue;
+      const dedupeKey = finalValue.toLowerCase();
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      normalized.push(finalValue);
+    }
+
+    return normalized.length > 0 ? normalized : [...fallback];
+  };
+
+  const normalizeHostMap = (value, fallback) => {
+    if (!isPlainObject(value)) {
+      return { ...fallback };
+    }
+
+    const normalized = {};
+    for (const [rawKey, rawValue] of Object.entries(value)) {
+      const key = normalizeTrimmedString(rawKey).toLowerCase();
+      const nextValue = normalizeTrimmedString(rawValue).toLowerCase();
+      if (!key || !nextValue) continue;
+      normalized[key] = nextValue;
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : { ...fallback };
+  };
+
+  const normalizeRuntimeConfig = (candidate) => {
+    const raw = isPlainObject(candidate) ? candidate : {};
+    const rawCareAssurance = isPlainObject(raw.careAssurance) ? raw.careAssurance : {};
+    const rawPopup = isPlainObject(raw.popup) ? raw.popup : {};
+    const rawAutoCollect = isPlainObject(rawPopup.autoCollect) ? rawPopup.autoCollect : {};
+    const rawBackground = isPlainObject(raw.background) ? raw.background : {};
+    const rawMeta = isPlainObject(raw.meta) ? raw.meta : {};
+
+    const defaultOriginHost = normalizeTrimmedString(
+      rawCareAssurance.defaultOriginHost,
+      RUNTIME_CONFIG_DEFAULTS.careAssurance.defaultOriginHost,
+    ).toLowerCase();
+
+    const knownHosts = normalizeStringArray(
+      rawCareAssurance.knownHosts,
+      RUNTIME_CONFIG_DEFAULTS.careAssurance.knownHosts,
+      { lowerCase: true },
+    );
+
+    if (!knownHosts.includes(defaultOriginHost)) {
+      knownHosts.unshift(defaultOriginHost);
+    }
+
+    return {
+      version: normalizePositiveInteger(raw.version, RUNTIME_CONFIG_DEFAULTS.version, { min: 1, max: 99 }),
+      careAssurance: {
+        defaultOriginHost,
+        knownHosts,
+        workspaceToApiHosts: normalizeHostMap(
+          rawCareAssurance.workspaceToApiHosts,
+          RUNTIME_CONFIG_DEFAULTS.careAssurance.workspaceToApiHosts,
+        ),
+      },
+      popup: {
+        defaultServiceDataGroupId: normalizeTrimmedString(
+          rawPopup.defaultServiceDataGroupId,
+          RUNTIME_CONFIG_DEFAULTS.popup.defaultServiceDataGroupId,
+        ),
+        autoCollect: {
+          documentServiceId: normalizeTrimmedString(
+            rawAutoCollect.documentServiceId,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.documentServiceId,
+          ),
+          documentListPath: normalizeRelativePath(
+            rawAutoCollect.documentListPath,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.documentListPath,
+          ),
+          initialAssessmentServiceDataGroupId: normalizeTrimmedString(
+            rawAutoCollect.initialAssessmentServiceDataGroupId,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.initialAssessmentServiceDataGroupId,
+          ),
+          initialAssessmentPath: normalizeRelativePath(
+            rawAutoCollect.initialAssessmentPath,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.initialAssessmentPath,
+          ),
+          carePlanDashboardPath: normalizeRelativePath(
+            rawAutoCollect.carePlanDashboardPath,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.carePlanDashboardPath,
+          ),
+          recencyFirstSections: normalizeStringArray(
+            rawAutoCollect.recencyFirstSections,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.recencyFirstSections,
+          ),
+          latestSelectionSections: normalizeStringArray(
+            rawAutoCollect.latestSelectionSections,
+            RUNTIME_CONFIG_DEFAULTS.popup.autoCollect.latestSelectionSections,
+          ),
+        },
+      },
+      background: {
+        keepAliveIntervalMs: normalizePositiveInteger(
+          rawBackground.keepAliveIntervalMs,
+          RUNTIME_CONFIG_DEFAULTS.background.keepAliveIntervalMs,
+          { min: 5000, max: 300000 },
+        ),
+        formCompletionFallbackDelayMs: normalizePositiveInteger(
+          rawBackground.formCompletionFallbackDelayMs,
+          RUNTIME_CONFIG_DEFAULTS.background.formCompletionFallbackDelayMs,
+          { min: 1000, max: 60000 },
+        ),
+        advanceDedupeWindowMs: normalizePositiveInteger(
+          rawBackground.advanceDedupeWindowMs,
+          RUNTIME_CONFIG_DEFAULTS.background.advanceDedupeWindowMs,
+          { min: 10000, max: 600000 },
+        ),
+      },
+      meta: {
+        updatedAt: typeof rawMeta.updatedAt === "string" ? rawMeta.updatedAt : null,
+        updatedBy: typeof rawMeta.updatedBy === "string" ? rawMeta.updatedBy : null,
+      },
+    };
+  };
+
+  let runtimeConfigCache = cloneRuntimeConfig(RUNTIME_CONFIG_DEFAULTS);
+
+  const applyRuntimeConfig = (candidate) => {
+    runtimeConfigCache = normalizeRuntimeConfig(candidate);
+    return cloneRuntimeConfig(runtimeConfigCache);
+  };
+
+  const getRuntimeConfig = () => cloneRuntimeConfig(runtimeConfigCache);
 
   // Global debug flag — set to true during development, false for production
   const DEBUG = false;
@@ -425,6 +628,10 @@
     STORAGE_KEYS,
     FORM_CONFIGS,
     MESSAGE_TYPES,
+    RUNTIME_CONFIG_DEFAULTS,
+    normalizeRuntimeConfig,
+    applyRuntimeConfig,
+    getRuntimeConfig,
     VERIFICATION_HELPERS,
     SESSION_STORAGE_KEYS,
     STORAGE_HELPERS,

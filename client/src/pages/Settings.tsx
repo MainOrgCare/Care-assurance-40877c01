@@ -112,6 +112,8 @@ export default function Settings() {
     setReduceMotion,
     highContrast,
     setHighContrast,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
   } = useSettings();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -128,6 +130,7 @@ export default function Settings() {
   const [twoFactorDisableCode, setTwoFactorDisableCode] = useState("");
   const [exporting, setExporting] = useState(false);
   const workspaceProfile = compactMode ? "Compact" : "Comfortable";
+  const readingMode = dyslexiaFriendly ? "Dyslexia-friendly" : "Standard";
   const securityStatus = user?.isDemo ? "Demo access" : twoFactorEnabled ? "Protected + 2FA" : "Protected";
 
   useEffect(() => {
@@ -357,7 +360,7 @@ export default function Settings() {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/80">Workspace profile</p>
                 <p className="mt-2 text-lg font-semibold text-foreground">{theme.charAt(0).toUpperCase() + theme.slice(1)} theme</p>
-                <p className="mt-1 text-xs text-muted-foreground">Font size {fontSize} • {workspaceProfile} layout</p>
+                <p className="mt-1 text-xs text-muted-foreground">Font size {fontSize} • {workspaceProfile} layout • {readingMode} text</p>
               </div>
               <div className="h-10 w-10 rounded-xl border border-primary/15 bg-primary/10 flex items-center justify-center text-primary">
                 <SwatchBook className="h-4 w-4" />
@@ -457,6 +460,10 @@ export default function Settings() {
                   </motion.button>
                 );
               })}
+            </div>
+            <div className="flex items-start gap-2 rounded-lg border border-border/40 bg-muted/15 p-3 text-xs text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/70" />
+              <span>All theme palettes keep their colors, while high contrast and dyslexia-friendly text can be layered on top for readability.</span>
             </div>
           </section>
 
@@ -782,6 +789,18 @@ export default function Settings() {
               <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Accessibility</h3>
             </div>
             <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
+                <div>
+                  <Label htmlFor="dyslexia-friendly" className="cursor-pointer text-sm font-medium text-foreground">Dyslexia-Friendly Text</Label>
+                  <p className="text-xs text-muted-foreground/70">Use a calmer sans-serif stack, wider spacing, flatter backgrounds, and left-aligned copy across every theme.</p>
+                </div>
+                <Switch
+                  id="dyslexia-friendly"
+                  checked={dyslexiaFriendly}
+                  onCheckedChange={setDyslexiaFriendly}
+                  data-testid="switch-dyslexia-friendly"
+                />
+              </div>
               <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/15 p-3.5">
                 <div>
                   <Label htmlFor="reduced-motion" className="cursor-pointer text-sm font-medium text-foreground">Reduce Motion</Label>

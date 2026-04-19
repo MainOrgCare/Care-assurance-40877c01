@@ -3,6 +3,7 @@ const EMAR_MESSAGE_TYPE = "CA_SEND_TO_EMAR_EXTENSION";
 const EXTENSION_ACK_TYPE = "CA_EXTENSION_ACK";
 const STORE_PAYLOAD_TYPE = "CA_EXTENSION_STORE_PAYLOAD";
 const SYNC_THEME_TYPE = "CA_EXTENSION_SYNC_THEME";
+const SYNC_RUNTIME_CONFIG_TYPE = window.CA_EXTENSION_CONSTANTS?.MESSAGE_TYPES?.syncRuntimeConfig || "CA_EXTENSION_SYNC_RUNTIME_CONFIG";
 const API_PROXY_TYPE = "CA_API_PROXY_REQUEST";
 const SEND_TO_APP_TYPE = "CA_EXTENSION_SEND_TO_APP";
 const EXTENSION_STATUS_TYPE = "CA_EXTENSION_STATUS";
@@ -10,6 +11,8 @@ const EXTENSION_STATUS_REQUEST_TYPE = "CA_EXTENSION_REQUEST_STATUS";
 const REQUEST_ID_HEADER = "X-Request-ID";
 const EXTENSION_STORAGE_SET_TYPE = window.CA_EXTENSION_CONSTANTS?.MESSAGE_TYPES?.storageSet || "CA_EXTENSION_STORAGE_SET";
 const EXTENSION_APP_THEME_KEY = window.CA_EXTENSION_CONSTANTS?.STORAGE_KEYS?.appTheme || "caAcpAppTheme";
+const EXTENSION_RUNTIME_CONFIG_KEY = window.CA_EXTENSION_CONSTANTS?.STORAGE_KEYS?.runtimeConfig || "caAcpRuntimeConfig";
+const normalizeRuntimeConfig = window.CA_EXTENSION_CONSTANTS?.normalizeRuntimeConfig || ((value) => value);
 const SUPPORTED_APP_THEMES = new Set(["light", "sunrise", "dark", "midnight", "ocean", "aurora"]);
 
 let lastSyncedAppTheme = "";
@@ -336,15 +339,43 @@ window.addEventListener("message", (event) => {
   const isEmarMessage = event.data.type === EMAR_MESSAGE_TYPE;
   const isStorePayloadMessage = event.data.type === STORE_PAYLOAD_TYPE;
   const isThemeSyncMessage = event.data.type === SYNC_THEME_TYPE;
+  const isRuntimeConfigSyncMessage = event.data.type === SYNC_RUNTIME_CONFIG_TYPE;
   if (event.data.type === EXTENSION_STATUS_REQUEST_TYPE) {
     postExtensionStatus();
     return;
   }
-  if (!isAcpMessage && !isEmarMessage && !isStorePayloadMessage && !isThemeSyncMessage) return;
+  if (!isAcpMessage && !isEmarMessage && !isStorePayloadMessage && !isThemeSyncMessage && !isRuntimeConfigSyncMessage) return;
 
   if (isThemeSyncMessage) {
     const theme = normalizeAppThemeValue(event.data?.payload?.theme);
     syncThemePreferenceToExtension(theme);
+    return;
+  }
+
+  if (isRuntimeConfigSyncMessage) {
+    const requestId = event.data?.requestId;
+    const config = normalizeRuntimeConfig(event.data?.payload?.config || null);
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: EXTENSION_STORAGE_SET_TYPE,
+          payload: { items: { [EXTENSION_RUNTIME_CONFIG_KEY]: config } },
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            sendAck(requestId, false, chrome.runtime.lastError.message || "Could not sync runtime config.");
+            return;
+          }
+          if (!response?.ok) {
+            sendAck(requestId, false, response?.error || "Could not sync runtime config.");
+            return;
+          }
+          sendAck(requestId, true);
+        },
+      );
+    } catch (error) {
+      sendAck(requestId, false, error instanceof Error ? error.message : "Could not sync runtime config.");
+    }
     return;
   }
 

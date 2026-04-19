@@ -14,6 +14,7 @@ const THEME_CLASSES = [
 const THEME_TRANSITION_CLASS = "theme-transitioning";
 const REDUCE_MOTION_CLASS = "reduce-motion";
 const HIGH_CONTRAST_CLASS = "high-contrast";
+const DYSLEXIA_FRIENDLY_CLASS = "dyslexia-friendly";
 const APP_THEME_SYNC_MESSAGE = "CA_EXTENSION_SYNC_THEME";
 const DARK_THEMES: readonly AppTheme[] = ["dark", "midnight", "ocean", "aurora"];
 
@@ -103,6 +104,8 @@ interface SettingsContextType {
   setReduceMotion: (reduce: boolean) => void;
   highContrast: boolean;
   setHighContrast: (enabled: boolean) => void;
+  dyslexiaFriendly: boolean;
+  setDyslexiaFriendly: (enabled: boolean) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -160,6 +163,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const saved = getStorageItem("lewis-high-contrast") ?? getStorageItem("high-contrast");
     return saved === "true";
   });
+
+  const [dyslexiaFriendly, setDyslexiaFriendlyState] = useState(() => {
+    const saved = getStorageItem("lewis-dyslexia-friendly");
+    return saved === "true";
+  });
   
   const [autoExpandSections, setAutoExpandSectionsState] = useState(() => {
     const saved = getStorageItem("lewis-auto-expand");
@@ -204,6 +212,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setStorageItem("lewis-high-contrast", String(enabled));
   }, []);
 
+  const setDyslexiaFriendly = useCallback((enabled: boolean) => {
+    setDyslexiaFriendlyState(enabled);
+    setStorageItem("lewis-dyslexia-friendly", String(enabled));
+  }, []);
+
   useEffect(() => {
     applyThemeToDom(theme);
   }, [theme]);
@@ -244,6 +257,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     applyPreferenceClass(HIGH_CONTRAST_CLASS, highContrast);
   }, [highContrast]);
 
+  useEffect(() => {
+    applyPreferenceClass(DYSLEXIA_FRIENDLY_CLASS, dyslexiaFriendly);
+  }, [dyslexiaFriendly]);
+
   const contextValue = useMemo(() => ({
     theme,
     setTheme,
@@ -259,6 +276,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setReduceMotion,
     highContrast,
     setHighContrast,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
   }), [
     theme,
     setTheme,
@@ -274,6 +293,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setReduceMotion,
     highContrast,
     setHighContrast,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
   ]);
 
   return (

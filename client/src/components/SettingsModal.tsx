@@ -30,7 +30,9 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
     autoExpandSections,
     setAutoExpandSections,
     theme,
-    setTheme
+    setTheme,
+    dyslexiaFriendly,
+    setDyslexiaFriendly,
   } = useSettings();
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -143,6 +145,20 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
                 </Label>
               ))}
             </RadioGroup>
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              className="flex items-start justify-between rounded-xl bg-card border border-border shadow-sm p-4"
+            >
+              <div className="pr-4">
+                <Label htmlFor="modal-dyslexia-friendly" className="cursor-pointer text-sm font-semibold text-foreground">Dyslexia-Friendly Text</Label>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Applies a calmer readable font stack, wider spacing, and cleaner backgrounds across every theme.</p>
+              </div>
+              <Switch
+                id="modal-dyslexia-friendly"
+                checked={dyslexiaFriendly}
+                onCheckedChange={setDyslexiaFriendly}
+              />
+            </motion.div>
           </div>
 
           <Separator className="bg-border/60" />

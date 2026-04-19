@@ -28,6 +28,7 @@ import {
   Calculator,
   FlaskConical,
   Terminal,
+  Download,
   FileSpreadsheet,
 } from "lucide-react";
 
@@ -146,6 +147,7 @@ export const PAGE_META_RULES: PageMetaRule[] = [
   {
     match: (p) =>
       p.startsWith("/shadow-admin-portal") ||
+      p.startsWith("/admin/extension-manager") ||
       p.startsWith("/system-logs") ||
       p.startsWith("/testing-features") ||
       p.startsWith("/billing-tool") ||
@@ -209,6 +211,9 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
   } else if (location === "/shadow-admin-portal") {
     crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
     crumbs.push({ label: "Administrator Controls" });
+  } else if (location === "/admin/extension-manager") {
+    crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
+    crumbs.push({ label: "Extension Manager" });
   } else if (location === "/system-logs") {
     crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
     crumbs.push({ label: "System Logs" });
@@ -296,6 +301,7 @@ export const NAV_GROUPS: NavGroup[] = [
     adminOnly: true,
     children: [
       { href: "/shadow-admin-portal", label: "Administrator Controls", icon: ShieldCheck },
+      { href: "/admin/extension-manager", label: "Extension Manager", icon: Download },
       { href: "/roi-calculator", label: "Features & Benefits", icon: Calculator },
       { href: "/testing-features", label: "Testing Features", icon: FlaskConical },
       { href: "/system-logs", label: "System Logs", icon: Terminal },
