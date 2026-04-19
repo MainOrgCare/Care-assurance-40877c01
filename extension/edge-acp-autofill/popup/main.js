@@ -8,6 +8,7 @@ import {
   DATA_TIMESTAMP_KEY,
   MESSAGE_TYPES,
   FORM_WORKFLOW_DESCRIPTORS,
+  debugLog,
   state,
   getCareAssuranceUrl,
   setCareAssuranceUrl,
@@ -80,6 +81,13 @@ const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
 const POPUP_GDPR_CLEANUP_MS = 30 * 60 * 1000;
 const POPUP_IDLE_TASK_DEFAULT_TIMEOUT_MS = 2000;
 const POPUP_IDLE_TASK_DEFAULT_FALLBACK_MS = 250;
+const PAGE_COMPANION_EXTENSION_STATUS_REQUEST_TYPE = "CA_EXTENSION_REQUEST_STATUS";
+const PAGE_COMPANION_RECEIVER_MISSING_PATTERNS = [
+  /receiving end does not exist/i,
+  /could not establish connection/i,
+  /message port closed/i,
+  /no extension status response from the page/i,
+];
 const POPUP_SUPPORTED_APP_THEMES = new Set(["light", "sunrise", "dark", "midnight", "ocean", "aurora"]);
 const POPUP_DARK_APP_THEMES = new Set(["dark", "midnight", "ocean", "aurora"]);
 const POPUP_INITIAL_STORAGE_KEYS = [
@@ -108,6 +116,15 @@ const getMobizioInitialAssessmentPath = () =>
 
 const getMobizioCarePlanDashboardPath = () =>
   String(getPopupAutoCollectConfig().carePlanDashboardPath || "/eoutcomeservice/branch/case_care_plans_dashboard").trim() || "/eoutcomeservice/branch/case_care_plans_dashboard";
+
+const buildExtensionPackageDownloadSuccessMessage = ({ filename, format = "zip", rebuilt = false, refreshed = false }) => {
+  const actionPrefix = rebuilt ? "Rebuilt and started downloading" : "Downloading";
+  const installHint = format === "crx"
+    ? "Open Edge Extensions and install the CRX if direct installs are allowed in your environment."
+    : "Extract the ZIP, then use Load unpacked in Edge Extensions.";
+  const refreshHint = refreshed ? " Extension status refreshed." : "";
+  return `${actionPrefix} ${filename}. ${installHint}${refreshHint}`;
+};
 
 const normalizePopupAppTheme = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -6057,6 +6074,31 @@ async function refreshPageCompanion(overrides = {}) {
 
       const current = queueState && typeof queueState.currentIndex === "number" ? queueState.currentIndex + 1 : null;
       const total = queueState && typeof queueState.total === "number" ? queueState.total : null;
+      const extensionStatus = await requestCareAssurancePageExtensionStatus(tab.id);
+      const statusPayload = extensionStatus.ok ? extensionStatus.data : null;
+      const refreshRequired = Boolean(statusPayload?.refreshRequired) || isMissingPageCompanionReceiver(extensionStatus.error);
+
+      if (refreshRequired) {
+        const context = {
+          tabId: tab.id,
+          routeLabel: descriptor.label,
+          payloadLabel: "Extension reattach needed",
+          reviewLabel: "Refresh required",
+          stateClass: "is-warning",
+          eyebrow: "Live Mobizio workflow",
+          title: "Refresh this page to restore the extension",
+          detail: String(
+            statusPayload?.error ||
+              "This Mobizio workflow page is still using an older extension bridge. Refresh the page so the current extension can attach again."
+          ).trim(),
+          canOverlay: false,
+          canVerify: false,
+          requiresPageRefresh: true,
+        };
+        renderPageCompanion(context);
+        return context;
+      }
+
       const reviewLabel =
         descriptor.key === "initialAssessment"
           ? verificationFields.length > 0
@@ -6087,6 +6129,31 @@ async function refreshPageCompanion(overrides = {}) {
 
     if (isLikelyCareAssuranceUrl(tab.url)) {
       const route = describeWorkspaceRoute(url.pathname);
+      const extensionStatus = await requestCareAssurancePageExtensionStatus(tab.id);
+      const statusPayload = extensionStatus.ok ? extensionStatus.data : null;
+      const refreshRequired = Boolean(statusPayload?.refreshRequired) || isMissingPageCompanionReceiver(extensionStatus.error);
+
+      if (refreshRequired) {
+        const context = {
+          tabId: tab.id,
+          routeLabel: route.label,
+          payloadLabel: "Extension reattach needed",
+          reviewLabel: "Refresh required",
+          stateClass: "is-warning",
+          eyebrow: "CareAssurance workspace",
+          title: "Refresh this page to restore the extension",
+          detail: String(
+            statusPayload?.error ||
+              "This CareAssurance tab is still using an older extension bridge. Refresh the page so the current extension can attach again."
+          ).trim(),
+          canOverlay: false,
+          canVerify: false,
+          requiresPageRefresh: true,
+        };
+        renderPageCompanion(context);
+        return context;
+      }
+
       const context = {
         tabId: tab.id,
         routeLabel: route.label,
@@ -6128,6 +6195,36 @@ async function focusPageCompanion() {
     return;
   }
   await chrome.tabs.update(context.tabId, { active: true });
+}
+
+function isMissingPageCompanionReceiver(error) {
+  const message = String(error || "").trim();
+  return PAGE_COMPANION_RECEIVER_MISSING_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+async function requestCareAssurancePageExtensionStatus(tabId) {
+  if (!tabId) {
+    return { ok: false, error: "No active CareAssurance tab is attached." };
+  }
+
+  return await new Promise((resolve) => {
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: PAGE_COMPANION_EXTENSION_STATUS_REQUEST_TYPE },
+      (response) => {
+        const runtimeError = chrome.runtime.lastError?.message || "";
+        if (runtimeError) {
+          resolve({ ok: false, error: runtimeError });
+          return;
+        }
+        if (!response || typeof response !== "object") {
+          resolve({ ok: false, error: "No extension status response from the page." });
+          return;
+        }
+        resolve({ ok: true, data: response });
+      }
+    );
+  });
 }
 
 async function navigateToVerificationField(direction) {
@@ -6407,7 +6504,7 @@ async function connectToCareAssurance() {
       if (statusRes.ok) {
         const payload = statusRes.data || statusRes;
         const user = payload.user || null;
-        console.log("[CA Extension] connectToCareAssurance user:", JSON.stringify(user), "payload keys:", Object.keys(payload));
+        debugLog("[CA Extension] connectToCareAssurance user:", JSON.stringify(user), "payload keys:", Object.keys(payload));
         await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
         setExtensionStatusSnapshot(payload);
         updateConnectionUI(true, user);
@@ -6452,7 +6549,7 @@ async function connectToCareAssurance() {
     if (!state.isConnected) {
       updateConnectionUI(false);
     } else {
-      console.log("[CA Extension] connectToCareAssurance failed but already connected — keeping state");
+      debugLog("[CA Extension] connectToCareAssurance failed but already connected — keeping state");
     }
 
     if (dom.connectionBadge) {
@@ -6572,9 +6669,16 @@ function bindEvents() {
         const result = await downloadExtensionPackage();
         try {
           await refreshExtensionHealthStatus();
-          showSuccess(`Downloading ${result.filename}. Extension status refreshed.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            refreshed: true,
+          }));
         } catch {
-          showSuccess(`Downloading ${result.filename}.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+          }));
         }
         return;
       }
@@ -6582,9 +6686,16 @@ function bindEvents() {
         const result = await downloadExtensionPackage({ format: "crx" });
         try {
           await refreshExtensionHealthStatus();
-          showSuccess(`Downloading ${result.filename}. Extension status refreshed.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            refreshed: true,
+          }));
         } catch {
-          showSuccess(`Downloading ${result.filename}.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+          }));
         }
         return;
       }
@@ -6592,9 +6703,18 @@ function bindEvents() {
         const result = await downloadExtensionPackage({ fresh: true, format: "crx" });
         try {
           await refreshExtensionHealthStatus();
-          showSuccess(`Rebuilt and started downloading ${result.filename}. Extension status refreshed.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            rebuilt: true,
+            refreshed: true,
+          }));
         } catch {
-          showSuccess(`Rebuilt and started downloading ${result.filename}.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            rebuilt: true,
+          }));
         }
         return;
       }
@@ -6602,9 +6722,18 @@ function bindEvents() {
         const result = await downloadExtensionPackage({ fresh: true });
         try {
           await refreshExtensionHealthStatus();
-          showSuccess(`Rebuilt and started downloading ${result.filename}. Extension status refreshed.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            rebuilt: true,
+            refreshed: true,
+          }));
         } catch {
-          showSuccess(`Rebuilt and started downloading ${result.filename}.`);
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            rebuilt: true,
+          }));
         }
         return;
       }
@@ -7192,7 +7321,19 @@ function bindEvents() {
 
   // Page companion
   dom.refreshPageCompanion?.addEventListener("click", async () => {
-    try { await refreshPageCompanion(); showSuccess("Page companion refreshed"); }
+    try {
+      const context = state.pageCompanionContext || (await refreshPageCompanion());
+      if (context?.requiresPageRefresh && context?.tabId) {
+        await chrome.tabs.reload(context.tabId);
+        showSuccess("Refreshing the attached CareAssurance page.");
+        window.setTimeout(() => {
+          refreshPageCompanion().catch(() => {});
+        }, 1200);
+        return;
+      }
+      await refreshPageCompanion();
+      showSuccess("Page companion refreshed");
+    }
     catch { showError("Could not refresh the current page companion."); }
   });
 
@@ -7529,13 +7670,13 @@ function bindStorageListener() {
 
   try {
     const res = await apiProxy("/api/extension/status");
-    console.log("[CA Extension] Quick check response:", JSON.stringify(res)?.substring(0, 400));
+    debugLog("[CA Extension] Quick check response:", JSON.stringify(res)?.substring(0, 400));
     // The proxy wraps server JSON as { ok, data: <serverJson> }
     // The server returns { connected, user: { id, username, role }, ... }
     const payload = res.data || res;
     const user = payload.user || null;
     if (res.ok && user) {
-      console.log("[CA Extension] Quick check user:", JSON.stringify(user));
+      debugLog("[CA Extension] Quick check user:", JSON.stringify(user));
       setExtensionStatusSnapshot(payload);
       updateConnectionUI(true, user);
       void refreshWorkspaceContext(user);

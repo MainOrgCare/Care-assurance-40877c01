@@ -2100,6 +2100,10 @@ const isInitialAssessmentPage = () => {
  * Listen for messages from popup to fill form
  */
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "CA_EXTENSION_REQUEST_STATUS") {
+    sendResponse({ detected: true, refreshRequired: false, workflow: "initialAssessment" });
+    return false;
+  }
   if (message?.type === "CA_FILL_INITIAL_ASSESSMENT") {
     const { data, metadata, dryRun, interactionMode } = message.payload || {};
     DRY_RUN = Boolean(dryRun);

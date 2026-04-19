@@ -178,6 +178,10 @@ function stripPrefix(value: string): string {
   return value.replace(/^EXACTLY ONE OF:\s*/i, "").trim();
 }
 
+function findCaseInsensitiveAllowedValue(value: string, allowedValues: string[]): string | undefined {
+  return allowedValues.find((allowedValue) => allowedValue.toLowerCase() === value.toLowerCase());
+}
+
 /**
  * Validate a single categorical field value
  */
@@ -199,11 +203,18 @@ function validateFieldValue(
 
   // Handle array fields (like fire risk reasons)
   if (Array.isArray(value)) {
+    const caseOnlyMismatches: string[] = [];
     const invalidItems = value.filter(item => {
-      const cleaned = stripPrefix(item);
-      return !allowedValues.includes(cleaned);
+      const cleaned = stripPrefix(String(item));
+      if (allowedValues.includes(cleaned)) return false;
+      const caseInsensitiveMatch = findCaseInsensitiveAllowedValue(cleaned, allowedValues);
+      if (caseInsensitiveMatch) {
+        caseOnlyMismatches.push(cleaned);
+        return false;
+      }
+      return true;
     });
-    
+
     if (invalidItems.length > 0) {
       return {
         valid: false,
@@ -216,6 +227,18 @@ function validateFieldValue(
         }
       };
     }
+
+    if (caseOnlyMismatches.length > 0) {
+      return {
+        valid: true,
+        warning: {
+          section,
+          field,
+          message: `Field value needs case normalization: "${caseOnlyMismatches.join(", ")}"`
+        }
+      };
+    }
+
     return { valid: true };
   }
 
@@ -245,19 +268,15 @@ function validateFieldValue(
   // Check if value matches allowed values (case-sensitive)
   if (!allowedValues.includes(cleaned)) {
     // Try case-insensitive match as warning
-    const caseInsensitiveMatch = allowedValues.find(
-      av => av.toLowerCase() === cleaned.toLowerCase()
-    );
+    const caseInsensitiveMatch = findCaseInsensitiveAllowedValue(cleaned, allowedValues);
     
     if (caseInsensitiveMatch) {
       return {
-        valid: false,
-        error: {
+        valid: true,
+        warning: {
           section,
           field,
-          value: cleaned,
-          expected: allowedValues,
-          severity: "warning"
+          message: `Field value needs case normalization: "${cleaned}"`
         }
       };
     }
@@ -351,6 +370,39 @@ export function autoCorrectPlanEnhancerResponse(response: any): {
   const corrections: string[] = [];
   const corrected = JSON.parse(JSON.stringify(response)); // Deep clone
 
+  const autoCorrectValue = (sectionName: string, fieldName: string, fieldValue: any, allowedValues: string[]) => {
+    if (typeof fieldValue === "string") {
+      const cleaned = stripPrefix(fieldValue);
+      if (allowedValues.includes(cleaned)) return fieldValue;
+      const caseInsensitiveMatch = findCaseInsensitiveAllowedValue(cleaned, allowedValues);
+      if (caseInsensitiveMatch) {
+        corrections.push(
+          `${sectionName}.${fieldName}: "${cleaned}" → "${caseInsensitiveMatch}" (case correction)`
+        );
+        return caseInsensitiveMatch;
+      }
+      return fieldValue;
+    }
+
+    if (Array.isArray(fieldValue)) {
+      return fieldValue.map((item, index) => {
+        if (typeof item !== "string") return item;
+        const cleaned = stripPrefix(item);
+        if (allowedValues.includes(cleaned)) return item;
+        const caseInsensitiveMatch = findCaseInsensitiveAllowedValue(cleaned, allowedValues);
+        if (caseInsensitiveMatch) {
+          corrections.push(
+            `${sectionName}.${fieldName}[${index}]: "${cleaned}" → "${caseInsensitiveMatch}" (case correction)`
+          );
+          return caseInsensitiveMatch;
+        }
+        return item;
+      });
+    }
+
+    return fieldValue;
+  };
+
   // Auto-correct case mismatches
   for (const [sectionName, schema] of Object.entries(FIELD_SCHEMAS)) {
     const sectionData = corrected[sectionName];
@@ -358,25 +410,26 @@ export function autoCorrectPlanEnhancerResponse(response: any): {
 
     for (const [fieldName, allowedValues] of Object.entries(schema)) {
       const fieldValue = sectionData[fieldName];
-      
-      if (fieldValue && typeof fieldValue === "string") {
-        const cleaned = stripPrefix(fieldValue);
-        const exactMatch = allowedValues.includes(cleaned);
-        
-        if (!exactMatch) {
-          // Try case-insensitive match
-          const caseInsensitiveMatch = allowedValues.find(
-            av => av.toLowerCase() === cleaned.toLowerCase()
-          );
-          
-          if (caseInsensitiveMatch) {
-            sectionData[fieldName] = caseInsensitiveMatch;
-            corrections.push(
-              `${sectionName}.${fieldName}: "${cleaned}" → "${caseInsensitiveMatch}" (case correction)`
-            );
-          }
+
+      if (sectionName === "riskSection4Equipment" && fieldName === "equipmentFitForPurpose") {
+        if (Array.isArray(sectionData.equipment)) {
+          sectionData.equipment = sectionData.equipment.map((equipment: any, index: number) => {
+            if (!equipment || typeof equipment !== "object") return equipment;
+            return {
+              ...equipment,
+              fitForPurpose: autoCorrectValue(
+                `${sectionName}.equipment[${index}]`,
+                "fitForPurpose",
+                equipment.fitForPurpose,
+                allowedValues,
+              ),
+            };
+          });
         }
+        continue;
       }
+
+      sectionData[fieldName] = autoCorrectValue(sectionName, fieldName, fieldValue, allowedValues);
     }
   }
 

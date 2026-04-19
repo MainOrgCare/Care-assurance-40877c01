@@ -17,6 +17,13 @@ import { cn } from "@/lib/utils";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { processVaultResponse } from "@/lib/pii-vault";
 import { consumeJsonSseStream } from "@/lib/sse";
+import {
+  countPlaceholders,
+  extractServiceUserNameFromDocumentContent,
+  filterVisibleCarePlanSections,
+  hasActiveCarePlanFilters,
+  summarizeCarePlanSections,
+} from "./carePlanningUtils";
 
 /**
  * Highlight template placeholders like [Name], [NHS Number] etc.
@@ -52,14 +59,6 @@ function highlightPlaceholders(text: string): React.ReactNode {
     parts.push(text.slice(lastIndex));
   }
   return parts.length > 0 ? parts : text;
-}
-
-/**
- * Count placeholders in text
- */
-function countPlaceholders(text: string): number {
-  const matches = text.match(/\[([^\]]+)\]/g);
-  return matches ? matches.length : 0;
 }
 
 interface CarePlanSection {
@@ -256,65 +255,12 @@ export default function CarePlanning() {
       .map((section, index) => ({ section, index }))
       .filter(({ section }) => section != null);
   }, [carePlan?.sections, carePlan?.content, isSimplifiedFormat]);
-  const sectionStats = useMemo(() => {
-    const summary = {
-      total: sectionsWithIndex.length,
-      high: 0,
-      medium: 0,
-      low: 0,
-      steps: 0,
-      risks: 0,
-      equipment: 0,
-    };
-
-    sectionsWithIndex.forEach(({ section }) => {
-      if (section.priority === "high") summary.high += 1;
-      if (section.priority === "medium") summary.medium += 1;
-      if (section.priority === "low") summary.low += 1;
-      summary.steps += Array.isArray(section.steps) ? section.steps.length : 0;
-      summary.risks += Array.isArray(section.risks) ? section.risks.length : 0;
-      summary.equipment += Array.isArray(section.equipment) ? section.equipment.length : 0;
-    });
-
-    return summary;
-  }, [sectionsWithIndex]);
-  const visibleSections = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    let filtered = sectionsWithIndex.filter(({ section }) => {
-      if (priorityFilter !== "all" && section.priority !== priorityFilter) {
-        return false;
-      }
-      if (!query) return true;
-
-      const haystack = [
-        section.title,
-        section.content,
-        ...(section.steps || []),
-        ...(section.risks || []),
-        ...(section.equipment || []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(query);
-    });
-
-    if (sortMode === "priority") {
-      const priorityRank = { high: 0, medium: 1, low: 2 } as const;
-      filtered = [...filtered].sort((a, b) => {
-        const rankA = priorityRank[a.section.priority] ?? 3;
-        const rankB = priorityRank[b.section.priority] ?? 3;
-        if (rankA !== rankB) return rankA - rankB;
-        return a.index - b.index;
-      });
-    }
-
-    return filtered;
-  }, [sectionsWithIndex, priorityFilter, searchQuery, sortMode]);
-  const hasActiveFilters =
-    searchQuery.trim().length > 0 ||
-    priorityFilter !== "all" ||
-    sortMode !== "default";
+  const sectionStats = useMemo(() => summarizeCarePlanSections(sectionsWithIndex), [sectionsWithIndex]);
+  const visibleSections = useMemo(
+    () => filterVisibleCarePlanSections(sectionsWithIndex, priorityFilter, searchQuery, sortMode),
+    [sectionsWithIndex, priorityFilter, searchQuery, sortMode],
+  );
+  const hasActiveFilters = hasActiveCarePlanFilters(searchQuery, priorityFilter, sortMode);
   const parseErrors = useMemo(
     () => sourceDocuments
       .filter((document) => Boolean(document.parseError))
@@ -331,8 +277,7 @@ export default function CarePlanning() {
     try {
       // Extract service user name from documents
       const documentContent = getAllDocumentContent();
-      const nameMatch = documentContent.match(/(?:Name|Known as|Full name)[:;]?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i);
-      const serviceUserName = nameMatch?.[1] || "Unknown";
+      const serviceUserName = extractServiceUserNameFromDocumentContent(documentContent) || "Unknown";
 
       const response = await fetch("/api/service-user/call-types", {
         method: "POST",

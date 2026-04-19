@@ -83,36 +83,31 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Auto-Download diagnostics now include high-confidence suggestion counts and deduped selection counts in both the live panel and copied report output.
 - The extension popup now uses a fully overhauled visual design system (cards, tabs, controls, dialogs, and responsive spacing) while preserving existing workflows.
 
-## Edge Add-ons Publishing (Unlisted Release Process)
+## Extension Packaging & Rollout
 
-1. Update `manifest.json` version if you are preparing a release build
-2. Build package: `npm run package:extension` (outputs `dist/edge-acp-autofill.zip`)
-3. Publish via API: `npm run publish:edge-addon`
-4. Privacy policy URL for listing: `https://careassurance.uk/privacy`
+1. Update `manifest.json` if you are preparing a release build.
+1. Build the package with `npm run package:extension`.
 
-For local installation from the packaged artifact, extract `dist/edge-acp-autofill.zip` to a folder first, then choose that extracted folder in Edge via **Extensions** → **Load unpacked**.
+   - This always produces `dist/edge-acp-autofill.zip`.
+   - It also produces `dist/edge-acp-autofill.crx` when Chromium is available in the build environment.
 
-### Local Publishing Commands
+1. Install or distribute the artifact using one of the supported flows below.
 
-- Standard publish: `npm run publish:edge-addon`
-- Preflight validation only (no API calls): `python3 script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip --dry-run`
-- Strict mode (fail if another submission is currently being processed): `python3 script/edge-addons-publish.py --zip dist/edge-acp-autofill.zip --fail-on-in-progress`
+### Local Browser Install
 
-The publish script validates `manifest.json` before upload, including required fields, icon references, and Edge description length limits.
+- ZIP workflow: extract `dist/edge-acp-autofill.zip`, then open Edge **Extensions** and choose **Load unpacked** for the extracted folder.
+- CRX workflow: if `dist/edge-acp-autofill.crx` is available and your environment allows direct CRX installs, use that artifact for browser installation.
 
-### GitHub Actions Auto-Publish
+### CareAssurance Admin Rollout
 
-This repository includes `.github/workflows/edge-addons-publish.yml` for automated publication on pushes to `main` (when extension or publish files change), and manual workflow dispatch.
+- Popup workflow: open the extension popup, connect to CareAssurance, and use the **Extension Status** card to download or rebuild/download the latest ZIP or CRX.
+- Admin page workflow: use `/admin/extension-manager` for the full rollout workspace, including rebuild/download actions and runtime-config review.
+- Server behavior: the popup/admin rebuild actions call the same packaging script as `npm run package:extension`, so ZIP/CRX artifacts stay aligned across local and server-assisted rollout paths.
 
-Required GitHub secrets:
+### Notes
 
-- `EDGE_ADDONS_PRODUCT_ID`
-- `EDGE_ADDONS_CLIENT_ID`
-- `EDGE_ADDONS_API_KEY`
-
-Certification notes can be provided through the manual workflow input or by setting `EDGE_ADDONS_NOTES`.
-
-Note: If icon validation fails in store review, ensure PNG icon files exist and are referenced correctly in `manifest.json`.
+- A CRX artifact is optional. If Chromium is not installed on the machine doing the build, the ZIP flow still succeeds and remains the default install path.
+- The repository currently documents packaging plus authenticated rebuild/download workflows. If Edge Add-ons store publication is reintroduced later, add those scripts and workflows explicitly before documenting them here again.
 
 ### Custom payload example
 

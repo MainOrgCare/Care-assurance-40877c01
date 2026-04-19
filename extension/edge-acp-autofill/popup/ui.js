@@ -7,6 +7,7 @@ import {
   STORAGE_KEYS,
   DATA_TIMESTAMP_KEY,
   FORM_WORKFLOW_DESCRIPTORS,
+  debugLog,
   state,
   escapeHtml,
   escapeAttr,
@@ -490,7 +491,16 @@ export function updateConnectionUI(connected, user = null) {
   const isAdmin = connected && (user?.role?.toLowerCase() === "admin" || state.connectedWorkspaceUser?.role?.toLowerCase() === "admin");
   state.isAdmin = isAdmin;
   document.body.classList.toggle("is-admin", isAdmin);
-  console.log("[CA Extension] updateConnectionUI — connected:", connected, "user:", JSON.stringify(user), "role:", user?.role || state.connectedWorkspaceUser?.role, "isAdmin:", isAdmin);
+  debugLog(
+    "[CA Extension] updateConnectionUI — connected:",
+    connected,
+    "user:",
+    JSON.stringify(user),
+    "role:",
+    user?.role || state.connectedWorkspaceUser?.role,
+    "isAdmin:",
+    isAdmin
+  );
 
   // search-section uses .admin-only CSS — also gate via hidden for non-admin connected users
   if (dom.searchSection) dom.searchSection.hidden = !connected || !isAdmin;
@@ -571,6 +581,9 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
     state.isConnected &&
     (packageStale || !packageAvailable)
   );
+  const zipInstallHint = "Extract the ZIP and use Load unpacked in Edge Extensions.";
+  const crxInstallHint = "Use the CRX for direct install when browser policy allows it.";
+  const rolloutInstallHint = `${zipInstallHint} ${crxInstallHint}`;
 
   let stateClass = "is-idle";
   let title = "Connect to inspect extension status";
@@ -592,12 +605,12 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
     detail = state.isAdmin
       ? packageAvailable && !packageStale
         ? canAdminDownloadCrx
-          ? `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP or CRX now, or open Extension Manager if you need a rebuild.`
+          ? `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP or CRX now, or open Extension Manager if you need a rebuild. ${rolloutInstallHint}`
           : canAdminRebuildCrx
-            ? `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP now, or rebuild and download the CRX if you need the browser-installable package.`
+            ? `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP now, or rebuild and download the CRX if you need the browser-installable package. ${rolloutInstallHint}`
           : `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP now or open Extension Manager if you need a rebuild.`
-        : `Installed ${installedVersion} is behind server ${serverVersion}. Rebuild and download the newest ZIP now, or open Extension Manager for the full rollout workflow.`
-      : `Installed ${installedVersion} is behind server ${serverVersion}. Ask an admin to publish the latest extension package.`;
+        : `Installed ${installedVersion} is behind server ${serverVersion}. Rebuild and download the newest ZIP now, or open Extension Manager for the full rollout workflow. ${zipInstallHint}`
+      : `Installed ${installedVersion} is behind server ${serverVersion}. Ask an admin to rebuild or download the latest ZIP or CRX in Extension Manager.`;
   } else if (packageAvailable && packageStale) {
     stateClass = "is-warning";
     title = "Package rebuild recommended";
@@ -620,17 +633,17 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
     detail = runtimeConfig?.updatedAt
       ? canAdminDownloadPackage
         ? canAdminDownloadCrx
-          ? `Installed ${installedVersion} matches the server version. Download the latest ZIP or CRX now or review rollout settings; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
+          ? `Installed ${installedVersion} matches the server version. Download the latest ZIP or CRX now or review rollout settings; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}. ${rolloutInstallHint}`
           : canAdminRebuildCrx
-            ? `Installed ${installedVersion} matches the server version. Download the latest ZIP now or rebuild and download the CRX; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
-          : `Installed ${installedVersion} matches the server version. Download the latest ZIP now or review rollout settings; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
+            ? `Installed ${installedVersion} matches the server version. Download the latest ZIP now or rebuild and download the CRX; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}. ${rolloutInstallHint}`
+          : `Installed ${installedVersion} matches the server version. Download the latest ZIP now or review rollout settings; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}. ${zipInstallHint}`
         : `Installed ${installedVersion} matches the server version and runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
       : canAdminDownloadPackage
         ? canAdminDownloadCrx
-          ? `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP or CRX when you need to roll it out again.`
+          ? `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP or CRX when you need to roll it out again. ${rolloutInstallHint}`
           : canAdminRebuildCrx
-            ? `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP now or rebuild and download the CRX when you need it.`
-          : `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP when you need to roll it out again.`
+            ? `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP now or rebuild and download the CRX when you need it. ${rolloutInstallHint}`
+          : `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP when you need to roll it out again. ${zipInstallHint}`
         : `Installed ${installedVersion} matches the server version and the default runtime config is active.`;
   }
 
@@ -1179,7 +1192,15 @@ export function renderAutofillSessionSummary(snapshot = {}) {
   let detail = "Analyze documents or load a payload to prepare the next run.";
   let primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-primary btn-sm" };
 
-  if (lastError) {
+  if (pageContext?.requiresPageRefresh) {
+    stateClass = "is-warning";
+    title = "Reload required";
+    detail = String(
+      pageContext.detail ||
+        "Refresh the attached workflow page so the current extension can reattach before continuing."
+    );
+    primaryAction = { label: "Reload Page", action: "refresh", className: "btn btn-primary btn-sm" };
+  } else if (lastError) {
     stateClass = "is-warning";
     title = "Needs attention";
     detail = String(lastError);
@@ -1226,7 +1247,9 @@ export function renderAutofillSessionSummary(snapshot = {}) {
     { label: "Queue", value: total ? `${queueStep} of ${total}` : "Not running" },
     {
       label: "Review",
-      value: verificationFields.length > 0
+      value: pageContext?.requiresPageRefresh
+        ? pageContext.reviewLabel || "Refresh required"
+        : verificationFields.length > 0
         ? `${verificationFields.length} flagged`
         : pageContext?.reviewLabel || "No checks",
     },
@@ -1432,6 +1455,7 @@ export function renderPageCompanion(context) {
   const routeEl = dom.pageCompanionRoute;
   const payloadEl = dom.pageCompanionPayload;
   const reviewEl = dom.pageCompanionReview;
+  const refreshBtn = dom.refreshPageCompanion;
   const overlayBtn = dom.openPageOverlay;
   const verifyBtn = dom.jumpPageVerification;
 
@@ -1447,6 +1471,8 @@ export function renderPageCompanion(context) {
   if (routeEl) routeEl.textContent = context?.routeLabel || "Waiting";
   if (payloadEl) payloadEl.textContent = context?.payloadLabel || "No payload";
   if (reviewEl) reviewEl.textContent = context?.reviewLabel || "No checks";
+  if (refreshBtn) refreshBtn.textContent = context?.requiresPageRefresh ? "Reload Page" : "Refresh Page";
+  if (overlayBtn) overlayBtn.textContent = context?.overlayButtonLabel || "Open In-Page Status";
   if (overlayBtn) overlayBtn.disabled = !context?.canOverlay;
   if (verifyBtn) verifyBtn.disabled = !context?.canVerify;
 }

@@ -21,6 +21,15 @@
       "problemMatcher": []
     },
     {
+      "label": "Check",
+      "type": "shell",
+      "command": "npm run check",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Import ACP Service Users",
       "type": "shell",
       "command": "npm",

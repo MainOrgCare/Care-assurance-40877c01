@@ -49,6 +49,14 @@ import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
 import { emarAgent, inferRequiredGapHoursFromText } from "./services/emarAgent";
 import { careWorkerRotaPayloadSchema, computeRotaSourceHash, rotaWeekdayEnum } from "./services/careWorkerRota";
+import { getRiskAnalysisCache, setRiskAnalysisCache } from "./services/riskAnalysisCache";
+import {
+  RULE_BASED_SIGNAL_GROUPS,
+  buildFallbackRiskProfileSummary,
+  deescalateRiskRating,
+  extractSignalLabels,
+  normalizeRiskRating,
+} from "./services/riskAnalysisWorkflow";
 import multer from "multer";
 import { upload, uploadExcel, uploadImages } from "./utils/uploadConfig";
 import { tryConvertOfficeToPdf } from "./utils/officeToPdf";
@@ -88,6 +96,15 @@ import { extractFromRawCalls, getExpiryDate, type RawCallRecord } from "./servic
 import { getPgPoolConfig } from "./utils/pgPoolConfig";
 import { validatePlanEnhancerResponse, autoCorrectPlanEnhancerResponse, generateValidationReport } from "./utils/planEnhancerValidator";
 import { executeSecureChatCompletion, executeSecureTextCompletion } from "./utils/secureAiPipeline";
+import { buildExtractCareDataResult, buildPlanQualityCheckResult } from "./services/carePlanWorkflow";
+import {
+  applyAuditHints,
+  buildDeterministicVisitAudit,
+  enrichVisitResult,
+  mergeVisitAuditResults,
+  normalizeAuditContext,
+} from "./services/visitAuditWorkflow";
+import { buildCareWorkerAuditSummaries } from "./services/auditCareWorkerWorkflow";
 import {
   validatePassword,
   getLoginAttemptKey,
@@ -3562,132 +3579,6 @@ const attachAssessmentEvidence = (
     };
   });
 
-type RiskAnalysisCacheEntry = {
-  payload: any;
-  createdAt: number;
-};
-
-const riskAnalysisCache = new Map<string, RiskAnalysisCacheEntry>();
-const RISK_ANALYSIS_CACHE_TTL_MS = 10 * 60 * 1000;
-const MAX_RISK_ANALYSIS_CACHE_ENTRIES = 40;
-
-const getRiskAnalysisCache = (key: string) => {
-  const entry = riskAnalysisCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.createdAt > RISK_ANALYSIS_CACHE_TTL_MS) {
-    riskAnalysisCache.delete(key);
-    return null;
-  }
-  return entry.payload;
-};
-
-const setRiskAnalysisCache = (key: string, payload: any) => {
-  riskAnalysisCache.set(key, { payload, createdAt: Date.now() });
-  if (riskAnalysisCache.size <= MAX_RISK_ANALYSIS_CACHE_ENTRIES) return;
-  const entries = Array.from(riskAnalysisCache.entries()).sort((a, b) => a[1].createdAt - b[1].createdAt);
-  const overflow = entries.length - MAX_RISK_ANALYSIS_CACHE_ENTRIES;
-  for (let i = 0; i < overflow; i += 1) {
-    riskAnalysisCache.delete(entries[i][0]);
-  }
-};
-
-const normalizeRiskRating = (value: unknown) => {
-  if (typeof value !== "string") return "Low";
-  const normalized = value.trim().toLowerCase();
-  if (normalized.includes("high")) return "High";
-  if (normalized.includes("medium")) return "Medium";
-  if (normalized.includes("low")) return "Low";
-  return "Low";
-};
-
-const RULE_BASED_SIGNAL_GROUPS = {
-  medicalConditions: [
-    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hypergly"] },
-    { label: "Dementia or cognitive impairment", terms: ["dementia", "alzheimer", "memory", "cognit", "confus"] },
-    { label: "Epilepsy or seizures", terms: ["epilep", "seizure"] },
-    { label: "Respiratory condition", terms: ["copd", "asthma", "breathless", "oxygen", "inhaler"] },
-    { label: "Cardiovascular condition", terms: ["heart", "cardiac", "angina", "hypertension", "bp"] },
-    { label: "Arthritis or musculoskeletal condition", terms: ["arthritis", "joint pain", "mobility pain"] },
-    { label: "Mental health condition", terms: ["depress", "anxiety", "psych", "low mood"] },
-  ],
-  careActivities: [
-    { label: "Medication support", terms: ["medication", "medicine", "tablet", "dosette", "blister pack", "mar"] },
-    { label: "Personal care support", terms: ["wash", "bathing", "shower", "dressing", "toilet", "toileting"] },
-    { label: "Mobility and transfers", terms: ["mobility", "transfer", "hoist", "stand aid", "wheelchair", "walking frame"] },
-    { label: "Nutrition and hydration support", terms: ["meal", "diet", "nutrition", "hydration", "feeding", "swallow"] },
-    { label: "Continence support", terms: ["continence", "incontinence", "catheter", "pad", "bowel", "urinary"] },
-    { label: "Communication support", terms: ["communication", "speech", "hearing", "vision", "interpreter"] },
-  ],
-  concerns: [
-    { label: "Falls risk", terms: ["fall", "unsteady", "trip", "slip", "balance"] },
-    { label: "Skin integrity risk", terms: ["pressure", "ulcer", "wound", "skin tear", "sore"] },
-    { label: "Choking or aspiration risk", terms: ["choking", "aspiration", "dysphagia", "thickened"] },
-    { label: "Medication safety risk", terms: ["medication error", "missed medication", "time critical"] },
-    { label: "Behavior or safeguarding concern", terms: ["agitation", "aggressive", "wandering", "self neglect", "abuse"] },
-    { label: "Infection risk", terms: ["infection", "uti", "mrsa", "sepsis", "covid"] },
-  ],
-  equipment: [
-    { label: "Hoist", terms: ["hoist"] },
-    { label: "Stand aid", terms: ["stand aid", "sara steady"] },
-    { label: "Wheelchair", terms: ["wheelchair"] },
-    { label: "Walking frame", terms: ["walking frame", "zimmer", "rollator"] },
-    { label: "Hospital/profiling bed", terms: ["hospital bed", "profiling bed"] },
-    { label: "Pressure-relieving equipment", terms: ["pressure mattress", "pressure cushion"] },
-    { label: "Assistive bathroom equipment", terms: ["shower chair", "bath board", "toilet frame", "commode", "grab rails"] },
-    { label: "Telecare or falls alarm", terms: ["falls sensor", "telecare", "pendant alarm"] },
-  ],
-  communicationNeeds: [
-    { label: "Hearing support", terms: ["hearing", "hearing aid"] },
-    { label: "Vision support", terms: ["vision", "eyesight", "glasses"] },
-    { label: "Speech/language support", terms: ["speech", "aphasia", "language"] },
-    { label: "Cognitive communication support", terms: ["memory", "confus", "orientation"] },
-  ],
-  environmentalFactors: [
-    { label: "Stairs or step access", terms: ["stairs", "steps", "upstairs"] },
-    { label: "Key safe or controlled access", terms: ["key safe", "keysafe", "key box"] },
-    { label: "Fire safety considerations", terms: ["smoke alarm", "fire", "smoking", "oxygen near heat"] },
-    { label: "Clutter or trip hazards", terms: ["clutter", "trip hazard", "uneven flooring", "poor lighting"] },
-    { label: "Lone working considerations", terms: ["lone working", "single carer", "double up care"] },
-  ],
-};
-
-const extractSignalLabels = (
-  content: string,
-  groups: Array<{ label: string; terms: string[] }>
-) => {
-  if (!content) return [] as string[];
-  const lower = content.toLowerCase();
-  return groups
-    .filter((group) => group.terms.some((term) => lower.includes(term)))
-    .map((group) => group.label);
-};
-
-const fallbackRiskProfileSummary = (analysis: {
-  careActivities: string[];
-  concerns: string[];
-  medicalConditions: string[];
-}) => {
-  const segments: string[] = [];
-  if (analysis.medicalConditions.length > 0) {
-    segments.push(`I have documented health needs including ${analysis.medicalConditions.slice(0, 3).join(", ")}.`);
-  }
-  if (analysis.careActivities.length > 0) {
-    segments.push(`I need support with ${analysis.careActivities.slice(0, 3).join(", ")}.`);
-  }
-  if (analysis.concerns.length > 0) {
-    segments.push(`My records identify risks around ${analysis.concerns.slice(0, 3).join(", ")}.`);
-  }
-  if (segments.length === 0) {
-    return "I need a person-centred review of my care needs based on the documents provided.";
-  }
-  return toFirstPerson(segments.join(" "));
-};
-
-const deescalateRiskRating = (rating: "Low" | "Medium" | "High"): "Low" | "Medium" | "High" => {
-  if (rating === "High") return "Medium";
-  return "Low";
-};
-
 const buildRuleBasedRiskAnalysisPayload = (
   documentContent: string,
   allowSensitiveView: boolean
@@ -3696,12 +3587,12 @@ const buildRuleBasedRiskAnalysisPayload = (
   const serviceUser = allowSensitiveView && fullName
     ? { fullName, initials: normalizeInitials(fullName) }
     : { initials: normalizeInitials(fullName || "N.N.") };
-  const medicalConditions = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.medicalConditions);
-  const careActivities = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.careActivities);
-  const concerns = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.concerns);
-  const equipment = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.equipment);
-  const communicationNeeds = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.communicationNeeds);
-  const environmentalFactors = extractSignalLabels(documentContent, RULE_BASED_SIGNAL_GROUPS.environmentalFactors);
+  const medicalConditions = extractSignalLabels(documentContent, [...RULE_BASED_SIGNAL_GROUPS.medicalConditions]);
+  const careActivities = extractSignalLabels(documentContent, [...RULE_BASED_SIGNAL_GROUPS.careActivities]);
+  const concerns = extractSignalLabels(documentContent, [...RULE_BASED_SIGNAL_GROUPS.concerns]);
+  const equipment = extractSignalLabels(documentContent, [...RULE_BASED_SIGNAL_GROUPS.equipment]);
+  const communicationNeeds = extractSignalLabels(documentContent, [...RULE_BASED_SIGNAL_GROUPS.communicationNeeds]);
+  const environmentalFactors = extractSignalLabels(documentContent, [...RULE_BASED_SIGNAL_GROUPS.environmentalFactors]);
 
   const riskAnalysis = analyzeRiskLevel(documentContent);
   const evidenceFinder = buildDocumentEvidenceFinder(documentContent);
@@ -3756,7 +3647,7 @@ const buildRuleBasedRiskAnalysisPayload = (
       reason: toFirstPerson(item.reason || "I need this assessment to manage identified risks."),
       evidenceSnippets: normalizeStringArray(item.evidenceSnippets).filter(isMeaningfulEvidence),
     })),
-    documentSummary: fallbackRiskProfileSummary({ medicalConditions, careActivities, concerns: dedupedConcerns }),
+    documentSummary: buildFallbackRiskProfileSummary({ medicalConditions, careActivities, concerns: dedupedConcerns }, toFirstPerson),
     generationMode: "rule-based",
   };
 };
@@ -6882,120 +6773,8 @@ export async function registerRoutes(
   app.get("/api/audits/care-workers", requireAuth, async (req, res) => {
     try {
       const allAudits = await storage.getAllAudits();
-      
-      interface CareWorkerStats {
-        name: string;
-        auditCount: number;
-        discrepancyCount: number;
-        discrepancies: Array<{
-          date: string;
-          type: string;
-          issue: string;
-          auditId: string;
-        }>;
-        lastSeen: string;
-      }
-      
-      const careWorkerMap = new Map<string, CareWorkerStats>();
-      
-      for (const audit of allAudits) {
-        const results = audit.results as any;
-        if (!results) continue;
-        
-        const auditType = audit.auditType;
-        const auditDate = audit.periodEnd || audit.periodStart || "";
-        
-        if (auditType === "EMAR" && results.discrepancies) {
-          for (const disc of results.discrepancies) {
-            const name = disc.careWorkerName;
-            if (!name || name === "Code Conflict") continue;
-            
-            if (!careWorkerMap.has(name)) {
-              careWorkerMap.set(name, {
-                name,
-                auditCount: 0,
-                discrepancyCount: 0,
-                discrepancies: [],
-                lastSeen: auditDate,
-              });
-            }
-            
-            const stats = careWorkerMap.get(name)!;
-            stats.discrepancyCount++;
-            stats.discrepancies.push({
-              date: disc.date || auditDate,
-              type: "EMAR",
-              issue: disc.issue || `${disc.medication}: ${disc.issue || "Issue recorded"}`,
-              auditId: audit.id,
-            });
-            if (auditDate > stats.lastSeen) stats.lastSeen = auditDate;
-          }
-        }
-        
-        if (auditType === "Visit") {
-          if (results.careCalls) {
-            for (const call of results.careCalls) {
-              const name = call.careWorkerName;
-              if (!name) continue;
-              
-              if (!careWorkerMap.has(name)) {
-                careWorkerMap.set(name, {
-                  name,
-                  auditCount: 0,
-                  discrepancyCount: 0,
-                  discrepancies: [],
-                  lastSeen: auditDate,
-                });
-              }
-              
-              const stats = careWorkerMap.get(name)!;
-              stats.auditCount++;
-              if (auditDate > stats.lastSeen) stats.lastSeen = auditDate;
-              
-              if (!call.compliant) {
-                stats.discrepancyCount++;
-                stats.discrepancies.push({
-                  date: call.date || auditDate,
-                  type: "Visit",
-                  issue: call.comment || "Non-compliant visit",
-                  auditId: audit.id,
-                });
-              }
-            }
-          }
-          
-          if (results.discrepancies) {
-            for (const disc of results.discrepancies) {
-              const name = disc.careWorkerName;
-              if (!name) continue;
-              
-              if (!careWorkerMap.has(name)) {
-                careWorkerMap.set(name, {
-                  name,
-                  auditCount: 0,
-                  discrepancyCount: 0,
-                  discrepancies: [],
-                  lastSeen: auditDate,
-                });
-              }
-              
-              const stats = careWorkerMap.get(name)!;
-              stats.discrepancyCount++;
-              stats.discrepancies.push({
-                date: disc.date || auditDate,
-                type: "Visit",
-                issue: disc.issue || "Discrepancy recorded",
-                auditId: audit.id,
-              });
-              if (auditDate > stats.lastSeen) stats.lastSeen = auditDate;
-            }
-          }
-        }
-      }
-      
-      const careWorkers = Array.from(careWorkerMap.values())
-        .sort((a, b) => b.discrepancyCount - a.discrepancyCount);
-      
+      const careWorkers = buildCareWorkerAuditSummaries(allAudits as any);
+
       return res.json(careWorkers);
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker data") });
@@ -14328,266 +14107,11 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
     return parsed;
   };
 
-  const parseAuditDate = (value: string) => {
-    if (!value) return null;
-    const match = value.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-    if (!match) return null;
-    const day = Number(match[1]);
-    const month = Number(match[2]) - 1;
-    const year = match[3] ? Number(match[3]) : new Date().getFullYear();
-    const date = new Date(year, month, day);
-    return Number.isNaN(date.getTime()) ? null : date;
-  };
-
-  const formatAuditDate = (date: Date) => {
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    return `${day}/${month}/${date.getFullYear()}`;
-  };
-
-  const mergeVisitAuditResults = (results: any[]) => {
-    const combined: any = {
-      serviceUserName: "",
-      auditPeriodStart: "",
-      auditPeriodEnd: "",
-      hasDiscrepancies: false,
-      careCalls: [],
-      discrepancies: [],
-      themesAndTrends: "",
-      gapsInKnowledge: "",
-    };
-    const serviceUsers = new Set<string>();
-    const themes = new Set<string>();
-    const gaps = new Set<string>();
-    let startDate: Date | null = null;
-    let endDate: Date | null = null;
-
-    for (const result of results) {
-      if (result?.serviceUserName) serviceUsers.add(String(result.serviceUserName).trim());
-      if (Array.isArray(result?.careCalls)) combined.careCalls.push(...result.careCalls);
-      if (Array.isArray(result?.discrepancies)) combined.discrepancies.push(...result.discrepancies);
-      if (result?.hasDiscrepancies) combined.hasDiscrepancies = true;
-      if (result?.themesAndTrends) themes.add(String(result.themesAndTrends).trim());
-      if (result?.gapsInKnowledge) gaps.add(String(result.gapsInKnowledge).trim());
-
-      const start = parseAuditDate(result?.auditPeriodStart || "");
-      const end = parseAuditDate(result?.auditPeriodEnd || "");
-      if (start && (!startDate || start < startDate)) startDate = start;
-      if (end && (!endDate || end > endDate)) endDate = end;
-    }
-
-    combined.hasDiscrepancies = combined.hasDiscrepancies || combined.discrepancies.length > 0;
-    combined.serviceUserName = serviceUsers.size === 1 ? Array.from(serviceUsers)[0] : "Multiple";
-    if (startDate) combined.auditPeriodStart = formatAuditDate(startDate);
-    if (endDate) combined.auditPeriodEnd = formatAuditDate(endDate);
-    if (!combined.auditPeriodStart) combined.auditPeriodStart = results[0]?.auditPeriodStart || "";
-    if (!combined.auditPeriodEnd) combined.auditPeriodEnd = results[0]?.auditPeriodEnd || "";
-    combined.themesAndTrends = Array.from(themes).filter(Boolean).join(" | ") || "No significant themes identified.";
-    combined.gapsInKnowledge = Array.from(gaps).filter(Boolean).join(" | ") || "No significant gaps identified.";
-    return combined;
-  };
-
-  const parseDurationMinutes = (value: string) => {
-    if (!value) return null;
-    const numeric = Number(value);
-    if (!Number.isNaN(numeric)) {
-      if (numeric <= 24) return Math.round(numeric * 60);
-      if (numeric <= 24 * 60) return Math.round(numeric);
-      return Math.round(numeric);
-    }
-    const timeMatch = value.match(/(\d{1,2}):(\d{2})/);
-    if (timeMatch) {
-      return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
-    }
-    return null;
-  };
-
-  const parseCompactVisitRows = (lines: string[]) => {
-    if (!lines.length) return [];
-    const headerLine = lines[0];
-    if (!headerLine.startsWith("Columns:")) return [];
-    const headers = headerLine.replace("Columns:", "").split("|").map((h) => h.trim());
-    const rows: Array<Record<string, string>> = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split("|");
-      const row: Record<string, string> = {};
-      headers.forEach((key, index) => {
-        row[key] = values[index] || "";
-      });
-      rows.push(row);
-    }
-    return rows;
-  };
-
-  const buildDeterministicVisitAudit = (lines: string[]) => {
-    const rows = parseCompactVisitRows(lines);
-    const careCalls: any[] = [];
-    const discrepancies: any[] = [];
-    const serviceUsers = new Set<string>();
-    const dateValues: Date[] = [];
-    let locationIssues = 0;
-    let durationIssues = 0;
-
-    const justificationKeywords = [
-      "hospital",
-      "family",
-      "refused",
-      "declined",
-      "requested",
-      "no access",
-      "emergency",
-      "not home",
-      "cancelled",
-      "canceled",
-      "service user",
-      "client",
-    ];
-
-    for (const row of rows) {
-      const serviceUser = row.SU || "N.N.";
-      const careWorker = row.CWa || "N.N.";
-      const date = row.Date || "NA";
-      const expectedMinutes = parseDurationMinutes(row.ExpDur || "");
-      const actualMinutes = parseDurationMinutes(row.ActDur || "");
-      const locationValue = (row.Loc || "").toLowerCase();
-      const notes = row.Notes || "";
-
-      serviceUsers.add(serviceUser);
-
-      const locationOK = locationValue
-        ? ["y", "yes", "within", "compliant", "ok", "true"].some((token) => locationValue.includes(token))
-        : true;
-
-      const hasJustification = notes
-        ? justificationKeywords.some((keyword) => notes.toLowerCase().includes(keyword))
-        : false;
-
-      const percentageStayed = expectedMinutes && actualMinutes
-        ? Math.round((actualMinutes / expectedMinutes) * 100)
-        : 100;
-      const durationOK = expectedMinutes ? percentageStayed >= 70 : true;
-      const compliant = locationOK && (durationOK || hasJustification);
-
-      if (date && date.includes("/")) {
-        const dateMatch = date.match(/(\d{1,2})\/(\d{1,2})/);
-        if (dateMatch) {
-          const day = Number(dateMatch[1]);
-          const month = Number(dateMatch[2]) - 1;
-          const dateObj = new Date(new Date().getFullYear(), month, day);
-          if (!Number.isNaN(dateObj.getTime())) dateValues.push(dateObj);
-        }
-      }
-
-      careCalls.push({
-        careWorkerName: careWorker,
-        date,
-        locationOK,
-        expectedTime: expectedMinutes ? `${expectedMinutes}m` : "NA",
-        actualTime: actualMinutes ? `${actualMinutes}m` : "NA",
-        percentageStayed,
-        compliant,
-        justification: hasJustification ? "Justified - see notes" : "NA",
-        comment: compliant ? "NA" : "Performance discrepancy",
-      });
-
-      if (!locationOK && !hasJustification) {
-        locationIssues += 1;
-        discrepancies.push({
-          careWorkerName: careWorker,
-          date,
-          issue: "Location non-compliant (outside 200m)",
-          actions: { performanceNote: true, meeting: "phone", referToManager: false },
-        });
-      }
-
-      if (!durationOK && !hasJustification) {
-        durationIssues += 1;
-        discrepancies.push({
-          careWorkerName: careWorker,
-          date,
-          issue: "Stayed less than 70% of expected time",
-          actions: { performanceNote: true, meeting: "phone", referToManager: false },
-        });
-      }
-    }
-
-    const auditPeriodStart = dateValues.length
-      ? formatAuditDate(new Date(Math.min(...dateValues.map((d) => d.getTime()))))
-      : "";
-    const auditPeriodEnd = dateValues.length
-      ? formatAuditDate(new Date(Math.max(...dateValues.map((d) => d.getTime()))))
-      : "";
-
-    const themes: string[] = [];
-    if (locationIssues > 0) themes.push(`Location compliance issues: ${locationIssues}`);
-    if (durationIssues > 0) themes.push(`Short visits (<70%): ${durationIssues}`);
-
-    const gaps: string[] = [];
-    if (durationIssues > 0) gaps.push("Meeting expected visit durations");
-    if (locationIssues > 0) gaps.push("Location check compliance");
-
-    return {
-      serviceUserName: serviceUsers.size === 1 ? Array.from(serviceUsers)[0] : "Multiple",
-      auditPeriodStart,
-      auditPeriodEnd,
-      hasDiscrepancies: discrepancies.length > 0,
-      careCalls,
-      discrepancies,
-      themesAndTrends: themes.length ? themes.join("; ") : "No significant patterns found.",
-      gapsInKnowledge: gaps.length ? gaps.join("; ") : "No significant gaps identified.",
-    };
-  };
-
-  const normalizeAuditContext = (input: any) => ({
-    serviceUserName: typeof input?.serviceUserName === "string" ? input.serviceUserName.trim() : "",
-    auditPeriodStart: typeof input?.auditPeriodStart === "string" ? input.auditPeriodStart.trim() : "",
-    auditPeriodEnd: typeof input?.auditPeriodEnd === "string" ? input.auditPeriodEnd.trim() : "",
-    notes: typeof input?.notes === "string" ? input.notes.trim() : "",
-  });
-
   const normalizeAuditServiceUserName = (name: string, allowSensitiveView: boolean) => {
     const cleaned = String(name || "").trim();
     if (!cleaned) return "";
     if (allowSensitiveView) return normalizeFullName(cleaned) || cleaned;
     return normalizeInitials(cleaned) || toInitials(cleaned) || cleaned;
-  };
-
-  const applyAuditHints = (
-    result: any,
-    hints: ReturnType<typeof normalizeAuditContext>,
-    allowSensitiveView: boolean
-  ) => {
-    if (!result) return result;
-    const hintedName = normalizeAuditServiceUserName(hints.serviceUserName, allowSensitiveView);
-    if (hintedName && (!result.serviceUserName || result.serviceUserName === "N.N.")) {
-      result.serviceUserName = hintedName;
-    }
-    if (hints.auditPeriodStart && !result.auditPeriodStart) {
-      result.auditPeriodStart = hints.auditPeriodStart;
-    }
-    if (hints.auditPeriodEnd && !result.auditPeriodEnd) {
-      result.auditPeriodEnd = hints.auditPeriodEnd;
-    }
-    return result;
-  };
-
-  const enrichVisitResult = (result: any, fallback: any) => {
-    if (!result || !fallback) return result;
-    if (!Array.isArray(result.careCalls) || result.careCalls.length === 0) {
-      result.careCalls = Array.isArray(fallback.careCalls) ? fallback.careCalls : [];
-    }
-    if (!Array.isArray(result.discrepancies) || result.discrepancies.length === 0) {
-      result.discrepancies = Array.isArray(fallback.discrepancies) ? fallback.discrepancies : [];
-    }
-    if (!result.auditPeriodStart) result.auditPeriodStart = fallback.auditPeriodStart || "";
-    if (!result.auditPeriodEnd) result.auditPeriodEnd = fallback.auditPeriodEnd || "";
-    if (!result.serviceUserName || result.serviceUserName === "Multiple") {
-      result.serviceUserName = fallback.serviceUserName || result.serviceUserName;
-    }
-    if (!result.themesAndTrends) result.themesAndTrends = fallback.themesAndTrends;
-    if (!result.gapsInKnowledge) result.gapsInKnowledge = fallback.gapsInKnowledge;
-    result.hasDiscrepancies = Array.isArray(result.discrepancies) && result.discrepancies.length > 0;
-    return result;
   };
 
   // Analyze Visit Notes with SSE streaming progress
@@ -14674,7 +14198,7 @@ Return JSON - include ALL discrepancy indices by default, and add evidence where
         const localResult = applyAuditHints(
           buildDeterministicVisitAudit(preprocessing.lines),
           auditHints,
-          allowSensitiveView
+          (name) => normalizeAuditServiceUserName(name, allowSensitiveView)
         );
         if (allowSensitiveView && serviceUserFullName && localResult.serviceUserName !== "Multiple") {
           localResult.serviceUserName = serviceUserFullName;
@@ -14863,7 +14387,7 @@ Respond ONLY with valid JSON in this exact format:
           const fallbackResult = applyAuditHints(
             buildDeterministicVisitAudit(preprocessing.lines),
             auditHints,
-            allowSensitiveView
+            (name) => normalizeAuditServiceUserName(name, allowSensitiveView)
           );
           if (allowSensitiveView && serviceUserFullName && fallbackResult.serviceUserName !== "Multiple") {
             fallbackResult.serviceUserName = serviceUserFullName;
@@ -14887,7 +14411,7 @@ Respond ONLY with valid JSON in this exact format:
         enrichVisitResult(result, fallbackResult);
       }
 
-      applyAuditHints(result, auditHints, allowSensitiveView);
+      applyAuditHints(result, auditHints, (name) => normalizeAuditServiceUserName(name, allowSensitiveView));
 
       sendProgress(50, "Processing initial results...", "parsing_results");
         
@@ -18574,77 +18098,15 @@ Return ONLY valid JSON matching the schema.`,
       if (!documentContent || typeof documentContent !== "string") {
         return res.status(400).json({ message: "Document content required" });
       }
-      
-      // Import new extraction functions
-      const { 
-        extractCarePlanSections, 
-        extractMedicationInfo, 
-        extractPersonalCareNeeds,
-        extractContinenceInfo,
-        extractNutritionInfo,
-        extractEnvironmentInfo,
-        getRecommendedAssessments,
-        generateBasicSummary
-      } = await import("./services/ruleBasedEngine");
-      
-      // Run all rule-based extractions
-      const sections = extractCarePlanSections(documentContent);
-      const medications = extractMedicationInfo(documentContent);
-      const personalCare = extractPersonalCareNeeds(documentContent);
-      const continence = extractContinenceInfo(documentContent);
-      const nutrition = extractNutritionInfo(documentContent);
-      const environment = extractEnvironmentInfo(documentContent);
-      
-      // Get overall risk analysis
-      const overallRisk = analyzeRiskLevel(documentContent);
-      
-      // Get recommended assessments based on extracted data
-      const recommendations = getRecommendedAssessments({
-        sections,
-        medications,
-        personalCare,
-        continence,
-        nutrition,
-        environment
-      });
-      
-      // Generate basic summaries for each section (lite mode)
-      const summaries: Record<string, string> = {};
-      for (const [section, data] of Object.entries({ personalCare, continence, nutrition })) {
-        summaries[section] = generateBasicSummary(section, data);
-      }
-      
-      // Determine if AI enhancement is recommended
-      const extractionConfidence = Object.values(sections)
-        .map(s => s.confidence)
-        .reduce((sum, c) => sum + c, 0) / Math.max(Object.keys(sections).length, 1);
-      
-      const needsAI = extractionConfidence < 0.6 || overallRisk.requiresAI;
-      
-      console.log(`[ExtractCareData] Extracted ${Object.keys(sections).length} sections, ` +
-        `${medications.length} meds, confidence=${(extractionConfidence * 100).toFixed(0)}%, ` +
-        `${recommendations.length} recommended assessments`);
-      
-      return res.json({
-        success: true,
-        rulesBased: true,
-        sections,
-        medications,
-        personalCare,
-        continence,
-        nutrition,
-        environment,
-        overallRiskLevel: overallRisk.level,
-        overallRiskConfidence: overallRisk.confidence,
-        riskKeywords: overallRisk.matchedKeywords,
-        recommendedAssessments: recommendations,
-        basicSummaries: summaries,
-        extractionConfidence,
-        suggestAIEnhancement: needsAI,
-        aiEnhancementReason: needsAI 
-          ? (extractionConfidence < 0.6 ? "Low extraction confidence" : "Complex risk factors detected")
-          : null
-      });
+
+      const result = buildExtractCareDataResult(documentContent);
+      console.log(
+        `[ExtractCareData] Extracted ${Object.keys(result.sections).length} sections, ` +
+          `${result.medications.length} meds, confidence=${(result.extractionConfidence * 100).toFixed(0)}%, ` +
+          `${result.recommendedAssessments.length} recommended assessments`,
+      );
+
+      return res.json(result);
     } catch (error: any) {
       console.error("Care data extraction error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Extraction failed") });
@@ -18659,24 +18121,13 @@ Return ONLY valid JSON matching the schema.`,
       if (!planContent || typeof planContent !== "string") {
         return res.status(400).json({ message: "Plan content required" });
       }
-      
-      const quality = calculatePlanQuality(planContent);
-      const extractedFields = extractCommonFields(planContent);
-      const riskAnalysis = analyzeRiskLevel(planContent);
-      
-      // Determine if AI enhancement would help
-      const needsAI = quality.score < 70 || quality.feedback.length > 2;
-      
-      console.log(`[QualityCheck] Plan quality for ${req.user?.username}: ${quality.score}% (${quality.feedback.length} issues)`);
-      
-      return res.json({
-        score: quality.score,
-        grade: quality.score >= 80 ? "Good" : quality.score >= 60 ? "Fair" : "Needs Work",
-        feedback: quality.feedback,
-        suggestAIEnhancement: needsAI,
-        detectedRisk: riskAnalysis.level,
-        detectedFields: extractedFields
-      });
+
+      const result = buildPlanQualityCheckResult(planContent);
+      console.log(
+        `[QualityCheck] Plan quality for ${req.user?.username}: ${result.score}% (${result.feedback.length} issues)`,
+      );
+
+      return res.json(result);
     } catch (error: any) {
       console.error("Plan quality check error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Quality check failed") });

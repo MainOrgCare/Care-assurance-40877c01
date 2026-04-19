@@ -941,6 +941,10 @@ const setOverlayCollapsed = (collapsed) => {
 };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "CA_EXTENSION_REQUEST_STATUS") {
+    sendResponse({ detected: true, refreshRequired: false, workflow: "acp" });
+    return false;
+  }
   if (message?.type !== (MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY")) return false;
   initOverlay();
 

@@ -107,6 +107,13 @@ const sharedGetRuntimeConfig = typeof _g.getRuntimeConfig === "function"
   ? _g.getRuntimeConfig
   : (() => RUNTIME_CONFIG_DEFAULTS);
 
+export const DEBUG = Boolean(_g.DEBUG);
+
+export function debugLog(...args) {
+  if (!DEBUG) return;
+  console.log(...args);
+}
+
 export const DATA_TIMESTAMP_KEY = STORAGE_KEYS.dataTimestamp || "caAcpDataTimestamp";
 
 export const DEFAULT_SERVICE_DATA_GROUP_ID = "1017650";
@@ -261,7 +268,7 @@ export async function autoCleanupStaleData() {
         [STORAGE_KEYS.verificationFields]: null,
         [STORAGE_KEYS.runtimeMetrics]: null,
       });
-      console.log("[CA Extension] Stale data auto-cleaned (>2h)");
+      debugLog("[CA Extension] Stale data auto-cleaned (>2h)");
     }
   } catch (e) {
     console.warn("[CA Extension] Auto-cleanup failed:", e);

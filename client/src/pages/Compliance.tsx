@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Button } from "@/components/ui/button";
 import { useDataExport } from "@/hooks/useDataExport";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { buildComplianceOverview, getMonthlyAuditData, summarizeAuditAlerts } from "./complianceUtils";
 
 interface AuditResults {
   discrepancies?: { length: number }[];
@@ -92,24 +93,7 @@ export default function Compliance() {
 
   const auditList: Audit[] = audits ?? [];
   
-  const emarAudits = auditList.filter((a: Audit) => a.auditType === "EMAR");
-  const visitAudits = auditList.filter((a: Audit) => a.auditType === "Visit");
-  
-  const totalDiscrepancies = auditList.reduce((sum: number, audit: Audit) => {
-    const results = audit.results;
-    return sum + (results?.discrepancies?.length || 0);
-  }, 0);
-
-  const totalWarnings = auditList.reduce((sum: number, audit: Audit) => {
-    const results = audit.results;
-    return sum + (results?.warnings?.length || 0);
-  }, 0);
-
-  const auditTypeData = [
-    { name: "EMAR Audits", value: emarAudits.length, color: "hsl(var(--primary))" },
-    { name: "Visit Audits", value: visitAudits.length, color: "hsl(var(--secondary))" },
-  ];
-
+  const overview = buildComplianceOverview(auditList);
   const monthlyData = getMonthlyAuditData(auditList);
 
   return (
@@ -172,9 +156,9 @@ export default function Compliance() {
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{auditList.length}</div>
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{overview.totalAudits}</div>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {emarAudits.length} EMAR, {visitAudits.length} Visit
+              {overview.emarAuditCount} EMAR, {overview.visitAuditCount} Visit
             </p>
           </CardContent>
         </Card>
@@ -187,7 +171,7 @@ export default function Compliance() {
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{totalDiscrepancies}</div>
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{overview.totalDiscrepancies}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Across all audits</p>
           </CardContent>
         </Card>
@@ -200,7 +184,7 @@ export default function Compliance() {
             </div>
           </CardHeader>
           <CardContent className="pt-0.5">
-            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{totalWarnings}</div>
+            <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">{overview.totalWarnings}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Items requiring attention</p>
           </CardContent>
         </Card>
@@ -214,7 +198,7 @@ export default function Compliance() {
           </CardHeader>
           <CardContent className="pt-0.5">
             <div className="text-[1.625rem] font-bold tracking-tight text-foreground tabular-nums">
-              {auditList.length > 0 ? Math.max(0, Math.min(100, Math.round(100 - (totalDiscrepancies / Math.max(auditList.length, 1) * 10)))) : 100}%
+              {overview.complianceRate}%
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Based on audit results</p>
           </CardContent>
@@ -278,7 +262,7 @@ export default function Compliance() {
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
-                    data={auditTypeData}
+                    data={overview.auditTypeData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -287,7 +271,7 @@ export default function Compliance() {
                     dataKey="value"
                     label={({ name, value }) => `${name}: ${value}`}
                   >
-                    {auditTypeData.map((entry, index) => (
+                    {overview.auditTypeData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -316,9 +300,7 @@ export default function Compliance() {
           {auditList.length > 0 ? (
             <div className="space-y-2">
               {auditList.slice(0, 10).map((audit: Audit) => {
-                const results = audit.results;
-                const discrepancyCount = results?.discrepancies?.length || 0;
-                const warningCount = results?.warnings?.length || 0;
+                const { discrepancyCount, warningCount, isClean } = summarizeAuditAlerts(audit);
                 
                 return (
                   <div 
@@ -352,7 +334,7 @@ export default function Compliance() {
                           {warningCount} warnings
                         </Badge>
                       )}
-                      {discrepancyCount === 0 && warningCount === 0 && (
+                      {isClean && (
                         <Badge variant="success" className="gap-1">
                           <CheckCircle className="h-3 w-3" />
                           Clean
@@ -376,30 +358,4 @@ export default function Compliance() {
       </Card>
     </div>
   );
-}
-
-function getMonthlyAuditData(audits: Audit[]) {
-  const monthCounts: { [key: string]: { label: string; count: number; sortKey: number } } = {};
-
-  audits.forEach((audit: Audit) => {
-    const rawDate = audit.createdAt || audit.periodEnd || audit.periodStart;
-    const date = rawDate ? new Date(rawDate) : null;
-    if (!date || Number.isNaN(date.getTime())) return;
-
-    const monthKey = date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-    if (!monthCounts[monthKey]) {
-      // Use year-month numeric key for sorting
-      monthCounts[monthKey] = {
-        label: monthKey,
-        count: 0,
-        sortKey: date.getFullYear() * 100 + date.getMonth(),
-      };
-    }
-    monthCounts[monthKey].count += 1;
-  });
-
-  return Object.values(monthCounts)
-    .sort((a, b) => a.sortKey - b.sortKey)
-    .slice(-6)
-    .map(({ label, count }) => ({ month: label, count }));
 }

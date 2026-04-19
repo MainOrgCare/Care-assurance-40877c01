@@ -18,12 +18,16 @@ const SUPPORTED_APP_THEMES = new Set(["light", "sunrise", "dark", "midnight", "o
 let lastSyncedAppTheme = "";
 
 const CA_DEBUG = window.CA_EXTENSION_CONSTANTS?.DEBUG || false;
+const debugLog = (...args) => {
+  if (!CA_DEBUG) return;
+  console.log(...args);
+};
 
-console.log("[CA Extension Content] content-app.js loaded on:", window.location.origin);
-console.log("[CA Extension Content] Document ready state:", document.readyState);
+debugLog("[CA Extension Content] content-app.js loaded on:", window.location.origin);
+debugLog("[CA Extension Content] Document ready state:", document.readyState);
 
 const sendAck = (requestId, ok, error) => {
-  console.log("[CA Extension Content] Sending ACK:", { requestId, ok, error });
+  debugLog("[CA Extension Content] Sending ACK:", { requestId, ok, error });
   window.postMessage(
     {
       type: EXTENSION_ACK_TYPE,
@@ -190,7 +194,12 @@ const parseSseStream = async (response) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("[CA Extension Content] Received message:", message?.type);
+  debugLog("[CA Extension Content] Received message:", message?.type);
+
+  if (message?.type === EXTENSION_STATUS_REQUEST_TYPE) {
+    sendResponse(getExtensionStatusPayload());
+    return false;
+  }
 
   if (message?.type === SEND_TO_APP_TYPE) {
     try {
@@ -211,7 +220,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== API_PROXY_TYPE) return false;
   
   const { endpoint, method = 'GET', body, requestId } = message;
-  console.log(`[CA Extension Content] API proxy request: ${method} ${endpoint}`);
+  debugLog(`[CA Extension Content] API proxy request: ${method} ${endpoint}`);
   
   // Make the fetch request (will include session cookie since we're on same origin)
   const fetchOptions = {
@@ -230,11 +239,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   const fullUrl = `${window.location.origin}${endpoint}`;
-  console.log(`[CA Extension Content] Fetching: ${fullUrl}`);
+  debugLog(`[CA Extension Content] Fetching: ${fullUrl}`);
   
   fetch(fullUrl, fetchOptions)
     .then(async (res) => {
-      console.log(`[CA Extension Content] Fetch response: ${res.status} ${res.statusText} content-type: ${res.headers.get("content-type")}`);
+      debugLog(`[CA Extension Content] Fetch response: ${res.status} ${res.statusText} content-type: ${res.headers.get("content-type")}`);
       if (!res.ok) {
         const errorText = await res.text().catch(() => 'Unknown error');
         console.error(`[CA Extension Content] Request failed:`, errorText);
@@ -282,7 +291,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         data = { message: rawText };
       }
       if (data && typeof data === "object") {
-        console.log(`[CA Extension Content] Request successful, data keys:`, Object.keys(data));
+        debugLog(`[CA Extension Content] Request successful, data keys:`, Object.keys(data));
       }
       sendResponse({
         ok: true,
@@ -306,13 +315,13 @@ const notifyReady = (attempt = 0) => {
     type: 'CA_CONTENT_SCRIPT_READY', 
     origin: window.location.origin 
   }).then(() => {
-    console.log("[CA Extension Content] Ready notification sent successfully");
+    debugLog("[CA Extension Content] Ready notification sent successfully");
   }).catch((err) => {
     const msg = err?.message || "";
     if (msg.includes("context invalidated") || msg.includes("Extension context")) return;
     if (attempt < 3) {
       const delay = 500 * (attempt + 1);
-      console.log(`[CA Extension Content] Ready notification retry ${attempt + 1} in ${delay}ms:`, msg);
+      debugLog(`[CA Extension Content] Ready notification retry ${attempt + 1} in ${delay}ms:`, msg);
       setTimeout(() => notifyReady(attempt + 1), delay);
     } else {
       console.warn("[CA Extension Content] Ready notification failed after retries:", msg);
@@ -379,7 +388,7 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  console.log("[CA Extension] Received message:", event.data.type);
+  debugLog("[CA Extension] Received message:", event.data.type);
 
   const { requestId, payload } = event.data;
   if (!payload || typeof payload !== "object") {
@@ -388,7 +397,7 @@ window.addEventListener("message", (event) => {
   }
   
   // DEBUG: Show raw payload received from webpage
-  if (CA_DEBUG) console.log("[CA Extension DEBUG] Raw payload received:", JSON.stringify(payload, null, 2));
+  debugLog("[CA Extension DEBUG] Raw payload received:", JSON.stringify(payload, null, 2));
   const normalizedPayload = { ...payload };
   if (isEmarMessage && !normalizedPayload.formType) {
     normalizedPayload.formType = "emar";
@@ -414,7 +423,7 @@ window.addEventListener("message", (event) => {
   }
 
   // DEBUG: Show normalized payload being sent to storage
-  if (CA_DEBUG) console.log("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
+  debugLog("[CA Extension DEBUG] Normalized payload for storage:", JSON.stringify(normalizedPayload, null, 2));
   
   // Check if extension context is still valid before attempting to send
   const isContextInvalidated = () => {

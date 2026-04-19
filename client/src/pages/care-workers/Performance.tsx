@@ -91,7 +91,7 @@ export default function Performance() {
   }, [toast]);
 
   const getCompliancePercentage = useCallback((worker: CareWorkerFromAudits): number => {
-    if (worker.auditCount === 0) return 100;
+    if (worker.auditCount === 0) return worker.discrepancyCount > 0 ? 0 : 100;
     const complianceRatio = Math.max(0, 1 - (worker.discrepancyCount / (worker.auditCount + worker.discrepancyCount)));
     return Math.round(complianceRatio * 100);
   }, []);

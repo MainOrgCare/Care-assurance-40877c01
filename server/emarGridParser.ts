@@ -516,6 +516,16 @@ const normalizeCodeText = (value: string): string => {
   if (!value) return "";
   return value
     .toUpperCase()
+    .replace(/\bREFUS(?:E|ED|AL)\b/g, "R")
+    .replace(/\bNOT\s*AT\s*HOME\b/g, "NH")
+    .replace(/\bNOT\s*HOME\b/g, "NH")
+    .replace(/\bSELF\s*[-–]?\s*ADMIN(?:ISTERED)?\b/g, "SA")
+    .replace(/\bMED(?:ICATION)?\s*UNAV(?:AIL(?:ABLE)?)?\b/g, "MU")
+    .replace(/\bUNAVAILABLE\b/g, "MU")
+    .replace(/\bNO(?:N)?\s*ADMIN(?:ISTERED)?\b/g, "N/A")
+    .replace(/\bPROMPT(?:ED)?\b/g, "P")
+    .replace(/\bASSIST(?:ED)?\b/g, "AS")
+    .replace(/\bADMINISTER(?:ED)?\b/g, "AD")
     .replace(/\bP\s*R\s*N\s*[-–]?\s*R\b/g, "PRN-R")
     .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*D\b/g, "PRN-AD")
     .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")

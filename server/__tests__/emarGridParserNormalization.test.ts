@@ -59,6 +59,20 @@ test("extracts time from cell content", () => {
   assert.ok(result.time.includes("09:15") || result.time.includes("0915"));
 });
 
+test("normalizes spaced PRN refusal variants with dotted care-worker initials", () => {
+  const result = extractCodesFromCell("p r n - r J.B. 09:15");
+  assert.equal(result.code, "PRN-R");
+  assert.equal(result.careWorker, "JB");
+  assert.equal(result.time, "09:15");
+});
+
+test("normalizes compact PRN administered variants with three-letter initials", () => {
+  const result = extractCodesFromCell("PRN/AD LBS 0915");
+  assert.equal(result.code, "PRN-AD");
+  assert.equal(result.careWorker, "LBS");
+  assert.equal(result.time, "09:15");
+});
+
 test("returns BLANK for empty or whitespace-only input", () => {
   assert.equal(extractCodesFromCell("").code, "BLANK");
   assert.equal(extractCodesFromCell("   ").code, "BLANK");
@@ -132,6 +146,33 @@ test("multiple initials: first non-code initial is the care worker", () => {
   assert.equal(result.code, "AD");
   assert.equal(result.careWorker, "LB");
   assert.ok(result.time !== "");
+});
+
+test("dotted care-worker initials do not get lost when code-like tokens are present", () => {
+  const result = extractCodesFromCell("AD J.B. 9.15");
+  assert.equal(result.code, "AD");
+  assert.equal(result.careWorker, "JB");
+  assert.equal(result.time, "09:15");
+});
+
+test("normalizes spelled-out refusal and prompted variants", () => {
+  const refused = extractCodesFromCell("Refused AB");
+  assert.equal(refused.code, "R");
+  assert.equal(refused.careWorker, "AB");
+
+  const prompted = extractCodesFromCell("Prompted CD");
+  assert.equal(prompted.code, "P");
+  assert.equal(prompted.careWorker, "CD");
+});
+
+test("normalizes spelled-out self-admin and not-at-home variants", () => {
+  const selfAdmin = extractCodesFromCell("Self-admin GH");
+  assert.equal(selfAdmin.code, "SA");
+  assert.equal(selfAdmin.careWorker, "GH");
+
+  const notAtHome = extractCodesFromCell("Not at home JB");
+  assert.equal(notAtHome.code, "NH");
+  assert.equal(notAtHome.careWorker, "JB");
 });
 
 test("code with no care worker returns empty worker", () => {

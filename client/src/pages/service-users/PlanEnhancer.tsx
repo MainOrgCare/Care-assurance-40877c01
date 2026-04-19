@@ -19,6 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { processVaultResponse } from "@/lib/pii-vault";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { consumeJsonSseStream } from "@/lib/sse";
+import {
+  assessPlanEnhancerPayloadSize,
+  buildPlanEnhancerTokenLimitError,
+  collectPlanEnhancerParseErrors,
+  hasPlanEnhancerData,
+  summarizePlanEnhancerSources,
+} from "./planEnhancerUtils";
 
 /**
  * Highlight template placeholders like [Name], [NHS Number] etc.
@@ -604,28 +611,10 @@ export default function PlanEnhancer() {
   const additionalNotesText = serviceUserData.additionalNotes?.trim() ?? "";
   const hasAdditionalNotes = additionalNotesText.length > 0;
   const hasUpdateNotes = Boolean(updateNotes.trim().length > 0);
-  const sourceStatusSummary = useMemo(() => ({
-    total: sourceDocuments.length,
-    ready: sourceDocuments.filter((document) => document.contentLength > 0 && !document.parseError && !document.isParsing).length,
-    parsing: sourceDocuments.filter((document) => document.isParsing).length,
-    failed: sourceDocuments.filter((document) => Boolean(document.parseError)).length,
-  }), [sourceDocuments]);
-  const parseErrors = useMemo(
-    () => sourceDocuments
-      .filter((document) => Boolean(document.parseError))
-      .map((document) => ({
-        label: document.label,
-        name: document.name,
-        message: document.parseError || "Parsing failed",
-      })),
-    [sourceDocuments]
-  );
+  const sourceStatusSummary = useMemo(() => summarizePlanEnhancerSources(sourceDocuments), [sourceDocuments]);
+  const parseErrors = useMemo(() => collectPlanEnhancerParseErrors(sourceDocuments), [sourceDocuments]);
 
-  const hasData = Boolean(
-    sourceDocuments.length > 0 ||
-    hasAdditionalNotes ||
-    hasUpdateNotes
-  );
+  const hasData = hasPlanEnhancerData(sourceDocuments, hasAdditionalNotes, hasUpdateNotes);
 
   const enhanceMutation = useMutation({
     retry: false, // Disable React Query retry - server handles retries for rate limits
@@ -644,42 +633,20 @@ export default function PlanEnhancer() {
         throw new Error("No document content available");
       }
 
-      // CLIENT-SIDE TOKEN LIMIT CHECK
-      // Estimate tokens (rough: ~4 chars per token) - matches server-side logic
-      const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
-      
-      const supportingTokens = estimateTokens(combinedSupporting);
-      const carePlanTokens = carePlanContent ? estimateTokens(carePlanContent) : 0;
-      const totalContentTokens = supportingTokens + carePlanTokens;
-      
-      // Token limits per provider (conservative to account for system prompt overhead)
-      // GitHub Models: 8K-16K input tokens → use 10K to be safe
-      // OpenAI/Local: 90K+ → use 80K to be safe
-      const TOKEN_LIMITS: Record<string, number> = { github: 10000, openai: 80000, local: 40000 };
-      const MAX_TOKENS = TOKEN_LIMITS[activeProvider] ?? 10000;
-      
-      if (totalContentTokens > MAX_TOKENS) {
-        const excessTokens = totalContentTokens - MAX_TOKENS;
-        const excessKB = Math.ceil((excessTokens * 4) / 1024);
-        
-        throw new Error(
-          `Document content is too large (~${Math.ceil(totalContentTokens / 1000)}K tokens, limit is ${Math.ceil(MAX_TOKENS / 1000)}K tokens). ` +
-          `Your content exceeds the limit by ~${excessKB}KB. ` +
-          `\n\nPlease reduce content by:\n` +
-          `• Uploading only the most relevant pages/sections\n` +
-          `• Removing redundant or outdated documents\n` +
-          `• Summarizing lengthy medical histories\n` +
-          `• Splitting into multiple care plan generations\n\n` +
-          `Or switch AI provider in Secret Admin Portal for higher limits.`
-        );
+      const tokenAssessment = assessPlanEnhancerPayloadSize({
+        supportingContent: combinedSupporting,
+        carePlanContent,
+        activeProvider,
+      });
+
+      if (tokenAssessment.isOverLimit) {
+        throw new Error(buildPlanEnhancerTokenLimitError(tokenAssessment));
       }
-      
-      // Warn if approaching limit (>80% of max)
-      if (totalContentTokens > MAX_TOKENS * 0.8) {
-        const percentUsed = Math.round((totalContentTokens / MAX_TOKENS) * 100);
+
+      if (tokenAssessment.exceedsWarningThreshold) {
         console.warn(
-          `[PlanEnhancer] ⚠️  Content approaching token limit: ${percentUsed}% used ` +
-          `(${totalContentTokens} / ${MAX_TOKENS} tokens). Server may truncate output.`
+          `[PlanEnhancer] ⚠️  Content approaching token limit: ${tokenAssessment.percentUsed}% used ` +
+          `(${tokenAssessment.totalContentTokens} / ${tokenAssessment.maxTokens} tokens). Server may truncate output.`
         );
       }
 
