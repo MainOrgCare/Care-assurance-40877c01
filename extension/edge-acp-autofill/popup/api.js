@@ -1,6 +1,6 @@
 /**
  * api.js — API proxy and network communication layer
- * CareAssurance Extension v0.6.33
+ * CareAssurance Extension v0.6.40
  */
 
 import {
@@ -176,14 +176,15 @@ export async function downloadExtensionPackage(options = {}) {
   const apiOrigin = resolveCareAssuranceApiOrigin(workspaceOrigin);
   const apiBaseUrl = normalizeCareAssuranceBaseUrl(apiOrigin);
   const forceFresh = options?.fresh === true;
+  const updateVersion = options?.updateVersion === true;
   const format = String(options?.format || "zip").toLowerCase() === "crx" ? "crx" : "zip";
-  const endpoint = forceFresh
-    ? format === "crx"
-      ? "/api/admin/extension/package.crx?fresh=1"
-      : "/api/admin/extension/package?fresh=1"
-    : format === "crx"
-      ? "/api/admin/extension/package.crx"
-      : "/api/admin/extension/package";
+  const endpointBase = format === "crx"
+    ? "/api/admin/extension/package.crx"
+    : "/api/admin/extension/package";
+  const query = new URLSearchParams();
+  if (forceFresh) query.set("fresh", "1");
+  if (updateVersion && format === "zip") query.set("update", "1");
+  const endpoint = query.size ? `${endpointBase}?${query.toString()}` : endpointBase;
   const fallbackFilename = format === "crx"
     ? "careassurance-edge-acp-autofill.crx"
     : "careassurance-edge-acp-autofill.zip";
@@ -222,6 +223,8 @@ export async function downloadExtensionPackage(options = {}) {
     filename,
     format,
     version: String(response.headers.get("X-Extension-Version") || "").trim() || null,
+    previousVersion: String(response.headers.get("X-Extension-Previous-Version") || "").trim() || null,
+    versionUpdated: String(response.headers.get("X-Extension-Version-Updated") || "").trim() === "1",
   };
 }
 

@@ -860,7 +860,8 @@ export function registerExtensionRoutes(
   app.get("/api/admin/extension/package", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const forceBuild = String(req.query?.fresh || req.query?.rebuild || "").toLowerCase() === "1";
-      const metadata = await getExtensionPackageMetadata({ forceBuild });
+      const updateVersion = String(req.query?.update || "").toLowerCase() === "1";
+      const metadata = await getExtensionPackageMetadata({ forceBuild, updateVersion });
       if (!metadata) {
         return res.status(404).json({
           message:
@@ -872,6 +873,8 @@ export function registerExtensionRoutes(
       const downloadName = `careassurance-edge-acp-autofill${versionSuffix}.zip`;
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("X-Extension-Version", metadata.manifestVersion || "unknown");
+      res.setHeader("X-Extension-Previous-Version", metadata.previousManifestVersion || "");
+      res.setHeader("X-Extension-Version-Updated", metadata.versionUpdated ? "1" : "0");
       res.setHeader("X-Extension-Sha256", metadata.sha256);
       res.download(metadata.packagePath, downloadName, (downloadError) => {
         if (!downloadError || res.headersSent) return;

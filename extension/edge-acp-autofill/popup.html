@@ -26,7 +26,7 @@
               <span class="connection-uptime" id="connection-uptime" aria-label="Connection uptime"></span>
             </div>
             <button id="overlay-pin-btn" class="btn-overlay-pin" title="Pin in-page overlay" aria-label="Pin in-page overlay" aria-pressed="false">Pin</button>
-            <button id="help-btn" class="btn-help" title="Help &amp; keyboard shortcuts" aria-label="Help">?</button>
+            <button id="help-btn" class="btn-help" title="Open operator guide" aria-label="Open operator guide">?</button>
           </div>
         </div>
       </header>
@@ -35,15 +35,24 @@
       <nav class="tab-navigation" role="tablist" aria-label="Extension sections">
         <button id="tab-connect" class="tab-btn active" data-tab="connect" role="tab" aria-selected="true" aria-controls="tab-content-connect">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
-          Workspace
+          <span class="tab-copy">
+            <span class="tab-title">Workspace</span>
+            <span id="tab-connect-status" class="tab-status" data-tone="muted">Offline</span>
+          </span>
         </button>
         <button id="tab-upload" class="tab-btn" data-tab="upload" role="tab" aria-selected="false" aria-controls="tab-content-upload" aria-label="Intake">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-          Intake
+          <span class="tab-copy">
+            <span class="tab-title">Intake</span>
+            <span id="tab-upload-status" class="tab-status" data-tone="muted">Stage docs</span>
+          </span>
         </button>
         <button id="tab-autofill" class="tab-btn" data-tab="autofill" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Autofill">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          Autofill
+          <span class="tab-copy">
+            <span class="tab-title">Autofill</span>
+            <span id="tab-autofill-status" class="tab-status" data-tone="muted">Waiting</span>
+          </span>
         </button>
       </nav>
 
@@ -60,6 +69,10 @@
           <div class="case-context-head">
             <span class="case-context-eyebrow">Current context</span>
             <span id="case-context-state" class="case-context-state">Waiting for a case</span>
+          </div>
+          <div id="case-context-highlights" class="case-context-highlights">
+            <span class="case-context-highlight muted">No target linked</span>
+            <span class="case-context-highlight muted">No payload staged</span>
           </div>
           <div id="case-context-grid" class="case-context-grid">
             <div class="case-context-item is-empty">
@@ -159,9 +172,40 @@
                 </div>
               </div>
 
+              <div id="extension-health-sync" class="extension-health-sync">
+                <span class="extension-health-sync-label">Website sync</span>
+                <strong class="extension-health-sync-value">Waiting for connection</strong>
+                <span class="extension-health-sync-detail">Connect the popup to compare the browser-installed extension with the published package.</span>
+              </div>
+
+              <div id="extension-health-guide" class="extension-health-guide">
+                <div class="extension-health-guide-item">
+                  <span class="extension-health-guide-step">1</span>
+                  <div class="extension-health-guide-copy">
+                    <strong>Update the published build</strong>
+                    <span>Refresh the package status or rebuild a new ZIP when the server package is missing or stale.</span>
+                  </div>
+                </div>
+                <div class="extension-health-guide-item">
+                  <span class="extension-health-guide-step">2</span>
+                  <div class="extension-health-guide-copy">
+                    <strong>Install the package in Edge</strong>
+                    <span>Use the CRX for direct install, or extract the ZIP and load it with Extensions → Load unpacked.</span>
+                  </div>
+                </div>
+                <div class="extension-health-guide-item">
+                  <span class="extension-health-guide-step">3</span>
+                  <div class="extension-health-guide-copy">
+                    <strong>Refresh CareAssurance tabs</strong>
+                    <span>Refresh open pages after updating the extension so the website bridge and content scripts match the current build.</span>
+                  </div>
+                </div>
+              </div>
+
               <div class="extension-health-actions">
                 <button id="extension-health-primary" class="btn btn-primary btn-sm">Sync Session</button>
                 <button id="extension-health-secondary" class="btn btn-secondary btn-sm" hidden>Open Extension Manager</button>
+                <button id="extension-health-tertiary" class="btn btn-secondary btn-sm" hidden>Bump Version &amp; Download ZIP</button>
               </div>
             </div>
           </section>
@@ -322,6 +366,11 @@
                 </div>
               </div>
 
+              <div id="upload-handoff-recommendation" class="workflow-recommendation is-info">
+                <span class="workflow-recommendation-label">Recommended next step</span>
+                <span class="workflow-recommendation-text">Open Autofill and choose the target case before staging or sending files.</span>
+              </div>
+
               <div class="upload-handoff-actions">
                 <button id="upload-handoff-primary" class="btn btn-primary btn-sm">Open Autofill</button>
                 <button id="upload-handoff-secondary" class="btn btn-secondary btn-sm">Refresh Context</button>
@@ -353,6 +402,10 @@
                 </div>
                 <strong id="auto-collect-info-title" class="auto-collect-info-title">No auto-collect run yet</strong>
                 <div id="auto-collect-info-detail" class="auto-collect-info-detail">Run Auto-Collect in any Intake section to capture source, selection, and download diagnostics.</div>
+                <div id="auto-collect-info-recommendation" class="workflow-recommendation is-info">
+                  <span class="workflow-recommendation-label">Recommended next step</span>
+                  <span class="workflow-recommendation-text">Use Auto-Collect on the most relevant Intake section to pull documents straight into staging.</span>
+                </div>
                 <div class="auto-collect-info-actions">
                   <button id="auto-collect-primary-action" type="button" class="btn btn-primary btn-sm" hidden></button>
                   <button id="auto-collect-secondary-action" type="button" class="btn btn-secondary btn-sm" hidden></button>
@@ -513,6 +566,11 @@
                 </div>
               </div>
 
+              <div id="autofill-session-recommendation" class="workflow-recommendation is-info">
+                <span class="workflow-recommendation-label">Recommended next step</span>
+                <span class="workflow-recommendation-text">Analyze or load content first so Autofill has a staged payload to run.</span>
+              </div>
+
               <div class="page-companion-actions">
                 <button id="autofill-session-primary" class="btn btn-primary btn-sm">Refresh Status</button>
                 <button id="autofill-session-focus" class="btn btn-secondary btn-sm" disabled>Focus Workflow Page</button>
@@ -530,6 +588,21 @@
                   <span id="command-center-summary" class="collapsible-summary-pill">Idle</span>
                 </span>
                 <span class="collapsible-header-detail">Live extension health, queue posture, and incident controls.</span>
+                <div id="ops-quickbar" class="ops-quickbar">
+                  <div class="ops-quick-metric" data-tone="idle">
+                    <span class="ops-quick-label">Health</span>
+                    <strong id="ops-quick-health" class="ops-quick-value">Idle</strong>
+                  </div>
+                  <div class="ops-quick-metric" data-tone="idle">
+                    <span class="ops-quick-label">Queue</span>
+                    <strong id="ops-quick-queue" class="ops-quick-value">-</strong>
+                  </div>
+                  <div class="ops-quick-metric" data-tone="idle">
+                    <span class="ops-quick-label">Mode</span>
+                    <strong id="ops-quick-mode" class="ops-quick-value">Auto</strong>
+                  </div>
+                </div>
+                <span id="ops-quick-note" class="ops-quick-note">Load payload data to begin an autofill session.</span>
               </div>
               <span class="chevron">▼</span>
             </summary>
@@ -797,7 +870,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.33</span></span>
+            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.40</span></span>
         </div>
       </footer>
     </main>

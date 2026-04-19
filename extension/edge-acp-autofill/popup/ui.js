@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.33
+ * CareAssurance Extension v0.6.40
  */
 
 import {
@@ -15,6 +15,8 @@ import {
   formatRuntimeDuration,
   formatPayloadTimestamp,
   getPayloadWorkflowLabel,
+  compareExtensionVersions,
+  buildWorkflowSafetyState,
   describeWorkspaceRoute,
   normalizeCareAssuranceBaseUrl,
   isLikelyCareAssuranceUrl,
@@ -36,14 +38,15 @@ export function cacheDomElements() {
   const ids = [
     // Tabs
     "tab-connect", "tab-upload", "tab-autofill",
+    "tab-connect-status", "tab-upload-status", "tab-autofill-status",
     "tab-content-connect", "tab-content-upload", "tab-content-autofill",
     // Header
     "header-subtitle", "connection-badge", "connection-uptime", "overlay-pin-btn",
     // Shared context
-    "case-context-strip", "case-context-grid", "case-context-state",
+    "case-context-strip", "case-context-grid", "case-context-state", "case-context-highlights",
     // Connect
     "connect-status", "connect-btn", "refresh-workspace-context",
-    "extension-health-state", "extension-health-meta", "extension-health-primary", "extension-health-secondary",
+    "extension-health-state", "extension-health-meta", "extension-health-sync", "extension-health-guide", "extension-health-primary", "extension-health-secondary", "extension-health-tertiary",
     "workspace-context-status", "workspace-route-label", "workspace-route-path",
     "workspace-tab-title", "open-connected-workspace", "open-dashboard-workspace",
     "open-care-planning-workspace", "open-risk-workspace", "open-plan-enhancer-workspace",
@@ -61,8 +64,8 @@ export function cacheDomElements() {
     "upload-care-plan-input", "upload-care-plan-files",
     "upload-moving-handling-input", "upload-moving-handling-files",
     "upload-additional-documents-input", "upload-additional-documents-files",
-    "upload-handoff-state", "upload-handoff-meta", "upload-handoff-primary", "upload-handoff-secondary",
-    "auto-collect-info", "auto-collect-info-state", "auto-collect-info-title", "auto-collect-info-detail", "auto-collect-primary-action", "auto-collect-secondary-action", "copy-auto-collect-info",
+    "upload-handoff-state", "upload-handoff-meta", "upload-handoff-recommendation", "upload-handoff-primary", "upload-handoff-secondary",
+    "auto-collect-info", "auto-collect-info-state", "auto-collect-info-title", "auto-collect-info-detail", "auto-collect-info-recommendation", "auto-collect-primary-action", "auto-collect-secondary-action", "copy-auto-collect-info",
     "upload-sync-status", "upload-sync-summary", "sync-upload-btn", "reset-upload-btn", "upload-notes", "analyze-documents",
     "analysis-status", "analysis-progress", "clear-uploads",
     "uploaded-docs-summary", "uploaded-docs-list",
@@ -72,7 +75,7 @@ export function cacheDomElements() {
     "interaction-mode", "auto-submit", "dry-run",
     // Autofill controls
     "payload-status", "progress-status", "start-autofill", "stop-autofill", "clear-data",
-    "autofill-session-state", "autofill-session-meta", "autofill-session-primary",
+    "autofill-session-state", "autofill-session-meta", "autofill-session-recommendation", "autofill-session-primary",
     "autofill-session-focus", "autofill-session-diagnostics",
     // Selection
     "selection-section", "assessment-list", "selection-count", "analysis-overview",
@@ -99,7 +102,7 @@ export function cacheDomElements() {
     // Command center
     "ops-refresh", "ops-copy-snapshot", "ops-copy-incident", "ops-clear-incident",
     "ops-health", "ops-reliability", "ops-queue", "ops-mode", "ops-timeline", "ops-recommendations", "ops-flags",
-    "command-center-section", "command-center-summary",
+    "command-center-section", "command-center-summary", "ops-quickbar", "ops-quick-health", "ops-quick-queue", "ops-quick-mode", "ops-quick-note",
   ];
 
   for (const id of ids) {
@@ -273,6 +276,175 @@ export function showConfirmDialog(title, message, onConfirm, { details = [] } = 
   confirmBtn.focus();
 }
 
+function buildHelpGuideText({ version = "", isConnected = false, isAdmin = false } = {}) {
+  const versionLabel = String(version || "").trim();
+  const formattedVersion = versionLabel
+    ? versionLabel.startsWith("v")
+      ? versionLabel
+      : `v${versionLabel}`
+    : "Current build";
+
+  return [
+    `CareAssurance Extension ${formattedVersion}`,
+    "",
+    "Recommended workflow",
+    "1. Workspace: Sync CareAssurance and confirm the current page plus Extension Status before starting a new run.",
+    "2. Intake: Select the target service user or Case ID, then upload files or use Auto-Collect in the matching Intake section.",
+    "3. Review: Analyze staged files or send them to CareAssurance Upload once the target and recommended next step still look correct.",
+    "4. Autofill: Review any flagged fields, then start Autofill only after the attached page and target IDs still match the payload.",
+    "",
+    "Auto-download recovery",
+    "- Use Retry Failed Downloads after a partial run so already-staged files are not re-downloaded unnecessarily.",
+    "- Use Open Source when you need to verify the current Mobizio document list or confirm a missing file.",
+    "- Keep the target case aligned before sending staged files or starting Autofill.",
+    "",
+    "Keyboard shortcuts",
+    "- Ctrl/Cmd+Enter: Start Autofill",
+    "- Esc: Close dialogs or dropdowns",
+    "- Left/Right while focused on tabs: Switch sections",
+    "",
+    isConnected
+      ? "Current state: CareAssurance session connected. Start from Workspace or Intake depending on whether you are checking the page or staging documents."
+      : "Current state: CareAssurance session not connected. Start with Sync CareAssurance Session in Workspace.",
+    isAdmin
+      ? "Admin note: Extension Status can download, rebuild, or bump the published package when rollout changes are needed."
+      : "Operator note: Ask an admin to use Extension Status or Extension Manager if the installed build is behind or the package needs rebuilding.",
+  ].join("\n");
+}
+
+export function showHelpGuideDialog({ version = "", isConnected = false, isAdmin = false } = {}) {
+  document.querySelector(".dialog-overlay")?.remove();
+
+  const dialogId = `dialog-title-${Date.now()}`;
+  const versionLabel = String(version || "").trim();
+  const formattedVersion = versionLabel
+    ? versionLabel.startsWith("v")
+      ? versionLabel
+      : `v${versionLabel}`
+    : "Current build";
+  const startupTone = isConnected ? "success" : "warning";
+  const startupTitle = isConnected ? "Session ready" : "Start with session sync";
+  const startupDetail = isConnected
+    ? "Use Workspace to confirm the live page, then Intake or Autofill to continue the same case without losing context."
+    : "Sync CareAssurance from Workspace first so the popup can inspect the live page, version status, and next available actions.";
+  const rolloutDetail = isAdmin
+    ? "Admins can use Extension Status to download, rebuild, or bump the published package without leaving the popup."
+    : "If the installed build looks behind or stale, ask an admin to refresh the package through Extension Status or Extension Manager.";
+
+  const overlay = document.createElement("div");
+  overlay.className = "dialog-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", dialogId);
+  overlay.innerHTML = `
+    <div class="dialog help-guide-dialog">
+      <div class="dialog-header help-guide-header">
+        <span class="dialog-icon help-guide-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-3a1 1 0 1 0-2 0 1 1 0 0 0 2 0Zm-2 3a1 1 0 0 0 0 2v2a1 1 0 1 0 2 0v-2a1 1 0 0 0-1-1H9Z" clip-rule="evenodd"/></svg>
+        </span>
+        <div class="help-guide-heading">
+          <span class="dialog-title" id="${dialogId}">Operator Guide</span>
+          <span class="help-guide-subtitle">Quick workflow, auto-download recovery, and keyboard shortcuts for the current popup.</span>
+        </div>
+      </div>
+      <div class="dialog-body help-guide-body">
+        <div class="help-guide-banner is-${startupTone}">
+          <span class="help-guide-banner-label">Recommended start</span>
+          <strong>${escapeHtml(startupTitle)}</strong>
+          <span>${escapeHtml(startupDetail)}</span>
+        </div>
+
+        <div class="help-guide-grid">
+          <section class="help-guide-section">
+            <span class="help-guide-section-label">Recommended flow</span>
+            <ol class="help-guide-list">
+              <li>Start in Workspace to confirm the page, case context, and extension status.</li>
+              <li>In Intake, select the target case, then upload files or use Auto-Collect in the correct section.</li>
+              <li>Use the recommended-next-step cards before analyzing, sending staged files, or opening Autofill.</li>
+              <li>In Autofill, review flagged fields before starting a live run.</li>
+            </ol>
+          </section>
+
+          <section class="help-guide-section">
+            <span class="help-guide-section-label">Auto-download recovery</span>
+            <ul class="help-guide-list">
+              <li>Retry Failed Downloads after a partial run so successful files stay staged.</li>
+              <li>Open Source when you need to verify the visible Mobizio document list.</li>
+              <li>Keep the Case ID and selected service user aligned before sending or starting Autofill.</li>
+            </ul>
+          </section>
+        </div>
+
+        <section class="help-guide-section">
+          <span class="help-guide-section-label">Keyboard shortcuts</span>
+          <div class="help-guide-shortcuts">
+            <div class="help-guide-shortcut">
+              <strong><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></strong>
+              <span>Start Autofill</span>
+            </div>
+            <div class="help-guide-shortcut">
+              <strong><span class="kbd">Esc</span></strong>
+              <span>Close dialogs or dropdowns</span>
+            </div>
+            <div class="help-guide-shortcut">
+              <strong><span class="kbd">←</span> <span class="kbd">→</span></strong>
+              <span>Switch tabs while focused on the tab row</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="help-guide-note">
+          <strong>${escapeHtml(formattedVersion)}</strong>
+          <span>${escapeHtml(rolloutDetail)}</span>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary help-guide-copy">Copy Guide</button>
+        <button class="btn btn-primary help-guide-close">Close</button>
+      </div>
+    </div>
+  `;
+
+  const copyBtn = overlay.querySelector(".help-guide-copy");
+  const closeBtn = overlay.querySelector(".help-guide-close");
+  const closeDialog = () => overlay.remove();
+
+  closeBtn.addEventListener("click", closeDialog);
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await writeToClipboard(buildHelpGuideText({ version, isConnected, isAdmin }));
+      showSuccess("Operator guide copied");
+    } catch {
+      showError("Could not copy the operator guide. Try again.");
+    }
+  });
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeDialog();
+  });
+
+  const focusable = [copyBtn, closeBtn];
+  overlay.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeDialog();
+      return;
+    }
+    if (event.key === "Tab") {
+      const index = focusable.indexOf(document.activeElement);
+      if (event.shiftKey) {
+        event.preventDefault();
+        focusable[index <= 0 ? focusable.length - 1 : index - 1].focus();
+      } else {
+        event.preventDefault();
+        focusable[index >= focusable.length - 1 ? 0 : index + 1].focus();
+      }
+    }
+  });
+
+  document.body.appendChild(overlay);
+  closeBtn.focus();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TAB BADGES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -293,8 +465,79 @@ export function setTabBadge(tabBtn, count, variant) {
   tabBtn.appendChild(badge);
 }
 
+function setTabStatus(tabBtn, statusEl, text, tone = "muted") {
+  if (!tabBtn || !statusEl) return;
+  statusEl.textContent = text;
+  statusEl.dataset.tone = tone;
+  tabBtn.dataset.statusTone = tone;
+}
+
 export function updateTabBadges(payload, fileCount) {
-  setTabBadge(dom.tabAutofill, payload ? true : null, payload ? "success" : null);
+  const workflowSafety = buildWorkflowSafetyState({
+    extensionStatus: state.extensionStatus,
+    pageContext: state.pageCompanionContext,
+    selectedAutofillUser: state.selectedAutofillUser,
+    payload,
+    caseId: String(dom.caseId?.value || "").trim(),
+    serviceDataGroupId: String(dom.serviceDataGroupId?.value || "").trim(),
+    requireCaseId: Boolean(payload),
+    requireServiceDataGroup: Boolean(payload),
+  });
+  const workspaceContext = state.connectedWorkspaceContext;
+  const hasAnalysisSelection = Boolean(state.currentAnalysisResults?.recommendedAssessments?.length) && !dom.selectionSection?.hidden;
+
+  let workspaceStatus = "Offline";
+  let workspaceTone = "muted";
+  if (state.isConnected && workflowSafety.action === "open-status") {
+    workspaceStatus = "Review status";
+    workspaceTone = "warning";
+  } else if (state.isConnected && workspaceContext?.routeLabel) {
+    workspaceStatus = workspaceContext.routeLabel;
+    workspaceTone = "success";
+  } else if (state.isConnected) {
+    workspaceStatus = "Connected";
+    workspaceTone = "success";
+  }
+
+  let intakeStatus = "Stage docs";
+  let intakeTone = "muted";
+  if (fileCount > 0) {
+    intakeStatus = `${fileCount} staged`;
+    intakeTone = "warning";
+  } else if (hasAnalysisSelection) {
+    intakeStatus = "Review analysis";
+    intakeTone = "success";
+  }
+
+  let autofillStatus = "Waiting";
+  let autofillTone = "muted";
+  if (workflowSafety.code === "page-refresh-required") {
+    autofillStatus = "Reload page";
+    autofillTone = "warning";
+  } else if (workflowSafety.severity === "blocking") {
+    autofillStatus = workflowSafety.actionLabel || "Needs target";
+    autofillTone = "warning";
+  } else if (workflowSafety.severity === "warning") {
+    autofillStatus = workflowSafety.actionLabel || "Review ready";
+    autofillTone = "warning";
+  } else if (payload) {
+    autofillStatus = "Ready to run";
+    autofillTone = "success";
+  } else if (state.pageCompanionContext?.routeLabel) {
+    autofillStatus = "Page attached";
+    autofillTone = "success";
+  }
+
+  setTabStatus(dom.tabConnect, dom.tabConnectStatus, workspaceStatus, workspaceTone);
+  setTabStatus(dom.tabUpload, dom.tabUploadStatus, intakeStatus, intakeTone);
+  setTabStatus(dom.tabAutofill, dom.tabAutofillStatus, autofillStatus, autofillTone);
+
+  setTabBadge(dom.tabConnect, workflowSafety.action === "open-status" ? true : null, workflowSafety.action === "open-status" ? "warning" : null);
+  setTabBadge(
+    dom.tabAutofill,
+    workflowSafety.severity === "blocking" ? true : payload ? true : null,
+    workflowSafety.severity === "blocking" ? "warning" : payload ? "success" : null,
+  );
   setTabBadge(dom.tabUpload, fileCount > 0 ? fileCount : null, "warning");
 }
 
@@ -341,6 +584,42 @@ const MAIN_VIEW_ROUTE_LABELS = {
 
 const getMainViewRouteLabel = (route) => MAIN_VIEW_ROUTE_LABELS[route] || "Workflow";
 
+const getPopupWorkflowSafety = (overrides = {}) =>
+  buildWorkflowSafetyState({
+    extensionStatus: state.extensionStatus,
+    pageContext: overrides.includePageContext === false ? null : state.pageCompanionContext,
+    selectedAutofillUser: state.selectedAutofillUser,
+    payload: Object.prototype.hasOwnProperty.call(overrides, "payload")
+      ? overrides.payload
+      : state.latestPayloadSnapshot?.payload || null,
+    caseId: Object.prototype.hasOwnProperty.call(overrides, "caseId")
+      ? overrides.caseId
+      : String(dom.caseId?.value || "").trim(),
+    serviceDataGroupId: Object.prototype.hasOwnProperty.call(overrides, "serviceDataGroupId")
+      ? overrides.serviceDataGroupId
+      : String(dom.serviceDataGroupId?.value || "").trim(),
+    requireCaseId: Boolean(overrides.requireCaseId),
+    requireServiceDataGroup: Boolean(overrides.requireServiceDataGroup),
+  });
+
+const getWorkflowSafetyActionConfig = (safety, className = "btn btn-primary btn-sm") => {
+  if (!safety || safety.severity === "ready" || !safety.action) return null;
+  return {
+    label: safety.actionLabel || "Review Status",
+    action: safety.action,
+    className,
+  };
+};
+
+function renderWorkflowRecommendation(element, { text = "", tone = "info" } = {}) {
+  if (!element) return;
+  element.className = `workflow-recommendation is-${tone}`;
+  element.innerHTML = `
+    <span class="workflow-recommendation-label">Recommended next step</span>
+    <span class="workflow-recommendation-text">${escapeHtml(text || "Review the current status before continuing.")}</span>
+  `;
+}
+
 const resolveMainViewSecondaryRoute = (context) => {
   const path = String(context?.path || "").toLowerCase();
   if (path.startsWith("/service-users/care-planning")) return "/service-users/risk-assessment";
@@ -370,6 +649,12 @@ const setMainViewActionButton = (button, config = {}) => {
 function renderMainViewLaunchpad(context = state.connectedWorkspaceContext) {
   const stateEl = dom.mainViewState;
   const currentPath = String(context?.path || "").toLowerCase();
+  const payload = state.latestPayloadSnapshot?.payload || null;
+  const workflowSafety = getPopupWorkflowSafety({
+    payload,
+    requireCaseId: Boolean(payload),
+    requireServiceDataGroup: Boolean(payload),
+  });
 
   if (stateEl) {
     if (!state.isConnected) {
@@ -378,6 +663,13 @@ function renderMainViewLaunchpad(context = state.connectedWorkspaceContext) {
         <span class="main-view-state-eyebrow">Startup status</span>
         <strong class="main-view-state-title">Not connected yet</strong>
         <span class="main-view-state-detail">Sync your CareAssurance session to unlock service-user search, payload loading, and one-click workflow focus.</span>
+      `;
+    } else if (workflowSafety.severity !== "ready") {
+      stateEl.className = "main-view-state is-warning";
+      stateEl.innerHTML = `
+        <span class="main-view-state-eyebrow">Startup status</span>
+        <strong class="main-view-state-title">${escapeHtml(workflowSafety.title)}</strong>
+        <span class="main-view-state-detail">${escapeHtml(workflowSafety.detail)}</span>
       `;
     } else if (!context) {
       stateEl.className = "main-view-state is-waiting";
@@ -416,6 +708,18 @@ function renderMainViewLaunchpad(context = state.connectedWorkspaceContext) {
     setMainViewActionButton(dom.mainViewSecondaryAction, {
       label: "Refresh Context",
       action: "refresh-context",
+    });
+  } else if (workflowSafety.severity !== "ready") {
+    const primaryAction = getWorkflowSafetyActionConfig(workflowSafety) || {
+      label: "Refresh Context",
+      action: "refresh-context",
+      className: "btn btn-primary btn-sm",
+    };
+    setMainViewActionButton(dom.mainViewPrimaryAction, primaryAction);
+    setMainViewActionButton(dom.mainViewSecondaryAction, {
+      label: context?.tabId ? "Focus Current Page" : "Open Dashboard",
+      action: context?.tabId ? "focus-current" : "open-route",
+      route: context?.tabId ? "" : "/dashboard",
     });
   } else {
     const secondaryRoute = resolveMainViewSecondaryRoute(context);
@@ -513,31 +817,101 @@ export function updateConnectionUI(connected, user = null) {
   updateHeaderUserChip(null);
   updateFooterLiveDot(connected);
 }
-
-function compareExtensionVersions(left, right) {
-  const toParts = (value) =>
-    String(value || "")
-      .split(".")
-      .map((part) => Number.parseInt(part, 10))
-      .map((part) => (Number.isFinite(part) ? part : 0));
-
-  const leftParts = toParts(left);
-  const rightParts = toParts(right);
-  const maxLength = Math.max(leftParts.length, rightParts.length, 3);
-
-  for (let index = 0; index < maxLength; index += 1) {
-    const leftPart = leftParts[index] ?? 0;
-    const rightPart = rightParts[index] ?? 0;
-    if (leftPart > rightPart) return 1;
-    if (leftPart < rightPart) return -1;
-  }
-
-  return 0;
-}
-
 function formatExtensionStatusTimestamp(value, fallback = "Not available") {
   const raw = String(value || "").trim();
   return raw ? formatPayloadTimestamp(raw) : fallback;
+}
+
+function buildExtensionHealthSyncSummary({
+  connected,
+  detected,
+  refreshRequired,
+  installedVersion,
+  serverVersion,
+  versionComparison,
+}) {
+  if (!connected) {
+    return {
+      value: "Waiting for connection",
+      detail: "Connect the popup to compare the browser-installed extension with the published package.",
+      tone: "idle",
+    };
+  }
+
+  if (refreshRequired) {
+    return {
+      value: "Refresh required",
+      detail: "This page is still attached to an older extension context. Refresh CareAssurance tabs after updating the extension.",
+      tone: "warning",
+    };
+  }
+
+  if (!detected) {
+    return {
+      value: "Not detected on page",
+      detail: "The website has not detected an installed CareAssurance extension on this page yet.",
+      tone: "warning",
+    };
+  }
+
+  if (versionComparison < 0) {
+    return {
+      value: "Published build ahead",
+      detail: `The page currently sees ${installedVersion}. Refresh after loading ${serverVersion}.`,
+      tone: "warning",
+    };
+  }
+
+  if (versionComparison > 0) {
+    return {
+      value: "Environment mismatch",
+      detail: `The page currently sees ${installedVersion} while the server reports ${serverVersion}. Confirm the correct CareAssurance environment before troubleshooting.`,
+      tone: "warning",
+    };
+  }
+
+  return {
+    value: "Website sync ready",
+    detail: "The browser-installed extension matches the package currently published from CareAssurance.",
+    tone: "ready",
+  };
+}
+
+function buildExtensionHealthGuide({
+  isAdmin,
+  packageAvailable,
+  packageStale,
+  canAdminDownloadPackage,
+  canAdminDownloadCrx,
+  canAdminRebuildPackage,
+  canAdminRebuildCrx,
+  refreshRequired,
+}) {
+  const stepOne = isAdmin
+    ? canAdminRebuildPackage
+      ? "Use Rebuild & Download ZIP when the published package is missing or stale."
+      : canAdminDownloadPackage
+        ? "Use Download Latest ZIP when the published package is current."
+        : packageAvailable && packageStale
+          ? "Open Extension Manager to rebuild the published package before rollout."
+          : "Refresh status or open Extension Manager to confirm package readiness."
+    : packageAvailable
+      ? "Ask an admin to provide the latest ZIP or CRX from Extension Manager."
+      : "Ask an admin to rebuild the extension package in Extension Manager first.";
+
+  const stepTwo = canAdminDownloadCrx || canAdminRebuildCrx
+    ? "Use the CRX for direct install when browser policy allows it, or extract the ZIP and use Extensions → Load unpacked."
+    : "Extract the ZIP and use Extensions → Load unpacked in Edge for the standard install path.";
+
+  const stepThree = refreshRequired
+    ? "Refresh open CareAssurance tabs now so the content scripts and website bridge reattach to the current extension."
+    : "Refresh open CareAssurance tabs after any extension update so the content scripts and website bridge stay in sync.";
+
+  return [
+    { title: "Update the published build", detail: stepOne },
+    { title: "Install the package in Edge", detail: stepTwo },
+    { title: "Refresh CareAssurance tabs", detail: stepThree },
+  ];
 }
 
 export function renderExtensionHealth(snapshot = state.extensionStatus) {
@@ -557,6 +931,8 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
   const packageStatus = snapshot?.package || null;
   const crxStatus = snapshot?.crx || null;
   const runtimeConfig = snapshot?.runtimeConfig || null;
+  const installedDetected = Boolean(snapshot?.detected);
+  const refreshRequired = Boolean(snapshot?.refreshRequired);
   const statusError = String(snapshot?.statusError || "").trim();
   const packageAvailable = Boolean(packageStatus?.available);
   const packageStale = Boolean(packageStatus?.stale);
@@ -678,12 +1054,22 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
         ? "Build on demand"
       : "Unavailable";
 
+  const syncSummary = buildExtensionHealthSyncSummary({
+    connected: state.isConnected,
+    detected: installedDetected,
+    refreshRequired,
+    installedVersion,
+    serverVersion,
+    versionComparison,
+  });
+
   const metaItems = [
     { label: "Installed", value: installedVersion },
     { label: "Server", value: state.isConnected ? serverVersion : "Connect to check" },
     { label: "Package", value: packageValue },
     { label: "CRX", value: crxValue },
     { label: "Runtime", value: runtimeValue },
+    { label: "Website", value: syncSummary.value },
   ];
 
   dom.extensionHealthMeta.innerHTML = metaItems
@@ -696,6 +1082,41 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
       `
     )
     .join("");
+
+  if (dom.extensionHealthSync) {
+    dom.extensionHealthSync.className = `extension-health-sync ${syncSummary.tone}`;
+    dom.extensionHealthSync.innerHTML = `
+      <span class="extension-health-sync-label">Website sync</span>
+      <strong class="extension-health-sync-value">${escapeHtml(syncSummary.value)}</strong>
+      <span class="extension-health-sync-detail">${escapeHtml(syncSummary.detail)}</span>
+    `;
+  }
+
+  if (dom.extensionHealthGuide) {
+    const guide = buildExtensionHealthGuide({
+      isAdmin: state.isAdmin,
+      packageAvailable,
+      packageStale,
+      canAdminDownloadPackage,
+      canAdminDownloadCrx,
+      canAdminRebuildPackage,
+      canAdminRebuildCrx,
+      refreshRequired,
+    });
+    dom.extensionHealthGuide.innerHTML = guide
+      .map(
+        (item, index) => `
+          <div class="extension-health-guide-item">
+            <span class="extension-health-guide-step">${index + 1}</span>
+            <div class="extension-health-guide-copy">
+              <strong>${escapeHtml(item.title)}</strong>
+              <span>${escapeHtml(item.detail)}</span>
+            </div>
+          </div>
+        `
+      )
+      .join("");
+  }
 
   let primaryAction = {
     label: state.isConnected ? "Refresh Extension Status" : "Sync Session",
@@ -710,6 +1131,7 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
         className: "btn btn-secondary btn-sm",
       }
     : null;
+  let tertiaryAction = null;
 
   if (state.isAdmin && state.isConnected && (versionComparison < 0 || packageStale || !packageAvailable)) {
     primaryAction = {
@@ -761,6 +1183,14 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
     };
   }
 
+  if (state.isAdmin && state.isConnected && snapshot && !statusError) {
+    tertiaryAction = {
+      label: "Bump Version & Download ZIP",
+      action: "bump-download-package",
+      className: "btn btn-secondary btn-sm",
+    };
+  }
+
   if (dom.extensionHealthPrimary) {
     dom.extensionHealthPrimary.textContent = primaryAction.label;
     dom.extensionHealthPrimary.dataset.action = primaryAction.action;
@@ -776,6 +1206,18 @@ export function renderExtensionHealth(snapshot = state.extensionStatus) {
     } else {
       dom.extensionHealthSecondary.hidden = true;
       dom.extensionHealthSecondary.dataset.action = "";
+    }
+  }
+
+  if (dom.extensionHealthTertiary) {
+    if (tertiaryAction) {
+      dom.extensionHealthTertiary.hidden = false;
+      dom.extensionHealthTertiary.textContent = tertiaryAction.label;
+      dom.extensionHealthTertiary.dataset.action = tertiaryAction.action;
+      dom.extensionHealthTertiary.className = tertiaryAction.className;
+    } else {
+      dom.extensionHealthTertiary.hidden = true;
+      dom.extensionHealthTertiary.dataset.action = "";
     }
   }
 }
@@ -849,12 +1291,32 @@ export function renderCaseContextStrip(caseInfo = null) {
     state.selectedAutofillUser?.name || state.selectedUser?.name || state.latestPayloadSnapshot?.payload?.serviceUserDisplayName || ""
   ).trim();
   const resolvedOperator = String(state.connectedWorkspaceUser?.username || "").trim();
+  const payload = state.latestPayloadSnapshot?.payload || null;
+  const workflowSafety = getPopupWorkflowSafety({
+    payload,
+    caseId: resolvedCaseId,
+    serviceDataGroupId: resolvedServiceGroup,
+    requireCaseId: Boolean(payload),
+    requireServiceDataGroup: Boolean(payload),
+  });
 
   const populatedCount = [resolvedServiceUser, resolvedCaseId, resolvedServiceGroup, resolvedOperator].filter(Boolean).length;
 
-  dom.caseContextState.textContent = populatedCount > 0
-    ? `${populatedCount} context field${populatedCount === 1 ? "" : "s"} ready`
-    : "Waiting for a case";
+  let stateText = "Waiting for a case";
+  let stateTone = "muted";
+  if (populatedCount > 0 && workflowSafety.severity !== "ready") {
+    stateText = workflowSafety.title;
+    stateTone = "warning";
+  } else if (resolvedServiceUser && resolvedCaseId && resolvedOperator) {
+    stateText = "Target aligned and ready";
+    stateTone = "success";
+  } else if (populatedCount > 0) {
+    stateText = `${populatedCount} context field${populatedCount === 1 ? "" : "s"} ready`;
+    stateTone = "normal";
+  }
+
+  dom.caseContextState.textContent = stateText;
+  dom.caseContextState.dataset.tone = stateTone;
 
   const buildItem = (label, value, emptyLabel, copyLabel) => {
     const hasValue = Boolean(value);
@@ -875,6 +1337,46 @@ export function renderCaseContextStrip(caseInfo = null) {
   ].join("");
 
   dom.caseContextStrip?.classList.toggle("has-context", populatedCount > 0);
+  dom.caseContextStrip?.classList.toggle("is-warning", populatedCount > 0 && workflowSafety.severity !== "ready");
+  dom.caseContextStrip?.classList.toggle("is-ready", workflowSafety.severity === "ready" && populatedCount >= 2);
+
+  if (dom.caseContextHighlights) {
+    const highlights = [];
+    if (workflowSafety.severity !== "ready") {
+      highlights.push({ label: workflowSafety.actionLabel || workflowSafety.title, tone: "warning" });
+    } else if (resolvedServiceUser && resolvedCaseId) {
+      highlights.push({ label: "Target ready", tone: "success" });
+    } else {
+      highlights.push({ label: "Target incomplete", tone: populatedCount > 0 ? "warning" : "muted" });
+    }
+
+    highlights.push(
+      payload
+        ? { label: `${getPayloadWorkflowLabel(payload)} staged`, tone: "success" }
+        : { label: "No payload staged", tone: "muted" }
+    );
+
+    highlights.push(
+      resolvedServiceGroup
+        ? { label: `Group ${resolvedServiceGroup}`, tone: "normal" }
+        : payload
+        ? { label: "Detect group ID", tone: "warning" }
+        : { label: "Group pending", tone: "muted" }
+    );
+
+    if (state.connectedWorkspaceContext?.routeLabel) {
+      highlights.push({ label: state.connectedWorkspaceContext.routeLabel, tone: "normal" });
+    } else if (state.isConnected) {
+      highlights.push({ label: "Workspace connected", tone: "normal" });
+    }
+
+    dom.caseContextHighlights.innerHTML = highlights
+      .slice(0, 4)
+      .map(
+        (item) => `<span class="case-context-highlight ${escapeAttr(item.tone || "normal")}">${escapeHtml(item.label || "")}</span>`
+      )
+      .join("");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1186,20 +1688,26 @@ export function renderAutofillSessionSummary(snapshot = {}) {
   const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : null;
   const queueStep = total ? Math.min((currentIndex ?? 0) + 1, total) : null;
   const payloadLabel = getPayloadWorkflowLabel(payload) || "No payload";
+  const workflowSafety = getPopupWorkflowSafety({
+    payload,
+    requireCaseId: Boolean(payload),
+    requireServiceDataGroup: Boolean(payload),
+  });
 
   let stateClass = "is-idle";
   let title = "No autofill session loaded";
   let detail = "Analyze documents or load a payload to prepare the next run.";
   let primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-primary btn-sm" };
+  let recommendationTone = "info";
+  let recommendationText = "Analyze documents or load content first so Autofill has a staged payload to run.";
 
-  if (pageContext?.requiresPageRefresh) {
+  if (workflowSafety.code === "page-refresh-required") {
     stateClass = "is-warning";
-    title = "Reload required";
-    detail = String(
-      pageContext.detail ||
-        "Refresh the attached workflow page so the current extension can reattach before continuing."
-    );
-    primaryAction = { label: "Reload Page", action: "refresh", className: "btn btn-primary btn-sm" };
+    title = workflowSafety.title;
+    detail = workflowSafety.detail;
+    primaryAction = getWorkflowSafetyActionConfig(workflowSafety) || { label: "Reload Page", action: "reload-page", className: "btn btn-primary btn-sm" };
+    recommendationTone = "warning";
+    recommendationText = "Reload the attached page next so the current extension build can reattach before another run starts.";
   } else if (lastError) {
     stateClass = "is-warning";
     title = "Needs attention";
@@ -1207,31 +1715,56 @@ export function renderAutofillSessionSummary(snapshot = {}) {
     primaryAction = pageContext?.canOverlay
       ? { label: pageContext.overlayButtonLabel || "Open In-Page Status", action: "overlay", className: "btn btn-primary btn-sm" }
       : { label: "Open Command Center", action: "diagnostics", className: "btn btn-primary btn-sm" };
+    recommendationTone = "warning";
+    recommendationText = pageContext?.canOverlay
+      ? "Open the in-page status panel next and resolve the current incident before resuming Autofill."
+      : "Open Command Center next and review the active incident before retrying the workflow.";
   } else if (total && currentIndex !== null && currentIndex < total) {
     stateClass = "is-live";
     title = "Queue in progress";
     detail = `${pageContext?.routeLabel || "Workflow page"} is working through item ${queueStep} of ${total}.`;
     primaryAction = { label: "Stop Autofill", action: "stop", className: "btn btn-danger btn-sm" };
+    recommendationTone = "info";
+    recommendationText = "Let the queue continue unless the page stalls or the active item clearly needs manual intervention.";
   } else if (total && currentIndex !== null && currentIndex >= total) {
     stateClass = "is-ready";
     title = "Queue complete";
     detail = `The latest batch reached ${total} of ${total}. Refresh the live page or load the next payload.`;
     primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-primary btn-sm" };
+    recommendationTone = "success";
+    recommendationText = "Refresh status next, then load the next payload or switch to the next service-user workflow.";
+  } else if (workflowSafety.severity !== "ready") {
+    stateClass = "is-warning";
+    title = workflowSafety.title;
+    detail = workflowSafety.detail;
+    primaryAction = getWorkflowSafetyActionConfig(workflowSafety) || { label: "Refresh Status", action: "refresh", className: "btn btn-primary btn-sm" };
+    recommendationTone = "warning";
+    recommendationText = workflowSafety.action === "open-status"
+      ? "Review Extension Status next so the installed build, published package, and current page stay aligned."
+      : workflowSafety.action === "detect-ids"
+        ? "Detect the live IDs next so the staged payload can target the correct Mobizio record."
+        : "Resolve the target or page warning next before starting a new Autofill run.";
   } else if (verificationFields.length > 0 && pageContext?.canVerify) {
     stateClass = "is-warning";
     title = "Review required";
     detail = `${verificationFields.length} field${verificationFields.length === 1 ? "" : "s"} still need manual confirmation.`;
     primaryAction = { label: "Next Review Field", action: "verify", className: "btn btn-primary btn-sm" };
+    recommendationTone = "warning";
+    recommendationText = "Use Next Review Field now and clear the flagged answers before final submission.";
   } else if (payload?.formType) {
     stateClass = "is-ready";
     title = "Ready to start";
     detail = `${payloadLabel} is staged${pageContext?.routeLabel ? ` for ${pageContext.routeLabel}` : ""}.`;
     primaryAction = { label: "Start Autofill", action: "start", className: "btn btn-primary btn-sm" };
+    recommendationTone = "success";
+    recommendationText = "Start Autofill when the attached page and target IDs still match the staged payload.";
   } else if (pageContext?.tabId) {
     stateClass = "is-context";
     title = "Workflow page attached";
     detail = `${pageContext.routeLabel || "Workflow page"} is ready. Load or analyze content to prepare autofill data.`;
     primaryAction = { label: "Refresh Status", action: "refresh", className: "btn btn-secondary btn-sm" };
+    recommendationTone = "info";
+    recommendationText = "Load or analyze source content next so this page has a payload ready for Autofill.";
   }
 
   dom.autofillSessionState.className = `autofill-session-state ${stateClass}`;
@@ -1266,6 +1799,11 @@ export function renderAutofillSessionSummary(snapshot = {}) {
     )
     .join("");
 
+  renderWorkflowRecommendation(dom.autofillSessionRecommendation, {
+    text: recommendationText,
+    tone: recommendationTone,
+  });
+
   if (dom.autofillSessionPrimary) {
     dom.autofillSessionPrimary.className = primaryAction.className;
     dom.autofillSessionPrimary.textContent = primaryAction.label;
@@ -1299,6 +1837,13 @@ export function renderCommandCenter(snapshot = {}) {
   if (dom.opsQueue) dom.opsQueue.textContent = model.queueLabel;
   if (dom.opsMode) dom.opsMode.textContent = model.modeLabel;
   if (dom.commandCenterSummary) dom.commandCenterSummary.textContent = model.healthTitle;
+  if (dom.opsQuickHealth) {
+    dom.opsQuickHealth.textContent = model.healthTitle;
+    dom.opsQuickHealth.parentElement?.setAttribute("data-tone", String(model.healthClass || "is-idle").replace(/^is-/, ""));
+  }
+  if (dom.opsQuickQueue) dom.opsQuickQueue.textContent = model.queueLabel;
+  if (dom.opsQuickMode) dom.opsQuickMode.textContent = model.modeLabel;
+  if (dom.opsQuickNote) dom.opsQuickNote.textContent = model.recommendations[0] || model.healthDetail;
 
   if (dom.opsFlags) {
     const flags = Array.isArray(model.flags) ? model.flags : [];

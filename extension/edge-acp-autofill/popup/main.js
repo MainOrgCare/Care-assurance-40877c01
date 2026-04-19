@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.33
+ * CareAssurance Extension v0.6.40
  */
 
 import {
@@ -26,6 +26,7 @@ import {
   getPayloadWorkflowLabel,
   createRequestId,
   writeToClipboard,
+  buildWorkflowSafetyState,
   buildCommandCenterState,
   buildRuntimeDiagnosticsState,
 } from "./state.js";
@@ -49,6 +50,7 @@ import {
   setFieldInvalid,
   clearFieldInvalid,
   showConfirmDialog,
+  showHelpGuideDialog,
   updateConnectionUI,
   renderExtensionHealth,
   renderWorkspaceContext,
@@ -117,13 +119,24 @@ const getMobizioInitialAssessmentPath = () =>
 const getMobizioCarePlanDashboardPath = () =>
   String(getPopupAutoCollectConfig().carePlanDashboardPath || "/eoutcomeservice/branch/case_care_plans_dashboard").trim() || "/eoutcomeservice/branch/case_care_plans_dashboard";
 
-const buildExtensionPackageDownloadSuccessMessage = ({ filename, format = "zip", rebuilt = false, refreshed = false }) => {
+const buildExtensionPackageDownloadSuccessMessage = ({
+  filename,
+  format = "zip",
+  rebuilt = false,
+  refreshed = false,
+  versionUpdated = false,
+  previousVersion = null,
+  version = null,
+}) => {
   const actionPrefix = rebuilt ? "Rebuilt and started downloading" : "Downloading";
   const installHint = format === "crx"
     ? "Open Edge Extensions and install the CRX if direct installs are allowed in your environment."
     : "Extract the ZIP, then use Load unpacked in Edge Extensions.";
   const refreshHint = refreshed ? " Extension status refreshed." : "";
-  return `${actionPrefix} ${filename}. ${installHint}${refreshHint}`;
+  const versionHint = versionUpdated && previousVersion && version
+    ? `Bumped manifest version from v${previousVersion} to v${version} and started downloading`
+    : actionPrefix;
+  return `${versionHint} ${filename}. ${installHint}${refreshHint}`;
 };
 
 const normalizePopupAppTheme = (value) => {
@@ -664,12 +677,21 @@ const renderUploadHandoffSummary = () => {
 
   const stats = getUploadStageStats();
   const caseId = getCaseIdForAutoCollect();
+  const serviceDataGroupId = String(dom.serviceDataGroupId?.value || "").trim();
   const targetName = String(
     state.selectedAutofillUser?.name || state.selectedUser?.name || ""
   ).trim();
   const analysisCount = Number(state.currentAnalysisResults?.recommendedAssessments?.length || 0);
   const analysisReady = analysisCount > 0 && dom.selectionSection && !dom.selectionSection.hidden;
   const busyMessage = getUploadWorkflowBusyMessage();
+  const workflowSafety = buildWorkflowSafetyState({
+    extensionStatus: state.extensionStatus,
+    selectedAutofillUser: state.selectedAutofillUser,
+    caseId,
+    serviceDataGroupId,
+    requireCaseId: stats.fileCount > 0 || analysisReady,
+    requireServiceDataGroup: false,
+  });
   const stageLabel =
     stats.fileCount > 0
       ? `${stats.fileCount} file${stats.fileCount === 1 ? "" : "s"} • ${formatUploadBytes(stats.totalBytes)}`
@@ -680,6 +702,8 @@ const renderUploadHandoffSummary = () => {
   let detail = "Choose an Autofill service user or enter a Case ID before staging a handoff.";
   let readiness = "Waiting for setup";
   let primaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+  let recommendationTone = "info";
+  let recommendationText = "Open Autofill and choose the target case before staging or sending files.";
   let secondaryAction = state.isConnected
     ? { label: "Refresh Context", action: "refresh-context", disabled: false }
     : { label: "Open Dashboard", action: "open-dashboard", disabled: false };
@@ -693,6 +717,8 @@ const renderUploadHandoffSummary = () => {
     readiness = "Session disconnected";
     primaryAction = { label: "Sync Session", action: "connect", disabled: false };
     secondaryAction = { label: "Open Dashboard", action: "open-dashboard", disabled: false };
+    recommendationTone = "warning";
+    recommendationText = "Sync the CareAssurance session first so staged files can be mirrored into the Upload workflow.";
   } else if (busyMessage) {
     stateClass = "is-live";
     title = "Upload workflow in progress";
@@ -704,6 +730,29 @@ const renderUploadHandoffSummary = () => {
       disabled: false,
     };
     secondaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+    recommendationTone = "info";
+    recommendationText = "Let the active upload or auto-download task finish, then focus the workspace if you need to confirm the result live.";
+  } else if (workflowSafety.severity !== "ready") {
+    stateClass = "is-warning";
+    title = workflowSafety.title;
+    detail = workflowSafety.detail;
+    readiness = workflowSafety.action === "open-status" ? "Status review recommended" : "Needs attention";
+    primaryAction = {
+      label: workflowSafety.actionLabel || "Review",
+      action: workflowSafety.action || "open-autofill",
+      disabled: false,
+    };
+    secondaryAction = {
+      label: state.connectedWorkspaceContext?.tabId ? "Focus Workspace" : "Open Autofill",
+      action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "open-autofill",
+      disabled: false,
+    };
+    recommendationTone = "warning";
+    recommendationText = workflowSafety.action === "open-status"
+      ? "Review Extension Status next so the published build, browser extension, and current page stay aligned."
+      : workflowSafety.action === "detect-ids"
+        ? "Detect the live IDs next so Upload and Autofill point to the correct record."
+        : "Resolve the target or page warning next before sending or analyzing more files.";
   } else if (!caseId) {
     stateClass = "is-warning";
     title = "Choose the destination case";
@@ -715,6 +764,8 @@ const renderUploadHandoffSummary = () => {
       action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "refresh-context",
       disabled: false,
     };
+    recommendationTone = "warning";
+    recommendationText = "Open Autofill next and lock the destination case before staging or sending more documents.";
   } else if (analysisReady) {
     stateClass = "is-ready";
     title = "Analysis ready for review";
@@ -726,6 +777,8 @@ const renderUploadHandoffSummary = () => {
       action: state.connectedWorkspaceContext?.tabId ? "focus-workspace" : "refresh-context",
       disabled: false,
     };
+    recommendationTone = "success";
+    recommendationText = "Open Autofill next and review the recommended assessments before starting ACP.";
   } else if (stats.fileCount > 0) {
     stateClass = "is-ready";
     title = "Ready to send or analyze";
@@ -733,6 +786,8 @@ const renderUploadHandoffSummary = () => {
     readiness = "Ready now";
     primaryAction = { label: "Analyze Staged Files", action: "analyze", disabled: false };
     secondaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+    recommendationTone = "success";
+    recommendationText = "Analyze the staged files next. If the target still looks correct afterwards, send them into CareAssurance Upload.";
   } else {
     stateClass = "is-ready";
     title = "Target locked in";
@@ -744,6 +799,8 @@ const renderUploadHandoffSummary = () => {
       disabled: false,
     };
     secondaryAction = { label: "Open Autofill", action: "open-autofill", disabled: false };
+    recommendationTone = "info";
+    recommendationText = "Add files or run Auto-Collect in the relevant Intake section; new documents will be staged for this target.";
   }
 
   dom.uploadHandoffState.className = `upload-handoff-state ${stateClass}`;
@@ -770,6 +827,11 @@ const renderUploadHandoffSummary = () => {
       `
     )
     .join("");
+
+  renderWorkflowRecommendation(dom.uploadHandoffRecommendation, {
+    text: recommendationText,
+    tone: recommendationTone,
+  });
 
   setUploadHandoffButton(dom.uploadHandoffPrimary, primaryAction);
   setUploadHandoffButton(dom.uploadHandoffSecondary, secondaryAction);
@@ -865,12 +927,15 @@ const createAutoCollectInfoSnapshot = (overrides = {}) => ({
   downloadedCount: 0,
   failedCount: 0,
   scrapeAttempts: 0,
+  probeStatus: "idle",
+  probeMessage: "",
   startedAtMs: 0,
   durationMs: 0,
   finishedAt: "",
   note: "",
   error: "",
   failedDetails: [],
+  failureCounts: {},
   selectedDocuments: [],
   failedDocuments: [],
   ...overrides,
@@ -902,8 +967,92 @@ const getAutoCollectDocumentLabel = (documentEntry, fallbackIndex = 1) => {
   return label || `Document ${fallbackIndex}`;
 };
 
+const AUTO_COLLECT_FAILURE_LABELS = {
+  auth: "auth",
+  timeout: "timeout",
+  network: "network",
+  resolution: "link resolution",
+  format: "file format",
+  unknown: "unknown",
+};
+
+const categorizeAutoCollectDownloadFailure = (result, fallbackMessage = "") => {
+  const attemptedCount = Array.isArray(result?.attempted) ? result.attempted.filter(Boolean).length : 0;
+  const message = String(result?.error || fallbackMessage || "").trim().toLowerCase();
+
+  if (!message && attemptedCount > 0) return "resolution";
+  if (
+    message.includes("sign in") ||
+    message.includes("unauthor") ||
+    message.includes("forbidden") ||
+    message.includes("redirected this tab outside") ||
+    message.includes("login")
+  ) {
+    return "auth";
+  }
+  if (message.includes("timed out") || message.includes("timeout")) {
+    return "timeout";
+  }
+  if (
+    message.includes("network") ||
+    message.includes("fetch") ||
+    message.includes("connection") ||
+    message.includes("failed to fetch") ||
+    message.includes("message port closed")
+  ) {
+    return "network";
+  }
+  if (
+    message.includes("could not find") ||
+    message.includes("no downloadable") ||
+    message.includes("no file") ||
+    message.includes("resolved") ||
+    attemptedCount > 0
+  ) {
+    return "resolution";
+  }
+  if (message.includes("payload") || message.includes("converted to a file") || message.includes("unsupported")) {
+    return "format";
+  }
+  return "unknown";
+};
+
+const incrementAutoCollectFailureCounts = (failureCounts, category) => {
+  const next = { ...(failureCounts || {}) };
+  const key = String(category || "unknown").trim() || "unknown";
+  next[key] = Number(next[key] || 0) + 1;
+  return next;
+};
+
+const summarizeAutoCollectFailureCounts = (failureCounts) => {
+  const entries = Object.entries(failureCounts || {}).filter(([, count]) => Number(count) > 0);
+  if (entries.length === 0) return "";
+  return entries
+    .sort((left, right) => Number(right[1]) - Number(left[1]))
+    .map(([category, count]) => `${count} ${AUTO_COLLECT_FAILURE_LABELS[category] || category}`)
+    .join(", ");
+};
+
+const buildAutoCollectRecoveryHint = (snapshot) => {
+  const failureCounts = snapshot?.failureCounts || {};
+  if (Number(failureCounts.auth || 0) > 0) {
+    return "Mobizio may need re-authentication. Open the source page, confirm you are signed in, then retry failed downloads.";
+  }
+  if (Number(failureCounts.network || 0) > 0 || Number(failureCounts.timeout || 0) > 0) {
+    return "Mobizio responded slowly or the download chain timed out. Retry failed downloads from the same source page before restarting the whole section.";
+  }
+  if (Number(failureCounts.resolution || 0) > 0) {
+    return "Some records exposed incomplete or indirect download links. Open the source page and retry failed downloads so the popup can capture the live download path again.";
+  }
+  if (Number(failureCounts.format || 0) > 0) {
+    return "One or more downloads returned an unreadable payload. Retry once, then inspect the source page manually if the same files fail again.";
+  }
+  return "Retry failed downloads first. If the same files fail again, reopen the source page and review those records manually.";
+};
+
 const buildAutoCollectDownloadFailure = (documentEntry, result, fallbackMessage) => {
   const label = getAutoCollectDocumentLabel(documentEntry);
+  const category = categorizeAutoCollectDownloadFailure(result, fallbackMessage);
   const attemptedPaths = Array.isArray(result?.attempted)
     ? result.attempted
         .map((candidate) => describeAttemptedDownloadPath(candidate))
@@ -914,23 +1063,67 @@ const buildAutoCollectDownloadFailure = (documentEntry, result, fallbackMessage)
   if (attemptedPaths.length > 0) {
     return {
       label,
-      detail: `${label}: ${attemptedPaths.join(" | ")}`,
-      document: documentEntry,
+      detail: `${label}: ${AUTO_COLLECT_FAILURE_LABELS[category] || category} • ${attemptedPaths.join(" | ")}`,
+      category,
+      document: {
+        ...documentEntry,
+        failureCategory: category,
+      },
     };
   }
 
   if (result?.error) {
     return {
       label,
-      detail: `${label}: ${String(result.error)}`,
-      document: documentEntry,
+      detail: `${label}: ${AUTO_COLLECT_FAILURE_LABELS[category] || category} • ${String(result.error)}`,
+      category,
+      document: {
+        ...documentEntry,
+        failureCategory: category,
+      },
     };
   }
 
   return {
     label,
-    detail: `${label}: ${fallbackMessage}`,
-    document: documentEntry,
+    detail: `${label}: ${AUTO_COLLECT_FAILURE_LABELS[category] || category} • ${fallbackMessage}`,
+    category,
+    document: {
+      ...documentEntry,
+      failureCategory: category,
+    },
+  };
+};
+
+const runAutoCollectDownloadProbe = async ({ documentEntry, executeInCollectionTab }) => {
+  if (!documentEntry || typeof executeInCollectionTab !== "function") {
+    return {
+      status: "idle",
+      message: "",
+      result: null,
+    };
+  }
+
+  const probeResult = await executeInCollectionTab(downloadMobizioDocumentInPage, [documentEntry], { world: "MAIN" });
+  if (probeResult?.ok && probeResult?.file?.base64Data) {
+    return {
+      status: "ready",
+      message: `Preflight download check succeeded for ${getAutoCollectDocumentLabel(documentEntry)}.`,
+      result: probeResult,
+    };
+  }
+
+  const failure = buildAutoCollectDownloadFailure(
+    documentEntry,
+    probeResult,
+    "preflight download check did not resolve a downloadable file."
+  );
+  const failureCounts = incrementAutoCollectFailureCounts({}, failure.category);
+
+  return {
+    status: "warning",
+    message: `${failure.detail}. ${buildAutoCollectRecoveryHint({ failureCounts })}`,
+    result: probeResult,
   };
 };
 
@@ -962,11 +1155,13 @@ const runAutoCollectDownloadLoop = async ({
   executeInCollectionTab,
   progressVerb = "Downloading",
   baseDownloadedCount = 0,
+  prefetchedFirstResult = null,
 }) => {
   const safeDocuments = Array.isArray(documents) ? documents.filter(Boolean) : [];
   const downloadedFiles = [];
   const failedDocuments = [];
   const failedDetails = [];
+  let failureCounts = {};
 
   for (let index = 0; index < safeDocuments.length; index += 1) {
     const selectedDocument = safeDocuments[index];
@@ -978,13 +1173,17 @@ const runAutoCollectDownloadLoop = async ({
       note: progressMessage,
     });
 
-    const result = await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument], { world: "MAIN" });
+    const result =
+      index === 0 && prefetchedFirstResult
+        ? prefetchedFirstResult
+        : await executeInCollectionTab(downloadMobizioDocumentInPage, [selectedDocument], { world: "MAIN" });
     if (!result?.ok || !result?.file?.base64Data) {
       const failure = buildAutoCollectDownloadFailure(
         selectedDocument,
         result,
         "no downloadable file URL resolved."
       );
+      failureCounts = incrementAutoCollectFailureCounts(failureCounts, failure.category);
       failedDocuments.push(failure.document);
       failedDetails.push(failure.detail);
       updateAutoCollectInfoSnapshot({
@@ -992,6 +1191,7 @@ const runAutoCollectDownloadLoop = async ({
         failedCount: failedDocuments.length,
         failedDetails: [...failedDetails],
         failedDocuments: [...failedDocuments],
+        failureCounts: { ...failureCounts },
       });
       continue;
     }
@@ -1004,6 +1204,7 @@ const runAutoCollectDownloadLoop = async ({
         null,
         "downloaded payload could not be converted to a file."
       );
+      failureCounts = incrementAutoCollectFailureCounts(failureCounts, failure.category);
       failedDocuments.push(failure.document);
       failedDetails.push(failure.detail);
     }
@@ -1013,6 +1214,7 @@ const runAutoCollectDownloadLoop = async ({
       failedCount: failedDocuments.length,
       failedDetails: [...failedDetails],
       failedDocuments: [...failedDocuments],
+      failureCounts: { ...failureCounts },
     });
   }
 
@@ -1020,6 +1222,7 @@ const runAutoCollectDownloadLoop = async ({
     downloadedFiles,
     failedDocuments,
     failedDetails,
+    failureCounts,
   };
 };
 
@@ -1045,6 +1248,15 @@ const setAutoCollectActionButton = (button, config = {}) => {
   button.disabled = Boolean(disabled);
   button.dataset.action = action;
   button.textContent = label;
+};
+
+const renderWorkflowRecommendation = (element, { text = "", tone = "info" } = {}) => {
+  if (!element) return;
+  element.className = `workflow-recommendation is-${tone}`;
+  element.innerHTML = `
+    <span class="workflow-recommendation-label">Recommended next step</span>
+    <span class="workflow-recommendation-text">${escapeHtml(text || "Review the current status before continuing.")}</span>
+  `;
 };
 
 const renderUploadBucketStatuses = () => {
@@ -1177,6 +1389,70 @@ const getAutoCollectInfoActions = (snapshot) => {
   };
 };
 
+const buildAutoCollectRecommendation = (snapshot, actions) => {
+  const status = String(snapshot?.status || "idle");
+  const downloadedCount = Number(snapshot?.downloadedCount || 0);
+
+  if (status === "idle") {
+    return {
+      tone: "info",
+      text: "Use Auto-Collect on the most relevant Intake section to pull documents straight into staging.",
+    };
+  }
+
+  if (status === "running") {
+    return {
+      tone: "info",
+      text: actions?.primary?.action === "open-source"
+        ? "Keep the Mobizio source page available while downloads finish, or open the source if you need to confirm the visible document list."
+        : "Wait for the current auto-download run to finish before starting another section.",
+    };
+  }
+
+  if (status === "error" || status === "cancelled") {
+    return {
+      tone: "warning",
+      text: actions?.primary?.action === "retry-failed"
+        ? "Retry only the failed downloads first so you do not rerun the whole section unnecessarily."
+        : "Retry this section from the same Mobizio source page once the document list is visible again.",
+    };
+  }
+
+  if ((status === "success" || status === "partial") && downloadedCount > 0) {
+    if (actions?.primary?.action === "retry-failed") {
+      return {
+        tone: "warning",
+        text: "Retry the failed downloads first, then continue with the staged files that already came through successfully.",
+      };
+    }
+    if (actions?.primary?.action === "analyze") {
+      return {
+        tone: "success",
+        text: "Analyze the newly staged files next so the extension can generate Autofill recommendations.",
+      };
+    }
+    if (actions?.primary?.action === "open-autofill") {
+      return {
+        tone: "success",
+        text: "Open Autofill next and review the staged recommendations before starting ACP.",
+      };
+    }
+    if (actions?.secondary?.action === "send-upload") {
+      return {
+        tone: "success",
+        text: "Send the staged files into CareAssurance Upload once the case target still looks correct.",
+      };
+    }
+  }
+
+  return {
+    tone: "info",
+    text: actions?.primary?.action === "retry"
+      ? "Retry the same section next if the latest source page is now stable and showing the expected documents."
+      : "Review the current auto-download result before moving to the next Intake step.",
+  };
+};
+
 const buildAutoCollectInfoTitle = (snapshot) => {
   const status = String(snapshot?.status || "idle");
   const sectionLabel = String(snapshot?.sectionLabel || "Intake").trim() || "Intake";
@@ -1230,8 +1506,16 @@ const buildAutoCollectInfoDetail = (snapshot) => {
   if (Number.isFinite(snapshot?.scrapeAttempts) && snapshot.scrapeAttempts > 1) {
     metrics.push(`Scrape attempts ${snapshot.scrapeAttempts}`);
   }
+  if (String(snapshot?.probeStatus || "") === "warning" && snapshot?.probeMessage) {
+    metrics.push(`Preflight ${snapshot.probeMessage}`);
+  }
   if (Number.isFinite(snapshot?.durationMs) && snapshot.durationMs > 0) {
     metrics.push(`Duration ${formatAutoCollectDuration(snapshot.durationMs)}`);
+  }
+
+  const failureSummary = summarizeAutoCollectFailureCounts(snapshot?.failureCounts);
+  if (failureSummary && status !== "running") {
+    metrics.push(`Failure mix ${failureSummary}`);
   }
 
   const failurePreview = Array.isArray(snapshot?.failedDetails)
@@ -1250,6 +1534,9 @@ const buildAutoCollectInfoDetail = (snapshot) => {
   const error = String(snapshot?.error || "").trim();
   if (note) metrics.push(note);
   if (error) metrics.push(error);
+  if ((status === "partial" || status === "error") && failureSummary) {
+    metrics.push(buildAutoCollectRecoveryHint(snapshot));
+  }
 
   return metrics.join(" • ") || "Auto-collect run completed.";
 };
@@ -1270,6 +1557,8 @@ const renderAutoCollectInfoPanel = () => {
   dom.autoCollectInfoDetail.textContent = buildAutoCollectInfoDetail(snapshot);
 
   const actions = getAutoCollectInfoActions(snapshot);
+  const recommendation = buildAutoCollectRecommendation(snapshot, actions);
+  renderWorkflowRecommendation(dom.autoCollectInfoRecommendation, recommendation);
   setAutoCollectActionButton(dom.autoCollectPrimaryAction, actions.primary);
   setAutoCollectActionButton(dom.autoCollectSecondaryAction, actions.secondary);
   renderUploadBucketStatuses();
@@ -1328,11 +1617,23 @@ const buildAutoCollectReportText = () => {
     `Downloaded: ${snapshot.downloadedCount || 0}`,
     `Failed: ${snapshot.failedCount || 0}`,
     `Scrape Attempts: ${snapshot.scrapeAttempts || 0}`,
+    `Preflight: ${snapshot.probeStatus || "idle"}`,
     `Duration: ${formatAutoCollectDuration(snapshot.durationMs || 0)}`,
   ];
 
+  const failureSummary = summarizeAutoCollectFailureCounts(snapshot.failureCounts);
+  if (failureSummary) {
+    lines.push(`Failure Categories: ${failureSummary}`);
+  }
+  if (snapshot.probeMessage) {
+    lines.push(`Preflight Message: ${snapshot.probeMessage}`);
+  }
+
   if (snapshot.note) lines.push(`Note: ${snapshot.note}`);
   if (snapshot.error) lines.push(`Error: ${snapshot.error}`);
+  if ((status === "partial" || status === "error") && failureSummary) {
+    lines.push(`Recovery Hint: ${buildAutoCollectRecoveryHint(snapshot)}`);
+  }
 
   const failedDetails = Array.isArray(snapshot.failedDetails) ? snapshot.failedDetails.filter(Boolean) : [];
   if (failedDetails.length > 0) {
@@ -1387,9 +1688,12 @@ const retryFailedAutoCollectDownloads = async () => {
     startedAtMs,
     error: "",
     note: `Retrying ${failedDocuments.length} failed document${failedDocuments.length === 1 ? "" : "s"}...`,
+    probeStatus: "idle",
+    probeMessage: "",
     selectedDocuments: [...selectedDocuments],
     failedDocuments: [...failedDocuments],
     failedCount: 0,
+    failureCounts: {},
   });
 
   try {
@@ -1440,6 +1744,7 @@ const retryFailedAutoCollectDownloads = async () => {
         failedCount: retryPass.failedDocuments.length,
         failedDetails: retryPass.failedDetails,
         failedDocuments: retryPass.failedDocuments,
+        failureCounts: retryPass.failureCounts,
         selectedDocuments: [...selectedDocuments],
         note:
           recoveredCount > 0
@@ -1465,6 +1770,7 @@ const retryFailedAutoCollectDownloads = async () => {
       failedCount: 0,
       failedDetails: [],
       failedDocuments: [],
+      failureCounts: {},
       selectedDocuments: [...selectedDocuments],
       note: `Recovered all ${failedDocuments.length} previously failed document${failedDocuments.length === 1 ? "" : "s"}.`,
       error: "",
@@ -4843,7 +5149,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
     const scrapeDocumentsWithRetry = async () => {
       let bestAttempt = null;
       let attempts = 0;
-      const retryDelaysMs = [0, 900, 1400];
+      const retryDelaysMs = [0, 700, 1500, 2400];
 
       for (let index = 0; index < retryDelaysMs.length; index += 1) {
         const delayMs = retryDelaysMs[index];
@@ -4861,6 +5167,18 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
 
         if (attempt?.ok && discoveredCount > 0) {
           return { scrape: attempt, attempts };
+        }
+
+        if (index < retryDelaysMs.length - 1) {
+          const attemptError = String(attempt?.error || "").trim();
+          const waitingForRender =
+            (!attempt?.ok && /documents table|could not read documents/i.test(attemptError)) ||
+            (attempt?.ok && discoveredCount === 0);
+          if (waitingForRender) {
+            updateAutoCollectInfoSnapshot({
+              note: `Mobizio documents are still rendering. Retrying capture (${attempts + 1}/${retryDelaysMs.length})...`,
+            });
+          }
         }
       }
 
@@ -5042,13 +5360,30 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       selectedDocuments: [...selectedForDownload],
       failedDocuments: [],
       failedDetails: [],
+      failureCounts: {},
+      probeStatus: "idle",
+      probeMessage: "",
       note: `Downloading ${selectedForDownload.length} selected document${selectedForDownload.length === 1 ? "" : "s"}...`,
+    });
+
+    const probe = await runAutoCollectDownloadProbe({
+      documentEntry: selectedForDownload[0],
+      executeInCollectionTab,
+    });
+    updateAutoCollectInfoSnapshot({
+      probeStatus: probe.status,
+      probeMessage: probe.message,
+      note:
+        probe.status === "warning"
+          ? `Preflight warning recorded. Continuing with full download loop for ${selectedForDownload.length} document${selectedForDownload.length === 1 ? "" : "s"}.`
+          : `Preflight download check passed. Downloading ${selectedForDownload.length} selected document${selectedForDownload.length === 1 ? "" : "s"}...`,
     });
 
     const downloadPass = await runAutoCollectDownloadLoop({
       documents: selectedForDownload,
       executeInCollectionTab,
       progressVerb: "Downloading",
+      prefetchedFirstResult: probe.result,
     });
     const downloadedFiles = downloadPass.downloadedFiles;
     const failedDownloads = downloadPass.failedDocuments.map((entry, index) =>
@@ -5083,8 +5418,11 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         failedCount: failedDownloads.length,
         failedDetails,
         failedDocuments: downloadPass.failedDocuments,
+        failureCounts: downloadPass.failureCounts,
         selectedDocuments: [...selectedForDownload],
         scrapeAttempts,
+        probeStatus: probe.status,
+        probeMessage: probe.message,
         selectedCount: selectedForDownload.length,
         dedupedSelectionCount,
         discoveredCount: rankedDocuments.length,
@@ -5108,8 +5446,11 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
         failedCount: 0,
         failedDetails: [],
         failedDocuments: [],
+        failureCounts: {},
         selectedDocuments: [...selectedForDownload],
         scrapeAttempts,
+        probeStatus: probe.status,
+        probeMessage: probe.message,
         selectedCount: selectedForDownload.length,
         dedupedSelectionCount,
         discoveredCount: rankedDocuments.length,
@@ -5608,6 +5949,21 @@ const syncUploadsToCareAssurance = async ({ force = false } = {}) => {
     return false;
   }
 
+  const workflowSafety = buildWorkflowSafetyState({
+    extensionStatus: state.extensionStatus,
+    selectedAutofillUser: state.selectedAutofillUser,
+    caseId: getCaseIdForAutoCollect(),
+    serviceDataGroupId: String(dom.serviceDataGroupId?.value || "").trim(),
+    requireCaseId: true,
+    requireServiceDataGroup: false,
+  });
+  if (workflowSafety.shouldBlockUploadSync) {
+    updateUploadSyncStatus(workflowSafety.detail, "warning");
+    showInfo(workflowSafety.detail);
+    await runPopupSafetyAction(workflowSafety.action);
+    return false;
+  }
+
   const signature = getUploadSyncSignature();
   if (!force && signature && signature === lastUploadSyncSignature) {
     return true;
@@ -6015,6 +6371,65 @@ async function focusConnectedWorkspace() {
   await openCareAssuranceRoute("/dashboard");
 }
 
+function focusAutofillTargetInputs({ preferServiceGroup = false } = {}) {
+  switchTab("autofill");
+  window.setTimeout(() => {
+    const caseId = String(dom.caseId?.value || "").trim();
+    const serviceDataGroupId = String(dom.serviceDataGroupId?.value || "").trim();
+
+    if (!caseId) {
+      dom.autofillUserSearch?.focus();
+      return;
+    }
+
+    if (preferServiceGroup || !serviceDataGroupId) {
+      dom.serviceDataGroupId?.focus();
+      return;
+    }
+
+    dom.caseId?.focus();
+  }, 0);
+}
+
+async function runPopupSafetyAction(action) {
+  const normalizedAction = String(action || "").trim();
+  if (!normalizedAction) return false;
+
+  if (normalizedAction === "open-status") {
+    switchTab("connect");
+    dom.extensionHealthPrimary?.focus();
+    showInfo("Review Extension Status before continuing.");
+    return true;
+  }
+
+  if (normalizedAction === "detect-ids") {
+    switchTab("autofill");
+    await autoDetectIds();
+    return true;
+  }
+
+  if (normalizedAction === "reload-page") {
+    const context = state.pageCompanionContext || (await refreshPageCompanion());
+    if (context?.requiresPageRefresh && context?.tabId) {
+      await chrome.tabs.reload(context.tabId);
+      showSuccess("Refreshing the attached CareAssurance page.");
+      window.setTimeout(() => {
+        refreshPageCompanion().catch(() => {});
+      }, 1200);
+      return true;
+    }
+    focusAutofillTargetInputs({ preferServiceGroup: true });
+    return true;
+  }
+
+  if (normalizedAction === "open-autofill") {
+    focusAutofillTargetInputs({ preferServiceGroup: true });
+    return true;
+  }
+
+  return false;
+}
+
 async function executeMainViewAction(button) {
   if (!button) return;
 
@@ -6022,6 +6437,10 @@ async function executeMainViewAction(button) {
   const route = String(button.dataset.route || "");
 
   try {
+    if (await runPopupSafetyAction(action)) {
+      return;
+    }
+
     if (action === "connect") {
       await connectToCareAssurance();
       return;
@@ -6641,7 +7060,7 @@ function bindEvents() {
   // Connection
   dom.connectBtn?.addEventListener("click", connectToCareAssurance);
   const setExtensionHealthButtonsBusy = (activeButton, busy) => {
-    const buttons = [dom.extensionHealthPrimary, dom.extensionHealthSecondary].filter(Boolean);
+    const buttons = [dom.extensionHealthPrimary, dom.extensionHealthSecondary, dom.extensionHealthTertiary].filter(Boolean);
     buttons.forEach((actionButton) => {
       if (actionButton === activeButton) {
         setButtonLoading(actionButton, busy);
@@ -6678,6 +7097,29 @@ function bindEvents() {
           showSuccess(buildExtensionPackageDownloadSuccessMessage({
             filename: result.filename,
             format: result.format,
+          }));
+        }
+        return;
+      }
+      if (action === "bump-download-package") {
+        const result = await downloadExtensionPackage({ updateVersion: true });
+        try {
+          await refreshExtensionHealthStatus();
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            refreshed: true,
+            versionUpdated: result.versionUpdated,
+            previousVersion: result.previousVersion,
+            version: result.version,
+          }));
+        } catch {
+          showSuccess(buildExtensionPackageDownloadSuccessMessage({
+            filename: result.filename,
+            format: result.format,
+            versionUpdated: result.versionUpdated,
+            previousVersion: result.previousVersion,
+            version: result.version,
           }));
         }
         return;
@@ -6752,6 +7194,9 @@ function bindEvents() {
   });
   dom.extensionHealthSecondary?.addEventListener("click", () => {
     handleExtensionHealthAction(dom.extensionHealthSecondary);
+  });
+  dom.extensionHealthTertiary?.addEventListener("click", () => {
+    handleExtensionHealthAction(dom.extensionHealthTertiary);
   });
 
   // Workspace context
@@ -6854,6 +7299,9 @@ function bindEvents() {
   dom.uploadHandoffPrimary?.addEventListener("click", async () => {
     const action = String(dom.uploadHandoffPrimary?.dataset.action || "");
     if (!action) return;
+    if (await runPopupSafetyAction(action)) {
+      return;
+    }
     if (action === "connect") {
       await connectToCareAssurance();
       return;
@@ -6876,17 +7324,16 @@ function bindEvents() {
       return;
     }
     if (action === "open-autofill") {
-      switchTab("autofill");
-      setTimeout(() => {
-        if (getCaseIdForAutoCollect()) dom.caseId?.focus();
-        else dom.autofillUserSearch?.focus();
-      }, 0);
+      focusAutofillTargetInputs();
     }
   });
 
   dom.uploadHandoffSecondary?.addEventListener("click", async () => {
     const action = String(dom.uploadHandoffSecondary?.dataset.action || "");
     if (!action) return;
+    if (await runPopupSafetyAction(action)) {
+      return;
+    }
     if (action === "open-dashboard") {
       await openCareAssuranceRoute("/dashboard");
       return;
@@ -6900,7 +7347,7 @@ function bindEvents() {
       await focusConnectedWorkspace();
       return;
     }
-    switchTab("autofill");
+    focusAutofillTargetInputs();
   });
 
   dom.syncUploadBtn?.addEventListener("click", async () => {
@@ -7124,6 +7571,23 @@ function bindEvents() {
     if (payload.formType === "acp" && Array.isArray(payload.assessments) && payload.assessments.length === 0) {
       showError("Assessment list is empty \u2014 nothing to autofill.");
       if (dom.progressStatus) dom.progressStatus.textContent = "Empty assessments";
+      return;
+    }
+
+    const workflowSafety = buildWorkflowSafetyState({
+      extensionStatus: state.extensionStatus,
+      pageContext: state.pageCompanionContext,
+      selectedAutofillUser: state.selectedAutofillUser,
+      payload,
+      caseId,
+      serviceDataGroupId,
+      requireCaseId: true,
+      requireServiceDataGroup: true,
+    });
+    if (workflowSafety.shouldBlockStart) {
+      showError(workflowSafety.detail);
+      if (dom.progressStatus) dom.progressStatus.textContent = workflowSafety.title;
+      await runPopupSafetyAction(workflowSafety.action);
       return;
     }
 
@@ -7358,6 +7822,10 @@ function bindEvents() {
     if (action === "stop") { dom.stopAutofill?.click(); return; }
     if (action === "overlay") { dom.openPageOverlay?.click(); return; }
     if (action === "verify") { dom.jumpPageVerification?.click(); return; }
+    if (["open-status", "detect-ids", "reload-page", "open-autofill"].includes(action)) {
+      runPopupSafetyAction(action).catch((error) => showError(error?.message || "Could not continue from the session card."));
+      return;
+    }
     if (action === "diagnostics") {
       if (dom.commandCenterSection) dom.commandCenterSection.open = true;
       return;
@@ -7469,8 +7937,6 @@ function bindEvents() {
       const dialog = document.querySelector(".dialog-overlay");
       if (dialog) { dialog.remove(); return; }
       if (dom.autofillUserDropdown && !dom.autofillUserDropdown.hidden) { dom.autofillUserDropdown.hidden = true; return; }
-      const helpPanel = document.querySelector(".info-panel.visible");
-      if (helpPanel) { helpPanel.classList.remove("visible"); return; }
     }
     if (e.target.getAttribute("role") === "tab") {
       const tabOrder = ["connect", "upload", "autofill"];
@@ -7483,23 +7949,18 @@ function bindEvents() {
 
   // Help panel
   document.getElementById("help-btn")?.addEventListener("click", () => {
-    let panel = document.getElementById("help-info-panel");
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = "help-info-panel";
-      panel.className = "info-panel";
-      panel.innerHTML = `
-        <strong>Keyboard Shortcuts</strong>
-        <div style="margin-top:6px;">
-          <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> Start Autofill<br>
-          <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
-          <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
-        </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.33</div>
-      `;
-      document.querySelector(".popup-content")?.prepend(panel);
+    let version = "";
+    try {
+      version = chrome.runtime?.getManifest?.()?.version || "";
+    } catch {
+      version = "";
     }
-    panel.classList.toggle("visible");
+
+    showHelpGuideDialog({
+      version,
+      isConnected: state.isConnected,
+      isAdmin: state.isAdmin,
+    });
   });
 }
 

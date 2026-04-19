@@ -75,6 +75,8 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 - Selection rules for auto-collect: Care Plan and Moving & Handling are single-select; all other Intake sections allow multi-select.
 - Auto-collect ranking now uses latest-first prioritization for Initial Assessment, Care Plan, and Additional Documents, and the picker preselects the strongest latest candidate by default.
 - Intake now includes an `Auto-Download Info` diagnostics panel that tracks the latest auto-collect run (source, counts, fallback use, duration, and error details) with a `Copy Report` shortcut.
+- The Upload `Target & Readiness`, `Auto-Download Info`, and Autofill `Session Snapshot` cards now each show an explicit recommended next step so operators can tell whether to sync, retry, analyze, review, send, or start without interpreting raw diagnostics first.
+- The popup header `?` button now opens a built-in operator guide with the recommended workflow, auto-download recovery advice, and keyboard shortcuts, and the guide can be copied directly for support handoffs.
 - The auto-collect picker now supports inline filtering by document metadata, `Select suggested` bulk actions, confidence-aware row diagnostics (confidence label + keyword matches), and richer technical row details (download ID and URL hint count) before files are fetched.
 - Auto-collect now deduplicates repeated document selections before download to avoid duplicate file staging in a single run.
 - Auto-collect now performs retry-aware scraping and includes frame/loose-link fallback discovery so collection is more resilient when Mobizio table rendering is delayed or non-standard.
@@ -100,7 +102,11 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 
 ### CareAssurance Admin Rollout
 
-- Popup workflow: open the extension popup, connect to CareAssurance, and use the **Extension Status** card to download or rebuild/download the latest ZIP or CRX.
+- Popup workflow: open the extension popup, connect to CareAssurance, and use the **Extension Status** card to download, rebuild/download, or `Bump Version & Download ZIP` directly from the popup. The CRX shortcut remains available when that artifact is present or can be rebuilt.
+- Workflow safety: the popup now uses one shared readiness model across Workspace, Intake, and Autofill. If the attached page is stale, the installed extension version is behind the server package, or the selected service user and Case ID drift apart, the popup will warn first and route the operator to the correct recovery step before upload sync or Autofill start continues.
+- Popup UX: the main tabs now show live status subtitles, the context strip highlights target/payload readiness, and the Command Center keeps a condensed health snapshot visible even while the detailed diagnostics remain collapsed.
+- Guided next steps: the popup now keeps explicit operator guidance on the Upload target card, Auto-Download diagnostics card, and Autofill session card so the recommended recovery or continuation action stays visible even when deeper diagnostics remain collapsed.
+- Rollout guidance: the popup `Extension Status` card now mirrors the same rollout sequence as `Extension Manager` by showing website-sync state plus the three practical next steps: update the published build, install the package in Edge, and refresh CareAssurance tabs.
 - Admin page workflow: use `/admin/extension-manager` for the full rollout workspace, including rebuild/download actions and runtime-config review.
 - Server behavior: the popup/admin rebuild actions call the same packaging script as `npm run package:extension`, so ZIP/CRX artifacts stay aligned across local and server-assisted rollout paths.
 

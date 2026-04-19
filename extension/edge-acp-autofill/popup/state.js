@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.6.33
+ * CareAssurance Extension v0.6.40
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -455,6 +455,203 @@ export function getPayloadWorkflowLabel(payload) {
   if (!payload) return "No payload";
   const desc = FORM_WORKFLOW_DESCRIPTORS.find(d => d.key === payload.formType);
   return desc ? desc.label : payload.formType || "Unknown";
+}
+
+function pickFirstNonEmptyString(...values) {
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function getPayloadCaseIdHint(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  return pickFirstNonEmptyString(
+    payload.caseId,
+    payload.acpId,
+    payload.accessCarePlanningId,
+    payload.serviceUser?.acpId,
+    payload.serviceUser?.accessCarePlanningId,
+    payload.caseInfo?.caseId
+  );
+}
+
+export function compareExtensionVersions(left, right) {
+  const toParts = (value) =>
+    String(value || "")
+      .split(".")
+      .map((part) => Number.parseInt(part, 10))
+      .map((part) => (Number.isFinite(part) ? part : 0));
+
+  const leftParts = toParts(left);
+  const rightParts = toParts(right);
+  const maxLength = Math.max(leftParts.length, rightParts.length, 3);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+    if (leftPart > rightPart) return 1;
+    if (leftPart < rightPart) return -1;
+  }
+
+  return 0;
+}
+
+export function buildWorkflowSafetyState(options = {}) {
+  const extensionStatus = options.extensionStatus && typeof options.extensionStatus === "object"
+    ? options.extensionStatus
+    : null;
+  const pageContext = options.pageContext && typeof options.pageContext === "object"
+    ? options.pageContext
+    : null;
+  const selectedAutofillUser = options.selectedAutofillUser && typeof options.selectedAutofillUser === "object"
+    ? options.selectedAutofillUser
+    : null;
+  const payload = options.payload && typeof options.payload === "object"
+    ? options.payload
+    : null;
+  const caseId = String(options.caseId || "").trim();
+  const serviceDataGroupId = String(options.serviceDataGroupId || "").trim();
+  const requireCaseId = Boolean(options.requireCaseId);
+  const requireServiceDataGroup = Boolean(options.requireServiceDataGroup);
+  const selectedCaseId = String(selectedAutofillUser?.acpId || selectedAutofillUser?.id || "").trim();
+  const payloadCaseId = getPayloadCaseIdHint(payload);
+  const base = {
+    severity: "ready",
+    code: "ready",
+    title: "Ready",
+    detail: "Workflow context is aligned.",
+    action: "",
+    actionLabel: "",
+    shouldBlockStart: false,
+    shouldBlockUploadSync: false,
+    selectedCaseId,
+    payloadCaseId,
+  };
+
+  if (pageContext?.requiresPageRefresh) {
+    return {
+      ...base,
+      severity: "blocking",
+      code: "page-refresh-required",
+      title: "Reload required",
+      detail: String(
+        pageContext?.detail ||
+          "Refresh the attached workflow page so the current extension can reattach before continuing."
+      ).trim(),
+      action: "reload-page",
+      actionLabel: "Reload Page",
+      shouldBlockStart: true,
+      shouldBlockUploadSync: false,
+    };
+  }
+
+  if (selectedCaseId && caseId && selectedCaseId !== caseId) {
+    return {
+      ...base,
+      severity: "blocking",
+      code: "selected-case-mismatch",
+      title: "Target needs realignment",
+      detail: `Selected service user is mapped to Case ID ${selectedCaseId}, but the Autofill target is ${caseId}. Align them before continuing.`,
+      action: "open-autofill",
+      actionLabel: "Realign Target",
+      shouldBlockStart: true,
+      shouldBlockUploadSync: true,
+    };
+  }
+
+  if (payloadCaseId && caseId && payloadCaseId !== caseId) {
+    return {
+      ...base,
+      severity: "blocking",
+      code: "payload-case-mismatch",
+      title: "Payload and target differ",
+      detail: `The staged payload is for Case ID ${payloadCaseId}, but the current target is ${caseId}. Review the target before starting Autofill.`,
+      action: "open-autofill",
+      actionLabel: "Review Target",
+      shouldBlockStart: true,
+      shouldBlockUploadSync: false,
+    };
+  }
+
+  if (requireCaseId && !caseId) {
+    return {
+      ...base,
+      severity: "blocking",
+      code: "case-id-missing",
+      title: "Choose the destination case",
+      detail: "Select an Autofill service user or type the Case ID before continuing.",
+      action: "open-autofill",
+      actionLabel: "Select Target",
+      shouldBlockStart: true,
+      shouldBlockUploadSync: true,
+    };
+  }
+
+  if (requireServiceDataGroup && !serviceDataGroupId) {
+    return {
+      ...base,
+      severity: "blocking",
+      code: "service-group-missing",
+      title: "Service group still missing",
+      detail: "Detect or enter the Service Data Group ID before starting Autofill.",
+      action: "detect-ids",
+      actionLabel: "Detect IDs",
+      shouldBlockStart: true,
+      shouldBlockUploadSync: false,
+    };
+  }
+
+  const statusError = String(extensionStatus?.statusError || "").trim();
+  let installedVersion = "";
+  try {
+    installedVersion = String(chrome.runtime?.getManifest?.()?.version || "").trim();
+  } catch {
+    installedVersion = "";
+  }
+  const serverVersion = String(extensionStatus?.version || "").trim();
+  const versionComparison = installedVersion && serverVersion
+    ? compareExtensionVersions(installedVersion, serverVersion)
+    : 0;
+
+  if (statusError) {
+    return {
+      ...base,
+      severity: "warning",
+      code: "extension-status-error",
+      title: "Extension status needs refresh",
+      detail: statusError,
+      action: "open-status",
+      actionLabel: "Review Status",
+    };
+  }
+
+  if (installedVersion && serverVersion && versionComparison < 0) {
+    return {
+      ...base,
+      severity: "warning",
+      code: "update-available",
+      title: "Update recommended before a new run",
+      detail: `Installed extension v${installedVersion} is behind server v${serverVersion}. Review Extension Status before starting a new Autofill or rollout task.`,
+      action: "open-status",
+      actionLabel: "Review Status",
+    };
+  }
+
+  if (installedVersion && serverVersion && versionComparison > 0) {
+    return {
+      ...base,
+      severity: "warning",
+      code: "environment-mismatch",
+      title: "Version mismatch detected",
+      detail: `Installed extension v${installedVersion} is newer than server v${serverVersion}. Confirm you are connected to the correct CareAssurance environment before continuing.`,
+      action: "open-status",
+      actionLabel: "Review Status",
+    };
+  }
+
+  return base;
 }
 
 function clamp(value, min, max) {

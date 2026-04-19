@@ -1,5 +1,106 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.40 - Built-In Operator Guide
+
+### Help & Usability
+
+- Replaced the tiny inline help note behind the popup header `?` button with a full operator guide dialog that explains the recommended Workspace → Intake → Autofill flow, auto-download recovery actions, and keyboard shortcuts.
+- Added a `Copy Guide` action so operators can copy the workflow reference for handoff, troubleshooting, or rollout support without leaving the extension.
+
+### Versioning
+
+- Bumped extension version to `0.6.40` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.39 - Guided Next-Step UX
+
+### Workflow Guidance
+
+- Added explicit `Recommended next step` guidance to the Upload `Target & Readiness`, `Auto-Download Info`, and Autofill `Session Snapshot` cards so operators no longer have to infer the next action from button labels alone.
+- The guidance now adapts to live workflow state with info, warning, and ready styling for cases such as disconnected sessions, retry-needed auto-downloads, staged analysis review, page refresh recovery, and ready-to-start Autofill runs.
+
+### Versioning
+
+- Bumped extension version to `0.6.39` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.38 - Rollout Guidance Alignment
+
+### Extension Status Guidance
+
+- Extended the popup `Extension Status` card with a dedicated website-sync summary so operators can immediately tell whether the current CareAssurance page is attached to the published build, needs a refresh, or has not detected the extension yet.
+- Added the same three-step rollout guidance used by the admin `Extension Manager`: update the published build, install the package in Edge, then refresh CareAssurance tabs so website and extension contexts stay aligned.
+
+### Operator Recovery
+
+- Popup rollout guidance now adapts to admin and non-admin roles, current package availability, CRX availability, and stale page-attachment state instead of relying on one long status paragraph.
+- This keeps popup and admin recovery wording aligned when operators are troubleshooting package updates or stale content-script attachment after an extension rollout.
+
+### Versioning
+
+- Bumped extension version to `0.6.38` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.37 - At-a-Glance Workflow UX
+
+### Popup Clarity
+
+- Added live status subtitles to the Workspace, Intake, and Autofill tabs so operators can see whether the extension is offline, staging files, ready to run, or waiting on recovery actions without opening each section first.
+- Upgraded the context strip with readiness highlights for target alignment, payload staging, service-group readiness, and live workspace route context, making the active case state easier to scan.
+
+### Operations Snapshot
+
+- Added a compact Command Center quick bar in the collapsible header so health, queue posture, mode, and the top next-step recommendation stay visible even when the full diagnostics panel is closed.
+- Styled the new summary surfaces to match the flatter corporate popup system instead of looking like ad-hoc diagnostics.
+
+### Versioning
+
+- Bumped extension version to `0.6.37` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.36 - Workflow Safety and Context Continuity
+
+### Workflow Safety
+
+- Added a shared popup workflow-safety model so the Workspace launchpad, Intake handoff summary, Autofill session card, and tab badges all react to the same continuity blockers instead of using separate readiness heuristics.
+- New warnings now surface before operators start a fresh run when the extension is behind the server version, the payload case does not match the active target, or the selected service user and typed Case ID drift apart.
+
+### Context Continuity
+
+- Upload handoff and Autofill start now block on real target mismatches and missing IDs instead of letting the run fail deeper in the workflow.
+- Session-card actions can now route directly into the right recovery step, including reviewing Extension Status, re-detecting IDs, reloading a stale page, or jumping back to the Autofill target fields.
+
+### Versioning
+
+- Bumped extension version to `0.6.36` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.35 - Auto-Download Reliability Signals
+
+### Auto-Download Reliability
+
+- Added a preflight download check to the Intake auto-download flow and reused that first result in the real download loop, so operators get an early warning without double-requesting the same first document.
+- Increased the Mobizio scrape retry curve and surfaced an explicit render-wait status note while document tables are still settling, reducing false negatives on slower pages.
+
+### Retry Diagnostics
+
+- Failed auto-downloads are now categorized into actionable buckets such as auth, timeout, network, link-resolution, and file-format failures.
+- The popup Auto-Download Info panel and copied run report now include failure-mix summaries, preflight state, and recovery guidance so operators know whether to retry, re-authenticate, or inspect the source page manually.
+
+### Versioning
+
+- Bumped extension version to `0.6.35` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.34 - Popup Version-Bump Download Shortcut
+
+### Extension Status Actions
+
+- Added a dedicated `Bump Version & Download ZIP` action to the popup `Extension Status` card so connected admins can generate a freshly versioned package without leaving the popup.
+- Threaded the popup ZIP download flow through the existing server-side manifest bump path (`update=1`), preserving the current ZIP and CRX shortcuts while making one-click version increments available from the same rollout surface.
+
+### Status Feedback
+
+- Popup download success messages now report manifest-version bumps explicitly when a package action increments the extension version.
+
+### Versioning
+
+- Bumped extension version to `0.6.34` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.33 - Popup CRX Rebuild Shortcut
 
 ### Extension Status Actions
