@@ -2152,7 +2152,6 @@ const inferMobizioDocumentTimestamp = (documentEntry) => {
   return bestTimestamp;
 };
 
-const isAutoCollectRecencyFirstSection = (sectionKey) => AUTO_COLLECT_RECENCY_FIRST_SECTIONS.has(sectionKey);
 const isAutoCollectRecencyFirstSection = (sectionKey) => {
   const configuredSections = getPopupAutoCollectConfig().recencyFirstSections;
   return Array.isArray(configuredSections) && configuredSections.includes(sectionKey);
@@ -6391,13 +6390,6 @@ async function connectToCareAssurance() {
         }
 
         break;
-      if (changes[STORAGE_KEYS.runtimeConfig]) {
-        try {
-          applyRuntimeConfig(changes[STORAGE_KEYS.runtimeConfig].newValue || null);
-          schedulePopupRefresh({ payload: true, workspace: true });
-        } catch (e) { console.warn("[CA Extension] runtime config handler error:", e); }
-      }
-
       } else if (statusRes.status === 401 || statusRes.error === "Not logged in") {
         await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
         lastError = "Found server but not logged in. Please log in to Care Assurance in your browser first.";
@@ -7254,6 +7246,13 @@ function bindStorageListener() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     try {
       if (areaName !== "local" && areaName !== "session") return;
+
+      if (changes[STORAGE_KEYS.runtimeConfig]) {
+        try {
+          applyRuntimeConfig(changes[STORAGE_KEYS.runtimeConfig].newValue || null);
+          schedulePopupRefresh({ payload: true, workspace: true });
+        } catch (e) { console.warn("[CA Extension] runtime config handler error:", e); }
+      }
 
       if (changes[STORAGE_KEYS.queueState]) {
         try {

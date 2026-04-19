@@ -577,7 +577,6 @@ const scheduleFormCompletionFallback = (queueSnapshot, completionContext = {}) =
     } catch (error) {
       console.warn("[ACP Extension] Success-page fallback advance failed:", error?.message || error);
     }
-  }, FORM_COMPLETION_FALLBACK_DELAY_MS);
   }, getFormCompletionFallbackDelayMs());
 
   pendingFormCompletionFallback = {
