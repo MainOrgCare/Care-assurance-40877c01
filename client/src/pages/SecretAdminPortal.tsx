@@ -5208,27 +5208,27 @@ export default function SecretAdminPortal() {
                       Loading extension package metadata...
                     </div>
                   ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="extension-package-metadata">
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5" data-testid="extension-package-metadata">
+                      <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Version</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionManifestVersion}</p>
+                        <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground">{extensionManifestVersion}</p>
                       </div>
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                      <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Package Size</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionSizeLabel}</p>
+                        <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground">{extensionSizeLabel}</p>
                       </div>
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                      <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Packaged At</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionPackagedAt}</p>
+                        <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground">{extensionPackagedAt}</p>
                       </div>
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                      <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">SHA-256</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">{extensionHashShort}</p>
+                        <p className="mt-1 break-all text-sm font-semibold leading-snug text-foreground">{extensionHashShort}</p>
                       </div>
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                      <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Installed In Browser</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">{installedExtensionVersion}</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">Last seen {installedExtensionSeenAt}</p>
+                        <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground">{installedExtensionVersion}</p>
+                        <p className="mt-1 break-words text-[11px] leading-snug text-muted-foreground">Last seen {installedExtensionSeenAt}</p>
                       </div>
                     </div>
                   )}
