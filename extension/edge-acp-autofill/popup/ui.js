@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.26
+ * CareAssurance Extension v0.6.33
  */
 
 import {
@@ -42,13 +42,14 @@ export function cacheDomElements() {
     "case-context-strip", "case-context-grid", "case-context-state",
     // Connect
     "connect-status", "connect-btn", "refresh-workspace-context",
+    "extension-health-state", "extension-health-meta", "extension-health-primary", "extension-health-secondary",
     "workspace-context-status", "workspace-route-label", "workspace-route-path",
     "workspace-tab-title", "open-connected-workspace", "open-dashboard-workspace",
     "open-care-planning-workspace", "open-risk-workspace", "open-plan-enhancer-workspace",
     "open-admin-workspace",
     // Main launchpad
     "main-view-state", "main-view-primary-action", "main-view-secondary-action",
-    "main-open-care-planning", "main-open-risk", "main-open-plan-enhancer", "main-open-messages",
+    "main-open-care-planning", "main-open-risk", "main-open-plan-enhancer", "main-open-messages", "main-open-extension-manager",
     // Service users
     "search-section", "service-user-search", "service-user-list", "service-user-sort",
     "service-user-count", "selected-user-section", "selected-user-info",
@@ -334,6 +335,7 @@ const MAIN_VIEW_ROUTE_LABELS = {
   "/service-users/risk-assessment": "Risk Assessment",
   "/service-users/plan-enhancer": "Plan Enhancer",
   "/messages": "Messages",
+  "/admin/extension-manager": "Extension Manager",
 };
 
 const getMainViewRouteLabel = (route) => MAIN_VIEW_ROUTE_LABELS[route] || "Workflow";
@@ -432,6 +434,7 @@ function renderMainViewLaunchpad(context = state.connectedWorkspaceContext) {
     dom.mainOpenRisk,
     dom.mainOpenPlanEnhancer,
     dom.mainOpenMessages,
+    dom.mainOpenExtensionManager,
   ].forEach((button) => {
     if (!button) return;
     const route = String(button.dataset.route || "").toLowerCase();
@@ -493,10 +496,275 @@ export function updateConnectionUI(connected, user = null) {
   if (dom.searchSection) dom.searchSection.hidden = !connected || !isAdmin;
   // Admin portal button — also gate via hidden
   if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
+  if (dom.mainOpenExtensionManager) dom.mainOpenExtensionManager.hidden = !isAdmin;
 
   renderMainViewLaunchpad(state.connectedWorkspaceContext);
+  renderExtensionHealth();
   updateHeaderUserChip(null);
   updateFooterLiveDot(connected);
+}
+
+function compareExtensionVersions(left, right) {
+  const toParts = (value) =>
+    String(value || "")
+      .split(".")
+      .map((part) => Number.parseInt(part, 10))
+      .map((part) => (Number.isFinite(part) ? part : 0));
+
+  const leftParts = toParts(left);
+  const rightParts = toParts(right);
+  const maxLength = Math.max(leftParts.length, rightParts.length, 3);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+    if (leftPart > rightPart) return 1;
+    if (leftPart < rightPart) return -1;
+  }
+
+  return 0;
+}
+
+function formatExtensionStatusTimestamp(value, fallback = "Not available") {
+  const raw = String(value || "").trim();
+  return raw ? formatPayloadTimestamp(raw) : fallback;
+}
+
+export function renderExtensionHealth(snapshot = state.extensionStatus) {
+  if (!dom.extensionHealthState || !dom.extensionHealthMeta) return;
+
+  let installedVersion = "Unknown";
+  try {
+    const manifest = chrome.runtime?.getManifest?.();
+    installedVersion = manifest?.version ? `v${manifest.version}` : installedVersion;
+  } catch {
+    // ignore manifest read failures
+  }
+
+  const rawInstalledVersion = installedVersion.replace(/^v/i, "");
+  const rawServerVersion = String(snapshot?.version || "").trim();
+  const serverVersion = rawServerVersion ? `v${rawServerVersion}` : "Unavailable";
+  const packageStatus = snapshot?.package || null;
+  const crxStatus = snapshot?.crx || null;
+  const runtimeConfig = snapshot?.runtimeConfig || null;
+  const statusError = String(snapshot?.statusError || "").trim();
+  const packageAvailable = Boolean(packageStatus?.available);
+  const packageStale = Boolean(packageStatus?.stale);
+  const crxAvailable = Boolean(crxStatus?.available);
+  const hasComparableVersions = Boolean(rawInstalledVersion && rawInstalledVersion !== "Unknown" && rawServerVersion);
+  const versionComparison = hasComparableVersions ? compareExtensionVersions(rawInstalledVersion, rawServerVersion) : 0;
+  const canAdminDownloadPackage = Boolean(
+    state.isAdmin &&
+    state.isConnected &&
+    packageAvailable &&
+    !packageStale &&
+    versionComparison <= 0
+  );
+  const canAdminDownloadCrx = Boolean(canAdminDownloadPackage && crxAvailable);
+  const canAdminRebuildCrx = Boolean(
+    state.isAdmin &&
+    state.isConnected &&
+    !crxAvailable
+  );
+  const canAdminRebuildPackage = Boolean(
+    state.isAdmin &&
+    state.isConnected &&
+    (packageStale || !packageAvailable)
+  );
+
+  let stateClass = "is-idle";
+  let title = "Connect to inspect extension status";
+  let detail = "Sync your CareAssurance session to compare the installed extension against the server version and runtime config.";
+
+  if (!state.isConnected) {
+    stateClass = "is-idle";
+  } else if (statusError) {
+    stateClass = "is-warning";
+    title = "Status check failed";
+    detail = statusError;
+  } else if (!snapshot) {
+    stateClass = "is-live";
+    title = "Checking extension state";
+    detail = "Refreshing installed version, package freshness, and runtime config metadata.";
+  } else if (versionComparison < 0) {
+    stateClass = "is-warning";
+    title = "Update available";
+    detail = state.isAdmin
+      ? packageAvailable && !packageStale
+        ? canAdminDownloadCrx
+          ? `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP or CRX now, or open Extension Manager if you need a rebuild.`
+          : canAdminRebuildCrx
+            ? `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP now, or rebuild and download the CRX if you need the browser-installable package.`
+          : `Installed ${installedVersion} is behind server ${serverVersion}. Download the latest ZIP now or open Extension Manager if you need a rebuild.`
+        : `Installed ${installedVersion} is behind server ${serverVersion}. Rebuild and download the newest ZIP now, or open Extension Manager for the full rollout workflow.`
+      : `Installed ${installedVersion} is behind server ${serverVersion}. Ask an admin to publish the latest extension package.`;
+  } else if (packageAvailable && packageStale) {
+    stateClass = "is-warning";
+    title = "Package rebuild recommended";
+    detail = state.isAdmin
+      ? "The downloadable extension package is older than the latest source changes. Rebuild and download a fresh ZIP before reinstalling in the browser."
+      : "The downloadable extension package is older than the latest source changes. Ask an admin to rebuild it before reinstalling.";
+  } else if (!packageAvailable) {
+    stateClass = "is-warning";
+    title = "Package unavailable";
+    detail = state.isAdmin
+      ? "No packaged extension ZIP is currently available on the server. Rebuild and download one now, or open Extension Manager for the full rollout workflow."
+      : "No packaged extension ZIP is currently available on the server. Ask an admin to rebuild one in Extension Manager.";
+  } else if (versionComparison > 0) {
+    stateClass = "is-warning";
+    title = "Version mismatch";
+    detail = `Installed ${installedVersion} is newer than server ${serverVersion}. Confirm the correct environment or package source before troubleshooting.`;
+  } else {
+    stateClass = "is-ready";
+    title = "Extension current";
+    detail = runtimeConfig?.updatedAt
+      ? canAdminDownloadPackage
+        ? canAdminDownloadCrx
+          ? `Installed ${installedVersion} matches the server version. Download the latest ZIP or CRX now or review rollout settings; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
+          : canAdminRebuildCrx
+            ? `Installed ${installedVersion} matches the server version. Download the latest ZIP now or rebuild and download the CRX; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
+          : `Installed ${installedVersion} matches the server version. Download the latest ZIP now or review rollout settings; runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
+        : `Installed ${installedVersion} matches the server version and runtime config was updated ${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}.`
+      : canAdminDownloadPackage
+        ? canAdminDownloadCrx
+          ? `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP or CRX when you need to roll it out again.`
+          : canAdminRebuildCrx
+            ? `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP now or rebuild and download the CRX when you need it.`
+          : `Installed ${installedVersion} matches the server version and the default runtime config is active. Download the latest ZIP when you need to roll it out again.`
+        : `Installed ${installedVersion} matches the server version and the default runtime config is active.`;
+  }
+
+  dom.extensionHealthState.className = `extension-health-state ${stateClass}`;
+  dom.extensionHealthState.innerHTML = `
+    <span class="extension-health-eyebrow">Extension readiness</span>
+    <strong class="extension-health-title">${escapeHtml(title)}</strong>
+    <span class="extension-health-detail">${escapeHtml(detail)}</span>
+  `;
+
+  const packageValue = !state.isConnected
+    ? "Connect to check"
+    : !packageAvailable
+      ? "Unavailable"
+      : packageStale
+        ? `Needs rebuild • ${formatExtensionStatusTimestamp(packageStatus?.packagedAt, "Unknown build")}`
+        : `Current • ${formatExtensionStatusTimestamp(packageStatus?.packagedAt, "Unknown build")}`;
+
+  const runtimeValue = !state.isConnected
+    ? "Connect to check"
+    : runtimeConfig?.updatedAt
+      ? `${formatExtensionStatusTimestamp(runtimeConfig.updatedAt)}${runtimeConfig?.updatedBy ? ` • ${runtimeConfig.updatedBy}` : ""}`
+      : runtimeConfig?.source === "default"
+        ? "Default config"
+        : "Not available";
+
+  const crxValue = !state.isConnected
+    ? "Connect to check"
+    : crxAvailable
+      ? "Available"
+      : state.isAdmin
+        ? "Build on demand"
+      : "Unavailable";
+
+  const metaItems = [
+    { label: "Installed", value: installedVersion },
+    { label: "Server", value: state.isConnected ? serverVersion : "Connect to check" },
+    { label: "Package", value: packageValue },
+    { label: "CRX", value: crxValue },
+    { label: "Runtime", value: runtimeValue },
+  ];
+
+  dom.extensionHealthMeta.innerHTML = metaItems
+    .map(
+      (item) => `
+        <div class="extension-health-meta-item">
+          <span class="extension-health-meta-label">${escapeHtml(item.label)}</span>
+          <strong class="extension-health-meta-value">${escapeHtml(item.value)}</strong>
+        </div>
+      `
+    )
+    .join("");
+
+  let primaryAction = {
+    label: state.isConnected ? "Refresh Extension Status" : "Sync Session",
+    action: state.isConnected ? "refresh" : "connect",
+    className: state.isConnected ? "btn btn-secondary btn-sm" : "btn btn-primary btn-sm",
+  };
+
+  let secondaryAction = state.isAdmin
+    ? {
+        label: "Open Extension Manager",
+        action: "open-manager",
+        className: "btn btn-secondary btn-sm",
+      }
+    : null;
+
+  if (state.isAdmin && state.isConnected && (versionComparison < 0 || packageStale || !packageAvailable)) {
+    primaryAction = {
+      label: canAdminRebuildPackage ? "Rebuild & Download ZIP" : canAdminDownloadPackage ? "Download Latest ZIP" : "Open Extension Manager",
+      action: canAdminRebuildPackage ? "rebuild-download-package" : canAdminDownloadPackage ? "download-package" : "open-manager",
+      className: "btn btn-primary btn-sm",
+    };
+    secondaryAction = canAdminDownloadCrx
+      ? {
+          label: "Download CRX",
+          action: "download-package-crx",
+          className: "btn btn-secondary btn-sm",
+        }
+      : canAdminRebuildCrx
+      ? {
+          label: "Rebuild & Download CRX",
+          action: "rebuild-download-package-crx",
+          className: "btn btn-secondary btn-sm",
+        }
+      : canAdminDownloadPackage || canAdminRebuildPackage
+      ? {
+          label: "Open Extension Manager",
+          action: "open-manager",
+          className: "btn btn-secondary btn-sm",
+        }
+      : {
+          label: "Refresh Extension Status",
+          action: "refresh",
+          className: "btn btn-secondary btn-sm",
+        };
+  } else if (canAdminDownloadPackage) {
+    primaryAction = {
+      label: "Download Latest ZIP",
+      action: "download-package",
+      className: "btn btn-primary btn-sm",
+    };
+    secondaryAction = {
+      label: canAdminDownloadCrx
+        ? "Download CRX"
+        : canAdminRebuildCrx
+          ? "Rebuild & Download CRX"
+          : "Refresh Extension Status",
+      action: canAdminDownloadCrx
+        ? "download-package-crx"
+        : canAdminRebuildCrx
+          ? "rebuild-download-package-crx"
+          : "refresh",
+      className: "btn btn-secondary btn-sm",
+    };
+  }
+
+  if (dom.extensionHealthPrimary) {
+    dom.extensionHealthPrimary.textContent = primaryAction.label;
+    dom.extensionHealthPrimary.dataset.action = primaryAction.action;
+    dom.extensionHealthPrimary.className = primaryAction.className;
+  }
+
+  if (dom.extensionHealthSecondary) {
+    if (secondaryAction) {
+      dom.extensionHealthSecondary.hidden = false;
+      dom.extensionHealthSecondary.textContent = secondaryAction.label;
+      dom.extensionHealthSecondary.dataset.action = secondaryAction.action;
+      dom.extensionHealthSecondary.className = secondaryAction.className;
+    } else {
+      dom.extensionHealthSecondary.hidden = true;
+      dom.extensionHealthSecondary.dataset.action = "";
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -548,6 +816,7 @@ export function renderWorkspaceContext(context, user = state.connectedWorkspaceU
   state.isAdmin = isAdmin;
   document.body.classList.toggle("is-admin", isAdmin);
   if (dom.openAdminWorkspace) dom.openAdminWorkspace.hidden = !isAdmin;
+  if (dom.mainOpenExtensionManager) dom.mainOpenExtensionManager.hidden = !isAdmin;
   if (dom.searchSection) dom.searchSection.hidden = !state.isConnected || !isAdmin;
 
   renderMainViewLaunchpad(context);

@@ -4,6 +4,7 @@ import jsPDF from "jspdf";
 import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, ArrowRight, Loader2, Copy, Check, ChevronDown, ChevronUp, Columns, FileText, Download, Edit3, Send, Zap, Info, AlertTriangle } from "lucide-react";
@@ -600,7 +601,8 @@ export default function PlanEnhancer() {
     serviceUserData.additionalDocuments,
   ]);
 
-  const hasAdditionalNotes = Boolean(serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0);
+  const additionalNotesText = serviceUserData.additionalNotes?.trim() ?? "";
+  const hasAdditionalNotes = additionalNotesText.length > 0;
   const hasUpdateNotes = Boolean(updateNotes.trim().length > 0);
   const sourceStatusSummary = useMemo(() => ({
     total: sourceDocuments.length,
@@ -1460,7 +1462,7 @@ export default function PlanEnhancer() {
                     <div>
                       <p className="font-semibold tracking-tight text-foreground">Additional Notes</p>
                       <p className="text-[10px] font-medium text-muted-foreground">
-                        {serviceUserData.additionalNotes.trim().length.toLocaleString()} chars
+                        {additionalNotesText.length.toLocaleString()} chars
                       </p>
                     </div>
                   </div>

@@ -506,7 +506,7 @@ export default function ComplieeIntro({
   >("hidden");
   const [isBlinking, setIsBlinking] = useState(false);
   const [showBubble, setShowBubble] = useState(false);
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion() ?? false;
 
   // Check if intro was already shown
   useEffect(() => {

@@ -1,5 +1,103 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.33 - Popup CRX Rebuild Shortcut
+
+### Extension Status Actions
+
+- Added a direct `Rebuild & Download CRX` action to the popup `Extension Status` card for connected admins when the CRX artifact is unavailable but can be regenerated through the existing authenticated `package.crx?fresh=1` flow.
+- Kept the lighter `Download CRX` action for cases where a current CRX artifact already exists, so popup rollout actions now cover both immediate download and on-demand CRX regeneration.
+
+### Status Visibility
+
+- Updated popup status messaging and the `CRX` readiness row so admins can see when the CRX is available versus build-on-demand without leaving the popup.
+
+### Versioning
+
+- Bumped extension version to `0.6.33` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.32 - Direct CRX Popup Access
+
+### Extension Status Actions
+
+- Extended `/api/extension/status` to expose whether a CRX artifact is currently available, so the popup can make rollout choices without needing the heavier admin package-info path.
+- The popup `Extension Status` card can now offer `Download CRX` directly for connected admins when a current CRX artifact is available, alongside the existing ZIP actions.
+
+### Status Visibility
+
+- Added a `CRX` readiness row to the popup status metadata so admins can see at a glance whether the signed-browser-installable artifact is available before opening `Extension Manager`.
+
+### Versioning
+
+- Bumped extension version to `0.6.32` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.31 - Status Action Locking and Refresh
+
+### Extension Status Actions
+
+- Locked the popup `Extension Status` actions while a package operation is running so admins cannot double-trigger download or rebuild requests from repeated clicks.
+- After direct download or rebuild-and-download completes, the popup now refreshes extension status automatically so the card no longer stays stale until a manual refresh.
+
+### Versioning
+
+- Bumped extension version to `0.6.31` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.30 - Popup Rebuild and Download Shortcut
+
+### Extension Status Actions
+
+- Fixed the popup `Extension Status` renderer so it no longer references version-comparison state before initialization when deciding admin actions.
+- Added a direct `Rebuild & Download ZIP` action for connected admins when the server package is stale or missing, using the existing authenticated `?fresh=1` package rebuild path from the popup.
+
+### Status Clarity
+
+- Updated stale and unavailable package guidance so admins can rebuild directly from the popup while `Extension Manager` remains available for the broader rollout workflow.
+
+### Versioning
+
+- Bumped extension version to `0.6.30` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.29 - Direct Admin Package Download from Popup
+
+### Extension Status Actions
+
+- Added an authenticated popup-side package download path so connected admins can download the latest extension ZIP directly from the `Extension Status` card when the server package is already current.
+- Kept `Extension Manager` as the guided path when the server package is missing or stale, so rebuild-required cases still land in the right admin workflow.
+
+### Status Clarity
+
+- Updated the status-card guidance to be role-aware: admins now see direct download/rebuild guidance, while non-admin users are told when they need an admin to publish or rebuild the package.
+
+### Versioning
+
+- Bumped extension version to `0.6.29` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.28 - Faster Admin Access in Popup
+
+### Admin Workflow Navigation
+
+- Changed the popup Workspace Pulse admin action to open `Extension Manager` instead of the older generic admin portal, so extension rollout and package tasks land in the correct page immediately.
+- Added an admin-only `Extension Manager` quick-launch pill to the popup Workflow Launchpad for one-click access from the main workspace tab.
+
+### Versioning
+
+- Bumped extension version to `0.6.28` and synchronized popup module headers and visible version labels.
+
+## Version 0.6.27 - Popup Update Readiness Panel
+
+### Extension Status Visibility
+
+- Added a new `Extension Status` card to the popup Workspace tab so operators can compare the installed extension version against the server version without leaving the extension.
+- The new panel also shows whether a packaged extension ZIP is currently available, whether that package is stale relative to source changes, and when runtime config was last updated.
+
+### Guided Update Actions
+
+- Added context-aware popup actions so disconnected users are prompted to sync first, while connected admins can jump straight into `Extension Manager` when an update or rebuild is recommended.
+- Added `Extension Manager` workspace-route recognition in the popup so the live workspace context reads clearly when that admin page is opened from the extension.
+
+### Versioning
+
+- Bumped extension version to `0.6.27` and synchronized popup module headers and visible version labels.
+
 ## Version 0.6.26 - Latest-Document Auto-Collect Prioritization
 
 ### Intake Auto-Collect Relevance and Recency

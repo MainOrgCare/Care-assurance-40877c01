@@ -89,7 +89,7 @@ const preloadRoutes = () => {
       }, { timeout });
       return;
     }
-    window.setTimeout(() => {
+    setTimeout(() => {
       void importFn();
     }, 2200 + index * 700);
   });
@@ -101,11 +101,11 @@ function HomeRoute() {
   // Preload common routes when user is logged in
   useEffect(() => {
     if (user) {
-      const timer = window.setTimeout(() => {
+      const timer = setTimeout(() => {
         preloadRoutes();
       }, 1200);
 
-      return () => window.clearTimeout(timer);
+      return () => clearTimeout(timer);
     }
   }, [user]);
 

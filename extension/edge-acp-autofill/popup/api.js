@@ -1,12 +1,13 @@
 /**
  * api.js — API proxy and network communication layer
- * CareAssurance Extension v0.6.26
+ * CareAssurance Extension v0.6.33
  */
 
 import {
   getCareAssuranceUrl,
   buildCareAssuranceTabPatterns,
   createRequestId,
+  normalizeCareAssuranceBaseUrl,
   resolveCareAssuranceApiOrigin,
   setRuntimeConfigStorage,
   state,
@@ -123,6 +124,104 @@ export async function fetchExtensionRuntimeConfig(options = {}) {
       ...payload,
       config: runtimeConfig,
     },
+  };
+}
+
+function readDownloadFilename(response, fallback = "careassurance-edge-acp-autofill.zip") {
+  const contentDisposition = String(response.headers.get("content-disposition") || "").trim();
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]).trim() || fallback;
+    } catch {
+      // ignore malformed encoding
+    }
+  }
+
+  const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (fileNameMatch?.[1]) {
+    return fileNameMatch[1].trim() || fallback;
+  }
+
+  const version = String(response.headers.get("X-Extension-Version") || "").trim();
+  return version
+    ? fallback.replace(/(\.zip|\.crx)$/i, `-v${version}$1`)
+    : fallback;
+}
+
+async function readDownloadErrorMessage(response, fallback) {
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  try {
+    if (contentType.includes("application/json")) {
+      const payload = await response.json();
+      const message = String(payload?.message || payload?.error || "").trim();
+      if (message) return message;
+    }
+  } catch {
+    // ignore JSON parse failures
+  }
+
+  try {
+    const text = String(await response.text() || "").trim();
+    if (text) return text;
+  } catch {
+    // ignore text parse failures
+  }
+
+  return fallback;
+}
+
+export async function downloadExtensionPackage(options = {}) {
+  const workspaceOrigin = getCareAssuranceUrl();
+  const apiOrigin = resolveCareAssuranceApiOrigin(workspaceOrigin);
+  const apiBaseUrl = normalizeCareAssuranceBaseUrl(apiOrigin);
+  const forceFresh = options?.fresh === true;
+  const format = String(options?.format || "zip").toLowerCase() === "crx" ? "crx" : "zip";
+  const endpoint = forceFresh
+    ? format === "crx"
+      ? "/api/admin/extension/package.crx?fresh=1"
+      : "/api/admin/extension/package?fresh=1"
+    : format === "crx"
+      ? "/api/admin/extension/package.crx"
+      : "/api/admin/extension/package";
+  const fallbackFilename = format === "crx"
+    ? "careassurance-edge-acp-autofill.crx"
+    : "careassurance-edge-acp-autofill.zip";
+  const errorFallback = format === "crx"
+    ? "Could not download the extension CRX package."
+    : "Could not download the extension package.";
+  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readDownloadErrorMessage(response, errorFallback)
+    );
+  }
+
+  const blob = await response.blob();
+  const filename = readDownloadFilename(response, fallbackFilename);
+  const downloadUrl = URL.createObjectURL(blob);
+
+  try {
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    link.rel = "noopener";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+  }
+
+  return {
+    filename,
+    format,
+    version: String(response.headers.get("X-Extension-Version") || "").trim() || null,
   };
 }
 

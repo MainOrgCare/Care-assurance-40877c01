@@ -19,6 +19,15 @@ const fontSizeOptions: { value: FontSize; label: string; px: string }[] = [
   { value: "large", label: "Large", px: "16px" },
 ];
 
+const themeChoices: Array<{ id: AppTheme; label: string; icon: string; color: string }> = [
+  { id: "light", label: "Light", icon: "☀️", color: "bg-card border-border" },
+  { id: "sunrise", label: "Sunrise", icon: "🌅", color: "bg-amber-100 border-amber-300" },
+  { id: "dark", label: "Dark", icon: "🌙", color: "bg-foreground border-foreground/80" },
+  { id: "midnight", label: "Midnight", icon: "🌌", color: "bg-primary border-primary/80" },
+  { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-secondary border-secondary/80" },
+  { id: "aurora", label: "Aurora", icon: "🌲", color: "bg-emerald-900 border-emerald-600" },
+];
+
 export default function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const {
     fontSize,
@@ -69,14 +78,7 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
               Appearance
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                { id: "light", label: "Light", icon: "☀️", color: "bg-card border-border" },
-                { id: "sunrise", label: "Sunrise", icon: "🌅", color: "bg-amber-100 border-amber-300" },
-                { id: "dark", label: "Dark", icon: "🌙", color: "bg-foreground border-foreground/80" },
-                { id: "midnight", label: "Midnight", icon: "🌌", color: "bg-primary border-primary/80" },
-                { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-secondary border-secondary/80" },
-                { id: "aurora", label: "Aurora", icon: "🌲", color: "bg-emerald-900 border-emerald-600" },
-              ].map((t: { id: AppTheme; label: string; icon: string; color: string }) => (
+              {themeChoices.map((t) => (
                 <motion.div
                   key={t.id}
                   whileHover={{ y: -2, scale: 1.02 }}

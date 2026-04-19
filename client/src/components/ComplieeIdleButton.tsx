@@ -179,7 +179,7 @@ export default function ComplieeIdleButton({
   onClick: () => void;
   className?: string;
 }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion() ?? false;
 
   return (
     <motion.button

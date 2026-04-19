@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.26
+ * CareAssurance Extension v0.6.33
  */
 
 import {
@@ -31,6 +31,7 @@ import {
 
 import {
   apiProxy,
+  downloadExtensionPackage,
   fetchExtensionRuntimeConfig,
   findConnectedWorkspaceTab,
   sendMessageToPageCompanion,
@@ -48,6 +49,7 @@ import {
   clearFieldInvalid,
   showConfirmDialog,
   updateConnectionUI,
+  renderExtensionHealth,
   renderWorkspaceContext,
   displayServiceUsers,
   selectUser,
@@ -182,6 +184,37 @@ let lastPayloadAutofillSyncKey = "";
 let lastPayloadAutofillAttemptKey = "";
 let pendingPayloadAutofillContext = null;
 let lastVerificationNavigationKey = "";
+let extensionHealthActionInFlight = false;
+
+const setExtensionStatusSnapshot = (snapshot) => {
+  state.extensionStatus = snapshot || null;
+  renderExtensionHealth(state.extensionStatus);
+};
+
+async function refreshExtensionHealthStatus() {
+  if (!state.isConnected) {
+    setExtensionStatusSnapshot(null);
+    return null;
+  }
+
+  const statusRes = await apiProxy("/api/extension/status", "GET", null, {
+    timeoutMs: 20000,
+    maxRetries: 1,
+  });
+
+  if (!statusRes?.ok) {
+    const statusError = statusRes?.error || "Failed to load extension status.";
+    const snapshot = state.extensionStatus
+      ? { ...state.extensionStatus, statusError }
+      : { statusError };
+    setExtensionStatusSnapshot(snapshot);
+    throw new Error(statusError);
+  }
+
+  const payload = statusRes.data || statusRes;
+  setExtensionStatusSnapshot(payload);
+  return payload;
+}
 
 const buildLogFingerprint = (logs) => {
   if (!Array.isArray(logs) || logs.length === 0) return "0";
@@ -6376,6 +6409,7 @@ async function connectToCareAssurance() {
         const user = payload.user || null;
         console.log("[CA Extension] connectToCareAssurance user:", JSON.stringify(user), "payload keys:", Object.keys(payload));
         await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
+        setExtensionStatusSnapshot(payload);
         updateConnectionUI(true, user);
         await refreshWorkspaceContext(user);
         connected = true;
@@ -6406,6 +6440,14 @@ async function connectToCareAssurance() {
   }
 
   if (!connected) {
+    if (!state.isConnected) {
+      setExtensionStatusSnapshot(null);
+    } else if (lastError) {
+      setExtensionStatusSnapshot({
+        ...(state.extensionStatus || {}),
+        statusError: lastError,
+      });
+    }
     // Don't reset connection state if already connected from a prior quick check
     if (!state.isConnected) {
       updateConnectionUI(false);
@@ -6501,6 +6543,87 @@ function bindEvents() {
 
   // Connection
   dom.connectBtn?.addEventListener("click", connectToCareAssurance);
+  const setExtensionHealthButtonsBusy = (activeButton, busy) => {
+    const buttons = [dom.extensionHealthPrimary, dom.extensionHealthSecondary].filter(Boolean);
+    buttons.forEach((actionButton) => {
+      if (actionButton === activeButton) {
+        setButtonLoading(actionButton, busy);
+        return;
+      }
+      actionButton.disabled = busy;
+    });
+  };
+  const handleExtensionHealthAction = async (button) => {
+    const action = String(button?.dataset?.action || "").trim();
+    if (!action || extensionHealthActionInFlight) return;
+    extensionHealthActionInFlight = true;
+    setExtensionHealthButtonsBusy(button, true);
+    try {
+      if (action === "connect") {
+        await connectToCareAssurance();
+        return;
+      }
+      if (action === "refresh") {
+        await refreshExtensionHealthStatus();
+        showSuccess("Extension status refreshed.");
+        return;
+      }
+      if (action === "download-package") {
+        const result = await downloadExtensionPackage();
+        try {
+          await refreshExtensionHealthStatus();
+          showSuccess(`Downloading ${result.filename}. Extension status refreshed.`);
+        } catch {
+          showSuccess(`Downloading ${result.filename}.`);
+        }
+        return;
+      }
+      if (action === "download-package-crx") {
+        const result = await downloadExtensionPackage({ format: "crx" });
+        try {
+          await refreshExtensionHealthStatus();
+          showSuccess(`Downloading ${result.filename}. Extension status refreshed.`);
+        } catch {
+          showSuccess(`Downloading ${result.filename}.`);
+        }
+        return;
+      }
+      if (action === "rebuild-download-package-crx") {
+        const result = await downloadExtensionPackage({ fresh: true, format: "crx" });
+        try {
+          await refreshExtensionHealthStatus();
+          showSuccess(`Rebuilt and started downloading ${result.filename}. Extension status refreshed.`);
+        } catch {
+          showSuccess(`Rebuilt and started downloading ${result.filename}.`);
+        }
+        return;
+      }
+      if (action === "rebuild-download-package") {
+        const result = await downloadExtensionPackage({ fresh: true });
+        try {
+          await refreshExtensionHealthStatus();
+          showSuccess(`Rebuilt and started downloading ${result.filename}. Extension status refreshed.`);
+        } catch {
+          showSuccess(`Rebuilt and started downloading ${result.filename}.`);
+        }
+        return;
+      }
+      if (action === "open-manager") {
+        await openCareAssuranceRoute("/admin/extension-manager");
+      }
+    } catch (error) {
+      showError(error?.message || "Could not complete the extension status action.");
+    } finally {
+      extensionHealthActionInFlight = false;
+      setExtensionHealthButtonsBusy(button, false);
+    }
+  };
+  dom.extensionHealthPrimary?.addEventListener("click", () => {
+    handleExtensionHealthAction(dom.extensionHealthPrimary);
+  });
+  dom.extensionHealthSecondary?.addEventListener("click", () => {
+    handleExtensionHealthAction(dom.extensionHealthSecondary);
+  });
 
   // Workspace context
   dom.refreshWorkspaceContext?.addEventListener("click", () => {
@@ -6511,7 +6634,7 @@ function bindEvents() {
   dom.openCarePlanningWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/care-planning").catch(() => showError("Could not open Care Planning.")));
   dom.openRiskWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/risk-assessment").catch(() => showError("Could not open Risk Assessment.")));
   dom.openPlanEnhancerWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/service-users/plan-enhancer").catch(() => showError("Could not open Plan Enhancer.")));
-  dom.openAdminWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/shadow-admin-portal").catch(() => showError("Could not open the Admin Portal.")));
+  dom.openAdminWorkspace?.addEventListener("click", () => openCareAssuranceRoute("/admin/extension-manager").catch(() => showError("Could not open Extension Manager.")));
   dom.caseContextGrid?.addEventListener("click", async (event) => {
     const button = event.target.closest(".case-context-copy[data-copy-value]");
     if (!button) return;
@@ -6536,6 +6659,7 @@ function bindEvents() {
     dom.mainOpenRisk,
     dom.mainOpenPlanEnhancer,
     dom.mainOpenMessages,
+    dom.mainOpenExtensionManager,
   ].forEach((routeButton) => {
     routeButton?.addEventListener("click", async () => {
       const route = routeButton.dataset.route || "/dashboard";
@@ -7230,7 +7354,7 @@ function bindEvents() {
           <span class="kbd">Esc</span> Close dialogs / dropdowns<br>
           <span class="kbd">\u2190</span> <span class="kbd">\u2192</span> Switch tabs
         </div>
-        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.26</div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7;">CareAssurance Extension v0.6.33</div>
       `;
       document.querySelector(".popup-content")?.prepend(panel);
     }
@@ -7332,6 +7456,7 @@ function bindStorageListener() {
   renderUploadBuckets();
   updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
   refreshExtensionVersionDisplay();
+  renderExtensionHealth(null);
 
   // Keep first popup render fast by deferring non-critical startup work.
   runPopupIdleTask(() => initMainMenuDragging(), { timeout: 1200, fallbackDelay: 120 });
@@ -7411,6 +7536,7 @@ function bindStorageListener() {
     const user = payload.user || null;
     if (res.ok && user) {
       console.log("[CA Extension] Quick check user:", JSON.stringify(user));
+      setExtensionStatusSnapshot(payload);
       updateConnectionUI(true, user);
       void refreshWorkspaceContext(user);
       void fetchExtensionRuntimeConfig().catch(() => null);
@@ -7419,20 +7545,25 @@ function bindStorageListener() {
         updateUploadPendingStatus();
       }
     } else if (res.ok && !user) {
+      setExtensionStatusSnapshot(null);
       // Got a 200 OK but no user object — likely HTML response or malformed data
       console.warn("[CA Extension] Quick check OK but no user — running full connection flow");
       connectToCareAssurance();
     } else if (res.error === "Not logged in") {
+      setExtensionStatusSnapshot(null);
       updateConnectionUI(false);
       if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Please log in to Care Assurance first, then click Connect</span>';
     } else if (res.needsTab) {
+      setExtensionStatusSnapshot(null);
       updateConnectionUI(false);
       if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Open Care Assurance in a tab, then click Connect</span>';
     } else {
+      setExtensionStatusSnapshot(null);
       updateConnectionUI(false);
       if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Click "Connect" to find server</span>';
     }
   } catch {
+    setExtensionStatusSnapshot(null);
     updateConnectionUI(false);
     if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Click "Connect" to find server</span>';
   }

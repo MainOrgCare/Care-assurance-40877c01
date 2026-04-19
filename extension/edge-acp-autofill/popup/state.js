@@ -1,6 +1,6 @@
 /**
  * state.js — Extension state management, storage helpers, and constants
- * CareAssurance Extension v0.6.26
+ * CareAssurance Extension v0.6.33
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -288,6 +288,7 @@ export const state = {
   selectedFilesList: [],
   currentAnalysisResults: null,
   latestPayloadSnapshot: null,
+  extensionStatus: null,
   connectedWorkspaceUser: null,
   connectedWorkspaceContext: null,
   isAdmin: false,
@@ -307,6 +308,7 @@ export const WORKSPACE_ROUTE_DESCRIPTORS = [
   { pattern: /^\/service-users\/care-planning/i, label: "Care Planning", detail: "Build and manage care plans for service users" },
   { pattern: /^\/service-users\/risk-assessment/i, label: "Risk Assessment", detail: "Assess and document mobility, nutrition, and environmental risks" },
   { pattern: /^\/service-users\/plan-enhancer/i, label: "Plan Enhancer", detail: "AI-assisted enhancement of care and risk plans" },
+  { pattern: /^\/admin\/extension-manager/i, label: "Extension Manager", detail: "Admin workspace for extension packages, runtime config, and rollout status" },
   { pattern: /^\/shadow-admin-portal/i, label: "Admin Portal", detail: "System-wide management panel for administrators" },
   { pattern: /^\/service-users/i, label: "Service Users", detail: "Directory of all registered service users" },
   { pattern: /^\/$/, label: "Home", detail: "CareAssurance home page" },

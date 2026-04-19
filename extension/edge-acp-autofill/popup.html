@@ -125,6 +125,47 @@
             </div>
           </section>
 
+          <section class="card extension-health-card">
+            <div class="card-header">
+              <div>
+                <span class="section-kicker">Update Readiness</span>
+                <h2 class="card-title">Extension Status</h2>
+                <p class="card-description">Compare the installed extension with the server version, package freshness, and runtime config metadata.</p>
+              </div>
+            </div>
+            <div class="card-content extension-health-shell">
+              <div id="extension-health-state" class="extension-health-state is-idle">
+                <span class="extension-health-eyebrow">Extension readiness</span>
+                <strong class="extension-health-title">Connect to inspect extension status</strong>
+                <span class="extension-health-detail">Sync your CareAssurance session to compare the installed extension against the server version and runtime config.</span>
+              </div>
+
+              <div id="extension-health-meta" class="extension-health-meta">
+                <div class="extension-health-meta-item">
+                  <span class="extension-health-meta-label">Installed</span>
+                  <strong class="extension-health-meta-value">Checking...</strong>
+                </div>
+                <div class="extension-health-meta-item">
+                  <span class="extension-health-meta-label">Server</span>
+                  <strong class="extension-health-meta-value">Connect to check</strong>
+                </div>
+                <div class="extension-health-meta-item">
+                  <span class="extension-health-meta-label">Package</span>
+                  <strong class="extension-health-meta-value">Connect to check</strong>
+                </div>
+                <div class="extension-health-meta-item">
+                  <span class="extension-health-meta-label">Runtime</span>
+                  <strong class="extension-health-meta-value">Connect to check</strong>
+                </div>
+              </div>
+
+              <div class="extension-health-actions">
+                <button id="extension-health-primary" class="btn btn-primary btn-sm">Sync Session</button>
+                <button id="extension-health-secondary" class="btn btn-secondary btn-sm" hidden>Open Extension Manager</button>
+              </div>
+            </div>
+          </section>
+
           <section class="card main-launchpad-card">
             <div class="card-header">
               <div>
@@ -150,6 +191,7 @@
                 <button id="main-open-risk" class="route-pill" data-route="/service-users/risk-assessment">Risk Assessment</button>
                 <button id="main-open-plan-enhancer" class="route-pill" data-route="/service-users/plan-enhancer">Plan Enhancer</button>
                 <button id="main-open-messages" class="route-pill" data-route="/messages">Messages</button>
+                <button id="main-open-extension-manager" class="route-pill admin-only" data-route="/admin/extension-manager" hidden>Extension Manager</button>
               </div>
             </div>
           </section>
@@ -191,7 +233,7 @@
                 <button id="open-care-planning-workspace" class="btn btn-primary workspace-action-btn">Care Planning</button>
                 <button id="open-risk-workspace" class="btn btn-secondary workspace-action-btn">Risk Assessment</button>
                 <button id="open-plan-enhancer-workspace" class="btn btn-secondary workspace-action-btn">Plan Enhancer</button>
-                <button id="open-admin-workspace" class="btn btn-secondary workspace-action-btn admin-only" hidden>Admin Portal</button>
+                <button id="open-admin-workspace" class="btn btn-secondary workspace-action-btn admin-only" hidden>Extension Manager</button>
               </div>
             </div>
           </section>
@@ -755,7 +797,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.26</span></span>
+            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.33</span></span>
         </div>
       </footer>
     </main>

@@ -469,6 +469,41 @@ async function readExtensionManifestVersion(): Promise<string | null> {
   }
 }
 
+async function getExtensionPackageStatus(): Promise<{
+  available: boolean;
+  packagedAt: string | null;
+  stale: boolean;
+}> {
+  const packagePath = await resolveExtensionPackagePath();
+  if (!packagePath) {
+    return {
+      available: false,
+      packagedAt: null,
+      stale: false,
+    };
+  }
+
+  try {
+    const [packageStat, stale] = await Promise.all([
+      fs.stat(packagePath),
+      isExtensionPackageStale(packagePath),
+    ]);
+
+    return {
+      available: true,
+      packagedAt: packageStat.mtime.toISOString(),
+      stale,
+    };
+  } catch (error: unknown) {
+    console.warn("Failed to inspect extension package status:", error);
+    return {
+      available: true,
+      packagedAt: null,
+      stale: false,
+    };
+  }
+}
+
 function incrementExtensionPatchVersion(version: string): string {
   const match = String(version || "").trim().match(/^(\d+)\.(\d+)\.(\d+)$/);
   if (!match) {
@@ -658,7 +693,33 @@ export function registerExtensionRoutes(
   // Get extension status and connection info
   app.get("/api/extension/status", requireAuth, async (req: any, res) => {
     try {
-      const manifestVersion = await readExtensionManifestVersion();
+      const [manifestVersion, packageStatus, crxPath] = await Promise.all([
+        readExtensionManifestVersion(),
+        getExtensionPackageStatus(),
+        resolveExtensionCrxPath(),
+      ]);
+
+      let runtimeConfigMeta: {
+        updatedAt: string | null;
+        updatedBy: string | null;
+        source: string;
+      } = {
+        updatedAt: null,
+        updatedBy: null,
+        source: "default",
+      };
+
+      try {
+        const runtimeConfigRecord = await getExtensionRuntimeConfigRecord();
+        runtimeConfigMeta = {
+          updatedAt: runtimeConfigRecord.config.meta.updatedAt,
+          updatedBy: runtimeConfigRecord.config.meta.updatedBy,
+          source: runtimeConfigRecord.source,
+        };
+      } catch (configError: unknown) {
+        console.warn("Failed to inspect extension runtime config metadata:", configError);
+      }
+
       return res.json({
         connected: true,
         version: manifestVersion || "0.3.4",
@@ -667,6 +728,11 @@ export function registerExtensionRoutes(
           username: req.user?.username,
           role: req.user?.role
         },
+        package: packageStatus,
+        crx: {
+          available: crxPath !== null,
+        },
+        runtimeConfig: runtimeConfigMeta,
         features: {
           riskAssessment: true,
           carePlan: true,

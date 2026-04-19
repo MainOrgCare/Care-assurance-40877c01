@@ -1290,6 +1290,99 @@ body {
   gap: 12px;
 }
 
+.extension-health-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.extension-health-state {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: hsl(220, 22%, 98%);
+}
+
+.extension-health-state.is-idle {
+  border-style: dashed;
+  color: var(--color-muted-foreground);
+}
+
+.extension-health-state.is-ready {
+  border-color: hsla(152, 55%, 45%, 0.35);
+  background: linear-gradient(180deg, hsla(152, 60%, 95%, 0.95), hsla(152, 60%, 93%, 0.95));
+}
+
+.extension-health-state.is-live {
+  border-color: hsla(215, 75%, 58%, 0.35);
+  background: linear-gradient(180deg, hsla(215, 90%, 96%, 0.95), hsla(215, 65%, 94%, 0.95));
+}
+
+.extension-health-state.is-warning {
+  border-color: hsla(12, 82%, 54%, 0.35);
+  background: linear-gradient(180deg, hsla(12, 100%, 97%, 0.95), hsla(12, 92%, 94%, 0.94));
+}
+
+.extension-health-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.extension-health-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.extension-health-detail {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-muted-foreground);
+}
+
+.extension-health-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.extension-health-meta-item {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: hsla(220, 18%, 96%, 0.7);
+  min-width: 0;
+}
+
+.extension-health-meta-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.extension-health-meta-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-foreground);
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.extension-health-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .upload-handoff-state {
   display: grid;
   gap: 4px;
@@ -5638,12 +5731,14 @@ body.ca-theme-overhaul .workspace-metric,
 body.ca-theme-overhaul .page-companion-metric,
 body.ca-theme-overhaul .ops-metric,
 body.ca-theme-overhaul .autofill-session-meta-item,
+body.ca-theme-overhaul .extension-health-meta-item,
 body.ca-theme-overhaul .upload-handoff-meta-item,
 body.ca-theme-overhaul .runtime-card,
 body.ca-theme-overhaul .workspace-status-card,
 body.ca-theme-overhaul .main-view-state,
 body.ca-theme-overhaul .ops-health,
 body.ca-theme-overhaul .autofill-session-state,
+body.ca-theme-overhaul .extension-health-state,
 body.ca-theme-overhaul .upload-handoff-state,
 body.ca-theme-overhaul .page-companion-state,
 body.ca-theme-overhaul .upload-bucket-card,
