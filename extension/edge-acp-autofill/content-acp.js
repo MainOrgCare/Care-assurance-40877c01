@@ -1443,6 +1443,40 @@ const setSelectByLabel = (fieldName, label) => {
   return setSelectFieldByLabel(field, label, fieldName);
 };
 
+const normalizeRiskRowText = (value) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
+
+const buildRiskRowSignature = (risk) =>
+  [
+    normalizeRiskRowText(risk?.riskDefinition).toLowerCase(),
+    normalizeRiskRowText(risk?.howItsARisk).toLowerCase(),
+    normalizeRiskRowText(risk?.whoWillBeHarmed).toLowerCase(),
+    normalizeRiskRowText(risk?.controlMeasures).toLowerCase(),
+    normalizeRiskRowText(risk?.initialRating).toLowerCase(),
+    normalizeRiskRowText(risk?.ratingAfterControls).toLowerCase(),
+  ].join("||");
+
+const normalizeAssessmentRisks = (assessment) => {
+  if (!Array.isArray(assessment?.risks)) return [];
+  const seen = new Set();
+  return assessment.risks
+    .map((risk) => ({
+      ...risk,
+      riskDefinition: normalizeRiskRowText(risk?.riskDefinition),
+      howItsARisk: normalizeRiskRowText(risk?.howItsARisk),
+      whoWillBeHarmed: normalizeRiskRowText(risk?.whoWillBeHarmed),
+      controlMeasures: normalizeRiskRowText(risk?.controlMeasures),
+      initialRating: normalizeRiskRowText(risk?.initialRating),
+      ratingAfterControls: normalizeRiskRowText(risk?.ratingAfterControls),
+    }))
+    .filter((risk) => risk.riskDefinition || risk.howItsARisk || risk.controlMeasures)
+    .filter((risk) => {
+      const signature = buildRiskRowSignature(risk);
+      if (!signature || seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    });
+};
+
 const buildSignedLabel = (assessment) => {
   if (!assessment) return "";
   const name = (assessment.signedBy || "").trim();
@@ -1583,6 +1617,11 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
     logAction("Risk form layout could not be detected automatically.");
     return false;
   }
+  const normalizedRisks = normalizeAssessmentRisks(assessment);
+  if (!normalizedRisks.length) {
+    logAction("Assessment has no usable risk rows. Autofill stopped.");
+    return false;
+  }
 
   const serviceUserField = findRiskFormField(riskTable, {
     name: FORM_FIELD_NAMES.serviceUser,
@@ -1620,7 +1659,7 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
 
   await wait(500);
 
-  const rowsNeeded = assessment.risks.length;
+  const rowsNeeded = normalizedRisks.length;
   const existingRows = getRiskRows(riskTable).length;
   if (rowsNeeded > existingRows) {
     await addRiskRows(rowsNeeded - existingRows, riskTable);
@@ -1634,8 +1673,8 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
     return false;
   }
 
-  for (let index = 0; index < assessment.risks.length; index += 1) {
-    const risk = assessment.risks[index];
+  for (let index = 0; index < normalizedRisks.length; index += 1) {
+    const risk = normalizedRisks[index];
     const row = rows[index];
     if (!row) return false;
 

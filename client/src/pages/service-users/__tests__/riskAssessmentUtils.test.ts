@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   looksLikeServiceUserName,
+  sanitizeGeneratedAssessmentResult,
   sanitizePerformerName,
   sanitizeRiskDisplayText,
   sanitizeServiceUserName,
@@ -37,6 +38,53 @@ describe("riskAssessmentUtils", () => {
     expect(sanitizeStringList([" Calm and cooperative ", "calm and cooperative", ""])).toEqual([
       "Calm and cooperative",
     ]);
+  });
+
+  it("drops empty and duplicate risk rows from generated assessments", () => {
+    const assessment = sanitizeGeneratedAssessmentResult({
+      category: "Community Access and Social Support",
+      risks: [
+        {
+          riskDefinition: "Care Assessment This Care Assessment is for:: Date of birth: Client ID:",
+          howItsARisk: "",
+          whoWillBeHarmed: "",
+          controlMeasures: "",
+          initialRating: "High",
+          ratingAfterControls: "Medium",
+        },
+        {
+          riskDefinition: "I can become isolated if I do not have regular support to access my community.",
+          howItsARisk: "Without planned support, I may withdraw and my wellbeing can deteriorate.",
+          whoWillBeHarmed: "Service User and Care Workers",
+          controlMeasures: "My carers support me to maintain routines, attend activities and report changes promptly.",
+          initialRating: "High",
+          ratingAfterControls: "Medium",
+        },
+        {
+          riskDefinition: "I can become isolated if I do not have regular support to access my community.",
+          howItsARisk: "Without planned support, I may withdraw and my wellbeing can deteriorate.",
+          whoWillBeHarmed: "Service User and Care Workers",
+          controlMeasures: "My carers support me to maintain routines, attend activities and report changes promptly.",
+          initialRating: "High",
+          ratingAfterControls: "Medium",
+        },
+      ],
+      supportingEvidence: [" Needs regular support ", "needs regular support"],
+      additionalNotes: "Support Plan This Support Plan is for:: Date of birth:",
+    });
+
+    expect(assessment.risks).toEqual([
+      {
+        riskDefinition: "I can become isolated if I do not have regular support to access my community.",
+        howItsARisk: "Without planned support, I may withdraw and my wellbeing can deteriorate.",
+        whoWillBeHarmed: "Service User and Care Workers",
+        controlMeasures: "My carers support me to maintain routines, attend activities and report changes promptly.",
+        initialRating: "High",
+        ratingAfterControls: "Medium",
+      },
+    ]);
+    expect(assessment.supportingEvidence).toEqual(["Needs regular support"]);
+    expect(assessment.additionalNotes).toBe("");
   });
 
   it("accepts realistic service-user names and rejects placeholders", () => {

@@ -22,6 +22,7 @@ import { normalizeServiceUserInitials } from "./riskIdentity";
 import {
   looksLikeServiceUserName,
   sanitizePerformerName,
+  sanitizeGeneratedAssessmentResult,
   sanitizeRiskDisplayText,
   sanitizeServiceUserName,
   sanitizeStringList,
@@ -59,21 +60,6 @@ function countPlaceholders(text: string): number {
   return matches ? matches.length : 0;
 }
 
-const SIGNED_BY_PLACEHOLDER_VALUES = new Set([
-  "USER",
-  "UNKNOWN",
-  "STAFF",
-  "STAFF MEMBER",
-  "CARE STAFF",
-  "CARE WORKER",
-  "CARER",
-  "ASSISTANT",
-  "NOT PROVIDED",
-  "NOT KNOWN",
-  "N A",
-  "NA",
-]);
-
 function sanitizeRecommendedAssessment(assessment: RecommendedAssessment): RecommendedAssessment {
   return {
     ...assessment,
@@ -100,29 +86,6 @@ function sanitizeRiskAnalysisResult(result: RiskAnalysis): RiskAnalysis {
     environmentalFactors: sanitizeStringList(result.environmentalFactors),
     recommendedAssessments: (result.recommendedAssessments || []).map(sanitizeRecommendedAssessment),
     documentSummary: sanitizeRiskDisplayText(result.documentSummary),
-  };
-}
-
-function sanitizeRiskRow(row: RiskRow): RiskRow {
-  return {
-    ...row,
-    riskDefinition: sanitizeRiskDisplayText(row.riskDefinition),
-    howItsARisk: sanitizeRiskDisplayText(row.howItsARisk),
-    whoWillBeHarmed: sanitizeRiskDisplayText(row.whoWillBeHarmed),
-    controlMeasures: sanitizeRiskDisplayText(row.controlMeasures),
-  };
-}
-
-function sanitizeGeneratedAssessmentResult(assessment: GeneratedAssessment): GeneratedAssessment {
-  return {
-    ...assessment,
-    category: sanitizeRiskDisplayText(assessment.category) || assessment.category,
-    serviceUserInitials: normalizeServiceUserInitials(assessment.serviceUserInitials),
-    risks: (assessment.risks || []).map(sanitizeRiskRow),
-    supportingEvidence: sanitizeStringList(assessment.supportingEvidence),
-    additionalNotes: sanitizeRiskDisplayText(assessment.additionalNotes),
-    signedBy: sanitizeRiskDisplayText(assessment.signedBy) || assessment.signedBy,
-    jobTitle: sanitizeRiskDisplayText(assessment.jobTitle) || assessment.jobTitle,
   };
 }
 
@@ -1165,14 +1128,25 @@ export default function RiskAssessment() {
         });
 
         if (resultRaw) {
+          const normalizedRawAssessment = sanitizeGeneratedAssessmentResult(resultRaw as GeneratedAssessment);
+          const normalizedScrubbedAssessment = sanitizeGeneratedAssessmentResult(
+            (resultScrubbed || resultRaw) as GeneratedAssessment,
+          );
           const cleanedRaw = {
-            ...sanitizeGeneratedAssessmentResult(resultRaw),
+            ...normalizedRawAssessment,
             signedBy: performerDisplayName,
+            serviceUserInitials: normalizeServiceUserInitials((resultRaw as GeneratedAssessment).serviceUserInitials),
           };
           const cleanedScrubbed = {
-            ...sanitizeGeneratedAssessmentResult((resultScrubbed || resultRaw) as GeneratedAssessment),
+            ...normalizedScrubbedAssessment,
             signedBy: performerDisplayName,
+            serviceUserInitials: normalizeServiceUserInitials(
+              ((resultScrubbed || resultRaw) as GeneratedAssessment).serviceUserInitials,
+            ),
           };
+          if (cleanedRaw.risks.length === 0 && cleanedScrubbed.risks.length === 0) {
+            throw new Error(`No usable risks generated for ${assessmentName}`);
+          }
           generatedRawMap.set(assessmentName, cleanedRaw);
           generatedScrubbedMap.set(assessmentName, cleanedScrubbed);
         } else {
@@ -1457,6 +1431,31 @@ export default function RiskAssessment() {
     );
     const extensionCaseId = extensionServiceUserCaseId;
     const extensionServiceGroupId = extensionServiceDataGroupId;
+    const normalizedAssessments = assessments.map((assessment) => {
+      const safeAssessment = {
+        ...sanitizeGeneratedAssessmentResult(assessment),
+        serviceUserInitials: normalizeServiceUserInitials(assessment.serviceUserInitials),
+        signedBy: sanitizePerformerName(assessment.signedBy) || performerDisplayName,
+      };
+      return safeAssessment;
+    });
+    const emptyAssessmentCategories = normalizedAssessments
+      .filter((assessment) => assessment.risks.length === 0)
+      .map((assessment) => assessment.category || "Unnamed assessment");
+
+    if (emptyAssessmentCategories.length > 0) {
+      const preview = emptyAssessmentCategories.slice(0, 3).join(", ");
+      const moreCount = emptyAssessmentCategories.length - Math.min(3, emptyAssessmentCategories.length);
+      toast({
+        title: "Assessment needs regeneration",
+        description:
+          moreCount > 0
+            ? `${preview} and ${moreCount} more assessment(s) have no usable risk rows for ACP autofill.`
+            : `${preview} has no usable risk rows for ACP autofill.`,
+        variant: "destructive",
+      });
+      return;
+    }
     const payload = {
       version: 1,
       createdAt: new Date().toISOString(),
@@ -1472,13 +1471,12 @@ export default function RiskAssessment() {
             serviceDataGroupId: extensionServiceGroupId || undefined,
           }
         : undefined,
-      assessments: assessments.map((assessment) => {
-        const safeAssessment = sanitizeGeneratedAssessmentResult(assessment);
+      assessments: normalizedAssessments.map((safeAssessment) => {
         return {
           category: safeAssessment.category,
           serviceUserInitials: safeAssessment.serviceUserInitials,
           assessmentDate: safeAssessment.assessmentDate,
-          signedBy: sanitizePerformerName(safeAssessment.signedBy) || performerDisplayName,
+          signedBy: safeAssessment.signedBy,
           jobTitle: safeAssessment.jobTitle,
           additionalNotes: safeAssessment.additionalNotes,
           risks: safeAssessment.risks.map((risk) => ({

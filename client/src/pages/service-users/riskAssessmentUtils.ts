@@ -104,6 +104,25 @@ const PERSON_NAME_PARTICLES = new Set([
   "von",
 ]);
 
+type SanitizableRiskRow = {
+  riskDefinition?: string | null;
+  howItsARisk?: string | null;
+  whoWillBeHarmed?: string | null;
+  controlMeasures?: string | null;
+  initialRating?: string | null;
+  ratingAfterControls?: string | null;
+};
+
+type SanitizableGeneratedAssessment = {
+  category?: string | null;
+  serviceUserInitials?: string | null;
+  risks?: SanitizableRiskRow[] | null;
+  supportingEvidence?: string[] | null;
+  additionalNotes?: string | null;
+  signedBy?: string | null;
+  jobTitle?: string | null;
+};
+
 function looksLikeStructuredFieldNoise(value: string): boolean {
   const labelMatches = STRUCTURED_FIELD_LABEL_PATTERNS.filter((pattern) => pattern.test(value)).length;
   if (labelMatches >= 3) return true;
@@ -168,6 +187,65 @@ export function sanitizeStringList(values?: string[]): string[] {
   });
 
   return cleaned;
+}
+
+function normalizeCompactText(value?: string | null): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function hasMeaningfulRiskNarrative(row: SanitizableRiskRow): boolean {
+  return Boolean(
+    normalizeCompactText(row.riskDefinition) ||
+      normalizeCompactText(row.howItsARisk) ||
+      normalizeCompactText(row.controlMeasures)
+  );
+}
+
+function buildRiskRowSignature(row: SanitizableRiskRow): string {
+  return [
+    normalizeCompactText(row.riskDefinition).toLowerCase(),
+    normalizeCompactText(row.howItsARisk).toLowerCase(),
+    normalizeCompactText(row.whoWillBeHarmed).toLowerCase(),
+    normalizeCompactText(row.controlMeasures).toLowerCase(),
+    normalizeCompactText(row.initialRating).toLowerCase(),
+    normalizeCompactText(row.ratingAfterControls).toLowerCase(),
+  ].join("||");
+}
+
+export function sanitizeRiskRow<T extends SanitizableRiskRow>(row: T): T {
+  return {
+    ...row,
+    riskDefinition: sanitizeRiskDisplayText(row.riskDefinition),
+    howItsARisk: sanitizeRiskDisplayText(row.howItsARisk),
+    whoWillBeHarmed: sanitizeRiskDisplayText(row.whoWillBeHarmed),
+    controlMeasures: sanitizeRiskDisplayText(row.controlMeasures),
+  };
+}
+
+export function sanitizeGeneratedAssessmentResult<T extends SanitizableGeneratedAssessment>(assessment: T): T {
+  const seenRiskRows = new Set<string>();
+  const risks = Array.isArray(assessment.risks)
+    ? assessment.risks
+        .map((risk) => sanitizeRiskRow(risk))
+        .filter((risk) => hasMeaningfulRiskNarrative(risk))
+        .filter((risk) => {
+          const signature = buildRiskRowSignature(risk);
+          if (!signature || seenRiskRows.has(signature)) return false;
+          seenRiskRows.add(signature);
+          return true;
+        })
+    : [];
+
+  return {
+    ...assessment,
+    category: sanitizeRiskDisplayText(assessment.category) || assessment.category,
+    risks: risks as T["risks"],
+    supportingEvidence: sanitizeStringList(assessment.supportingEvidence || undefined) as T["supportingEvidence"],
+    additionalNotes: sanitizeRiskDisplayText(assessment.additionalNotes),
+    signedBy: sanitizeRiskDisplayText(assessment.signedBy) || assessment.signedBy,
+    jobTitle: sanitizeRiskDisplayText(assessment.jobTitle) || assessment.jobTitle,
+  };
 }
 
 export function looksLikeServiceUserName(value: string): boolean {
