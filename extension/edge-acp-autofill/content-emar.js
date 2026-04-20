@@ -741,6 +741,16 @@ const setSelectByLabel = (fieldName, label) => {
   if (!label) return false;
   const field = document.querySelector(`[name="${fieldName}"]`);
   if (!field || field.tagName !== "SELECT") return false;
+  if (DRY_RUN) {
+    highlightField(field);
+    logAction(`Dry run: would select ${label} for ${fieldName}.`);
+    return true;
+  }
+  if (INTERACTION_MODE === "manual") {
+    highlightField(field);
+    logAction(`Manual assist: please select ${label} for ${fieldName}.`);
+    return true;
+  }
   const target = label.trim().toLowerCase();
   const option = Array.from(field.options).find((opt) =>
     (opt.textContent || "").trim().toLowerCase() === target

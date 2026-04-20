@@ -55,6 +55,8 @@ import {
   buildFallbackRiskProfileSummary,
   deescalateRiskRating,
   extractSignalLabels,
+  getRuleBasedRiskTargetCount,
+  looksLikeStructuredRiskArtifactText,
   normalizeRiskRating,
 } from "./services/riskAnalysisWorkflow";
 import multer from "multer";
@@ -2410,6 +2412,8 @@ const cleanRiskArtifactText = (value: string | undefined | null): string => {
     .replace(/\breal service user (?:information|documents?)\b/gi, "")
     .replace(/\bdo not use any content from templates?\b/gi, "")
     .replace(/\btemplate\/example text\b/gi, "")
+    .replace(/\bmy documents note:\s*/gi, "")
+    .replace(/={2,}/g, " ")
     .replace(/^[\s:;-]+|[\s:;-]+$/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.;:])/g, "$1")
@@ -2421,7 +2425,6 @@ const cleanRiskArtifactText = (value: string | undefined | null): string => {
 
   return cleaned;
 };
-
 const looksLikePersonName = (value: string): boolean => {
   const words = value.trim().split(/\s+/).filter(Boolean);
   if (words.length < 2 || words.length > 5) return false;
@@ -2926,6 +2929,10 @@ const ASSESSMENT_NAME_ALIASES: Record<string, string> = {
   "end of life": "End of Life Care",
   "palliative care": "End of Life Care",
   "personal care support": "Personal Care",
+  "community access": "Community Access and Social Support",
+  "social support": "Community Access and Social Support",
+  "community access and social support": "Community Access and Social Support",
+  "community access and social support assessment": "Community Access and Social Support",
 };
 
 const normalizeAssessmentKey = (name: string) => {
@@ -2954,6 +2961,7 @@ const ASSESSMENT_EVIDENCE_TERMS: Record<string, string[]> = {
   "mental health": ["mental health", "depress", "anxiety", "bipolar", "psych", "schiz", "ptsd", "stress"],
   "communication": ["communication", "speech", "hearing", "vision", "aphasia", "language", "non verbal", "interpreter"],
   "behavior support": ["behaviour", "behavior", "challenging", "aggression", "agitated", "agitation", "self harm", "wandering", "abscond"],
+  "community access and social support": ["community access", "access the community", "accessing the community", "social support", "companionship", "social interaction", "shopping", "appointments", "escort", "outings", "community activities", "social isolation", "family visits"],
   "end of life care": ["palliative", "end of life", "terminal", "hospice", "dnacpr", "eol"],
   "infection control": ["infection", "wound", "catheter", "mrsa", "uti", "covid", "flu", "sepsis"],
   "fire safety": ["fire", "smoking", "smoke alarm", "oxygen", "cigarette", "matches"],
@@ -3067,6 +3075,7 @@ const sanitizeEvidenceSnippet = (value: string | undefined | null): string => {
   if (isQuestionnairePromptText(cleaned)) return "";
   if (isTruncatedEvidenceSnippet(cleaned)) return "";
   if (EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(cleaned))) return "";
+  if (looksLikeStructuredRiskArtifactText(cleaned)) return "";
   return cleaned;
 };
 
@@ -3080,7 +3089,8 @@ const sanitizeRiskNarrativeFieldText = (value: string | undefined | null): strin
     .filter((part) => !isQuestionLikeText(part))
     .filter((part) => !isQuestionnairePromptText(part))
     .filter((part) => !isTruncatedEvidenceSnippet(part))
-    .filter((part) => !EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(part)));
+    .filter((part) => !EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(part)))
+    .filter((part) => !looksLikeStructuredRiskArtifactText(part));
 
   return filtered.join(" ").replace(/\s{2,}/g, " ").trim();
 };
@@ -3214,7 +3224,29 @@ const isMeaningfulEvidence = (value: string | undefined | null): boolean => {
   if (isTruncatedEvidenceSnippet(trimmed)) return false;
   if (EVIDENCE_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
   if (isNegatedEvidence(trimmed)) return false;
+  if (looksLikeStructuredRiskArtifactText(trimmed)) return false;
   return true;
+};
+
+const extractMeaningfulEvidenceCandidates = (documentContent: string, maxMatches = 8) => {
+  if (!documentContent) return [];
+  const rawParts = documentContent
+    .replace(/\r/g, "\n")
+    .split(/\n+/)
+    .flatMap((part) => part.split(/(?<=[.!?])\s+/));
+
+  const seen = new Set<string>();
+  const snippets: string[] = [];
+  for (const part of rawParts) {
+    const cleaned = sanitizeEvidenceSnippet(part.replace(/\s+/g, " ").trim());
+    if (!isMeaningfulEvidence(cleaned)) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    snippets.push(truncateEvidence(cleaned));
+    if (snippets.length >= maxMatches) break;
+  }
+  return snippets;
 };
 
 const OUT_OF_SCOPE_PATTERNS = [
@@ -3664,12 +3696,17 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
   const key = normalizeAssessmentKey(category);
   const evidenceTerms = ASSESSMENT_EVIDENCE_TERMS[key] || [];
   const evidenceFinder = buildDocumentEvidenceFinder(documentContent);
-  const snippets = evidenceFinder.findAllSnippets(evidenceTerms, 8).filter(isMeaningfulEvidence);
+  const snippets = evidenceTerms.length > 0
+    ? evidenceFinder.findAllSnippets(evidenceTerms, 8).filter(isMeaningfulEvidence)
+    : [];
+  const genericEvidenceCandidates = extractMeaningfulEvidenceCandidates(documentContent, 8);
   const baseline = normalizeRiskRating(analyzeRiskLevel(documentContent).level);
   const residual = deescalateRiskRating(baseline);
   let evidencePool =
     snippets.length > 0
       ? snippets
+      : genericEvidenceCandidates.length > 0
+      ? genericEvidenceCandidates
       : [
           truncateEvidence(documentContent.replace(/\s+/g, " ").trim(), 200) ||
             "Information recorded in supporting documents.",
@@ -3687,15 +3724,20 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
     evidencePool = ["Information recorded in supporting documents."];
   }
 
-  // Bias toward a richer multi-risk output while staying evidence-led.
-  const targetRiskCount = Math.min(8, Math.max(4, Math.min(7, evidencePool.length + 1)));
+  const canSafelyExpandRiskRows = evidenceTerms.length > 0 && evidencePool.length > 1 && hasEvidenceDiversity(evidencePool);
+  const targetRiskCount = getRuleBasedRiskTargetCount({
+    hasCategoryEvidenceTerms: evidenceTerms.length > 0,
+    evidencePool,
+    hasDiverseEvidence: canSafelyExpandRiskRows,
+  });
   const riskEvidence = [...evidencePool];
-  while (riskEvidence.length < targetRiskCount) {
-    riskEvidence.push(riskEvidence[riskEvidence.length - 1] || "Information recorded in supporting documents.");
+  if (canSafelyExpandRiskRows) {
+    while (riskEvidence.length < targetRiskCount) {
+      riskEvidence.push(riskEvidence[riskEvidence.length - 1] || "Information recorded in supporting documents.");
+    }
   }
 
-  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet, index) => {
-    const supportLabel = index === 0 ? "priority" : "additional";
+  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet) => {
     const evidenceLine = truncateEvidence(sanitizeEvidenceSnippet(snippet) || "Information recorded in supporting documents.", 190);
     const lowerEvidence = evidenceLine.toLowerCase();
     const whoWillBeHarmed =
@@ -3709,11 +3751,13 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
         ? "Early warning signs include changes after medicines, increasing drowsiness, confusion, pain or reduced engagement."
         : /nutrition|hydration|meal|drink|weight|swallow|choking/.test(lowerEvidence)
         ? "Early warning signs include reduced intake, poor hydration, swallowing difficulty or fatigue around meals."
+        : /community|appointment|shopping|companionship|social|isolation|outing|escort/.test(lowerEvidence)
+        ? "Early warning signs include increasing isolation, reduced confidence leaving home, missed appointments or difficulty maintaining social routines."
         : "Early warning signs include changes in mood, behaviour, comfort, sleep, breathing, skin condition or routine tolerance.";
 
     return {
       riskDefinition: toFirstPerson(
-        `I have a ${supportLabel} ${category.toLowerCase()} risk identified in my records. My documents note: ${evidenceLine}. I need a clear, detailed plan so this risk is managed safely and consistently in daily care.`
+        `My ${category.toLowerCase()} needs could place my safety, wellbeing and independence at risk if they are not supported consistently. ${evidenceLine}. I need a clear, detailed plan so this is managed safely and consistently in daily care.`
       ),
       initialRating: baseline,
       howItsARisk: toFirstPerson(

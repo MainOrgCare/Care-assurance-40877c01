@@ -49,6 +49,26 @@ export const RULE_BASED_SIGNAL_GROUPS = {
   ],
 } as const;
 
+const STRUCTURED_RISK_ARTIFACT_PATTERNS = [
+  /\bcare assessment\b/i,
+  /\bsupport plan\b/i,
+  /\bthis care assessment is for\b/i,
+  /\bthis support plan is for\b/i,
+  /\bthis plan is\b/i,
+  /\bdate of birth\b/i,
+  /\bclient id\b/i,
+  /\baddress\b/i,
+  /\bphone\b/i,
+  /\bassessment date\b/i,
+  /\bplan is\b/i,
+  /\breview and update support plan\b/i,
+  /\bcommitted to protecting your privacy\b/i,
+  /\brisk identified\b/i,
+  /\boutcome\b/i,
+  /\bcontrol measures\b/i,
+  /\bwho will be harmed\b/i,
+];
+
 export function normalizeRiskRating(value: unknown): "Low" | "Medium" | "High" {
   if (typeof value !== "string") return "Low";
   const normalized = value.trim().toLowerCase();
@@ -67,6 +87,32 @@ export function extractSignalLabels(
   return groups
     .filter((group) => group.terms.some((term) => lower.includes(term)))
     .map((group) => group.label);
+}
+
+export function looksLikeStructuredRiskArtifactText(value: string | undefined | null): boolean {
+  if (typeof value !== "string") return false;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  const labelMatches = STRUCTURED_RISK_ARTIFACT_PATTERNS.filter((pattern) => pattern.test(normalized)).length;
+  if (labelMatches >= 3) return true;
+  const punctuationArtifacts = (normalized.match(/={2,}|:{2,}|,{2,}/g) || []).length;
+  return labelMatches >= 2 && punctuationArtifacts > 0;
+}
+
+export function getRuleBasedRiskTargetCount(params: {
+  hasCategoryEvidenceTerms: boolean;
+  evidencePool: string[];
+  hasDiverseEvidence: boolean;
+}): number {
+  const evidenceCount = Array.isArray(params.evidencePool)
+    ? params.evidencePool.filter((item) => typeof item === "string" && item.trim().length > 0).length
+    : 0;
+  if (evidenceCount === 0) return 1;
+  const canExpand = params.hasCategoryEvidenceTerms && evidenceCount > 1 && params.hasDiverseEvidence;
+  if (canExpand) {
+    return Math.min(8, Math.max(4, Math.min(7, evidenceCount + 1)));
+  }
+  return Math.max(1, Math.min(3, evidenceCount));
 }
 
 export function buildFallbackRiskProfileSummary(

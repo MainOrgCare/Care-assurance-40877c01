@@ -1415,8 +1415,18 @@ const mapRiskRowFields = (row, table) => {
   };
 };
 
-const setSelectFieldByLabel = (field, label) => {
+const setSelectFieldByLabel = (field, label, fieldLabel = "field") => {
   if (!label || !field || field.tagName !== "SELECT") return false;
+  if (DRY_RUN) {
+    highlightField(field);
+    logAction(`Dry run: would select ${label} for ${fieldLabel}.`);
+    return true;
+  }
+  if (INTERACTION_MODE === "manual") {
+    highlightField(field);
+    logAction(`Manual assist: please select ${label} for ${fieldLabel}.`);
+    return true;
+  }
   const target = label.trim().toLowerCase();
   const option = Array.from(field.options).find((candidate) =>
     (candidate.textContent || "").trim().toLowerCase() === target
@@ -1430,7 +1440,7 @@ const setSelectFieldByLabel = (field, label) => {
 
 const setSelectByLabel = (fieldName, label) => {
   const field = document.querySelector(`[name="${fieldName}"]`);
-  return setSelectFieldByLabel(field, label);
+  return setSelectFieldByLabel(field, label, fieldName);
 };
 
 const buildSignedLabel = (assessment) => {

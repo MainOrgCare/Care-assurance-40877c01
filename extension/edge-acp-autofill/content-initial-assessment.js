@@ -543,6 +543,12 @@ const highlightRadioGroup = (fieldName, reason) => {
   logAction(`Needs verification (${reason}): ${fieldName}`);
 };
 
+const highlightActionField = (field) => {
+  if (!field) return;
+  field.style.outline = "2px solid #1ea97a";
+  field.style.outlineOffset = "2px";
+};
+
 const logAction = (message) => {
   const timestamp = new Date().toLocaleTimeString();
   console.log(`[IA Autofill] ${message}`);
@@ -576,8 +582,14 @@ const setTextValue = async (fieldName, value) => {
   const valueStatus = checkValueStatus(value);
   
   if (DRY_RUN) {
-    field.style.outline = "2px solid #1ea97a";
+    highlightActionField(field);
     logAction(`Dry run: would set ${fieldName}`);
+    return true;
+  }
+
+  if (INTERACTION_MODE === "manual") {
+    highlightActionField(field);
+    logAction(`Manual assist: please fill ${fieldName}`);
     return true;
   }
   
@@ -614,8 +626,14 @@ const setSelectValue = async (fieldName, value) => {
     return false;
   }
   if (DRY_RUN) {
-    field.style.outline = "2px solid #1ea97a";
+    highlightActionField(field);
     logAction(`Dry run: would select ${value} for ${fieldName}`);
+    return true;
+  }
+
+  if (INTERACTION_MODE === "manual") {
+    highlightActionField(field);
+    logAction(`Manual assist: please select ${value} for ${fieldName}`);
     return true;
   }
   
@@ -652,8 +670,14 @@ const setMultiSelectValue = async (fieldName, values) => {
     return false;
   }
   if (DRY_RUN) {
-    field.style.outline = "2px solid #1ea97a";
+    highlightActionField(field);
     logAction(`Dry run: would select ${values.length} options for ${fieldName}`);
+    return true;
+  }
+
+  if (INTERACTION_MODE === "manual") {
+    highlightActionField(field);
+    logAction(`Manual assist: please select ${values.length} options for ${fieldName}`);
     return true;
   }
   
@@ -693,7 +717,7 @@ const setRadioValue = async (fieldName, value) => {
   const valueStatus = checkValueStatus(value);
   
   if (DRY_RUN) {
-    radios[0].style.outline = "2px solid #1ea97a";
+    highlightActionField(radios[0]);
     logAction(`Dry run: would check radio ${value} for ${fieldName}`);
     return true;
   }
@@ -712,6 +736,12 @@ const setRadioValue = async (fieldName, value) => {
     NEEDS_VERIFICATION.push({ field: fieldName, reason: 'missing', value: value });
     logAction(`Skipping missing info for ${fieldName}: "${value}" - highlighted for verification`);
     return false; // Don't select anything
+  }
+
+  if (INTERACTION_MODE === "manual") {
+    highlightActionField(radios[0]);
+    logAction(`Manual assist: please check radio ${value} for ${fieldName}`);
+    return true;
   }
   
   // Value is valid, proceed with selection
@@ -743,8 +773,14 @@ const setCheckboxValue = async (fieldName, values) => {
     return false;
   }
   if (DRY_RUN) {
-    checkboxes[0].style.outline = "2px solid #1ea97a";
+    highlightActionField(checkboxes[0]);
     logAction(`Dry run: would check ${valuesArray.length} checkboxes for ${fieldName}`);
+    return true;
+  }
+
+  if (INTERACTION_MODE === "manual") {
+    highlightActionField(checkboxes[0]);
+    logAction(`Manual assist: please check ${valuesArray.length} checkboxes for ${fieldName}`);
     return true;
   }
   
@@ -786,7 +822,13 @@ const fillAssessmentTable = async (tableId, selectValue, detailsValue) => {
     const select = row.querySelector("select");
     if (select) {
       if (DRY_RUN) {
-        select.style.outline = "2px solid #1ea97a";
+        highlightActionField(select);
+        logAction(`Dry run: would select ${selectValue} in ${tableId}`);
+        filled = true;
+      } else if (INTERACTION_MODE === "manual") {
+        highlightActionField(select);
+        logAction(`Manual assist: please select ${selectValue} in ${tableId}`);
+        filled = true;
       } else {
         const targetValue = String(selectValue).trim().toLowerCase();
         for (const option of select.options) {
@@ -813,7 +855,11 @@ const fillAssessmentTable = async (tableId, selectValue, detailsValue) => {
     const textarea = row.querySelector("textarea");
     if (textarea) {
       if (DRY_RUN) {
-        textarea.style.outline = "2px solid #1ea97a";
+        highlightActionField(textarea);
+        logAction(`Dry run: would fill details in ${tableId}`);
+      } else if (INTERACTION_MODE === "manual") {
+        highlightActionField(textarea);
+        logAction(`Manual assist: please fill details in ${tableId}`);
       } else {
         if (INTERACTION_MODE === "slow") {
           await typeLikeHuman(textarea, String(detailsValue));
@@ -850,8 +896,14 @@ const fillTableRows = async (tableId, rows) => {
     const rowsToAdd = rows.length - existingRows.length;
     for (let i = 0; i < rowsToAdd; i++) {
       if (DRY_RUN) {
+        highlightActionField(addButton);
         logAction(`Dry run: would add row to ${tableId}`);
         break;
+      }
+      if (INTERACTION_MODE === "manual") {
+        highlightActionField(addButton);
+        logAction(`Manual assist: please add a row to ${tableId}`);
+        return true;
       }
       addButton.click();
       await wait(300);

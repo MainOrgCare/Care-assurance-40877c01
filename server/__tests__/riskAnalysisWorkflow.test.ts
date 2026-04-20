@@ -6,6 +6,8 @@ import {
   buildFallbackRiskProfileSummary,
   deescalateRiskRating,
   extractSignalLabels,
+  getRuleBasedRiskTargetCount,
+  looksLikeStructuredRiskArtifactText,
   normalizeRiskRating,
 } from "../services/riskAnalysisWorkflow";
 
@@ -60,4 +62,48 @@ test("buildFallbackRiskProfileSummary includes health, support and concern segme
   assert.match(summary, /Diabetes/);
   assert.match(summary, /Medication support/);
   assert.match(summary, /Falls risk/);
+});
+
+test("looksLikeStructuredRiskArtifactText rejects support-plan style document headers", () => {
+  assert.equal(
+    looksLikeStructuredRiskArtifactText(
+      "Support Plan This Support Plan is for:: Date of birth: Client ID: PER9107 Address:,,,, Phone:: This plan is: a review and update support plan",
+    ),
+    true,
+  );
+  assert.equal(
+    looksLikeStructuredRiskArtifactText("Client enjoys family visits and needs support to attend appointments in the community."),
+    false,
+  );
+});
+
+test("getRuleBasedRiskTargetCount stays conservative when evidence is weak or generic", () => {
+  assert.equal(
+    getRuleBasedRiskTargetCount({
+      hasCategoryEvidenceTerms: false,
+      evidencePool: ["Client needs support to attend appointments."],
+      hasDiverseEvidence: false,
+    }),
+    1,
+  );
+  assert.equal(
+    getRuleBasedRiskTargetCount({
+      hasCategoryEvidenceTerms: true,
+      evidencePool: ["Client needs prompts", "Client needs prompts"],
+      hasDiverseEvidence: false,
+    }),
+    2,
+  );
+  assert.equal(
+    getRuleBasedRiskTargetCount({
+      hasCategoryEvidenceTerms: true,
+      evidencePool: [
+        "Needs support to attend appointments in the community.",
+        "Can become socially isolated without reassurance and escort support.",
+        "Needs help with shopping and maintaining social routines.",
+      ],
+      hasDiverseEvidence: true,
+    }),
+    4,
+  );
 });

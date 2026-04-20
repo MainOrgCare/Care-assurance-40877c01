@@ -17,6 +17,22 @@ describe("riskAssessmentUtils", () => {
     ).toBe("John remains calm and cooperative.");
   });
 
+  it("strips rule-based lead-ins and assessment-form label noise from generated risk text", () => {
+    expect(
+      sanitizeRiskDisplayText(
+        "I have a additional infection control and hygiene assessment risk identified in my records. My documents note: === === Care Assessment This Care Assessment is for:: Date of birth: Client ID: PER8566 Address:,,,, Phone: Assessment date:: is committed to protecting your privacy when you use our serv. I need a clear, detailed plan so this risk is managed safely and consistently in daily care.",
+      ),
+    ).toBe("I need a clear, detailed plan so this risk is managed safely and consistently in daily care.");
+  });
+
+  it("strips support-plan header noise from generated risk text", () => {
+    expect(
+      sanitizeRiskDisplayText(
+        "I have a priority community access and social support assessment risk identified in my records. My documents note: === === Support Plan This Support Plan is for:: Date of birth: Client ID: PER9107 Address:,,,, Phone:: This plan is: a review and update support plan update support plan following a reass. I need a clear, detailed plan so this risk is managed safely and consistently in daily care.",
+      ),
+    ).toBe("I need a clear, detailed plan so this risk is managed safely and consistently in daily care.");
+  });
+
   it("deduplicates sanitized string lists", () => {
     expect(sanitizeStringList([" Calm and cooperative ", "calm and cooperative", ""])).toEqual([
       "Calm and cooperative",

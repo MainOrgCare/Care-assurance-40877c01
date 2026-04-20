@@ -29,6 +29,29 @@ const DISPLAY_BOILERPLATE_PATTERNS = [
   /\bthis section should be completed\b/i,
 ];
 
+const FALLBACK_LEAD_IN_PATTERNS = [
+  /^i have (?:a|an)\s+(?:priority|additional)\s+.+?\s+risk identified in my records\.?$/i,
+];
+
+const STRUCTURED_FIELD_LABEL_PATTERNS = [
+  /\bcare assessment\b/i,
+  /\bsupport plan\b/i,
+  /\bthis care assessment is for\b/i,
+  /\bthis support plan is for\b/i,
+  /\bdate of birth\b/i,
+  /\bclient id\b/i,
+  /\baddress\b/i,
+  /\bphone\b/i,
+  /\bassessment date\b/i,
+  /\bthis plan is\b/i,
+  /\breview and update support plan\b/i,
+  /\bcommitted to protecting your privacy\b/i,
+  /\brisk identified\b/i,
+  /\boutcome\b/i,
+  /\bcontrol measures\b/i,
+  /\bwho will be harmed\b/i,
+];
+
 const NAME_PLACEHOLDER_LABELS = new Set([
   "name",
   "name name",
@@ -81,6 +104,13 @@ const PERSON_NAME_PARTICLES = new Set([
   "von",
 ]);
 
+function looksLikeStructuredFieldNoise(value: string): boolean {
+  const labelMatches = STRUCTURED_FIELD_LABEL_PATTERNS.filter((pattern) => pattern.test(value)).length;
+  if (labelMatches >= 3) return true;
+  const punctuationArtifacts = (value.match(/={2,}|:{2,}|,{2,}/g) || []).length;
+  return labelMatches >= 2 && punctuationArtifacts > 0;
+}
+
 export function sanitizeRiskDisplayText(value?: string | null): string {
   if (typeof value !== "string") return "";
   let cleaned = value;
@@ -91,6 +121,8 @@ export function sanitizeRiskDisplayText(value?: string | null): string {
     cleaned = cleaned.replace(pattern, "");
   }
   cleaned = cleaned
+    .replace(/\bmy documents note:\s*/gi, "")
+    .replace(/={2,}/g, " ")
     .replace(/^[\s:;-]+|[\s:;-]+$/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.;:])/g, "$1")
@@ -100,8 +132,10 @@ export function sanitizeRiskDisplayText(value?: string | null): string {
   cleaned = sentenceParts
     .map((part) => part.trim())
     .filter((part) => part.length > 0)
+    .filter((part) => !FALLBACK_LEAD_IN_PATTERNS.some((pattern) => pattern.test(part)))
     .filter((part) => !QUESTIONNAIRE_SENTENCE_PATTERNS.some((pattern) => pattern.test(part)))
     .filter((part) => !DISPLAY_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(part)))
+    .filter((part) => !looksLikeStructuredFieldNoise(part))
     .filter((part) => {
       if (/[.!?]$/.test(part)) return true;
       const lastToken = part.split(/\s+/).pop() || "";
