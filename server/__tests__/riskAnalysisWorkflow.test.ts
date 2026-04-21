@@ -40,6 +40,11 @@ test("extractSignalLabels finds rule-based signals across medical, care and envi
   ]);
 });
 
+test("extractSignalLabels matches diabetes signals from hyperglycemia terminology", () => {
+  const content = "Client experiences hyperglycemia episodes overnight and requires glucose monitoring.";
+  assert.deepEqual(extractSignalLabels(content, [...RULE_BASED_SIGNAL_GROUPS.medicalConditions]), ["Diabetes"]);
+});
+
 test("buildFallbackRiskProfileSummary returns default text when no signals exist", () => {
   assert.equal(
     buildFallbackRiskProfileSummary(
