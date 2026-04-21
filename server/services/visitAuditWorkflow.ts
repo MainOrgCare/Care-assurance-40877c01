@@ -316,8 +316,8 @@ export function enrichVisitResult<T extends VisitAuditResultLike>(
   if (!result.serviceUserName || result.serviceUserName === "Multiple") {
     result.serviceUserName = fallback.serviceUserName || result.serviceUserName;
   }
-  if (!result.themesAndTrends) result.themesAndTrends = fallback.themesAndTrends;
-  if (!result.gapsInKnowledge) result.gapsInKnowledge = fallback.gapsInKnowledge;
+  if (!result.themesAndTrends) result.themesAndTrends = fallback.themesAndTrends || "";
+  if (!result.gapsInKnowledge) result.gapsInKnowledge = fallback.gapsInKnowledge || "";
   result.hasDiscrepancies = Array.isArray(result.discrepancies) && result.discrepancies.length > 0;
   return result;
 }
