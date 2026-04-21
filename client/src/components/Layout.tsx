@@ -722,7 +722,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const contentWrapperClass = cn(
     "workspace-content-shell w-full flex-1 min-h-0",
-    isFullBleed ? "px-0 py-0" : "px-4 sm:px-6 lg:px-8 pt-5 sm:pt-6 lg:pt-7 pb-6 sm:pb-7 lg:pb-8",
+    isFullBleed ? "px-0 py-0" : "px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-7 pb-5 sm:pb-7 lg:pb-8",
     isSingleScreenRoute && "h-full"
   );
   const contentInnerClass = cn(
@@ -730,7 +730,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isFullBleed ? "max-w-none" : "max-w-[var(--content-max-width)]"
   );
   const cardClass = cn(
-    "workspace-card rounded-[1.4rem] border border-border/70 bg-card/96 p-5 sm:p-6 lg:p-7 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-medium)] motion-safe:animate-[fade-in_120ms_ease-out] backdrop-blur-sm",
+    "workspace-card rounded-xl sm:rounded-[1.4rem] border border-border/70 bg-card/96 p-3.5 sm:p-6 lg:p-7 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-medium)] motion-safe:animate-[fade-in_120ms_ease-out] backdrop-blur-sm",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
@@ -922,7 +922,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             role="banner"
             aria-label="Page header"
           >
-            <div className="workspace-header-shell mx-auto flex min-h-14 w-full max-w-[var(--content-max-width)] items-center justify-between gap-2.5 py-1.5">
+            <div className="workspace-header-shell mx-auto flex min-h-13 sm:min-h-14 w-full max-w-[var(--content-max-width)] items-center justify-between gap-2 py-1.5">
             <div className="flex min-w-0 items-center gap-2.5">
               {/* Mobile Menu Trigger */}
               <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -986,7 +986,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
             </div>
 
-            <div className="workspace-header-tools flex items-center gap-1.5 min-w-0 flex-nowrap">
+            <div className="workspace-header-tools flex items-center gap-1 sm:gap-1.5 min-w-0 flex-nowrap">
               <button
                 onClick={() => setIsCommandPaletteOpen(true)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 bg-background/82 text-muted-foreground hover:bg-muted/72 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 transition-colors cursor-pointer"
@@ -997,10 +997,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
 
               {/* Notification Center (admin alerts) */}
-              <NotificationCenter />
+              <div className="hidden min-[380px]:block">
+                <NotificationCenter />
+              </div>
 
               {/* Messages Button */}
-              <Link href="/messages">
+              <Link href="/messages" className="hidden min-[420px]:inline-flex">
                 <button
                   className={cn(
                     "relative flex items-center justify-center h-8 w-8 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
@@ -1023,7 +1025,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* Compli-ee Help Button */}
               <ComplieeIdleButton
                 onClick={openChatAssistant}
-                className="h-7 w-7 justify-center rounded-lg px-0 py-0 shadow-[var(--shadow-xs)] [&>span]:hidden"
+                className="hidden min-[360px]:inline-flex h-7 w-7 justify-center rounded-lg px-0 py-0 shadow-[var(--shadow-xs)] [&>span]:hidden"
               />
 
               {/* Divider between tools and profile */}

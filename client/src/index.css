@@ -1407,6 +1407,11 @@ html.theme-sunrise body {
 }
 
 @media (max-width: 768px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
   .glass-card,
   .glass-card-interactive,
   .app-surface,
@@ -1424,6 +1429,12 @@ html.theme-sunrise body {
   }
   .page-title { font-size: 1.5rem; }
   .page-subtitle { font-size: 0.875rem; line-height: 1.6; }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 
   /* Ensure adequate touch targets on mobile */
   button,
@@ -1450,6 +1461,15 @@ html.theme-sunrise body {
   /* Tables scroll horizontally rather than breaking layout */
   .relative.w-full.overflow-auto {
     -webkit-overflow-scrolling: touch;
+  }
+
+  img,
+  svg,
+  canvas,
+  video,
+  iframe {
+    max-width: 100%;
+    height: auto;
   }
 }
 
