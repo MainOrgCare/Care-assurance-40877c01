@@ -715,9 +715,21 @@ export default function EMARAudit() {
           const json = await res.json();
           const carers = Array.isArray(json) ? json : (json.data ?? []);
           setExistingCarers(carers);
+        } else {
+          console.warn("[EMAR Audit] Failed to fetch carers:", res.status, res.statusText);
+          toast({
+            title: "Carer roster unavailable",
+            description: "Could not pre-load the carer list. Mapping suggestions may be incomplete.",
+            variant: "destructive",
+          });
         }
       } catch (error) {
-        console.error("Failed to fetch carers:", error);
+        console.error("[EMAR Audit] Failed to fetch carers:", error);
+        toast({
+          title: "Carer roster unavailable",
+          description: "Could not pre-load the carer list. Mapping suggestions may be incomplete.",
+          variant: "destructive",
+        });
       }
     };
     fetchCarers();
@@ -844,10 +856,17 @@ export default function EMARAudit() {
     });
   };
 
+  const carerMappingLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of carerMappings) {
+      if (m?.initials && m?.fullName) map.set(m.initials, m.fullName);
+    }
+    return map;
+  }, [carerMappings]);
+
   const getMappedCarerName = (originalName: string): string => {
     if (!mappingsConfirmed) return originalName;
-    const mapping = carerMappings.find(m => m.initials === originalName);
-    return mapping?.fullName || originalName;
+    return carerMappingLookup.get(originalName) || originalName;
   };
 
   const resetAuditState = () => {
@@ -2840,7 +2859,7 @@ ${generatedProtocol.additionalComments}`;
             <CardDescription>Select a PDF to begin a new medication audit.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
-            <div className="bg-muted/30 border border-border/40 rounded-2xl p-6 relative overflow-hidden group">
+            <div className="bg-muted/30 border border-border/40 rounded-xl p-6 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-[0.06]">
                 <Brain className="h-24 w-24" />
               </div>
@@ -2868,7 +2887,7 @@ ${generatedProtocol.additionalComments}`;
             <div className="space-y-6">
               <div
                 className={cn(
-                  "border-2 border-dashed rounded-2xl p-8 sm:p-10 transition-all duration-300 group relative overflow-hidden",
+                  "border-2 border-dashed rounded-xl p-8 sm:p-10 transition-all duration-300 group relative overflow-hidden",
                   isDragActive
                     ? "border-primary bg-primary/5 scale-[1.01] shadow-md"
                     : "border-border/60 bg-muted/20 hover:border-primary/40 hover:bg-muted/40"
@@ -3346,7 +3365,7 @@ ${generatedProtocol.additionalComments}`;
             </div>
           )}
           {emarRecords.length > 1 && (
-            <div className="flex flex-col gap-3 bg-muted/20 border border-border/40 p-4 rounded-2xl sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 bg-muted/20 border border-border/40 p-4 rounded-xl sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">EMAR Queue</span>
                 <p className="text-sm text-muted-foreground">
@@ -3710,7 +3729,7 @@ ${generatedProtocol.additionalComments}`;
               <div className="flex items-center justify-between gap-6 flex-wrap">
                 <div className="flex items-center gap-5">
                   <div className={cn(
-                    "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shadow-sm shrink-0",
+                    "h-12 w-12 sm:h-14 sm:w-14 rounded-xl flex items-center justify-center shadow-sm shrink-0",
                     hasAnyDiscrepancies() ? "bg-destructive/20 text-destructive" : "bg-success/20 text-success"
                   )}>
                     {hasAnyDiscrepancies() ? <X className="h-7 w-7 sm:h-8 sm:w-8" /> : <Check className="h-7 w-7 sm:h-8 sm:w-8" />}
@@ -4115,7 +4134,7 @@ ${generatedProtocol.additionalComments}`;
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
                 {refusalReviewSubmitted ? (
-                  <div className="bg-success/10 border border-success/20 rounded-2xl p-6 flex items-center gap-4 animate-scale-in">
+                  <div className="bg-success/10 border border-success/20 rounded-xl p-6 flex items-center gap-4 animate-scale-in">
                     <div className="h-12 w-12 rounded-xl bg-success/20 flex items-center justify-center text-success shadow-sm">
                       <CheckCircle2 className="h-6 w-6" />
                     </div>
@@ -4137,7 +4156,7 @@ ${generatedProtocol.additionalComments}`;
                           <AccordionItem 
                             key={codeGroup.code} 
                             value={codeGroup.code}
-                            className="border border-border/40 rounded-2xl overflow-hidden bg-muted/20"
+                            className="border border-border/40 rounded-xl overflow-hidden bg-muted/20"
                             data-testid={`refusal-code-group-${codeGroup.code}`}
                           >
                             <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-muted/30 transition-all">
@@ -4325,7 +4344,7 @@ ${generatedProtocol.additionalComments}`;
 	              />
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-              <div className="flex items-center gap-6 p-4 rounded-2xl bg-muted/20 border border-border/40">
+              <div className="flex items-center gap-6 p-4 rounded-xl bg-muted/20 border border-border/40">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">PRN Medications Found:</p>
                 {result.prnMedications.hasPRN ? (
                   <div className="flex items-center gap-2 text-warning font-black text-xs uppercase tracking-widest bg-warning/10 px-3 py-1 rounded-full border border-warning/20">
@@ -4340,7 +4359,7 @@ ${generatedProtocol.additionalComments}`;
 
               {result.prnMedications.hasPRN && (
                 <div className="space-y-6 animate-slide-up">
-                  <div className="bg-muted/10 rounded-2xl p-5 border border-border/40">
+                  <div className="bg-muted/10 rounded-xl p-5 border border-border/40">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-4">PRN Medications</p>
 	                    <div className="flex flex-wrap gap-2.5">
 	                      {result.prnMedications.medications.map((med, idx) => (
@@ -4352,7 +4371,7 @@ ${generatedProtocol.additionalComments}`;
                   </div>
 
                   {prnProtocolsSubmitted ? (
-                    <div className="p-6 rounded-2xl bg-muted/20 border border-border/40 animate-scale-in">
+                    <div className="p-6 rounded-xl bg-muted/20 border border-border/40 animate-scale-in">
                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Protocol Review Complete</p>
                       {prnProtocolChecks.every(p => p.isCompleted && p.isGoodStandard) ? (
                         <div className="flex items-center gap-3 text-success">
@@ -4518,7 +4537,7 @@ ${generatedProtocol.additionalComments}`;
                   Entries closed by office staff (codes without care worker initials). These are excluded from gap analysis.
                 </p>
                 {/* Desktop table */}
-                <div className="hidden md:block rounded-2xl border border-border/40 overflow-hidden bg-muted/10">
+                <div className="hidden md:block rounded-xl border border-border/40 overflow-hidden bg-muted/10">
                   <Table data-testid="table-office-closed">
                     <TableHeader className="bg-muted/30">
                       <TableRow className="border-border/40">

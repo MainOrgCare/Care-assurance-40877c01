@@ -6,7 +6,7 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-hidden rounded-xl border border-border/80 bg-card/98 shadow-[var(--shadow-soft)]">
+  <div className="relative w-full overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-sm)]">
     <div className="w-full overflow-x-auto overflow-y-hidden overscroll-x-contain">
       <table
         ref={ref}
@@ -24,7 +24,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("sticky top-0 z-[2] bg-muted/62 text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground backdrop-blur-sm [&_tr]:border-b [&_tr]:border-border/70", className)}
+    className={cn("sticky top-0 z-[2] bg-muted text-[0.625rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground [&_tr]:border-b [&_tr]:border-border", className)}
     {...props}
   />
 ))
@@ -64,7 +64,7 @@ const TableRowInner = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-border/45 transition-[background-color,border-color] duration-100 hover:bg-muted/42 data-[state=selected]:border-primary/24 data-[state=selected]:bg-primary/8",
+      "border-b border-border/55 transition-[background-color,border-color] duration-100 hover:bg-muted/55 data-[state=selected]:border-primary/24 data-[state=selected]:bg-primary/8",
       className
     )}
     {...props}

@@ -1013,7 +1013,7 @@ export const emarAgent = {
       return parseJsonFromContent(content) || {};
     };
 
-    console.log("EMAR Agent: Running 2-pass metadata extraction...");
+    console.log("[EMAR Agent] Running 2-pass metadata extraction...");
     const [meta1, meta2] = await Promise.all([runMetadataPass(0), runMetadataPass(1)]);
 
     const metadataParsed = {
@@ -1164,7 +1164,7 @@ export const emarAgent = {
       return results.flat();
     };
 
-    console.log(`EMAR Agent: Running 3-pass extraction for ${medicationsWithIds.length} medications...`);
+    console.log(`[EMAR Agent] Running 3-pass extraction for ${medicationsWithIds.length} medications...`);
     const [pass1Entries, pass2Entries, pass3Entries] = await Promise.all([
       runPass(0),
       runPass(1),

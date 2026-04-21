@@ -35,13 +35,13 @@ const formatAuditDate = (date: Date) => {
 
 const parseVisitDurationMinutes = (value: string) => {
   if (!value) return null;
-  const numeric = Number(value);
+  const trimmed = value.trim();
+  const numeric = Number(trimmed);
   if (!Number.isNaN(numeric)) {
-    if (numeric <= 24) return Math.round(numeric * 60);
-    if (numeric <= 24 * 60) return Math.round(numeric);
+    if (trimmed.includes(".")) return Math.round(numeric * 60);
     return Math.round(numeric);
   }
-  const timeMatch = value.match(/(\d{1,2}):(\d{2})/);
+  const timeMatch = trimmed.match(/(\d{1,2}):(\d{2})/);
   if (timeMatch) {
     return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
   }
@@ -99,8 +99,16 @@ export function mergeVisitAuditResults(results: any[]) {
     if (result?.themesAndTrends) themes.add(String(result.themesAndTrends).trim());
     if (result?.gapsInKnowledge) gaps.add(String(result.gapsInKnowledge).trim());
 
-    const start = parseAuditDate(result?.auditPeriodStart || "");
-    const end = parseAuditDate(result?.auditPeriodEnd || "");
+    const startRaw = result?.auditPeriodStart || "";
+    const endRaw = result?.auditPeriodEnd || "";
+    const start = parseAuditDate(startRaw);
+    const end = parseAuditDate(endRaw);
+    if (startRaw && !start) {
+      console.warn("[Visit Audit] Could not parse auditPeriodStart", { value: startRaw });
+    }
+    if (endRaw && !end) {
+      console.warn("[Visit Audit] Could not parse auditPeriodEnd", { value: endRaw });
+    }
     if (start && (!startDate || start < startDate)) startDate = start;
     if (end && (!endDate || end > endDate)) endDate = end;
   }

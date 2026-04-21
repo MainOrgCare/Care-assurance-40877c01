@@ -109,6 +109,18 @@ export function cacheDomElements() {
     const camel = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     dom[camel] = document.getElementById(id);
   }
+
+  const missing = ids.filter((id) => {
+    const camel = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    return !dom[camel];
+  });
+  if (missing.length) {
+    try {
+      debugLog?.("[CA Extension] Missing popup DOM IDs", { count: missing.length, ids: missing });
+    } catch {
+      console.warn("[CA Extension] Missing popup DOM IDs:", missing);
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

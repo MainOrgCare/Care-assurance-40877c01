@@ -49,46 +49,31 @@ export default function Performance() {
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [selectedWorker, setSelectedWorker] = useState<CareWorkerFromAudits | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setFetchError(null);
     try {
-      const res = await fetch("/api/audits/care-workers", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch data");
+      const res = await fetch("/api/audits/care-workers", { credentials: "include", signal });
+      if (!res.ok) throw new Error(`Failed to fetch data (${res.status})`);
       const workers: CareWorkerFromAudits[] = await res.json();
-      setCareWorkers(workers);
+      if (!signal?.aborted) setCareWorkers(workers);
     } catch (error: unknown) {
+      if ((error as { name?: string })?.name === "AbortError") return;
       const message = error instanceof Error ? error.message : "Failed to load performance data";
-      setFetchError(message);
-      toast({ title: "Error", description: message, variant: "destructive" });
+      if (!signal?.aborted) {
+        setFetchError(message);
+        toast({ title: "Error", description: message, variant: "destructive" });
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setLoading(true);
-      setFetchError(null);
-      try {
-        const res = await fetch("/api/audits/care-workers", { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to fetch data");
-        const workers: CareWorkerFromAudits[] = await res.json();
-        if (!cancelled) setCareWorkers(workers);
-      } catch (error: unknown) {
-        if (!cancelled) {
-          const message = error instanceof Error ? error.message : "Failed to load performance data";
-          setFetchError(message);
-          toast({ title: "Error", description: message, variant: "destructive" });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [toast]);
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
+  }, [fetchData]);
 
   const getCompliancePercentage = useCallback((worker: CareWorkerFromAudits): number => {
     if (worker.auditCount === 0) return worker.discrepancyCount > 0 ? 0 : 100;
@@ -265,7 +250,7 @@ export default function Performance() {
                 <h3 className="text-sm font-semibold text-foreground">Failed to load performance data</h3>
                 <p className="text-xs text-muted-foreground mt-1">{fetchError}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={fetchData} className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => fetchData()} className="gap-2">
                 <RefreshCw className="h-3.5 w-3.5" />
                 Retry
               </Button>

@@ -1,5 +1,27 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.41 - Corporate Visual Refresh & Reliability Hardening
+
+### Visual Polish (popup)
+
+- Flattened popup surfaces to match the refreshed corporate slate/sky design system: removed `backdrop-filter: blur` from connection badges and tab nav, replaced light-leak gradients (`hsl(220, 18%, 97%)`, near-white pastels) on `.workspace-summary`, `.workspace-context-card`, `.main-launchpad-card`, `.main-view-state` (and variants), `.page-companion-state` (and variants), `.route-pill`, `.card`, `.card-header`, and `.popup-container` with theme-token solid surfaces.
+- `.btn-primary` no longer uses a 180deg gradient with inset highlight — solid `var(--color-primary)` + restrained `--shadow-xs` / `--shadow-sm` only.
+- Status variants now use `color-mix(in oklab, var(--color-muted), <accent>)` so they adapt cleanly across dark, midnight, ocean, and aurora themes instead of clashing with hardcoded near-white backgrounds.
+
+### Reliability
+
+- `executeScriptInTab` now races `chrome.scripting.executeScript` against a 30s timeout (configurable via `options.timeoutMs`, capped at 120s) so a stalled Mobizio page can no longer hang the auto-collect / autofill workflow indefinitely.
+- `requestCareAssurancePageExtensionStatus` (Page Companion health probe) now races a 3s timeout so a stale content-script bridge that receives but never replies surfaces as a refresh-required warning instead of hanging the popup.
+
+### Diagnostics
+
+- `cacheDomElements` in `popup/ui.js` now logs the list of missing DOM IDs after caching so template/HTML drift is visible in the console immediately rather than degrading silently.
+- `apiProxy` in `popup/api.js` now logs proxy bridge errors and empty responses with `endpoint`, `method`, and `requestId` context so operators can distinguish runtime errors from absent responses without changing the public response shape.
+
+### Versioning
+
+- Bumped extension version to `0.6.41` and synchronized manifest.
+
 ## Version 0.6.40 - Built-In Operator Guide
 
 ### Help & Usability

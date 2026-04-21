@@ -337,22 +337,20 @@ body {
 }
 
 .connection-badge.connected {
-  background: hsla(152, 60%, 50%, 0.15);
+  background: hsla(152, 60%, 50%, 0.14);
   color: hsl(152, 70%, 85%);
-  border: 1px solid hsla(152, 60%, 50%, 0.25);
-  backdrop-filter: blur(8px);
+  border: 1px solid hsla(152, 60%, 50%, 0.28);
 }
 .connection-badge.connected .connection-dot {
   background: hsl(152, 70%, 55%);
-  box-shadow: 0 0 6px hsla(152, 70%, 55%, 0.5);
+  box-shadow: 0 0 4px hsla(152, 70%, 55%, 0.45);
   animation: healthPulse 2.5s ease-in-out infinite;
 }
 
 .connection-badge.connecting {
-  background: hsla(215, 60%, 60%, 0.15);
+  background: hsla(215, 60%, 60%, 0.14);
   color: hsl(215, 80%, 85%);
-  border: 1px solid hsla(215, 60%, 60%, 0.25);
-  backdrop-filter: blur(8px);
+  border: 1px solid hsla(215, 60%, 60%, 0.28);
 }
 .connection-badge.connecting .connection-dot {
   background: hsl(215, 70%, 65%);
@@ -360,20 +358,18 @@ body {
 }
 
 .connection-badge.error {
-  background: hsla(0, 60%, 55%, 0.15);
+  background: hsla(0, 60%, 55%, 0.14);
   color: hsl(0, 80%, 85%);
-  border: 1px solid hsla(0, 60%, 55%, 0.25);
-  backdrop-filter: blur(8px);
+  border: 1px solid hsla(0, 60%, 55%, 0.28);
 }
 .connection-badge.error .connection-dot {
   background: hsl(0, 70%, 60%);
 }
 
 .connection-badge.disconnected {
-  background: hsla(0, 0%, 100%, 0.08);
+  background: hsla(0, 0%, 100%, 0.06);
   color: hsla(0, 0%, 100%, 0.55);
-  border: 1px solid hsla(0, 0%, 100%, 0.10);
-  backdrop-filter: blur(8px);
+  border: 1px solid hsla(0, 0%, 100%, 0.12);
 }
 .connection-badge.disconnected .connection-dot {
   background: hsla(0, 0%, 100%, 0.35);
@@ -550,7 +546,7 @@ body {
 
 /* ===== WORKSPACE SUMMARY (Quick Overview) ===== */
 .workspace-summary {
-  background: linear-gradient(180deg, var(--color-card), hsl(220, 18%, 97%));
+  background: var(--color-card);
 }
 
 .summary-grid {
@@ -564,7 +560,7 @@ body {
   gap: 3px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: linear-gradient(180deg, hsla(0, 0%, 100%, 0.8), var(--color-muted));
+  background: var(--color-muted);
   padding: 11px 12px;
   transition: border-color var(--duration-fast), transform var(--duration-fast);
 }
@@ -607,10 +603,8 @@ body {
 
 /* ===== WORKSPACE CONTEXT ===== */
 .workspace-context-card {
-  background:
-    radial-gradient(120px 64px at 100% 0%, hsla(172, 40%, 50%, 0.08), transparent 72%),
-    linear-gradient(180deg, var(--color-card), hsl(220, 18%, 97%));
-  border-color: hsla(172, 30%, 50%, 0.12);
+  background: var(--color-card);
+  border-color: var(--color-border);
 }
 
 .workspace-context-shell {
@@ -623,8 +617,8 @@ body {
   gap: 5px;
   padding: 14px;
   border-radius: var(--radius);
-  border: 1px solid hsla(214, 60%, 28%, 0.12);
-  background: linear-gradient(135deg, hsla(214, 60%, 50%, 0.06), hsla(172, 40%, 50%, 0.04));
+  border: 1px solid var(--color-border);
+  background: var(--color-muted);
   box-shadow: var(--shadow-xs);
 }
 
@@ -736,11 +730,8 @@ body {
 
 /* ===== MAIN VIEW LAUNCHPAD ===== */
 .main-launchpad-card {
-  background:
-    radial-gradient(120px 70px at 10% 0%, hsla(214, 65%, 50%, 0.10), transparent 76%),
-    radial-gradient(140px 80px at 100% 100%, hsla(172, 45%, 50%, 0.08), transparent 80%),
-    linear-gradient(180deg, var(--color-card), hsl(220, 18%, 97%));
-  border-color: hsla(214, 40%, 45%, 0.16);
+  background: var(--color-card);
+  border-color: var(--color-border);
 }
 
 .main-launchpad-card .card-content {
@@ -754,28 +745,28 @@ body {
   padding: 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  background: linear-gradient(160deg, hsla(0, 0%, 100%, 0.86), hsl(220, 16%, 95%));
+  background: var(--color-muted);
   box-shadow: var(--shadow-xs);
 }
 
 .main-view-state.is-disconnected {
-  border-color: hsla(0, 70%, 52%, 0.2);
-  background: linear-gradient(160deg, hsla(0, 90%, 98%, 0.94), hsla(0, 80%, 96%, 0.9));
+  border-color: hsla(0, 70%, 52%, 0.28);
+  background: color-mix(in oklab, var(--color-muted) 86%, hsla(0, 80%, 50%, 0.08));
 }
 
 .main-view-state.is-waiting {
-  border-color: hsla(38, 92%, 48%, 0.26);
-  background: linear-gradient(160deg, hsla(45, 100%, 97%, 0.94), hsla(38, 100%, 95%, 0.9));
+  border-color: hsla(38, 92%, 48%, 0.32);
+  background: color-mix(in oklab, var(--color-muted) 86%, hsla(38, 90%, 50%, 0.08));
 }
 
 .main-view-state.is-live {
-  border-color: hsla(152, 60%, 38%, 0.25);
-  background: linear-gradient(160deg, hsla(152, 70%, 97%, 0.94), hsla(172, 48%, 95%, 0.9));
+  border-color: hsla(152, 60%, 38%, 0.32);
+  background: color-mix(in oklab, var(--color-muted) 86%, hsla(152, 70%, 45%, 0.08));
 }
 
 .main-view-state.is-warning {
-  border-color: hsla(38, 92%, 48%, 0.28);
-  background: linear-gradient(160deg, hsla(45, 100%, 97%, 0.94), hsla(38, 100%, 95%, 0.9));
+  border-color: hsla(38, 92%, 48%, 0.32);
+  background: color-mix(in oklab, var(--color-muted) 86%, hsla(38, 90%, 50%, 0.08));
 }
 
 .main-view-state-eyebrow {
@@ -813,7 +804,7 @@ body {
 
 .route-pill {
   border: 1px solid var(--color-border);
-  background: hsla(0, 0%, 100%, 0.84);
+  background: var(--color-card);
   color: var(--color-foreground);
   border-radius: var(--radius-sm);
   min-height: 34px;
@@ -842,8 +833,8 @@ body {
 }
 
 .route-pill.is-active {
-  border-color: hsla(214, 65%, 42%, 0.4);
-  background: linear-gradient(180deg, hsla(214, 90%, 96%, 0.96), hsla(214, 80%, 94%, 0.96));
+  border-color: color-mix(in oklab, var(--color-primary) 50%, transparent);
+  background: var(--color-primary-ghost);
   color: var(--color-primary);
 }
 
@@ -910,14 +901,14 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, hsl(214, 55%, 32%), var(--color-primary));
+  background: var(--color-primary);
   color: var(--color-primary-foreground);
-  box-shadow: var(--shadow-sm), inset 0 1px 0 hsla(0, 0%, 100%, 0.08);
+  box-shadow: var(--shadow-xs);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, hsl(214, 55%, 36%), var(--color-primary-hover));
-  box-shadow: var(--shadow-md), inset 0 1px 0 hsla(0, 0%, 100%, 0.12);
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary {
@@ -2707,18 +2698,18 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 12px 14px;
-  background: linear-gradient(180deg, hsl(220, 20%, 99%), hsl(220, 18%, 97%));
+  background: var(--color-muted);
   transition: border-color var(--duration-normal), background var(--duration-normal);
 }
 
 .page-companion-state.is-live {
-  border-color: hsla(215, 45%, 60%, 0.4);
-  background: linear-gradient(180deg, hsla(215, 75%, 97%, 0.9), hsla(215, 60%, 96%, 0.9));
+  border-color: color-mix(in oklab, var(--color-primary) 40%, transparent);
+  background: color-mix(in oklab, var(--color-muted) 84%, hsla(215, 80%, 50%, 0.08));
 }
 
 .page-companion-state.is-warning {
-  border-color: hsla(38, 75%, 60%, 0.4);
-  background: linear-gradient(180deg, var(--color-warning-light), hsl(38, 100%, 95%));
+  border-color: hsla(38, 75%, 55%, 0.45);
+  background: var(--color-warning-light);
 }
 
 .page-companion-state.is-empty {
@@ -2756,7 +2747,7 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 9px;
-  background: hsla(220, 16%, 95%, 0.6);
+  background: var(--color-card);
   min-width: 0;
   transition: border-color var(--duration-fast);
 }
@@ -5257,27 +5248,23 @@ fieldset legend {
   ═══════════════════════════════════════════════════════════════════════════ */
 
 .popup-container {
-  background:
-    radial-gradient(130% 90% at 100% -18%, hsla(215, 80%, 56%, 0.08), transparent 62%),
-    radial-gradient(95% 60% at 0% 0%, hsla(172, 42%, 42%, 0.07), transparent 58%),
-    var(--color-background);
+  background: var(--color-background);
 }
 
 .tab-navigation {
   position: sticky;
   top: 0;
   z-index: 18;
-  backdrop-filter: blur(10px);
-  background: hsla(0, 0%, 100%, 0.82);
+  background: var(--color-card);
 }
 
 .popup-content {
-  background: linear-gradient(180deg, hsla(220, 36%, 99%, 0.9), transparent 44%);
+  background: transparent;
 }
 
 .card {
-  background: linear-gradient(180deg, hsla(0, 0%, 100%, 0.98), hsla(220, 24%, 98%, 0.96));
-  border-color: hsla(215, 28%, 84%, 0.72);
+  background: var(--color-card);
+  border-color: var(--color-border);
 }
 
 .card:hover {
@@ -5285,7 +5272,7 @@ fieldset legend {
 }
 
 .card-header {
-  background: linear-gradient(180deg, hsla(220, 36%, 99%, 0.75), hsla(220, 20%, 97%, 0.72));
+  background: var(--color-card);
 }
 
 .status-box {

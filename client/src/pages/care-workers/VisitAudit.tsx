@@ -774,12 +774,12 @@ The AI will automatically extract:
 - Compliance score and discrepancy map"
                 value={documentContent}
                 onChange={(e) => setDocumentContent(e.target.value)}
-                className="bg-muted/20 border-border/40 min-h-[300px] font-mono text-xs leading-relaxed rounded-2xl resize-none focus:ring-primary/20"
+                className="bg-muted/20 border-border/40 min-h-[300px] font-mono text-xs leading-relaxed rounded-xl resize-none focus:ring-primary/20"
                 data-testid="textarea-visit-content"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 p-4 rounded-2xl bg-muted/20 border border-border/40">
+            <div className="flex flex-wrap items-center gap-4 p-4 rounded-xl bg-muted/20 border border-border/40">
               <div className="flex-1 min-w-[240px]">
                 <Input
                   type="file"
@@ -789,7 +789,7 @@ The AI will automatically extract:
                   data-testid="input-file-upload"
                 />
               </div>
-              <Button onClick={processAudit} disabled={loading || !documentContent} className="h-12 px-8 rounded-xl font-medium tracking-tight shadow-glow group" data-testid="button-analyze">
+              <Button onClick={processAudit} disabled={loading || !documentContent} className="h-12 px-8 rounded-xl font-medium tracking-tight shadow-sm group" data-testid="button-analyze">
                 {loading ? (
                   <>
                     <Loader2 className="mr-2.5 h-4.5 w-4.5 animate-spin" />
@@ -805,7 +805,7 @@ The AI will automatically extract:
             </div>
 
             {file && inputSummary && (
-              <div className="rounded-2xl border border-border/40 bg-background/80 p-4 space-y-3">
+              <div className="rounded-xl border border-border/40 bg-background/80 p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-semibold text-foreground">{file.name}</p>
@@ -840,7 +840,7 @@ The AI will automatically extract:
               </div>
             )}
 
-            <div className="rounded-2xl border border-border/40 bg-muted/20 p-5 space-y-4">
+            <div className="rounded-xl border border-border/40 bg-muted/20 p-5 space-y-4">
               <div className="space-y-1">
                 <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Audit Context (Optional)</p>
                 <p className="text-xs text-muted-foreground">
@@ -1045,7 +1045,7 @@ The AI will automatically extract:
               </CardHeader>
               <CardContent className="pt-6">
                 {Object.entries(getDiscrepanciesByCarer()).map(([carerName, discrepancies], carerIdx) => (
-                  <div key={carerIdx} className="mb-8 last:mb-0 p-5 rounded-2xl bg-destructive/5 border border-destructive/10">
+                  <div key={carerIdx} className="mb-8 last:mb-0 p-5 rounded-xl bg-destructive/5 border border-destructive/10">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-lg font-black tracking-tight text-destructive">{carerName}</h4>
                       <CopyButton 
@@ -1135,7 +1135,7 @@ The AI will automatically extract:
               <Button
                 onClick={saveAudit}
                 disabled={loading}
-                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight shadow-glow"
+                className="flex-1 sm:flex-initial h-12 px-8 rounded-xl font-medium tracking-tight shadow-sm"
                 data-testid="button-save-visit-audit"
               >
                 {loading ? "SAVING..." : "COMMIT AUDIT"}

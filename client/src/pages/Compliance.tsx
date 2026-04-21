@@ -33,9 +33,11 @@ export default function Compliance() {
     queryKey: queryKeys.audits.all(),
     queryFn: async () => {
       const res = await fetch("/api/audits", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch audits");
+      if (!res.ok) throw new Error(`Failed to fetch audits (${res.status})`);
       return res.json();
     },
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
   const { exportCSV } = useDataExport();
@@ -347,7 +349,7 @@ export default function Compliance() {
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
-              <div className="h-14 w-14 mx-auto mb-4 rounded-2xl bg-muted/40 flex items-center justify-center">
+              <div className="h-14 w-14 mx-auto mb-4 rounded-xl bg-muted/40 flex items-center justify-center">
                 <FileText className="h-6 w-6 text-muted-foreground/30" />
               </div>
               <p className="text-sm font-semibold text-foreground/70">No audits recorded</p>

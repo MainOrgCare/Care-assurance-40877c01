@@ -44,18 +44,23 @@ const parseComparableDate = (value: string): number | null => {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  // Try explicit DD/MM[/YYYY] first — Date.parse misinterprets "02/04/2026"
+  // as MM/DD on V8/Node, which would silently shuffle dates.
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]) - 1;
+    const rawYear = slashMatch[3] ? Number(slashMatch[3]) : new Date().getFullYear();
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    const parsed = new Date(year, month, day).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+
+  // Fall back to native parsing for ISO-style strings (e.g. "2026-04-02").
   const native = Date.parse(trimmed);
   if (!Number.isNaN(native)) return native;
 
-  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
-  if (!match) return null;
-
-  const day = Number(match[1]);
-  const month = Number(match[2]) - 1;
-  const rawYear = match[3] ? Number(match[3]) : new Date().getFullYear();
-  const year = rawYear < 100 ? 2000 + rawYear : rawYear;
-  const parsed = new Date(year, month, day).getTime();
-  return Number.isNaN(parsed) ? null : parsed;
+  return null;
 };
 
 const shouldReplaceLastSeen = (currentValue: string, nextValue: string) => {

@@ -89,10 +89,16 @@ export async function apiProxy(endpoint, method = "GET", body = null, options = 
           settled = true;
           clearTimeout(timeoutHandle);
           if (chrome.runtime.lastError) {
+            console.warn("[CA Extension] Proxy bridge error", { endpoint, method, requestId, error: chrome.runtime.lastError.message });
             resolve({ ok: false, error: chrome.runtime.lastError.message || "Runtime error" });
             return;
           }
-          resolve(innerResponse || { ok: false, error: "No response from background" });
+          if (!innerResponse) {
+            console.warn("[CA Extension] Proxy bridge returned no response", { endpoint, method, requestId });
+            resolve({ ok: false, error: "No response from background" });
+            return;
+          }
+          resolve(innerResponse);
         }
       );
     });

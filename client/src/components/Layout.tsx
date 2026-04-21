@@ -188,7 +188,7 @@ const SidebarContent = memo(function SidebarContent({
       "workspace-nav-link group relative flex items-center gap-2.5 rounded-xl text-[0.8125rem] font-semibold tracking-[-0.01em] transition-all duration-150 cursor-pointer",
       isCollapsed ? "px-2.5 py-2.75 justify-center gap-0" : "px-3.5 py-2.5",
       isActive
-        ? "is-active bg-sidebar-primary/16 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_18%,transparent),0_14px_30px_-26px_rgba(15,23,42,0.6)]"
+        ? "is-active bg-sidebar-primary/14 text-sidebar-primary font-semibold shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-sidebar-primary)_18%,transparent)]"
         : "text-sidebar-foreground/72 hover:text-sidebar-foreground hover:bg-sidebar-foreground/[0.07]"
     ), [isCollapsed]);
 
@@ -214,7 +214,7 @@ const SidebarContent = memo(function SidebarContent({
             onClick={handleSecretClick}
             className={cn("flex items-center gap-3 cursor-pointer group", isCollapsed && "justify-center")}
           >
-            <div className="relative h-10 w-10 rounded-xl flex items-center justify-center border border-sidebar-primary/22 bg-[linear-gradient(145deg,color-mix(in_oklab,var(--color-sidebar-primary)_26%,transparent),color-mix(in_oklab,var(--color-sidebar-primary)_8%,transparent))] shadow-[0_14px_30px_-24px_rgba(0,0,0,0.85)]">
+            <div className="relative h-10 w-10 rounded-xl flex items-center justify-center border border-sidebar-primary/22 bg-sidebar-primary/10 shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-4 w-4 text-sidebar-primary" />
             </div>
             {!isCollapsed && (
@@ -891,7 +891,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         animate={{ width: isSidebarCollapsed ? 80 : 260 }}
         transition={{ type: "spring", damping: 30, stiffness: 280 }}
         className={cn(
-          "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-[linear-gradient(180deg,color-mix(in_oklab,var(--color-sidebar)_94%,black)_0%,color-mix(in_oklab,var(--color-sidebar)_98%,black)_100%)] transition-all duration-200",
+          "workspace-sidebar hidden md:flex flex-shrink-0 flex-col z-20 border-r border-sidebar-border bg-sidebar transition-all duration-200",
           ""
         )}
         aria-label="Main navigation"

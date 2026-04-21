@@ -2755,13 +2755,30 @@ const isMobizioHostName = (hostName) => {
 const executeScriptInTab = async (tabId, func, args = [], options = {}) => {
   const requestedWorld = String(options?.world || "").trim().toUpperCase();
   const world = requestedWorld === "MAIN" || requestedWorld === "ISOLATED" ? requestedWorld : undefined;
-  const results = await chrome.scripting.executeScript({
+  const timeoutMs = Number.isFinite(options?.timeoutMs) && options.timeoutMs > 0
+    ? Math.min(120000, options.timeoutMs)
+    : 30000;
+
+  const execution = chrome.scripting.executeScript({
     target: { tabId },
     ...(world ? { world } : {}),
     func,
     args,
   });
-  return results?.[0]?.result;
+
+  let timeoutHandle = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`Script execution timed out after ${Math.round(timeoutMs / 1000)}s in tab ${tabId}`));
+    }, timeoutMs);
+  });
+
+  try {
+    const results = await Promise.race([execution, timeout]);
+    return results?.[0]?.result;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
 };
 
 const getMobizioDocumentsPageUrlInPage = (caseId, defaultServiceId) => {
@@ -6627,10 +6644,20 @@ async function requestCareAssurancePageExtensionStatus(tabId) {
   }
 
   return await new Promise((resolve) => {
+    let settled = false;
+    const timeoutHandle = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: false, error: "Page status probe timed out (3s). The page bridge may be stale; reload the tab." });
+    }, 3000);
+
     chrome.tabs.sendMessage(
       tabId,
       { type: PAGE_COMPANION_EXTENSION_STATUS_REQUEST_TYPE },
       (response) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutHandle);
         const runtimeError = chrome.runtime.lastError?.message || "";
         if (runtimeError) {
           resolve({ ok: false, error: runtimeError });

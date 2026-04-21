@@ -18,63 +18,64 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
 
-  /* Light Theme - Refined corporate palette */
-  --color-primary: hsl(214 62% 28%);
+  /* Light Theme - Refined corporate palette (slate / sky) */
+  --color-primary: hsl(215 55% 26%);
   --color-primary-foreground: hsl(0 0% 100%);
 
-  --color-secondary: hsl(172 40% 28%);
+  --color-secondary: hsl(190 38% 32%);
   --color-secondary-foreground: hsl(0 0% 100%);
 
-  --color-background: hsl(216 24% 97%);
-  --color-foreground: hsl(216 35% 14%);
-  
+  --color-background: hsl(214 20% 98%);
+  --color-foreground: hsl(218 32% 13%);
+
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(214 37% 15%);
-  
+  --color-card-foreground: hsl(218 32% 13%);
+
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(214 37% 15%);
+  --color-popover-foreground: hsl(218 32% 13%);
 
-  --color-muted: hsl(210 20% 93%);
-  --color-muted-foreground: hsl(214 14% 42%);
+  --color-muted: hsl(214 18% 94%);
+  --color-muted-foreground: hsl(216 13% 44%);
 
-  --color-accent: hsl(214 62% 28% / 0.07);
-  --color-accent-foreground: hsl(214 37% 15%);
+  --color-accent: hsl(215 55% 26% / 0.06);
+  --color-accent-foreground: hsl(218 32% 13%);
 
   /* Status Colors - Corporate-grade tones */
-  --color-destructive: hsl(0 68% 46%);
+  --color-destructive: hsl(0 64% 44%);
   --color-destructive-foreground: hsl(0 0% 100%);
 
-  --color-warning: hsl(38 92% 46%);
+  --color-warning: hsl(36 90% 44%);
   --color-warning-foreground: hsl(28 46% 12%);
 
-  --color-success: hsl(152 56% 36%);
+  --color-success: hsl(152 50% 32%);
   --color-success-foreground: hsl(0 0% 100%);
 
   /* Borders - refined neutral */
-  --color-border: hsl(214 20% 86%);
-  --color-input: hsl(214 20% 86%);
-  --color-ring: hsl(214 62% 28%);
-  --color-primary-border: hsl(214 62% 28% / 0.22);
-  --color-secondary-border: hsl(172 40% 28% / 0.24);
-  --color-destructive-border: hsl(0 68% 40% / 0.22);
-  --button-outline: hsl(214 18% 80%);
-  --badge-outline: hsl(214 18% 80%);
+  --color-border: hsl(215 18% 88%);
+  --color-input: hsl(215 18% 88%);
+  --color-ring: hsl(215 70% 40%);
+  --color-primary-border: hsl(215 55% 26% / 0.18);
+  --color-secondary-border: hsl(190 38% 32% / 0.20);
+  --color-destructive-border: hsl(0 64% 38% / 0.20);
+  --button-outline: hsl(215 16% 82%);
+  --badge-outline: hsl(215 16% 82%);
 
-  /* Chart colors */
-  --color-chart-1: hsl(214 62% 32%);
-  --color-chart-2: hsl(172 42% 30%);
-  --color-chart-3: hsl(0 58% 44%);
-  --color-chart-4: hsl(244 46% 40%);
-  --color-chart-5: hsl(38 54% 40%);
+  /* Chart colors - cohesive single-hue ramp with accents */
+  --color-chart-1: hsl(215 60% 32%);
+  --color-chart-2: hsl(205 72% 44%);
+  --color-chart-3: hsl(190 50% 36%);
+  --color-chart-4: hsl(244 38% 44%);
+  --color-chart-5: hsl(216 14% 52%);
 
-  --color-sidebar: hsl(218 36% 11%);
-  --color-sidebar-foreground: hsl(214 16% 90%);
-  --color-sidebar-primary: hsl(205 78% 58%);
+  /* Sidebar - light, restrained (matches theme-light) */
+  --color-sidebar: hsl(0 0% 100%);
+  --color-sidebar-foreground: hsl(218 28% 18%);
+  --color-sidebar-primary: hsl(215 55% 26%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(218 30% 16%);
-  --color-sidebar-accent-foreground: hsl(214 16% 95%);
-  --color-sidebar-border: hsl(218 26% 19%);
-  --color-sidebar-ring: hsl(205 78% 58%);
+  --color-sidebar-accent: hsl(214 24% 95%);
+  --color-sidebar-accent-foreground: hsl(218 28% 18%);
+  --color-sidebar-border: hsl(215 18% 88%);
+  --color-sidebar-ring: hsl(215 70% 40%);
 
   /* Typography */
   --font-sans: "Manrope", "Avenir Next", "Segoe UI", system-ui, sans-serif;
@@ -85,12 +86,12 @@
   /* Border radius */
   --radius: 0.625rem;
 
-  /* Shadows - Corporate depth scale (structured, layered) */
+  /* Shadows - Corporate depth scale (neutral, restrained) */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 10px 24px -20px rgba(15, 23, 42, 0.22), 0 2px 6px rgba(15, 23, 42, 0.05);
-  --shadow-soft: 0 16px 40px -30px rgba(15, 23, 42, 0.28), 0 6px 16px -10px rgba(15, 23, 42, 0.1);
-  --shadow-medium: 0 24px 54px -34px rgba(15, 23, 42, 0.32), 0 10px 24px -16px rgba(15, 23, 42, 0.12);
-  --shadow-strong: 0 32px 72px -42px rgba(2, 6, 23, 0.38), 0 14px 30px -20px rgba(15, 23, 42, 0.14);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 10px -4px rgba(15, 23, 42, 0.08);
+  --shadow-medium: 0 4px 14px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --shadow-strong: 0 12px 28px -10px rgba(15, 23, 42, 0.16), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
   --shadow-glow: 0 0 0 rgba(0, 0, 0, 0);
   --motion-fast: 120ms;
   --motion-standard: 180ms;
@@ -105,13 +106,13 @@
   --surface-shell-border: hsl(214 18% 84% / 0.78);
   --surface-shell-shadow: 0 14px 30px -24px rgba(15, 23, 42, 0.18);
   --surface-noise-opacity: 0.035;
-  --surface-bg-gradient: linear-gradient(180deg, hsl(214 30% 98%) 0%, hsl(214 24% 96%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(214 20% 90% / 0.45) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(214 20% 90% / 0.45) 1px, transparent 1px);
-  --surface-grid-size: 120px 120px;
-  --surface-orb-a: radial-gradient(860px 520px at 12% 12%, color-mix(in oklab, var(--color-primary) 20%, transparent), transparent 70%);
-  --surface-orb-b: radial-gradient(920px 560px at 88% -8%, color-mix(in oklab, var(--color-secondary) 18%, transparent), transparent 74%);
-  --surface-orb-c: radial-gradient(780px 520px at 56% 108%, color-mix(in oklab, var(--color-primary) 14%, transparent), transparent 76%);
+  --surface-bg-gradient: linear-gradient(180deg, hsl(214 22% 99%) 0%, hsl(214 18% 97%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(215 18% 92% / 0.30) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(215 18% 92% / 0.30) 1px, transparent 1px);
+  --surface-grid-size: 160px 160px;
+  --surface-orb-a: radial-gradient(900px 540px at 8% -8%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 560px at 92% -10%, color-mix(in oklab, var(--color-secondary) 7%, transparent), transparent 76%);
+  --surface-orb-c: none;
   --content-max-width: 1360px;
 
   /* Z-index scale */
@@ -308,24 +309,18 @@
     position: relative;
     overflow: hidden;
     width: 100%;
-    border-radius: 1.05rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
-    background:
-      linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white) 0%, color-mix(in oklab, var(--color-card) 89%, transparent) 100%);
-    box-shadow: var(--shadow-soft);
+    border-radius: 0.875rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    box-shadow: var(--shadow-sm);
     transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .app-surface::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(130% 70% at 8% -12%, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 66%);
-    opacity: 0.9;
+    content: none;
   }
   .app-surface:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 22%, var(--color-border));
-    box-shadow: var(--shadow-medium);
+    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
+    box-shadow: var(--shadow-soft);
   }
 
   /* Card shell */
@@ -333,31 +328,26 @@
   .glass-card-interactive {
     position: relative;
     overflow: hidden;
-    border-radius: 1rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
-    background: linear-gradient(175deg, color-mix(in oklab, var(--color-card) 95%, white), color-mix(in oklab, var(--color-card) 90%, transparent));
-    box-shadow: var(--shadow-soft);
+    border-radius: 0.875rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    box-shadow: var(--shadow-sm);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .glass-card::before,
   .glass-card-interactive::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(130deg, color-mix(in oklab, var(--color-primary) 9%, transparent), transparent 46%);
-    opacity: 0.78;
+    content: none;
   }
   .glass-card:hover,
   .glass-card-interactive:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-    box-shadow: var(--shadow-medium);
+    border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
+    box-shadow: var(--shadow-soft);
   }
   .glass-card-interactive {
     cursor: pointer;
   }
   .glass-card-interactive:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
 
   /* Corporate pill badges - refined */
@@ -369,13 +359,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    border-radius: 999px;
-    padding: 0.28rem 0.7rem;
+    border-radius: 0.375rem;
+    padding: 0.2rem 0.55rem;
     font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
-    line-height: 1.4;
+    line-height: 1.3;
     white-space: nowrap;
   }
 
@@ -444,17 +434,17 @@
 
   /* Corporate stat card */
   .stat-card {
-    border-radius: 1rem;
-    border: 1px solid color-mix(in oklab, var(--color-border) 78%, white);
-    background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white), var(--color-card));
+    border-radius: 0.875rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
     padding: 1.5rem;
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--shadow-sm);
     transition: box-shadow var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
   .stat-card:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-    box-shadow: var(--shadow-medium);
-    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
+    box-shadow: var(--shadow-soft);
+    transform: translateY(-1px);
   }
   .stat-card-value {
     font-family: var(--font-heading);
@@ -537,7 +527,6 @@
       position: relative;
       overflow: hidden;
     background: var(--color-sidebar);
-      background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-sidebar) 94%, black), color-mix(in oklab, var(--color-sidebar) 100%, black));
     border-color: var(--color-sidebar-border);
     box-shadow: 1px 0 0 var(--color-sidebar-border);
   }
@@ -633,7 +622,7 @@
     position: relative;
     overflow: hidden;
     border-color: var(--color-border);
-    background-color: white;
+    background-color: var(--color-card);
     background-image: none;
   }
   .workspace-header::before {
@@ -668,8 +657,8 @@
     position: relative;
     overflow: hidden;
     isolation: isolate;
-    border-color: color-mix(in oklab, var(--color-border) 76%, white);
-    background: color-mix(in oklab, var(--color-card) 98%, white);
+    border-color: var(--color-border);
+    background: var(--color-card);
     box-shadow: var(--shadow-sm);
     transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   }
@@ -684,7 +673,7 @@
     z-index: 2;
   }
   .workspace-card:hover {
-    border-color: color-mix(in oklab, var(--color-primary) 20%, var(--color-border));
+    border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
     box-shadow: var(--shadow-soft);
     transform: none;
   }
@@ -695,7 +684,7 @@
     position: relative;
     overflow: hidden;
     border-color: var(--color-border);
-    background-color: white;
+    background-color: var(--color-card);
     background-image: none;
   }
   .workspace-footer-shell {
@@ -755,25 +744,25 @@
 
   /* Dark theme workspace overrides */
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-header {
-    background-color: color-mix(in oklab, var(--color-background) 82%, transparent);
-    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 26%, transparent), color-mix(in oklab, var(--color-background) 90%, transparent));
+    background-color: var(--color-card);
+    background-image: none;
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-header-shell {
     padding-inline: 0.1rem;
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-card {
-    background: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 94%, transparent), color-mix(in oklab, var(--color-card) 86%, transparent));
-    border-color: color-mix(in oklab, var(--color-border) 80%, transparent);
+    background: var(--color-card);
+    border-color: var(--color-border);
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-footer {
-    background-color: color-mix(in oklab, var(--color-background) 86%, transparent);
-    background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 12%, transparent), color-mix(in oklab, var(--color-background) 90%, transparent));
+    background-color: var(--color-card);
+    background-image: none;
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-footer-shell {
     padding: 0.3rem 0;
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .workspace-title-shell::before {
-    background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 68%, transparent), color-mix(in oklab, var(--color-secondary) 56%, transparent));
+    background: var(--color-primary);
   }
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .glass-card,
   :is(.dark, .theme-dark, .theme-midnight, .theme-ocean, .theme-aurora) .glass-card-interactive {
@@ -1682,15 +1671,15 @@ html.theme-aurora,
   --surface-shell-border: rgba(148, 163, 184, 0.22);
   --surface-shell-shadow: 0 4px 16px -8px rgba(2, 6, 23, 0.4);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: radial-gradient(1200px 600px at 10% -20%, hsl(216 40% 20% / 0.45), transparent 60%),
-    radial-gradient(1000px 520px at 90% -10%, hsl(188 45% 16% / 0.35), transparent 55%),
-    linear-gradient(180deg, hsl(222 24% 9%) 0%, hsl(222 20% 7%) 45%, hsl(222 20% 6%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(220 24% 22% / 0.25) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(220 24% 22% / 0.25) 1px, transparent 1px);
-  --surface-grid-size: 140px 140px;
-  --surface-orb-a: radial-gradient(900px 560px at 14% 4%, hsl(198 66% 32% / 0.22), transparent 72%);
-  --surface-orb-b: radial-gradient(980px 600px at 88% -12%, hsl(170 52% 28% / 0.16), transparent 76%);
-  --surface-orb-c: radial-gradient(820px 520px at 50% 112%, hsl(210 56% 28% / 0.14), transparent 78%);
+  --surface-bg-gradient: radial-gradient(1200px 600px at 10% -20%, hsl(216 36% 16% / 0.30), transparent 60%),
+    radial-gradient(1000px 520px at 90% -10%, hsl(212 40% 14% / 0.22), transparent 55%),
+    linear-gradient(180deg, hsl(220 26% 8%) 0%, hsl(220 24% 7%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(220 22% 16% / 0.18) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(220 22% 16% / 0.18) 1px, transparent 1px);
+  --surface-grid-size: 180px 180px;
+  --surface-orb-a: radial-gradient(900px 540px at 8% -8%, hsl(212 70% 30% / 0.16), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 560px at 92% -10%, hsl(196 60% 26% / 0.12), transparent 76%);
+  --surface-orb-c: none;
 }
 
 html.theme-light {
@@ -1713,15 +1702,15 @@ html.theme-midnight {
   --surface-shell-border: rgba(148, 163, 255, 0.25);
   --surface-shell-shadow: 0 4px 16px -8px rgba(5, 8, 25, 0.4);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: radial-gradient(1100px 600px at 12% -20%, hsl(245 42% 18% / 0.55), transparent 62%),
-    radial-gradient(900px 520px at 90% -10%, hsl(210 46% 16% / 0.45), transparent 55%),
-    linear-gradient(180deg, hsl(228 28% 7%) 0%, hsl(226 28% 6%) 45%, hsl(226 28% 5%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(236 34% 24% / 0.26) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(236 34% 24% / 0.26) 1px, transparent 1px);
-  --surface-grid-size: 160px 160px;
-  --surface-orb-a: radial-gradient(900px 560px at 10% -8%, hsl(228 72% 42% / 0.26), transparent 72%);
-  --surface-orb-b: radial-gradient(980px 620px at 88% -16%, hsl(195 66% 38% / 0.2), transparent 76%);
-  --surface-orb-c: radial-gradient(820px 520px at 52% 112%, hsl(246 68% 40% / 0.16), transparent 78%);
+  --surface-bg-gradient: radial-gradient(1100px 600px at 12% -20%, hsl(245 36% 16% / 0.30), transparent 62%),
+    radial-gradient(900px 520px at 90% -10%, hsl(228 30% 14% / 0.22), transparent 55%),
+    linear-gradient(180deg, hsl(228 28% 7%) 0%, hsl(226 28% 6%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(236 30% 20% / 0.18) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(236 30% 20% / 0.18) 1px, transparent 1px);
+  --surface-grid-size: 180px 180px;
+  --surface-orb-a: radial-gradient(900px 560px at 10% -8%, hsl(228 60% 36% / 0.16), transparent 72%);
+  --surface-orb-b: radial-gradient(980px 620px at 88% -16%, hsl(210 50% 30% / 0.12), transparent 76%);
+  --surface-orb-c: none;
 }
 
 html.theme-ocean {
@@ -1729,88 +1718,106 @@ html.theme-ocean {
   --glass-border-subtle: rgba(80, 200, 180, 0.06);
   --glass-shadow: var(--shadow-sm);
   --surface-glow: rgba(80, 200, 180, 0.03);
-  --surface-shell-border: rgba(94, 234, 212, 0.26);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(8, 47, 73, 0.3);
+  --surface-shell-border: rgba(94, 234, 212, 0.22);
+  --surface-shell-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: radial-gradient(1100px 620px at 10% -20%, hsl(190 50% 18% / 0.5), transparent 60%),
-    radial-gradient(900px 540px at 90% -10%, hsl(168 58% 18% / 0.4), transparent 58%),
-    linear-gradient(180deg, hsl(200 42% 9%) 0%, hsl(200 38% 8%) 45%, hsl(200 38% 7%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(190 40% 22% / 0.25) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(190 40% 22% / 0.25) 1px, transparent 1px);
-  --surface-grid-size: 150px 150px;
-  --surface-orb-a: radial-gradient(920px 560px at 8% -10%, hsl(186 82% 34% / 0.22), transparent 72%);
-  --surface-orb-b: radial-gradient(960px 580px at 90% -14%, hsl(164 72% 34% / 0.18), transparent 76%);
-  --surface-orb-c: radial-gradient(820px 520px at 50% 112%, hsl(196 72% 36% / 0.14), transparent 78%);
+  --surface-bg-gradient: radial-gradient(1100px 620px at 10% -20%, hsl(190 44% 16% / 0.30), transparent 60%),
+    radial-gradient(900px 540px at 90% -10%, hsl(168 50% 16% / 0.22), transparent 58%),
+    linear-gradient(180deg, hsl(200 42% 9%) 0%, hsl(200 38% 7%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(190 36% 18% / 0.18) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(190 36% 18% / 0.18) 1px, transparent 1px);
+  --surface-grid-size: 180px 180px;
+  --surface-orb-a: radial-gradient(900px 540px at 8% -10%, hsl(186 70% 28% / 0.16), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 560px at 90% -14%, hsl(168 60% 28% / 0.12), transparent 76%);
+  --surface-orb-c: none;
 }
 
 /* Default Dark Theme Overrides */
 .dark, .theme-dark, .theme-aurora {
-  --color-background: hsl(222 30% 8%);
-  --color-foreground: hsl(210 32% 96%);
-  --color-card: hsl(221 24% 12% / 0.92);
-  --color-card-foreground: hsl(210 32% 96%);
-  --color-popover: hsl(221 24% 13% / 0.98);
-  --color-popover-foreground: hsl(210 32% 96%);
-  --color-primary: hsl(217 85% 62%);
+  --color-background: hsl(220 26% 8%);
+  --color-foreground: hsl(214 24% 96%);
+  --color-card: hsl(220 22% 11%);
+  --color-card-foreground: hsl(214 24% 96%);
+  --color-popover: hsl(220 22% 12%);
+  --color-popover-foreground: hsl(214 24% 96%);
+  --color-primary: hsl(212 88% 64%);
   --color-primary-foreground: hsl(220 42% 10%);
-  --color-secondary: hsl(217 24% 18%);
-  --color-secondary-foreground: hsl(210 32% 96%);
-  --color-muted: hsl(217 20% 18% / 0.88);
-  --color-muted-foreground: hsl(214 18% 78%);
-  --color-accent: hsl(217 24% 20% / 0.94);
-  --color-accent-foreground: hsl(210 32% 96%);
-  --color-destructive: hsl(0 72% 56%);
+  --color-secondary: hsl(217 22% 18%);
+  --color-secondary-foreground: hsl(214 24% 96%);
+  --color-muted: hsl(217 18% 16%);
+  --color-muted-foreground: hsl(215 14% 72%);
+  --color-accent: hsl(217 22% 18%);
+  --color-accent-foreground: hsl(214 24% 96%);
+  --color-destructive: hsl(0 70% 58%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-warning: hsl(38 96% 60%);
+  --color-warning: hsl(38 94% 60%);
   --color-warning-foreground: hsl(30 58% 10%);
-  --color-success: hsl(152 60% 46%);
+  --color-success: hsl(152 56% 48%);
   --color-success-foreground: hsl(152 70% 9%);
-  --color-border: hsl(217 18% 27% / 0.88);
-  --color-input: hsl(217 18% 27% / 0.88);
-  --color-ring: hsl(217 85% 62%);
-  --color-primary-border: hsl(217 85% 62% / 0.42);
-  --color-secondary-border: hsl(217 26% 38% / 0.42);
-  --button-outline: hsl(217 18% 32% / 0.84);
-  --badge-outline: hsl(217 18% 36% / 0.84);
-  --surface-shell-border: rgba(148, 163, 184, 0.24);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(2, 6, 23, 0.4);
+  --color-border: hsl(217 14% 22%);
+  --color-input: hsl(217 14% 22%);
+  --color-ring: hsl(212 88% 64%);
+  --color-primary-border: hsl(212 88% 64% / 0.40);
+  --color-secondary-border: hsl(217 18% 32% / 0.55);
+  --button-outline: hsl(217 14% 28%);
+  --badge-outline: hsl(217 14% 30%);
+  --color-chart-1: hsl(212 88% 64%);
+  --color-chart-2: hsl(196 76% 56%);
+  --color-chart-3: hsl(172 56% 50%);
+  --color-chart-4: hsl(244 70% 70%);
+  --color-chart-5: hsl(215 14% 64%);
+  --color-sidebar: hsl(220 26% 7%);
+  --color-sidebar-foreground: hsl(214 18% 86%);
+  --color-sidebar-primary: hsl(212 88% 64%);
+  --color-sidebar-primary-foreground: hsl(220 42% 10%);
+  --color-sidebar-accent: hsl(220 22% 12%);
+  --color-sidebar-accent-foreground: hsl(214 24% 96%);
+  --color-sidebar-border: hsl(217 14% 18%);
+  --color-sidebar-ring: hsl(212 88% 64%);
+  --surface-shell-border: rgba(148, 163, 184, 0.18);
+  --surface-shell-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --surface-noise-opacity: 0;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.32), 0 4px 12px -4px rgba(0, 0, 0, 0.40);
+  --shadow-medium: 0 6px 18px -6px rgba(0, 0, 0, 0.50), 0 2px 6px -2px rgba(0, 0, 0, 0.30);
+  --shadow-strong: 0 16px 36px -12px rgba(0, 0, 0, 0.60), 0 6px 14px -6px rgba(0, 0, 0, 0.32);
 }
 
-/* Theme: Midnight - Deep purple tones */
+/* Theme: Midnight - Deep blue tones (refined) */
 html.theme-midnight {
-  --color-primary: hsl(200 70% 50%);
+  --color-primary: hsl(200 78% 56%);
   --color-primary-foreground: hsl(206 56% 9%);
-  --color-secondary: hsl(28 90% 55%);
+  --color-secondary: hsl(28 78% 54%);
   --color-secondary-foreground: hsl(28 68% 10%);
   --color-background: hsl(220 25% 7%);
   --color-foreground: hsl(210 20% 98%);
-  --color-card: hsl(220 25% 12% / 0.9);
+  --color-card: hsl(220 22% 11%);
   --color-card-foreground: hsl(210 20% 98%);
-  --color-popover: hsl(220 25% 13% / 0.98);
+  --color-popover: hsl(220 22% 12%);
   --color-popover-foreground: hsl(210 20% 98%);
-  --color-muted: hsl(220 22% 18% / 0.84);
-  --color-muted-foreground: hsl(220 16% 78%);
-  --color-accent: hsl(200 70% 50% / 0.14);
-  --color-accent-foreground: hsl(200 84% 78%);
-  --color-border: hsl(220 20% 28% / 0.82);
-  --color-input: hsl(220 20% 28% / 0.82);
-  --color-ring: hsl(200 70% 50%);
-  --color-primary-border: hsl(200 70% 42% / 0.6);
-  --color-secondary-border: hsl(28 90% 45% / 0.6);
-  --color-destructive-border: hsl(0 84% 45% / 0.55);
-  --button-outline: hsl(220 18% 34% / 0.82);
-  --badge-outline: hsl(220 18% 38% / 0.82);
-  --color-sidebar: hsl(220 25% 6% / 0.9);
-  --color-sidebar-foreground: hsl(210 20% 90%);
-  --color-sidebar-primary: hsl(200 70% 50%);
-  --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(220 25% 12%);
+  --color-muted: hsl(220 18% 16%);
+  --color-muted-foreground: hsl(220 14% 76%);
+  --color-accent: hsl(200 78% 56% / 0.12);
+  --color-accent-foreground: hsl(200 80% 78%);
+  --color-border: hsl(220 14% 22%);
+  --color-input: hsl(220 14% 22%);
+  --color-ring: hsl(200 78% 56%);
+  --color-primary-border: hsl(200 78% 50% / 0.45);
+  --color-secondary-border: hsl(28 78% 48% / 0.45);
+  --color-destructive-border: hsl(0 70% 50% / 0.45);
+  --button-outline: hsl(220 14% 28%);
+  --badge-outline: hsl(220 14% 30%);
+  --color-sidebar: hsl(220 28% 6%);
+  --color-sidebar-foreground: hsl(210 18% 88%);
+  --color-sidebar-primary: hsl(200 78% 56%);
+  --color-sidebar-primary-foreground: hsl(220 42% 10%);
+  --color-sidebar-accent: hsl(220 22% 11%);
   --color-sidebar-accent-foreground: hsl(210 20% 98%);
-  --color-sidebar-border: hsl(220 25% 12% / 0.6);
-  --color-sidebar-ring: hsl(200 70% 50%);
-  --surface-shell-border: rgba(148, 163, 255, 0.26);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(5, 8, 25, 0.4);
+  --color-sidebar-border: hsl(220 14% 18%);
+  --color-sidebar-ring: hsl(200 78% 56%);
+  --surface-shell-border: rgba(148, 163, 255, 0.18);
+  --surface-shell-shadow: 0 1px 2px rgba(0, 0, 0, 0.30);
   --surface-noise-opacity: 0;
 }
 
@@ -1822,185 +1829,187 @@ html.theme-ocean {
   --color-secondary-foreground: hsl(201 72% 10%);
   --color-background: hsl(200 35% 10%);
   --color-foreground: hsl(200 20% 98%);
-  --color-card: hsl(200 35% 14% / 0.9);
+  --color-card: hsl(200 26% 12%);
   --color-card-foreground: hsl(200 20% 98%);
-  --color-popover: hsl(200 35% 15% / 0.98);
+  --color-popover: hsl(200 26% 13%);
   --color-popover-foreground: hsl(200 20% 98%);
-  --color-muted: hsl(200 35% 22% / 0.84);
-  --color-muted-foreground: hsl(200 18% 79%);
-  --color-accent: hsl(168 76% 42% / 0.15);
+  --color-muted: hsl(200 24% 18%);
+  --color-muted-foreground: hsl(200 16% 78%);
+  --color-accent: hsl(168 76% 42% / 0.13);
   --color-accent-foreground: hsl(168 78% 66%);
-  --color-border: hsl(200 35% 30% / 0.82);
-  --color-input: hsl(200 35% 30% / 0.82);
+  --color-border: hsl(200 22% 22%);
+  --color-input: hsl(200 22% 22%);
   --color-ring: hsl(168 76% 42%);
-  --color-primary-border: hsl(168 76% 34% / 0.55);
-  --color-secondary-border: hsl(199 89% 38% / 0.55);
-  --color-destructive-border: hsl(0 84% 45% / 0.55);
-  --button-outline: hsl(200 35% 34% / 0.82);
-  --badge-outline: hsl(200 35% 38% / 0.82);
-  --color-sidebar: hsl(200 35% 8% / 0.8);
-  --color-sidebar-foreground: hsl(200 20% 90%);
+  --color-primary-border: hsl(168 76% 36% / 0.45);
+  --color-secondary-border: hsl(199 80% 38% / 0.45);
+  --color-destructive-border: hsl(0 70% 48% / 0.45);
+  --button-outline: hsl(200 22% 28%);
+  --badge-outline: hsl(200 22% 30%);
+  --color-sidebar: hsl(200 30% 8%);
+  --color-sidebar-foreground: hsl(200 18% 88%);
   --color-sidebar-primary: hsl(168 76% 42%);
-  --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(200 35% 18%);
+  --color-sidebar-primary-foreground: hsl(172 70% 8%);
+  --color-sidebar-accent: hsl(200 26% 13%);
   --color-sidebar-accent-foreground: hsl(200 20% 98%);
-  --color-sidebar-border: hsl(200 35% 18% / 0.5);
+  --color-sidebar-border: hsl(200 22% 18%);
   --color-sidebar-ring: hsl(168 76% 42%);
-  --surface-shell-border: rgba(94, 234, 212, 0.27);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(8, 47, 73, 0.3);
+  --surface-shell-border: rgba(94, 234, 212, 0.18);
+  --surface-shell-shadow: 0 1px 2px rgba(0, 0, 0, 0.30);
   --surface-noise-opacity: 0;
 }
 
-/* Theme: Light - Clean professional light mode matching homepage */
+/* Theme: Light - Clean professional light mode (cohesive with default) */
 html.theme-light {
   color-scheme: light;
-  --color-primary: hsl(206 88% 37%);
+  --color-primary: hsl(215 55% 26%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(172 71% 30%);
+  --color-secondary: hsl(190 38% 32%);
   --color-secondary-foreground: hsl(0 0% 100%);
-  --color-background: hsl(203 38% 97%);
-  --color-foreground: hsl(217 36% 13%);
-  --color-card: hsl(0 0% 100% / 0.97);
-  --color-card-foreground: hsl(217 36% 13%);
-  --color-popover: hsl(0 0% 100% / 0.98);
-  --color-popover-foreground: hsl(217 36% 13%);
-  --color-muted: hsl(205 26% 92%);
-  --color-muted-foreground: hsl(216 16% 33%);
-  --color-accent: hsl(206 88% 37% / 0.1);
-  --color-accent-foreground: hsl(217 36% 13%);
-  --color-destructive: hsl(0 72% 50%);
+  --color-background: hsl(214 20% 98%);
+  --color-foreground: hsl(218 32% 13%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(218 32% 13%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(218 32% 13%);
+  --color-muted: hsl(214 18% 94%);
+  --color-muted-foreground: hsl(216 13% 44%);
+  --color-accent: hsl(215 55% 26% / 0.06);
+  --color-accent-foreground: hsl(218 32% 13%);
+  --color-destructive: hsl(0 64% 44%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-warning: hsl(38 92% 46%);
+  --color-warning: hsl(36 90% 44%);
   --color-warning-foreground: hsl(28 46% 12%);
-  --color-success: hsl(154 63% 34%);
+  --color-success: hsl(152 50% 32%);
   --color-success-foreground: hsl(0 0% 100%);
-  --color-border: hsl(206 21% 77%);
-  --color-input: hsl(206 21% 77%);
-  --color-ring: hsl(206 88% 37%);
-  --color-primary-border: hsl(206 88% 33% / 0.32);
-  --color-secondary-border: hsl(172 71% 25% / 0.32);
-  --color-destructive-border: hsl(0 72% 45% / 0.45);
-  --button-outline: hsl(206 20% 77%);
-  --badge-outline: hsl(206 20% 77%);
-  --color-sidebar: hsl(0 0% 100% / 0.88);
-  --color-sidebar-foreground: hsl(218 30% 19%);
-  --color-sidebar-primary: hsl(206 88% 37%);
+  --color-border: hsl(215 18% 88%);
+  --color-input: hsl(215 18% 88%);
+  --color-ring: hsl(215 70% 40%);
+  --color-primary-border: hsl(215 55% 26% / 0.18);
+  --color-secondary-border: hsl(190 38% 32% / 0.20);
+  --color-destructive-border: hsl(0 64% 38% / 0.20);
+  --button-outline: hsl(215 16% 82%);
+  --badge-outline: hsl(215 16% 82%);
+  --color-sidebar: hsl(0 0% 100%);
+  --color-sidebar-foreground: hsl(218 28% 18%);
+  --color-sidebar-primary: hsl(215 55% 26%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(205 30% 92.6%);
-  --color-sidebar-accent-foreground: hsl(218 30% 19%);
-  --color-sidebar-border: hsl(206 22% 81%);
-  --color-sidebar-ring: hsl(206 88% 37%);
-  --color-chart-1: hsl(206 88% 37%);
-  --color-chart-2: hsl(186 70% 33%);
-  --color-chart-3: hsl(0 72% 50%);
-  --color-chart-4: hsl(35 58% 44%);
-  --color-chart-5: hsl(224 56% 39%);
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-soft: 0 4px 16px -4px rgba(15, 23, 42, 0.1), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
-  --shadow-medium: 0 8px 30px -8px rgba(15, 23, 42, 0.14), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
-  --shadow-strong: 0 20px 60px -16px rgba(2, 6, 23, 0.2), 0 8px 24px -8px rgba(15, 23, 42, 0.1);
+  --color-sidebar-accent: hsl(214 24% 95%);
+  --color-sidebar-accent-foreground: hsl(218 28% 18%);
+  --color-sidebar-border: hsl(215 18% 88%);
+  --color-sidebar-ring: hsl(215 70% 40%);
+  --color-chart-1: hsl(215 60% 32%);
+  --color-chart-2: hsl(205 72% 44%);
+  --color-chart-3: hsl(190 50% 36%);
+  --color-chart-4: hsl(244 38% 44%);
+  --color-chart-5: hsl(216 14% 52%);
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 10px -4px rgba(15, 23, 42, 0.08);
+  --shadow-medium: 0 4px 14px -4px rgba(15, 23, 42, 0.10), 0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --shadow-strong: 0 12px 28px -10px rgba(15, 23, 42, 0.16), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
   --shadow-glow: 0 0 0 rgba(0, 0, 0, 0);
-  --surface-highlight: hsl(206 88% 37% / 0.07);
-  --surface-glow: hsl(186 70% 33% / 0.06);
-  --surface-shell-border: rgba(148, 163, 184, 0.36);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(15, 23, 42, 0.12);
+  --surface-highlight: hsl(215 55% 26% / 0.06);
+  --surface-glow: hsl(190 38% 32% / 0.05);
+  --surface-shell-border: hsl(215 18% 86% / 0.78);
+  --surface-shell-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   --surface-noise-opacity: 0;
-  --surface-orb-a: radial-gradient(860px 520px at 12% 12%, hsl(206 90% 54% / 0.15), transparent 72%);
-  --surface-orb-b: radial-gradient(920px 560px at 90% -8%, hsl(172 78% 40% / 0.14), transparent 76%);
-  --surface-orb-c: radial-gradient(800px 500px at 52% 112%, hsl(206 80% 44% / 0.12), transparent 78%);
+  --surface-bg-gradient: linear-gradient(180deg, hsl(214 22% 99%) 0%, hsl(214 18% 97%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(215 18% 92% / 0.30) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(215 18% 92% / 0.30) 1px, transparent 1px);
+  --surface-grid-size: 160px 160px;
+  --surface-orb-a: radial-gradient(900px 540px at 8% -8%, hsl(215 70% 40% / 0.06), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 560px at 92% -10%, hsl(190 60% 38% / 0.05), transparent 76%);
+  --surface-orb-c: none;
 }
 
-/* Theme: Sunrise - Warm light palette */
+/* Theme: Sunrise - Warm light palette (refined) */
 html.theme-sunrise {
   color-scheme: light;
-  --color-primary: hsl(18 82% 44%);
-  --color-primary-foreground: hsl(20 54% 10%);
-  --color-secondary: hsl(38 84% 45%);
-  --color-secondary-foreground: hsl(30 52% 11%);
-  --color-background: hsl(34 60% 96%);
-  --color-foreground: hsl(18 36% 16%);
-  --color-card: hsl(0 0% 100% / 0.97);
-  --color-card-foreground: hsl(18 36% 16%);
-  --color-popover: hsl(0 0% 100% / 0.98);
-  --color-popover-foreground: hsl(18 36% 16%);
-  --color-muted: hsl(33 42% 92%);
-  --color-muted-foreground: hsl(20 18% 32%);
-  --color-accent: hsl(18 82% 44% / 0.1);
-  --color-accent-foreground: hsl(18 36% 16%);
-  --color-warning: hsl(38 84% 45%);
+  --color-primary: hsl(18 78% 40%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(38 80% 42%);
+  --color-secondary-foreground: hsl(0 0% 100%);
+  --color-background: hsl(34 50% 97%);
+  --color-foreground: hsl(20 30% 15%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(20 30% 15%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(20 30% 15%);
+  --color-muted: hsl(33 36% 93%);
+  --color-muted-foreground: hsl(20 16% 36%);
+  --color-accent: hsl(18 78% 40% / 0.07);
+  --color-accent-foreground: hsl(20 30% 15%);
+  --color-warning: hsl(38 80% 42%);
   --color-warning-foreground: hsl(30 52% 11%);
-  --color-border: hsl(28 28% 73%);
-  --color-input: hsl(28 28% 73%);
-  --color-ring: hsl(18 82% 44%);
-  --color-primary-border: hsl(18 82% 36% / 0.32);
-  --color-secondary-border: hsl(38 84% 38% / 0.3);
-  --button-outline: hsl(28 26% 70%);
-  --badge-outline: hsl(28 26% 70%);
-  --color-sidebar: hsl(0 0% 100% / 0.9);
-  --color-sidebar-foreground: hsl(18 34% 18%);
-  --color-sidebar-primary: hsl(18 82% 44%);
+  --color-border: hsl(28 22% 84%);
+  --color-input: hsl(28 22% 84%);
+  --color-ring: hsl(18 78% 40%);
+  --color-primary-border: hsl(18 78% 36% / 0.22);
+  --color-secondary-border: hsl(38 80% 38% / 0.22);
+  --button-outline: hsl(28 22% 80%);
+  --badge-outline: hsl(28 22% 80%);
+  --color-sidebar: hsl(0 0% 100%);
+  --color-sidebar-foreground: hsl(20 28% 18%);
+  --color-sidebar-primary: hsl(18 78% 40%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(33 42% 92%);
-  --color-sidebar-accent-foreground: hsl(18 34% 18%);
-  --color-sidebar-border: hsl(28 28% 78%);
-  --color-sidebar-ring: hsl(18 82% 44%);
-  --surface-shell-border: rgba(191, 137, 111, 0.34);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(66, 31, 16, 0.12);
-  --surface-bg-gradient: radial-gradient(1100px 620px at 8% -20%, hsl(20 88% 72% / 0.25), transparent 62%),
-    radial-gradient(940px 540px at 92% -12%, hsl(347 75% 68% / 0.18), transparent 58%),
-    linear-gradient(180deg, hsl(34 66% 97%) 0%, hsl(33 54% 95%) 48%, hsl(32 46% 93%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(24 32% 82% / 0.35) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(24 32% 82% / 0.35) 1px, transparent 1px);
-  --surface-grid-size: 128px 128px;
-  --surface-orb-a: radial-gradient(860px 520px at 10% 8%, hsl(18 82% 54% / 0.14), transparent 72%);
-  --surface-orb-b: radial-gradient(920px 560px at 92% -8%, hsl(347 75% 60% / 0.12), transparent 76%);
-  --surface-orb-c: radial-gradient(800px 500px at 54% 112%, hsl(38 84% 50% / 0.1), transparent 78%);
+  --color-sidebar-accent: hsl(33 36% 93%);
+  --color-sidebar-accent-foreground: hsl(20 28% 18%);
+  --color-sidebar-border: hsl(28 22% 84%);
+  --color-sidebar-ring: hsl(18 78% 40%);
+  --surface-shell-border: hsl(28 22% 82% / 0.78);
+  --surface-shell-shadow: 0 1px 2px rgba(66, 31, 16, 0.06);
+  --surface-bg-gradient: linear-gradient(180deg, hsl(34 56% 98%) 0%, hsl(33 44% 96%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(24 28% 86% / 0.25) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(24 28% 86% / 0.25) 1px, transparent 1px);
+  --surface-grid-size: 180px 180px;
+  --surface-orb-a: radial-gradient(900px 540px at 10% -8%, hsl(18 78% 50% / 0.07), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 560px at 92% -10%, hsl(38 80% 50% / 0.06), transparent 76%);
+  --surface-orb-c: none;
 }
 
-/* Theme: Aurora - Emerald dark palette */
+/* Theme: Aurora - Emerald dark palette (refined) */
 html.theme-aurora {
   color-scheme: dark;
-  --color-primary: hsl(148 62% 44%);
+  --color-primary: hsl(152 56% 46%);
   --color-primary-foreground: hsl(150 58% 9%);
-  --color-secondary: hsl(178 72% 40%);
+  --color-secondary: hsl(178 60% 42%);
   --color-secondary-foreground: hsl(182 70% 9%);
-  --color-background: hsl(164 30% 10%);
-  --color-foreground: hsl(156 24% 94%);
-  --color-card: hsl(166 28% 14% / 0.92);
-  --color-card-foreground: hsl(156 24% 94%);
-  --color-popover: hsl(166 28% 15% / 0.98);
-  --color-popover-foreground: hsl(156 24% 94%);
-  --color-muted: hsl(166 21% 19% / 0.84);
-  --color-muted-foreground: hsl(156 14% 80%);
-  --color-accent: hsl(148 62% 44% / 0.15);
-  --color-accent-foreground: hsl(148 66% 68%);
-  --color-border: hsl(164 18% 32% / 0.82);
-  --color-input: hsl(164 18% 32% / 0.82);
-  --color-ring: hsl(148 62% 44%);
-  --color-primary-border: hsl(148 62% 34% / 0.56);
-  --color-secondary-border: hsl(178 72% 30% / 0.52);
-  --button-outline: hsl(164 18% 36% / 0.82);
-  --badge-outline: hsl(164 18% 40% / 0.82);
-  --color-sidebar: hsl(164 34% 8% / 0.84);
-  --color-sidebar-foreground: hsl(156 24% 90%);
-  --color-sidebar-primary: hsl(148 62% 44%);
+  --color-background: hsl(164 26% 9%);
+  --color-foreground: hsl(156 22% 95%);
+  --color-card: hsl(166 22% 12%);
+  --color-card-foreground: hsl(156 22% 95%);
+  --color-popover: hsl(166 22% 13%);
+  --color-popover-foreground: hsl(156 22% 95%);
+  --color-muted: hsl(166 18% 17%);
+  --color-muted-foreground: hsl(156 14% 78%);
+  --color-accent: hsl(152 56% 46% / 0.12);
+  --color-accent-foreground: hsl(152 60% 70%);
+  --color-border: hsl(164 14% 22%);
+  --color-input: hsl(164 14% 22%);
+  --color-ring: hsl(152 56% 46%);
+  --color-primary-border: hsl(152 56% 38% / 0.45);
+  --color-secondary-border: hsl(178 60% 32% / 0.45);
+  --button-outline: hsl(164 14% 28%);
+  --badge-outline: hsl(164 14% 30%);
+  --color-sidebar: hsl(164 28% 7%);
+  --color-sidebar-foreground: hsl(156 22% 90%);
+  --color-sidebar-primary: hsl(152 56% 46%);
   --color-sidebar-primary-foreground: hsl(0 0% 100%);
-  --color-sidebar-accent: hsl(166 28% 18%);
-  --color-sidebar-accent-foreground: hsl(156 24% 94%);
-  --color-sidebar-border: hsl(164 22% 20% / 0.58);
-  --color-sidebar-ring: hsl(148 62% 44%);
-  --surface-shell-border: rgba(110, 231, 183, 0.25);
-  --surface-shell-shadow: 0 4px 16px -8px rgba(6, 24, 20, 0.35);
-  --surface-bg-gradient: radial-gradient(1120px 620px at 10% -20%, hsl(148 62% 28% / 0.36), transparent 62%),
-    radial-gradient(920px 560px at 90% -10%, hsl(186 58% 26% / 0.32), transparent 58%),
-    linear-gradient(180deg, hsl(164 34% 8%) 0%, hsl(166 30% 7%) 45%, hsl(168 30% 6%) 100%);
-  --surface-grid: linear-gradient(90deg, hsl(162 30% 22% / 0.24) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(162 30% 22% / 0.24) 1px, transparent 1px);
-  --surface-grid-size: 148px 148px;
-  --surface-orb-a: radial-gradient(900px 560px at 10% -8%, hsl(148 62% 36% / 0.22), transparent 72%);
-  --surface-orb-b: radial-gradient(960px 600px at 90% -12%, hsl(186 58% 32% / 0.18), transparent 76%);
-  --surface-orb-c: radial-gradient(820px 520px at 52% 112%, hsl(170 52% 32% / 0.14), transparent 78%);
+  --color-sidebar-accent: hsl(166 22% 13%);
+  --color-sidebar-accent-foreground: hsl(156 22% 95%);
+  --color-sidebar-border: hsl(164 18% 18%);
+  --color-sidebar-ring: hsl(152 56% 46%);
+  --surface-shell-border: rgba(110, 231, 183, 0.18);
+  --surface-shell-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --surface-bg-gradient: radial-gradient(1100px 600px at 10% -20%, hsl(152 56% 22% / 0.24), transparent 62%),
+    radial-gradient(900px 540px at 90% -10%, hsl(178 50% 20% / 0.18), transparent 58%),
+    linear-gradient(180deg, hsl(164 28% 8%) 0%, hsl(166 26% 7%) 100%);
+  --surface-grid: linear-gradient(90deg, hsl(162 24% 18% / 0.16) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(162 24% 18% / 0.16) 1px, transparent 1px);
+  --surface-grid-size: 180px 180px;
+  --surface-orb-a: radial-gradient(900px 540px at 10% -8%, hsl(152 56% 28% / 0.16), transparent 72%);
+  --surface-orb-b: radial-gradient(960px 560px at 90% -12%, hsl(178 50% 26% / 0.12), transparent 76%);
+  --surface-orb-c: none;
 }
 
 /* Font size adjustments */
@@ -2123,20 +2132,20 @@ html.theme-light .bg-violet-500\/10 {
 
 /* Light theme workspace shell overrides */
 html.theme-light .workspace-sidebar {
-  background: rgba(255, 255, 255, 0.96) !important;
+  background: var(--color-sidebar) !important;
   border-color: var(--color-sidebar-border) !important;
   box-shadow: 1px 0 0 var(--color-sidebar-border) !important;
 }
 
 html.theme-light .workspace-header {
-  background-color: color-mix(in oklab, var(--color-card) 88%, transparent) !important;
-  background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 96%, white), color-mix(in oklab, var(--color-card) 82%, transparent)) !important;
+  background-color: var(--color-card) !important;
+  background-image: none !important;
   border-color: var(--color-border) !important;
 }
 
 html.theme-light .workspace-footer {
-  background-color: color-mix(in oklab, var(--color-card) 84%, transparent) !important;
-  background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-card) 68%, transparent), color-mix(in oklab, var(--color-card) 94%, white)) !important;
+  background-color: var(--color-card) !important;
+  background-image: none !important;
   border-color: var(--color-border) !important;
 }
 
