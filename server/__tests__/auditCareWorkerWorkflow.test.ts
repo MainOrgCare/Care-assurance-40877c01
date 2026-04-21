@@ -55,7 +55,7 @@ test("buildCareWorkerAuditSummaries keeps the latest seen date using chronologic
 
   assert.ok(brown);
   assert.equal(brown.auditCount, 2);
-  assert.equal(brown.discrepancyCount, 3);
+  assert.equal(brown.discrepancyCount, 2);
   assert.equal(brown.lastSeen, "02/04/2026");
 
   assert.ok(green);

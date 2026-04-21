@@ -160,18 +160,25 @@ export function buildDeterministicVisitAudit(lines: string[]) {
     serviceUsers.add(serviceUser);
 
     const locationOK = locationValue
-      ? ["y", "yes", "within", "compliant", "ok", "true"].some((token) => locationValue.includes(token))
+      ? (() => {
+          const lower = locationValue.trim();
+          if (/\b(not\s+ok|outside|non[- ]?compliant|no)\b/i.test(lower)) return false;
+          if (lower === "y" || lower === "n") return lower === "y";
+          return ["yes", "within", "compliant", "ok", "true"].some((token) => lower.includes(token));
+        })()
       : true;
 
     const hasJustification = notes
       ? justificationKeywords.some((keyword) => notes.toLowerCase().includes(keyword))
       : false;
 
-    const percentageStayed = expectedMinutes && actualMinutes
+    const percentageStayed = expectedMinutes !== null && actualMinutes !== null
       ? Math.round((actualMinutes / expectedMinutes) * 100)
       : 100;
     const durationOK = expectedMinutes ? percentageStayed >= 70 : true;
-    const compliant = locationOK && (durationOK || hasJustification);
+    const unjustifiedLocation = !locationOK && !hasJustification;
+    const unjustifiedDuration = !durationOK && !hasJustification;
+    const compliant = !unjustifiedLocation && !unjustifiedDuration;
 
     if (date && date.includes("/")) {
       const dateMatch = date.match(/(\d{1,2})\/(\d{1,2})/);
@@ -187,15 +194,15 @@ export function buildDeterministicVisitAudit(lines: string[]) {
       careWorkerName: careWorker,
       date,
       locationOK,
-      expectedTime: expectedMinutes ? `${expectedMinutes}m` : "NA",
-      actualTime: actualMinutes ? `${actualMinutes}m` : "NA",
+      expectedTime: expectedMinutes !== null ? `${expectedMinutes}m` : "NA",
+      actualTime: actualMinutes !== null ? `${actualMinutes}m` : "NA",
       percentageStayed,
       compliant,
       justification: hasJustification ? "Justified - see notes" : "NA",
       comment: compliant ? "NA" : "Performance discrepancy",
     });
 
-    if (!locationOK && !hasJustification) {
+    if (unjustifiedLocation) {
       locationIssues += 1;
       discrepancies.push({
         careWorkerName: careWorker,
@@ -205,7 +212,7 @@ export function buildDeterministicVisitAudit(lines: string[]) {
       });
     }
 
-    if (!durationOK && !hasJustification) {
+    if (unjustifiedDuration) {
       durationIssues += 1;
       discrepancies.push({
         careWorkerName: careWorker,

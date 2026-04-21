@@ -129,6 +129,18 @@ export function buildCareWorkerAuditSummaries(audits: AuditRecordLike[]): AuditC
     }
 
     if (auditType === "Visit") {
+      // Pre-build a map of worker|date → [issue texts] from discrepancies for detail enrichment
+      const discrepancyDetailMap = new Map<string, string[]>();
+      if (Array.isArray(results.discrepancies)) {
+        for (const discrepancy of results.discrepancies) {
+          if (!discrepancy.careWorkerName) continue;
+          const key = `${discrepancy.careWorkerName}|${discrepancy.date || auditDate}`;
+          const issues = discrepancyDetailMap.get(key) ?? [];
+          issues.push(String(discrepancy.issue || "Discrepancy recorded"));
+          discrepancyDetailMap.set(key, issues);
+        }
+      }
+
       if (Array.isArray(results.careCalls)) {
         for (const call of results.careCalls) {
           const worker = ensureWorker(careWorkerMap, call.careWorkerName, auditDate);
@@ -138,21 +150,27 @@ export function buildCareWorkerAuditSummaries(audits: AuditRecordLike[]): AuditC
 
           if (call.compliant === false) {
             worker.discrepancyCount += 1;
+            const callDate = String(call.date || auditDate || "");
+            const key = `${call.careWorkerName}|${callDate}`;
+            const detailIssues = discrepancyDetailMap.get(key);
+            const issue = detailIssues?.length
+              ? detailIssues.join("; ")
+              : String(call.comment || "Non-compliant visit");
             worker.discrepancies.push({
-              date: String(call.date || auditDate || ""),
+              date: callDate,
               type: "Visit",
-              issue: String(call.comment || "Non-compliant visit"),
+              issue,
               auditId: audit.id,
             });
           }
         }
-      }
-
-      if (Array.isArray(results.discrepancies)) {
+      } else if (Array.isArray(results.discrepancies)) {
+        // Fallback: no careCalls present — use discrepancies as canonical source
         for (const discrepancy of results.discrepancies) {
           const worker = ensureWorker(careWorkerMap, discrepancy.careWorkerName, auditDate);
           if (!worker) continue;
 
+          worker.auditCount += 1;
           worker.discrepancyCount += 1;
           worker.discrepancies.push({
             date: String(discrepancy.date || auditDate || ""),

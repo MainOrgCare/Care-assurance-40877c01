@@ -177,3 +177,38 @@ test("enrichVisitResult backfills empty audit results without overwriting popula
   assert.equal(enriched.discrepancies.length, 1);
   assert.equal(enriched.hasDiscrepancies, true);
 });
+
+test("buildDeterministicVisitAudit flags zero-minute actual visit as non-compliant", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|05/04|30|0|yes|",
+  ]);
+
+  assert.equal(result.careCalls[0].actualTime, "0m");
+  assert.equal(result.careCalls[0].percentageStayed, 0);
+  assert.equal(result.careCalls[0].compliant, false);
+  assert.equal(result.hasDiscrepancies, true);
+});
+
+test("buildDeterministicVisitAudit treats justified location non-compliance as compliant", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|05/04|30|25|outside|Service user requested care outside usual location due to hospital appointment",
+  ]);
+
+  assert.equal(result.careCalls[0].compliant, true);
+  assert.equal(result.careCalls[0].justification, "Justified - see notes");
+  assert.equal(result.discrepancies.length, 0);
+  assert.equal(result.hasDiscrepancies, false);
+});
+
+test("buildDeterministicVisitAudit correctly rejects 'not ok' location as non-compliant", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|05/04|30|30|not ok|",
+  ]);
+
+  assert.equal(result.careCalls[0].locationOK, false);
+  assert.equal(result.careCalls[0].compliant, false);
+  assert.ok(result.discrepancies.some((d) => /location/i.test(d.issue)));
+});
