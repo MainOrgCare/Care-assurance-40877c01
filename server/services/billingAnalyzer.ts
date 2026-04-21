@@ -314,9 +314,19 @@ function timeRangesOverlap(
   const bEnd = endBMin < startBMin ? endBMin + 24 * 60 : endBMin;
   
   // Check if time ranges overlap (with tolerance for boundary cases)
-  // Two ranges overlap if one starts before the other ends
-  const tolerance = 15; // 15 minute tolerance for similar time brackets
-  return aStart < bEnd + tolerance && aEnd > bStart - tolerance;
+  // Two ranges overlap if one starts before the other ends.
+  const tolerance = 15; // 15-minute tolerance for similar time brackets
+  const overlapCheck = (as: number, ae: number, bs: number, be: number) =>
+    as < be + tolerance && ae > bs - tolerance;
+
+  // Also shift one range by 24h to catch overnight crossings:
+  // e.g. A = 23:45→00:15 (aEnd=1455) vs B = 00:10→00:40 (bStart=10) — direct check fails
+  // but shifting B forward (+1440) aligns them and correctly detects the overlap.
+  return (
+    overlapCheck(aStart, aEnd, bStart, bEnd) ||
+    overlapCheck(aStart, aEnd, bStart + 24 * 60, bEnd + 24 * 60) ||
+    overlapCheck(aStart + 24 * 60, aEnd + 24 * 60, bStart, bEnd)
+  );
 }
 
 /**
