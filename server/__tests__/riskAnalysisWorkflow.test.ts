@@ -213,3 +213,22 @@ test("normalizeGeneratedRiskRows handles non-array input gracefully", () => {
   assert.deepEqual(normalizeGeneratedRiskRows(null as unknown as unknown[]), []);
   assert.deepEqual(normalizeGeneratedRiskRows(undefined as unknown as unknown[]), []);
 });
+
+test("normalizeGeneratedRiskRows keeps rows with same definition/how but different findings", () => {
+  // Bug: composite key was only def+how, so rows with the same definition and explanation
+  // but different findings evidence were incorrectly deduplicated (one silently dropped).
+  const risks = [
+    {
+      riskDefinition: "I am at risk of a fall due to unsteady gait.",
+      howItsARisk: "My balance deteriorates when tired.",
+      findings: "Recent fall last week on the stairs",
+    },
+    {
+      riskDefinition: "I am at risk of a fall due to unsteady gait.",
+      howItsARisk: "My balance deteriorates when tired.",
+      findings: "History of vertigo documented by GP",
+    },
+  ];
+  const result = normalizeGeneratedRiskRows(risks);
+  assert.equal(result.length, 2, "Distinct findings must preserve both rows");
+});

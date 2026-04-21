@@ -888,6 +888,7 @@ export const emarAgent = {
 
         let bestCandidate: { medicationId: number; scheduledTimeSlots: string[] } | null = null;
         let bestScore = 0;
+        let ambiguousAtBest = false;
         for (const [candidateKey, candidates] of medCandidatesByKey.entries()) {
           if (!candidateKey) continue;
           const hit = candidateKey.includes(key) || key.includes(candidateKey);
@@ -896,10 +897,14 @@ export const emarAgent = {
           if (score > bestScore) {
             bestScore = score;
             bestCandidate = candidates[0] || null;
+            ambiguousAtBest = false;
+          } else if (score === bestScore) {
+            // Two different medications tie at the same substring overlap — ambiguous.
+            ambiguousAtBest = true;
           }
         }
 
-        if (bestScore >= 6 && bestCandidate) {
+        if (bestScore >= 6 && bestCandidate && !ambiguousAtBest) {
           if (timeSlotHint) {
             const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
             const candidates = medCandidatesByKey.get(normalizeMedicationKey(name || "")) || [];
@@ -910,6 +915,23 @@ export const emarAgent = {
             if (slotMatched) return slotMatched.medicationId;
           }
           return bestCandidate.medicationId;
+        }
+        if (bestScore >= 6 && ambiguousAtBest && timeSlotHint) {
+          // Tie between candidates: try to break it using the time slot
+          const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
+          const slotFiltered: Array<{ medicationId: number }> = [];
+          for (const [candidateKey, candidates] of medCandidatesByKey.entries()) {
+            if (!candidateKey) continue;
+            const hit = candidateKey.includes(key) || key.includes(candidateKey);
+            if (!hit) continue;
+            const score = Math.min(candidateKey.length, key.length);
+            if (score < bestScore) continue;
+            for (const c of candidates) {
+              const slots = c.scheduledTimeSlots.map((s) => normalizeTimeSlot(s) || s);
+              if (slots.includes(normalizedHint)) slotFiltered.push(c);
+            }
+          }
+          if (slotFiltered.length === 1) return slotFiltered[0].medicationId;
         }
         return null;
       };

@@ -76,7 +76,14 @@ const parseCompactVisitRows = (lines: string[]) => {
   if (!lines.length) return [];
   const headerLine = lines[0];
   if (!headerLine.startsWith("Columns:")) return [];
-  const headers = headerLine.replace("Columns:", "").split("|").map((header) => header.trim());
+  const rawHeaders = headerLine.replace("Columns:", "").split("|").map((h) => h.trim());
+  // Deduplicate header names by appending an index to any repeated entry
+  const headerCount = new Map<string, number>();
+  const headers = rawHeaders.map((h) => {
+    const count = headerCount.get(h) ?? 0;
+    headerCount.set(h, count + 1);
+    return count === 0 ? h : `${h}#${count}`;
+  });
   const rows: Array<Record<string, string>> = [];
   for (let i = 1; i < lines.length; i += 1) {
     const values = lines[i].split("|");
@@ -199,7 +206,7 @@ export function buildDeterministicVisitAudit(lines: string[]) {
     const percentageStayed = expectedMinutes !== null && actualMinutes !== null && expectedMinutes > 0
       ? Math.round((actualMinutes / expectedMinutes) * 100)
       : 100;
-    const durationOK = expectedMinutes ? percentageStayed >= 70 : true;
+    const durationOK = (expectedMinutes !== null && expectedMinutes > 0) ? percentageStayed >= 70 : true;
     const unjustifiedLocation = !locationOK && !hasJustification;
     const unjustifiedDuration = !durationOK && !hasJustification;
     const compliant = !unjustifiedLocation && !unjustifiedDuration;

@@ -192,11 +192,11 @@ export function normalizeGeneratedRiskRows(risks: unknown[]): unknown[] {
     const def = typeof r.riskDefinition === "string" ? r.riskDefinition.trim() : "";
     if (def.length < 10) return false;
     const how = typeof r.howItsARisk === "string" ? r.howItsARisk.trim() : "";
-    const compositeKey = `${def} ${how}`
+    const compositeKey = `${def} ${how} ${String(r.findings ?? "").trim().slice(0, 60)}`
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
       .trim()
-      .slice(0, 120);
+      .slice(0, 160);
     if (seen.has(compositeKey)) return false;
     seen.add(compositeKey);
     return true;
