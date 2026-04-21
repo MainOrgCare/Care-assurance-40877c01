@@ -576,7 +576,8 @@ const reconcileConsensusEntries = (passResults: any[][]): any[] => {
   for (const [key, variants] of Array.from(grouped.entries())) {
     const voteCount = new Map<string, number>();
     for (const v of variants) {
-      const vKey = String(v.code || "BLANK").toUpperCase();
+      // Normalize codes so FA/F/F/A all count as the same key and priority lookup works.
+      const vKey = normalizeCode(String(v.code || "BLANK"));
       voteCount.set(vKey, (voteCount.get(vKey) || 0) + 1);
     }
 
@@ -594,9 +595,9 @@ const reconcileConsensusEntries = (passResults: any[][]): any[] => {
       }
     }
 
-    // Pick the best example of this code from the variants
+    // Pick the best example of this code from the variants (normalize before comparing)
     const bestVariant = variants
-      .filter((v) => String(v.code || "").toUpperCase() === winnerCode)
+      .filter((v) => normalizeCode(String(v.code || "")) === winnerCode)
       .sort((a, b) => {
         const scoreA = (a.hasTime ? 2 : 0) + (a.careWorkerInitials ? 1 : 0);
         const scoreB = (b.hasTime ? 2 : 0) + (b.careWorkerInitials ? 1 : 0);

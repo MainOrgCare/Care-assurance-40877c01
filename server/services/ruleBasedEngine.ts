@@ -627,10 +627,14 @@ export function extractMedicationInfo(text: string): MedicationInfo[] {
     
     // Find the context around this medication mention for per-medication attribute detection
     const medIndex = normalized.indexOf(medName);
-    // Use a window of ~200 chars around the medication name for context-sensitive matching
+    // Use a window of ~200 chars around the medication name for context-sensitive matching.
+    // For frequency, only look a short distance before the name (e.g. "PRN morphine") to
+    // prevent bleeding across sentence boundaries into a preceding medication's dosing text.
     const contextStart = Math.max(0, medIndex - 50);
     const contextEnd = Math.min(normalized.length, medIndex + medName.length + 150);
     const medContext = normalized.slice(contextStart, contextEnd);
+    const freqContextStart = Math.max(0, medIndex - 15);
+    const freqContext = normalized.slice(freqContextStart, contextEnd);
     
     // Detect route (check medication context first, then fall back to full text)
     for (const [route, patterns] of Object.entries(MEDICATION_PATTERNS.routes)) {
@@ -642,12 +646,12 @@ export function extractMedicationInfo(text: string): MedicationInfo[] {
     
     // Detect frequency (check medication context first, then fall back to full text)
     for (const [freq, patterns] of Object.entries(MEDICATION_PATTERNS.frequencies)) {
-      if (patterns.some(p => medContext.includes(p))) {
+      if (patterns.some(p => freqContext.includes(p))) {
         info.frequency = freq;
         break;
       }
     }
-    // If no frequency found in context, try the full text as fallback
+    // If no frequency found in tight context, try the full text as fallback
     if (!info.frequency) {
       for (const [freq, patterns] of Object.entries(MEDICATION_PATTERNS.frequencies)) {
         if (patterns.some(p => normalized.includes(p))) {

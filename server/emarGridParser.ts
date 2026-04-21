@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const getStandardFontDataUrl = () => {
   const fontsPath = path.resolve(process.cwd(), 'node_modules', 'pdfjs-dist', 'standard_fonts');
@@ -382,7 +381,9 @@ const CODE_PATTERN = /\b(AD|AS|P|R|MU|NH|SA|FA|F|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–
 const CODE_PATTERN_SINGLE = /\b(AD|AS|P|R|MU|NH|SA|FA|F|F\s*\/\s*A|S\s*\/\s*A|S\s*[-–]\s*A|PRN\s*[-–]?\s*R|PRN\s*[-–]?\s*AD|PRN\s*[-–]?\s*AS|PRN|MISSED|N\/?A)\b/i;
 const TIME_PATTERN = /\d{1,2}[:.][0-5]\d/g;
 const INITIALS_PATTERN = /\b[A-Z]{2,3}\b/g;
-const INITIALS_WITH_DOTS_PATTERN = /\b(?:[A-Z]\.){2,3}\b/g;
+// Trailing \b is intentionally omitted: dotted initials like J.B. end with '.', a non-word
+// character, so \b after the final dot never fires.  The leading \b still anchors the start.
+const INITIALS_WITH_DOTS_PATTERN = /\b(?:[A-Z]\.){2,3}/g;
 const CODE_INITIALS = new Set(["AD", "AS", "MU", "NH", "SA", "FA", "F", "PRN", "NA"]);
 const CODE_PRIORITY: Record<string, number> = {
   "PRN-R": 100,
@@ -526,9 +527,9 @@ const normalizeCodeText = (value: string): string => {
     .replace(/\bPROMPT(?:ED)?\b/g, "P")
     .replace(/\bASSIST(?:ED)?\b/g, "AS")
     .replace(/\bADMINISTER(?:ED)?\b/g, "AD")
-    .replace(/\bP\s*R\s*N\s*[-–]?\s*R\b/g, "PRN-R")
-    .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*D\b/g, "PRN-AD")
-    .replace(/\bP\s*R\s*N\s*[-–]?\s*A\s*S\b/g, "PRN-AS")
+    .replace(/\bP\s*R\s*N\s*[-–\/]?\s*R\b/g, "PRN-R")
+    .replace(/\bP\s*R\s*N\s*[-–\/]?\s*A\s*D\b/g, "PRN-AD")
+    .replace(/\bP\s*R\s*N\s*[-–\/]?\s*A\s*S\b/g, "PRN-AS")
     .replace(/\bP\s*R\s*N\b/g, "PRN")
     .replace(/\bS\s*[-–\/]?\s*A\b/g, "SA")
     .replace(/\bF\s*[-–\/]?\s*A\b/g, "FA")
@@ -636,6 +637,9 @@ const pickBestCode = (codes: string[]): string => {
 };
 
 async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions = {}): Promise<ParsedEMAR> {
+  // Lazy-load pdfjs-dist so non-PDF exports (extractCodesFromCell, etc.) can be imported
+  // in test environments without DOMMatrix/browser API dependencies crashing the module.
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const uint8Array = new Uint8Array(pdfBuffer);
   // Server-side parsing: disable worker to avoid PDF.js API/worker version mismatches.
   const loadingTask = pdfjsLib.getDocument({
