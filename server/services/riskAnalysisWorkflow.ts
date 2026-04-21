@@ -1,6 +1,6 @@
 export const RULE_BASED_SIGNAL_GROUPS = {
   medicalConditions: [
-    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hypergly"] },
+    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hyperglyc"] },
     { label: "Dementia or cognitive impairment", terms: ["dementia", "alzheimer", "memory", "cognit", "confus"] },
     { label: "Epilepsy or seizures", terms: ["epilep", "seizure"] },
     { label: "Respiratory condition", terms: ["copd", "asthma", "breathless", "oxygen", "inhaler"] },
@@ -141,5 +141,6 @@ export function buildFallbackRiskProfileSummary(
 
 export function deescalateRiskRating(rating: "Low" | "Medium" | "High"): "Low" | "Medium" | "High" {
   if (rating === "High") return "Medium";
+  if (rating === "Medium") return "Low";
   return "Low";
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
+
+let postMessageRequestCounter = 0;
 
 interface ExtensionPackageInfo {
   manifestVersion: string | null;
@@ -99,8 +101,17 @@ function formatBytes(bytes: number | null | undefined): string {
 
 function withApiBase(path: string | null): string | null {
   if (!path) return null;
-  const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
-  return base && path.startsWith("/") ? `${base}${path}` : path;
+  const base = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
+
+  if (base && path.startsWith("/")) {
+    try {
+      return new URL(path, `${base}/`).toString();
+    } catch {
+      return null;
+    }
+  }
+
+  return path;
 }
 
 function formatExtensionTestError(error?: string) {
@@ -159,7 +170,7 @@ export default function ExtensionManager() {
     setRuntimeConfigSource(typeof data.source === "string" ? data.source : null);
   };
 
-  const fetchAdminRuntimeConfig = async () => {
+  const fetchAdminRuntimeConfig = useCallback(async () => {
     setRuntimeConfigLoading(true);
 
     try {
@@ -187,7 +198,7 @@ export default function ExtensionManager() {
     } finally {
       setRuntimeConfigLoading(false);
     }
-  };
+  }, [toast]);
 
   const parseRuntimeConfigValue = () => {
     try {
@@ -244,7 +255,7 @@ export default function ExtensionManager() {
     }
   };
 
-  const fetchExtensionPackageInfo = async ({
+  const fetchExtensionPackageInfo = useCallback(async ({
     fresh = false,
     updateVersion = false,
   }: {
@@ -308,9 +319,9 @@ export default function ExtensionManager() {
       setExtensionInfoRefreshing(false);
       setExtensionInfoUpdating(false);
     }
-  };
+  }, [extensionInfo, toast]);
 
-  const fetchAcpServiceUsers = async () => {
+  const fetchAcpServiceUsers = useCallback(async () => {
     setAcpServiceUsersLoading(true);
 
     try {
@@ -345,13 +356,13 @@ export default function ExtensionManager() {
     } finally {
       setAcpServiceUsersLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     void fetchExtensionPackageInfo();
     void fetchAcpServiceUsers();
     void fetchAdminRuntimeConfig();
-  }, []);
+  }, [fetchExtensionPackageInfo, fetchAcpServiceUsers, fetchAdminRuntimeConfig]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -413,7 +424,7 @@ export default function ExtensionManager() {
     const requestId =
       typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
         ? window.crypto.randomUUID()
-        : `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        : `fallback-${Date.now()}-${++postMessageRequestCounter}`;
 
     return new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
       let handler: ((event: MessageEvent) => void) | null = null;
@@ -517,35 +528,56 @@ export default function ExtensionManager() {
     navigate(`${ADMIN_ACP_WORKFLOWS[workflow].path}?${params.toString()}`);
   };
 
+  const runWithLoadingAndToast = async ({
+    setLoading,
+    action,
+    errorTitle,
+    fallbackErrorDescription,
+  }: {
+    setLoading: (value: boolean) => void;
+    action: () => Promise<void>;
+    errorTitle: string;
+    fallbackErrorDescription: string;
+  }) => {
+    setLoading(true);
+    try {
+      await action();
+    } catch (error) {
+      toast({
+        title: errorTitle,
+        description: error instanceof Error ? error.message : fallbackErrorDescription,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const pushRuntimeConfigToInstalledExtension = async () => {
     const parsedConfig = parseRuntimeConfigValue();
     if (!parsedConfig) return;
 
-    setRuntimeConfigPushing(true);
-    try {
-      const response = await postMessageToInstalledExtension({
-        messageType: "CA_EXTENSION_SYNC_RUNTIME_CONFIG",
-        payload: { config: parsedConfig },
-        timeoutMessage: "Installed extension did not acknowledge the runtime config push. Refresh this page after enabling the extension, then retry.",
-      });
+    await runWithLoadingAndToast({
+      setLoading: setRuntimeConfigPushing,
+      errorTitle: "Runtime config push failed",
+      fallbackErrorDescription: "Could not push runtime config into the installed extension.",
+      action: async () => {
+        const response = await postMessageToInstalledExtension({
+          messageType: "CA_EXTENSION_SYNC_RUNTIME_CONFIG",
+          payload: { config: parsedConfig },
+          timeoutMessage: "Installed extension did not acknowledge the runtime config push. Refresh this page after enabling the extension, then retry.",
+        });
 
-      if (!response.ok) {
-        throw new Error(formatExtensionTestError(response.error));
-      }
+        if (!response.ok) {
+          throw new Error(formatExtensionTestError(response.error));
+        }
 
-      toast({
-        title: "Runtime config pushed",
-        description: "The installed extension on this browser acknowledged the new runtime config.",
-      });
-    } catch (error) {
-      toast({
-        title: "Runtime config push failed",
-        description: error instanceof Error ? error.message : "Could not push runtime config into the installed extension.",
-        variant: "destructive",
-      });
-    } finally {
-      setRuntimeConfigPushing(false);
-    }
+        toast({
+          title: "Runtime config pushed",
+          description: "The installed extension on this browser acknowledged the new runtime config.",
+        });
+      },
+    });
   };
 
   const extensionDownloadUrl = withApiBase(extensionInfo?.downloadUrl || "/api/admin/extension/package?fresh=1");

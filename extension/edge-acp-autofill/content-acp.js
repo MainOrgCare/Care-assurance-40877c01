@@ -13,6 +13,7 @@ const FALLBACK_STORAGE_KEYS = {
   signatureBatchId: "caAcpSignatureBatchId",
   overlayPinned: "caAcpOverlayPinned",
 };
+const MINIMIZE_BUTTON_LABEL = "\u2013"; // en dash
 const FALLBACK_FORM_CONFIGS = {
   acp: { formId: "1048191" },
   emar: { formId: "1044009" },
@@ -46,7 +47,7 @@ const FORM_FIELD_NAMES = {
 };
 
 const TRAINING_NEEDS_FALSE_PATTERNS = [
-  /\bno(?:\s+additional)?\s+training\s+(?:need(?:s|ed)?|required)\b/i,
+  /\bno(?:\s+additional)?\s+training\s+(?:needs?|needed|required)\b/i,
   /\bstandard\s+practi[cs]e\b/i,
   /\bstandard\s+procedure\b/i,
   /\bnormal\s+induction\b/i,
@@ -933,7 +934,7 @@ const setOverlayCollapsed = (collapsed) => {
   } else {
     overlayElements.panel.classList.remove("is-collapsed");
     overlayElements.title.textContent = "Risk Assessment Autofill";
-    overlayElements.minimizeButton.textContent = "\u2013";
+    overlayElements.minimizeButton.textContent = MINIMIZE_BUTTON_LABEL;
     overlayElements.minimizeButton.title = "Minimize";
     overlayElements.header.onclick = null;
     refreshOverlay();
@@ -1051,6 +1052,9 @@ const highlightField = (field) => {
 };
 const setNativeFieldValue = (field, value) => {
   if (!field) return;
+  // Use the native "value" setter when available because some frameworks
+  // (and custom element wrappers) rely on property setter interception for
+  // reactivity/change tracking; direct assignment alone can bypass that path.
   const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
   if (descriptor?.set) {
     descriptor.set.call(field, value);
@@ -1073,9 +1077,10 @@ const dispatchCommitEvents = (field) => {
   field.dispatchEvent(new Event("change", { bubbles: true }));
   field.dispatchEvent(new Event("blur", { bubbles: true }));
 };
+const PROCESSED_KEY_RUN_NONCE = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 const buildProcessedKey = (queueState) => {
-  const batchId = queueState?.batchId || "legacy";
-  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : "single";
+  const batchId = queueState?.batchId || `legacy_${PROCESSED_KEY_RUN_NONCE}`;
+  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : `single_${PROCESSED_KEY_RUN_NONCE}`;
   return `caAutofillProcessed_${batchId}_${currentIndex}`;
 };
 
@@ -1653,7 +1658,11 @@ const fillRiskAssessment = async (assessment, serviceUserLabel) => {
   await setFieldValue(assessorField, buildSignedLabel(assessment), "assessor");
   await setFieldValue(assessmentDateField, assessment.assessmentDate || "", "assessment date");
   await setFieldValue(reasonField, assessment.category || "", "reason");
+  // Mobizio component: confirmation select for this assessment section (force "Yes" for ACP autofill flow).
+  // NOTE: Uses a platform-generated component ID; update if the underlying form structure changes.
   setSelectByLabel("form_component_40_2", "Yes");
+  // Mobizio component: companion compliance/exception select in the same section (force "No" for ACP autofill flow).
+  // NOTE: Uses a platform-generated component ID; update if the underlying form structure changes.
   setSelectByLabel("form_component_19_20", "No");
   setSelectFieldByLabel(trainingNeedsField, getTrainingNeedsSelectLabel(assessment));
 
