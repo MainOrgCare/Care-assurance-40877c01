@@ -1450,6 +1450,32 @@ const setSelectByLabel = (fieldName, label) => {
 
 const normalizeRiskRowText = (value) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "");
 
+const FIRST_PERSON_RISK_PATTERNS = [
+  /\bi\s+(?:am|have|need|can|will|experience|use|require|feel|struggle|find|may|get|was|had|could|must)\b/i,
+  /\bmy\s+(?:carer|care\s*team|medication|condition|health|mobility|home|plan|risk|need|routine|ability|independence|safety)\b/i,
+  /\bi(?:'m|'ve|'ll|'d)\s/i,
+  /\bme\s+(?:to|when|with|by|for|at|from|if)\b/i,
+];
+const THIRD_PERSON_RISK_PATTERNS = [
+  /^\s*the\s+(?:service\s+user|client|resident|patient)\b/i,
+  /^\s*(?:he|she|they)\s+(?:is|are|was|were|has|have|needs?|requires?)\b/i,
+  /^\s*(?:client|service\s+user|resident)\s+(?:needs?|requires?|has|is|was|struggles?)\b/i,
+];
+
+const isPersonCentredRiskRow = (risk) => {
+  const narrativeFields = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
+    .map((v) => normalizeRiskRowText(v))
+    .filter((v) => v.length >= 12);
+  if (narrativeFields.length === 0) return true;
+  const hasFirstPerson = FIRST_PERSON_RISK_PATTERNS.some((p) =>
+    narrativeFields.some((text) => p.test(text))
+  );
+  if (hasFirstPerson) return true;
+  // Without first-person markers, check if the definition field is clearly third-person
+  const definitionText = normalizeRiskRowText(risk?.riskDefinition);
+  return !THIRD_PERSON_RISK_PATTERNS.some((p) => p.test(definitionText));
+};
+
 const buildRiskRowSignature = (risk) =>
   [
     normalizeRiskRowText(risk?.riskDefinition).toLowerCase(),
@@ -1463,7 +1489,7 @@ const buildRiskRowSignature = (risk) =>
 const normalizeAssessmentRisks = (assessment) => {
   if (!Array.isArray(assessment?.risks)) return [];
   const seen = new Set();
-  return assessment.risks
+  const normalizedRows = assessment.risks
     .map((risk) => ({
       ...risk,
       riskDefinition: normalizeRiskRowText(risk?.riskDefinition),
@@ -1480,6 +1506,9 @@ const normalizeAssessmentRisks = (assessment) => {
       seen.add(signature);
       return true;
     });
+  // Soft filter: prefer person-centred rows, fall back to all rows if none qualify
+  const personCentred = normalizedRows.filter(isPersonCentredRiskRow);
+  return personCentred.length > 0 ? personCentred : normalizedRows;
 };
 
 const buildSignedLabel = (assessment) => {

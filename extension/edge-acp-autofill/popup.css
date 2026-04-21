@@ -6275,3 +6275,321 @@ body.ca-theme-overhaul .popup-footer {
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK THEME OVERRIDES
+   Fix hardcoded light-mode values to respect dark app themes.
+   Applied when body has the .is-app-theme-dark class.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Override feedback light color variables so they work in dark themes */
+.is-app-theme-dark {
+  --color-success-light: color-mix(in srgb, var(--color-success) 14%, var(--color-card));
+  --color-error-light: color-mix(in srgb, var(--color-error) 14%, var(--color-card));
+  --color-warning-light: color-mix(in srgb, var(--color-warning) 12%, var(--color-card));
+  --color-accent-light: color-mix(in srgb, var(--color-accent) 18%, var(--color-card));
+  --color-primary-ghost: color-mix(in srgb, var(--color-primary) 16%, var(--color-card));
+}
+
+.is-app-theme-dark .card-header,
+.is-app-theme-dark body.ca-theme-overhaul .card-header {
+  border-bottom-color: var(--color-border);
+}
+
+.is-app-theme-dark .workspace-context-card {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .main-launchpad-card {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .main-view-state {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .main-view-state.is-disconnected {
+  background: color-mix(in srgb, var(--color-destructive) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-destructive) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .main-view-state.is-waiting {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .main-view-state.is-live {
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .main-view-state.is-warning {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .workspace-metric {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .summary-item {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .summary-label {
+  color: var(--color-primary);
+}
+
+.is-app-theme-dark .route-pill {
+  background: var(--color-card);
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+
+.is-app-theme-dark .route-pill:hover {
+  background: var(--color-muted);
+  border-color: var(--color-border-hover);
+}
+
+.is-app-theme-dark .route-pill.is-active {
+  background: var(--color-primary-ghost);
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+}
+
+.is-app-theme-dark .extension-health-state {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .extension-health-state.is-ready {
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+}
+
+.is-app-theme-dark .extension-health-state.is-live {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+}
+
+.is-app-theme-dark .extension-health-state.is-warning {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .extension-health-meta-item {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .extension-health-sync {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .extension-health-sync.ready {
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+}
+
+.is-app-theme-dark .extension-health-sync.warning {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .extension-health-guide-item {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .workflow-recommendation {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .workflow-recommendation.is-success {
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .workflow-recommendation.is-warning {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .workflow-recommendation.is-info {
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-primary) 26%, var(--color-border));
+}
+
+.is-app-theme-dark .upload-handoff-state {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .upload-handoff-state.is-ready {
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+}
+
+.is-app-theme-dark .upload-handoff-state.is-live {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .upload-handoff-state.is-warning {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-border));
+}
+
+.is-app-theme-dark .upload-handoff-meta-item {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .upload-bucket-card {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .upload-bucket-card.has-files {
+  background: color-mix(in srgb, var(--color-success) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+}
+
+.is-app-theme-dark .upload-bucket-status {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+  color: var(--color-muted-foreground);
+}
+
+.is-app-theme-dark .upload-bucket-status[data-state="success"],
+.is-app-theme-dark .upload-bucket-status[data-state="staged"] {
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+  color: var(--color-success);
+}
+
+.is-app-theme-dark .upload-bucket-status[data-state="running"] {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  color: var(--color-primary);
+}
+
+.is-app-theme-dark .upload-bucket-status[data-state="partial"],
+.is-app-theme-dark .auto-collect-info-state[data-state="partial"] {
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 32%, transparent);
+  color: var(--color-warning);
+}
+
+.is-app-theme-dark .upload-bucket-status[data-state="error"],
+.is-app-theme-dark .upload-bucket-status[data-state="cancelled"] {
+  background: color-mix(in srgb, var(--color-destructive) 12%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-destructive) 32%, transparent);
+  color: var(--color-destructive);
+}
+
+.is-app-theme-dark .upload-sync-summary {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+  color: var(--color-muted-foreground);
+}
+
+.is-app-theme-dark .upload-sync-summary[data-state="ready"] {
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+  color: var(--color-success);
+}
+
+.is-app-theme-dark .upload-sync-summary[data-state="attention"] {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-border));
+  color: var(--color-warning);
+}
+
+.is-app-theme-dark .auto-collect-info {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .auto-collect-info.auto-collect-info-empty {
+  background: var(--color-muted);
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="running"] {
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="success"] {
+  background: color-mix(in srgb, var(--color-success) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="partial"] {
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-border));
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="error"] {
+  background: color-mix(in srgb, var(--color-destructive) 7%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-destructive) 26%, var(--color-border));
+}
+
+.is-app-theme-dark .auto-collect-info-state {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+  color: var(--color-muted-foreground);
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="running"] .auto-collect-info-state {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-primary) 36%, transparent);
+  color: var(--color-primary);
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="success"] .auto-collect-info-state {
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-success) 36%, transparent);
+  color: var(--color-success);
+}
+
+.is-app-theme-dark .auto-collect-info[data-state="error"] .auto-collect-info-state {
+  background: color-mix(in srgb, var(--color-destructive) 14%, var(--color-card));
+  border-color: color-mix(in srgb, var(--color-destructive) 36%, transparent);
+  color: var(--color-destructive);
+}
+
+.is-app-theme-dark .ops-command-center-card {
+  background: var(--color-card);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .file-upload-label,
+.is-app-theme-dark .signature-upload-label {
+  background: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.is-app-theme-dark .file-upload-label:hover,
+.is-app-theme-dark .signature-upload-label:hover {
+  background: var(--color-card);
+  border-color: var(--color-primary);
+}
+
+.is-app-theme-dark .form-input::placeholder,
+.is-app-theme-dark .form-textarea::placeholder {
+  color: color-mix(in srgb, var(--color-muted-foreground) 55%, transparent);
+}
+
+.is-app-theme-dark .upload-bucket-dropzone.is-downloading {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-card));
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
