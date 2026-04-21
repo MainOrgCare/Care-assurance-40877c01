@@ -634,9 +634,7 @@ export default function ComplieeIntro({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [closeIntro, phase]);
 
-  if (phase === "complete" || phase === "hidden") return null;
-
-  // Determine variants for Compliee container based on phase
+  // Must be declared before any early return to satisfy Rules of Hooks
   const complieeVariants = useMemo(
     () => ({
       hidden: { x: "100%", y: 0, scale: 0.9, opacity: 0 },
@@ -651,6 +649,8 @@ export default function ComplieeIntro({
     }),
     [prefersReducedMotion],
   );
+
+  if (phase === "complete" || phase === "hidden") return null;
 
   return (
     <AnimatePresence>
