@@ -9,6 +9,12 @@ export interface AuditCareWorkerSummary {
   name: string;
   auditCount: number;
   discrepancyCount: number;
+  /** Total care calls (compliant + non-compliant) from Visit audits. */
+  visitAuditCount: number;
+  /** Non-compliant care calls from Visit audits (subset of visitAuditCount). */
+  visitDiscrepancyCount: number;
+  /** EMAR medication discrepancy events (no total-administration denominator available). */
+  emarDiscrepancyCount: number;
   discrepancies: AuditCareWorkerDiscrepancy[];
   lastSeen: string;
 }
@@ -90,6 +96,9 @@ const ensureWorker = (
       name,
       auditCount: 0,
       discrepancyCount: 0,
+      visitAuditCount: 0,
+      visitDiscrepancyCount: 0,
+      emarDiscrepancyCount: 0,
       discrepancies: [],
       lastSeen: auditDate,
     });
@@ -119,6 +128,7 @@ export function buildCareWorkerAuditSummaries(audits: AuditRecordLike[]): AuditC
 
         worker.auditCount += 1;
         worker.discrepancyCount += 1;
+        worker.emarDiscrepancyCount += 1;
         worker.discrepancies.push({
           date: String(discrepancy.date || auditDate || ""),
           type: "EMAR",
@@ -147,9 +157,11 @@ export function buildCareWorkerAuditSummaries(audits: AuditRecordLike[]): AuditC
           if (!worker) continue;
 
           worker.auditCount += 1;
+          worker.visitAuditCount += 1;
 
           if (call.compliant === false) {
             worker.discrepancyCount += 1;
+            worker.visitDiscrepancyCount += 1;
             const callDate = String(call.date || auditDate || "");
             const key = `${call.careWorkerName}|${callDate}`;
             const detailIssues = discrepancyDetailMap.get(key);
@@ -171,7 +183,9 @@ export function buildCareWorkerAuditSummaries(audits: AuditRecordLike[]): AuditC
           if (!worker) continue;
 
           worker.auditCount += 1;
+          worker.visitAuditCount += 1;
           worker.discrepancyCount += 1;
+          worker.visitDiscrepancyCount += 1;
           worker.discrepancies.push({
             date: String(discrepancy.date || auditDate || ""),
             type: "Visit",

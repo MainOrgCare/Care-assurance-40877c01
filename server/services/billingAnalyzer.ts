@@ -307,11 +307,11 @@ function timeRangesOverlap(
     return false;
   }
   
-  // Handle overnight shifts
+  // Handle overnight shifts (end < start means next-day; end === start is same-time, not 24h)
   const aStart = startAMin;
-  const aEnd = endAMin <= startAMin ? endAMin + 24 * 60 : endAMin;
+  const aEnd = endAMin < startAMin ? endAMin + 24 * 60 : endAMin;
   const bStart = startBMin;
-  const bEnd = endBMin <= startBMin ? endBMin + 24 * 60 : endBMin;
+  const bEnd = endBMin < startBMin ? endBMin + 24 * 60 : endBMin;
   
   // Check if time ranges overlap (with tolerance for boundary cases)
   // Two ranges overlap if one starts before the other ends
@@ -451,7 +451,7 @@ export function analyzeBillingRows(
       const endMinutes = parseTimeToMinutes(endTime);
       if (startMinutes != null && endMinutes != null) {
         let diff = endMinutes - startMinutes;
-        if (diff <= 0) diff += 24 * 60;
+        if (diff < 0) diff += 24 * 60;  // genuine overnight shift (e.g. 22:00→06:00)
         durationMinutes = diff;
       }
     }

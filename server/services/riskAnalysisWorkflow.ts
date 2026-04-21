@@ -110,7 +110,7 @@ export function getRuleBasedRiskTargetCount(params: {
   if (evidenceCount === 0) return 1;
   const canExpand = params.hasCategoryEvidenceTerms && evidenceCount > 1 && params.hasDiverseEvidence;
   if (canExpand) {
-    return Math.min(8, Math.max(4, Math.min(7, evidenceCount + 1)));
+    return Math.min(7, Math.max(4, evidenceCount + 1));
   }
   return Math.max(1, Math.min(3, evidenceCount));
 }

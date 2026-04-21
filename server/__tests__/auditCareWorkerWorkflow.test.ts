@@ -22,6 +22,9 @@ test("buildCareWorkerAuditSummaries counts EMAR discrepancies as audited activit
   assert.equal(result[0].name, "A. Brown");
   assert.equal(result[0].auditCount, 1);
   assert.equal(result[0].discrepancyCount, 1);
+  assert.equal(result[0].emarDiscrepancyCount, 1);
+  assert.equal(result[0].visitAuditCount, 0);
+  assert.equal(result[0].visitDiscrepancyCount, 0);
   assert.equal(result[0].discrepancies[0].type, "EMAR");
   assert.equal(result[0].discrepancies[0].issue, "Paracetamol");
 });
@@ -56,10 +59,17 @@ test("buildCareWorkerAuditSummaries keeps the latest seen date using chronologic
   assert.ok(brown);
   assert.equal(brown.auditCount, 2);
   assert.equal(brown.discrepancyCount, 2);
+  // Visit-specific counts: 1 call (non-compliant) + EMAR-specific count: 1
+  assert.equal(brown.visitAuditCount, 1);
+  assert.equal(brown.visitDiscrepancyCount, 1);
+  assert.equal(brown.emarDiscrepancyCount, 1);
   assert.equal(brown.lastSeen, "02/04/2026");
 
   assert.ok(green);
   assert.equal(green.auditCount, 1);
   assert.equal(green.discrepancyCount, 0);
+  assert.equal(green.visitAuditCount, 1);
+  assert.equal(green.visitDiscrepancyCount, 0);
+  assert.equal(green.emarDiscrepancyCount, 0);
   assert.equal(green.lastSeen, "02/04/2026");
 });

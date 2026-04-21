@@ -23,6 +23,10 @@ interface CareWorkerFromAudits {
   name: string;
   auditCount: number;
   discrepancyCount: number;
+  /** Visit-specific counts for accurate compliance rate calculation. */
+  visitAuditCount?: number;
+  visitDiscrepancyCount?: number;
+  emarDiscrepancyCount?: number;
   discrepancies: CareWorkerDiscrepancy[];
   lastSeen: string;
 }
@@ -76,9 +80,17 @@ export default function Performance() {
   }, [fetchData]);
 
   const getCompliancePercentage = useCallback((worker: CareWorkerFromAudits): number => {
-    if (worker.auditCount === 0) return worker.discrepancyCount > 0 ? 0 : 100;
-    const complianceRatio = Math.max(0, 1 - (worker.discrepancyCount / (worker.auditCount + worker.discrepancyCount)));
-    return Math.round(complianceRatio * 100);
+    // Use visit-specific counts when available (accurate denominator = total care calls).
+    // EMAR audits only track discrepancies, not total medication events, so they cannot
+    // contribute a meaningful numerator/denominator to the compliance percentage.
+    const visitAuditCount = worker.visitAuditCount ?? 0;
+    const visitDiscrepancyCount = worker.visitDiscrepancyCount ?? 0;
+
+    if (visitAuditCount === 0) {
+      // No visit-call data available (EMAR-only worker, or legacy API response).
+      return worker.discrepancyCount > 0 ? 0 : 100;
+    }
+    return Math.round(Math.max(0, (1 - visitDiscrepancyCount / visitAuditCount) * 100));
   }, []);
 
   const getRiskLevel = useCallback((worker: CareWorkerFromAudits): "compliant" | "at-risk" | "critical" => {
