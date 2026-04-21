@@ -424,7 +424,10 @@ export default function ExtensionManager() {
     const requestId =
       typeof window.crypto !== "undefined" && typeof window.crypto.randomUUID === "function"
         ? window.crypto.randomUUID()
-        : `fallback-${Date.now()}-${++postMessageRequestCounter}`;
+        : (() => {
+            postMessageRequestCounter += 1;
+            return `fallback-${Date.now()}-${postMessageRequestCounter}`;
+          })();
 
     return new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
       let handler: ((event: MessageEvent) => void) | null = null;

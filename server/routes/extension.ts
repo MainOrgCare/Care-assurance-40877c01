@@ -684,6 +684,8 @@ interface ExtensionRouteDeps {
   requireAdmin: RequestHandler;
 }
 
+type AuthenticatedRequest = Request & { user?: { id?: unknown; username?: unknown; role?: unknown } };
+
 export function registerExtensionRoutes(
   app: Express,
   deps: ExtensionRouteDeps
@@ -693,7 +695,7 @@ export function registerExtensionRoutes(
   // Get extension status and connection info
   app.get("/api/extension/status", requireAuth, async (req: Request, res: Response) => {
     try {
-      const user = (req as Request & { user?: { id?: unknown; username?: unknown; role?: unknown } }).user;
+      const user = (req as AuthenticatedRequest).user;
       const [manifestVersion, packageStatus, crxPath] = await Promise.all([
         readExtensionManifestVersion(),
         getExtensionPackageStatus(),

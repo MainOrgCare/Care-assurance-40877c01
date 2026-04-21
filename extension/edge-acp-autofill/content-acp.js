@@ -1077,10 +1077,10 @@ const dispatchCommitEvents = (field) => {
   field.dispatchEvent(new Event("change", { bubbles: true }));
   field.dispatchEvent(new Event("blur", { bubbles: true }));
 };
-const PROCESSED_KEY_RUN_NONCE = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+const SCRIPT_RUN_INSTANCE_ID = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 const buildProcessedKey = (queueState) => {
-  const batchId = queueState?.batchId || `legacy_${PROCESSED_KEY_RUN_NONCE}`;
-  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : `single_${PROCESSED_KEY_RUN_NONCE}`;
+  const batchId = queueState?.batchId || `legacy_${SCRIPT_RUN_INSTANCE_ID}`;
+  const currentIndex = typeof queueState?.currentIndex === "number" ? queueState.currentIndex : `single_${SCRIPT_RUN_INSTANCE_ID}`;
   return `caAutofillProcessed_${batchId}_${currentIndex}`;
 };
 
