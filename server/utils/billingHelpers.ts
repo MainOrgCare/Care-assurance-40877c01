@@ -84,10 +84,13 @@ export const parseInteger = (value: any): number => {
 export const normalizeTime = (value?: string | null): string | null => {
   if (!value) return null;
   const trimmed = String(value).trim();
-  const match = trimmed.match(/(\d{1,2})[:.](\d{2})/);
+  const match = trimmed.match(/(\d{1,2})[:.](\d{2})(?:\s*(am|pm))?/i);
   if (!match) return null;
-  const hours = Number(match[1]);
+  let hours = Number(match[1]);
   const mins = Number(match[2]);
+  const meridiem = match[3]?.toLowerCase();
+  if (meridiem === "pm" && hours !== 12) hours += 12;
+  else if (meridiem === "am" && hours === 12) hours = 0;
   if (!Number.isFinite(hours) || !Number.isFinite(mins)) return null;
   if (hours < 0 || hours > 23 || mins < 0 || mins > 59) return null;
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;

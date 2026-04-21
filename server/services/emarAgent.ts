@@ -952,7 +952,7 @@ export const emarAgent = {
 
           code = normalizeMedicationCodeForType(code, isPrn, hasTime);
 
-          if (date && medId) coveredKeys.add(`${medId}|${date}|${timeSlot}`);
+          if (date && medId) coveredKeys.add(`${medId}|${date.toLowerCase()}|${timeSlot.toLowerCase()}`);
 
           if (!date || !code) continue;
           if (code === "N/A" || code === "BLANK") continue;
@@ -984,7 +984,7 @@ export const emarAgent = {
             const normalizedDate = normalizeDate(rawDate);
             if (!normalizedDate) continue;
             for (const slot of slots) {
-              const key = `${med.medicationId}|${normalizedDate}|${slot}`;
+              const key = `${med.medicationId}|${normalizedDate.toLowerCase()}|${slot.toLowerCase()}`;
               if (!coveredKeys.has(key)) {
                 entries.push({
                   medicationId: med.medicationId,

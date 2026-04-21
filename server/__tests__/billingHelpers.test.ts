@@ -126,6 +126,15 @@ describe("normalizeTime", () => {
     assert.equal(normalizeTime("14:30"), "14:30");
   });
 
+  test("converts 12-hour AM/PM to 24-hour format", () => {
+    assert.equal(normalizeTime("12:00 AM"), "00:00"); // midnight
+    assert.equal(normalizeTime("12:00 PM"), "12:00"); // noon
+    assert.equal(normalizeTime("1:30 PM"), "13:30");
+    assert.equal(normalizeTime("11:59 pm"), "23:59");
+    assert.equal(normalizeTime("9:00 am"), "09:00");
+    assert.equal(normalizeTime("12:30 am"), "00:30");
+  });
+
   test("returns null for invalid input", () => {
     assert.equal(normalizeTime(null), null);
     assert.equal(normalizeTime(""), null);

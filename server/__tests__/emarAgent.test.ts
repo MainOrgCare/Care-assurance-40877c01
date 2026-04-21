@@ -408,3 +408,55 @@ test("inferRequiredGapHoursFromText parses word-based intervals and ranges", () 
   assert.equal(inferRequiredGapHoursFromText("Give every four to six hours if needed"), 4);
   assert.equal(inferRequiredGapHoursFromText("Take seventeen hourly when required"), 17);
 });
+
+test("emarAgent.extract (gridBaseline) does not generate false MISSED when cell date case differs from grid date", async () => {
+  // Bug: coveredKeys used raw date strings, so "mon, 01 dec" (cell) != "Mon, 01 Dec" (grid header)
+  // Fix: both sides are lowercased before key comparison
+  const gridBaseline: ParsedEMAR = {
+    serviceUserName: "Test User",
+    allergies: "None",
+    auditPeriodStart: "",
+    auditPeriodEnd: "",
+    pageCount: 1,
+    pageCharCounts: [0],
+    pageTexts: [""],
+    dates: ["Mon, 01 Dec"],
+    timeSlots: ["08:00-09:00"],
+    medications: [
+      {
+        name: "Aspirin 75mg",
+        row: 0,
+        instructions: "Once daily",
+        timeSlots: ["08:00-09:00"],
+      },
+    ],
+    cells: [
+      {
+        medication: "Aspirin 75mg",
+        medicationRow: 0,
+        date: "MON, 01 DEC", // uppercase — differs from grid date "Mon, 01 Dec"
+        timeSlot: "08:00-09:00",
+        content: "A.B",
+        code: "AD",
+        careWorker: "A.B",
+        time: "08:10",
+      },
+    ],
+    rawText: "",
+    debugInfo: {
+      totalTextItems: 0,
+      dateColumnsFound: 0,
+      medicationsFound: 1,
+      timeSlotsFound: 1,
+      cellsGenerated: 1,
+    },
+  };
+
+  const result = await emarAgent.extract("", null, "", { userId: null, username: null }, { gridBaseline });
+
+  const aspirinEntries = result.entries.filter((e) => e.medicationId === 1);
+  const missedEntry = aspirinEntries.find((e) => e.code === "MISSED");
+  assert.equal(missedEntry, undefined, "No false MISSED entry should be generated when cell date casing differs from grid date");
+  const adEntry = aspirinEntries.find((e) => e.code === "AD");
+  assert.ok(adEntry, "AD entry must still be present");
+});
