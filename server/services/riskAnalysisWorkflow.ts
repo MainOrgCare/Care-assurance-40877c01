@@ -161,8 +161,8 @@ export function countPersonCentredViolations(risks: unknown[]): number {
     if (!risk || typeof risk !== "object") return false;
     const r = risk as Record<string, unknown>;
     const narrativeText = [r.riskDefinition, r.howItsARisk, r.controlMeasures]
-      .filter((v) => typeof v === "string" && (v as string).trim().length > 20)
+      .filter((v) => typeof v === "string" && (v as string).trim().length > 12)
       .join(" ");
-    return narrativeText.length > 20 && !hasFirstPersonMarkers(narrativeText);
+    return narrativeText.length > 12 && !hasFirstPersonMarkers(narrativeText);
   }).length;
 }

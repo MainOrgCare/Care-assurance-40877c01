@@ -1458,14 +1458,17 @@ const THIRD_PERSON_RISK_PATTERNS = [
 ];
 
 const isPersonCentredRiskRow = (risk) => {
-  const text = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
+  const narrativeFields = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
     .map((v) => normalizeRiskRowText(v))
-    .filter((v) => v.length >= 12)
-    .join(" ");
-  if (!text) return true;
-  const hasFirstPerson = FIRST_PERSON_RISK_PATTERNS.some((p) => p.test(text));
-  const hasThirdPersonStart = THIRD_PERSON_RISK_PATTERNS.some((p) => p.test(risk?.riskDefinition || ""));
-  return hasFirstPerson || !hasThirdPersonStart;
+    .filter((v) => v.length >= 12);
+  if (narrativeFields.length === 0) return true;
+  const hasFirstPerson = FIRST_PERSON_RISK_PATTERNS.some((p) =>
+    narrativeFields.some((text) => p.test(text))
+  );
+  if (hasFirstPerson) return true;
+  // Without first-person markers, check if the definition field is clearly third-person
+  const definitionText = normalizeRiskRowText(risk?.riskDefinition);
+  return !THIRD_PERSON_RISK_PATTERNS.some((p) => p.test(definitionText));
 };
 
 const buildRiskRowSignature = (risk) =>

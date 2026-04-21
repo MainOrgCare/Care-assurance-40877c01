@@ -117,8 +117,9 @@ describe("riskAssessmentUtils", () => {
 
     it("recognises third-person risk narrative", () => {
       expect(looksLikeThirdPersonRiskNarrative("The service user is at risk of falling.")).toBe(true);
-      expect(looksLikeThirdPersonRiskNarrative("The client needs support with mobility.")).toBe(false); // does not match 'the client needs'
+      expect(looksLikeThirdPersonRiskNarrative("The client needs support with mobility.")).toBe(true);
       expect(looksLikeThirdPersonRiskNarrative("Client needs support with daily activities.")).toBe(true);
+      expect(looksLikeThirdPersonRiskNarrative("I am at risk of falling due to balance issues.")).toBe(false);
     });
 
     it("sanitizeGeneratedAssessmentResult keeps first-person rows and soft-filters third-person", () => {

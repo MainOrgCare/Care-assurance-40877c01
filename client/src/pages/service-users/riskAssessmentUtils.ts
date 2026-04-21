@@ -242,11 +242,13 @@ function isPersonCentredRiskRow(row: SanitizableRiskRow): boolean {
     .filter((v) => v.length >= 12);
   if (narrativeFields.length === 0) return true; // no content to judge, let through
   const hasFirstPerson = narrativeFields.some((text) => looksLikePersonCentredRiskNarrative(text));
-  const allThirdPerson = narrativeFields.every(
-    (text) => !looksLikePersonCentredRiskNarrative(text) && looksLikeThirdPersonRiskNarrative(text),
-  );
-  // Row passes if any field is first-person, or if it's ambiguous (not clearly third-person)
-  return hasFirstPerson || !allThirdPerson;
+  if (hasFirstPerson) return true;
+  // Without first-person markers, check if the definition field is clearly third-person
+  const definitionText = (
+    typeof row.riskDefinition === "string" ? row.riskDefinition : ""
+  ).replace(/\s+/g, " ").trim();
+  // Row is ambiguous (not clearly third-person) — let it through
+  return !looksLikeThirdPersonRiskNarrative(definitionText);
 }
 
 export function sanitizeGeneratedAssessmentResult<T extends SanitizableGeneratedAssessment>(assessment: T): T {
