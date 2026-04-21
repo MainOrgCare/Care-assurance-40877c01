@@ -1,6 +1,6 @@
 export const RULE_BASED_SIGNAL_GROUPS = {
   medicalConditions: [
-    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hyperglyc"] },
+    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hyperglycem"] },
     { label: "Dementia or cognitive impairment", terms: ["dementia", "alzheimer", "memory", "cognit", "confus"] },
     { label: "Epilepsy or seizures", terms: ["epilep", "seizure"] },
     { label: "Respiratory condition", terms: ["copd", "asthma", "breathless", "oxygen", "inhaler"] },
@@ -110,7 +110,7 @@ export function getRuleBasedRiskTargetCount(params: {
   if (evidenceCount === 0) return 1;
   const canExpand = params.hasCategoryEvidenceTerms && evidenceCount > 1 && params.hasDiverseEvidence;
   if (canExpand) {
-    return Math.min(8, Math.max(4, Math.min(7, evidenceCount + 1)));
+    return Math.min(7, Math.max(4, evidenceCount + 1));
   }
   return Math.max(1, Math.min(3, evidenceCount));
 }
@@ -149,12 +149,18 @@ export function hasFirstPersonMarkers(text: string): boolean {
   if (typeof text !== "string" || !text) return false;
   const lower = text.toLowerCase();
   return (
+    // Matches first-person "I + verb" phrasing (for example: "I have", "I need", "I feel").
     /\bi\s+(?:am|have|need|can|will|experience|use|require|feel|struggle|find|may|get|was|had|could|must)\b/.test(lower) ||
+    // Matches possessive first-person "my + care/health noun" phrasing (for example: "my medication", "my care team").
     /\bmy\s+(?:carer|care\s+team|medication|condition|health|mobility|home|plan|risk|needs?|routine|ability|independence|safety)\b/.test(lower) ||
+    // Matches common first-person contractions (for example: "I'm", "I've", "I'll", "I'd").
     /\bi(?:'m|'ve|'ll|'d)\s/.test(lower) ||
+    // Matches objective first-person "me + preposition/connector" phrasing (for example: "me with", "me for").
     /\bme\s+(?:to|when|with|by|for|at|from|if)\b/.test(lower)
   );
 }
+
+const MIN_NARRATIVE_TEXT_LENGTH = 12;
 
 export function countPersonCentredViolations(risks: unknown[]): number {
   if (!Array.isArray(risks)) return 0;
@@ -162,8 +168,8 @@ export function countPersonCentredViolations(risks: unknown[]): number {
     if (!risk || typeof risk !== "object") return false;
     const r = risk as Record<string, unknown>;
     const narrativeText = [r.riskDefinition, r.howItsARisk, r.controlMeasures]
-      .filter((v) => typeof v === "string" && (v as string).trim().length > 12)
+      .filter((v) => typeof v === "string" && (v as string).trim().length > MIN_NARRATIVE_TEXT_LENGTH)
       .join(" ");
-    return narrativeText.length > 12 && !hasFirstPersonMarkers(narrativeText);
+    return narrativeText.length > MIN_NARRATIVE_TEXT_LENGTH && !hasFirstPersonMarkers(narrativeText);
   }).length;
 }

@@ -423,6 +423,7 @@
 | 2026-02-28 | ✅ Enhanced EMAR compliance output in `server/routes.ts`: added repeated non-administration trend warnings (`R`, `SA`, `F`, `NH`), inferred unknown carer names from same date/time records, and exposed `allCareWorkers` in both standard and agent result payloads |
 | 2026-02-28 | ✅ Rebuilt `emar-lmstudio-preset.json` to LM Studio native `.preset.json` schema (`identifier`, `operation.fields`, `load.fields`) based on real exported preset structure to resolve import-context validation errors |
 | 2026-02-28 | ✅ Added LM Studio structured-output artifacts for eMAR testing: `EMAR Structured Output.schema.json` (strict JSON schema) and `EMAR Strict JSON Test.prompt.md` (ready-to-paste task prompt aligned with NH/MU/trend/inference rules) |
+| 2026-04-21 | ✅ Applied focused `riskAnalysisWorkflow` refinements: diabetes term matcher corrected to `hyperglycem`, rule-based target clamp simplified for readability, first-person regex checks documented inline, and shared `MIN_NARRATIVE_TEXT_LENGTH` constant introduced for narrative-length filtering consistency. Added focused risk-workflow test assertions for hyperglycemic terminology and max-target clamping. |
 
 ---
 
