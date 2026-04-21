@@ -159,6 +159,23 @@ describe("parseDurationMinutes", () => {
     assert.equal(parseDurationMinutes(null), null);
     assert.equal(parseDurationMinutes(""), null);
   });
+
+  test("parses H:MM format", () => {
+    assert.equal(parseDurationMinutes("1:30"), 90);
+    assert.equal(parseDurationMinutes("0:45"), 45);
+  });
+
+  test("parses compound hour+minute strings", () => {
+    assert.equal(parseDurationMinutes("1h 30m"), 90);
+    assert.equal(parseDurationMinutes("2h 45m"), 165);
+    assert.equal(parseDurationMinutes("1hr"), 60);
+    assert.equal(parseDurationMinutes("1.5h"), 90);
+  });
+
+  test("parses plain minute strings", () => {
+    assert.equal(parseDurationMinutes("90 mins"), 90);
+    assert.equal(parseDurationMinutes("45m"), 45);
+  });
 });
 
 describe("formatDurationFromMinutes", () => {

@@ -109,6 +109,7 @@ export const parseDurationMinutes = (value?: string | null): number | null => {
   const trimmed = String(value).trim();
   if (!trimmed) return null;
 
+  // "H:MM" or "H.MM" — treat as hours:minutes
   const timeMatch = trimmed.match(/(\d{1,2})[:.](\d{2})/);
   if (timeMatch) {
     const hours = Number(timeMatch[1]);
@@ -118,13 +119,16 @@ export const parseDurationMinutes = (value?: string | null): number | null => {
     }
   }
 
-  const hourMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*h/i);
-  if (hourMatch) {
-    const hours = Number(hourMatch[1]);
-    if (Number.isFinite(hours)) return Math.round(hours * 60);
+  // "1h 30m", "1hr", "1.5hrs" — hours with optional minutes component
+  const compoundMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*h(?:r(?:s)?)?(?:\s*(\d+)\s*m(?:in(?:s)?)?)?$/i);
+  if (compoundMatch) {
+    const hours = Math.round(Number(compoundMatch[1]) * 60);
+    const mins = compoundMatch[2] ? Number(compoundMatch[2]) : 0;
+    return hours + mins;
   }
 
-  const minMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*m/i);
+  // "90 mins", "45m", "45 minutes" — plain minutes
+  const minMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*m(?:in(?:s)?)?$/i);
   if (minMatch) {
     const mins = Number(minMatch[1]);
     if (Number.isFinite(mins)) return Math.round(mins);
