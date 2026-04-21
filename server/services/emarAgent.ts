@@ -921,6 +921,9 @@ export const emarAgent = {
 
       const buildEntriesFromGrid = (): any[] => {
         const entries: any[] = [];
+        // Track every (medId, date, timeSlot) that has ANY cell (including N/A) so we
+        // don't generate false MISSED entries where the EMAR deliberately recorded N/A.
+        const coveredKeys = new Set<string>();
 
         for (const cell of rawCells) {
           const medId =
@@ -949,6 +952,8 @@ export const emarAgent = {
 
           code = normalizeMedicationCodeForType(code, isPrn, hasTime);
 
+          if (date && medId) coveredKeys.add(`${medId}|${date}|${timeSlot}`);
+
           if (!date || !code) continue;
           if (code === "N/A" || code === "BLANK") continue;
 
@@ -962,6 +967,38 @@ export const emarAgent = {
             hasTime,
             isOfficeClosed: false,
           });
+        }
+
+        // For every scheduled (non-PRN) medication, generate a MISSED entry for each
+        // (date × timeSlot) combination that has no cell at all — blank cells in the
+        // EMAR grid represent doses that were never recorded.  N/A cells are
+        // intentional (coveredKeys prevents MISSED from overriding them).
+        for (const med of medsWithIds) {
+          if (prnMedIds.has(med.medicationId)) continue;
+          const slots = uniqueStrings(
+            (Array.isArray(med.scheduledTimeSlots) ? med.scheduledTimeSlots : gridTimeSlots)
+              .map(normalizeTimeSlot)
+              .filter(Boolean)
+          );
+          for (const rawDate of gridDates) {
+            const normalizedDate = normalizeDate(rawDate);
+            if (!normalizedDate) continue;
+            for (const slot of slots) {
+              const key = `${med.medicationId}|${normalizedDate}|${slot}`;
+              if (!coveredKeys.has(key)) {
+                entries.push({
+                  medicationId: med.medicationId,
+                  date: normalizedDate,
+                  timeSlot: slot,
+                  code: "MISSED",
+                  careWorkerInitials: null,
+                  time: "",
+                  hasTime: false,
+                  isOfficeClosed: false,
+                });
+              }
+            }
+          }
         }
 
         return deduplicateEntries(entries);

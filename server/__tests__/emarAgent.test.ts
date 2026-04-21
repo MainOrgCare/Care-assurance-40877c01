@@ -119,12 +119,21 @@ test("emarAgent.extract (gridBaseline) dedupes, infers PRN, normalizes PRN refus
 
   // (a) deduplicates entries per med/date/timeSlot choosing the best one (has time/initials)
   const paracetamolEntries = result.entries.filter((e) => e.medicationId === 1);
-  assert.equal(paracetamolEntries.length, 1);
-  assert.equal(paracetamolEntries[0].date, "Mon, 01 Dec");
-  assert.equal(paracetamolEntries[0].timeSlot, "08:00-09:00");
-  assert.equal(paracetamolEntries[0].careWorkerInitials, "AB");
-  assert.equal(paracetamolEntries[0].time, "08:15");
-  assert.equal(paracetamolEntries[0].hasTime, true);
+  // 1 AD (Mon 01 Dec 08:00) + 1 MISSED (Mon 02 Dec 08:00, no cell at all)
+  assert.equal(paracetamolEntries.length, 2);
+  const paracetamolAD = paracetamolEntries.find((e) => e.code === "AD");
+  assert.ok(paracetamolAD, "AD entry present");
+  assert.equal(paracetamolAD!.date, "Mon, 01 Dec");
+  assert.equal(paracetamolAD!.timeSlot, "08:00-09:00");
+  assert.equal(paracetamolAD!.careWorkerInitials, "AB");
+  assert.equal(paracetamolAD!.time, "08:15");
+  assert.equal(paracetamolAD!.hasTime, true);
+
+  // MISSED entry generated for the date/slot with no cell at all
+  const paracetamolMissed = paracetamolEntries.find((e) => e.code === "MISSED");
+  assert.ok(paracetamolMissed, "MISSED entry generated for unrecorded scheduled dose");
+  assert.equal(paracetamolMissed!.date, "Mon, 02 Dec");
+  assert.equal(paracetamolMissed!.timeSlot, "08:00-09:00");
 
   // (b) PRN medication inferred from PRN codes in grid cells
   const morphineMeta = result.metadata.medications.find((m: any) => m.medicationId === 2);
@@ -138,11 +147,12 @@ test("emarAgent.extract (gridBaseline) dedupes, infers PRN, normalizes PRN refus
   assert.ok(prnRefusal, "PRN refusal entry present");
   assert.equal(prnRefusal.code, "PRN-R");
 
-  // (d) BLANK/N/A cells are skipped
+  // (d) BLANK/N/A cells themselves are skipped; N/A marks slot as covered so no MISSED is generated
+  // (BLANK also covers the slot, so no MISSED for the 09:00-10:00 slots either)
   const naOrBlankEntries = result.entries.filter(
     (e) => e.medicationId === 1 && e.timeSlot === "09:00-10:00" && (e.date === "Mon, 01 Dec" || e.date === "Mon, 02 Dec")
   );
-  assert.equal(naOrBlankEntries.length, 0);
+  assert.equal(naOrBlankEntries.length, 0, "N/A and BLANK cells mark slot as covered — no N/A or MISSED entry generated");
 });
 
 test("emarAgent.extract (gridBaseline) filters out false positive medication names", async () => {
@@ -382,7 +392,14 @@ test("emarAgent.extract (gridBaseline) recovers code/time from cell content and 
   const hasNaEntry = result.entries.some(
     (e) => e.medicationId === 2 && e.date === "Tue, 02 Dec" && e.timeSlot === "09:00-10:00"
   );
-  assert.equal(hasNaEntry, false);
+  assert.equal(hasNaEntry, false, "N/A cell marks slot as covered — no entry generated");
+
+  // MISSED entry generated for the Warfarin slot that had no cell at all
+  const warfarinMissed = result.entries.find(
+    (e) => e.medicationId === 2 && e.date === "Mon, 01 Dec" && e.timeSlot === "09:00-10:00"
+  );
+  assert.ok(warfarinMissed, "MISSED entry generated for unrecorded Warfarin scheduled dose");
+  assert.equal(warfarinMissed!.code, "MISSED");
 });
 
 test("inferRequiredGapHoursFromText parses word-based intervals and ranges", () => {

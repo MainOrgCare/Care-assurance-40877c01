@@ -15465,6 +15465,19 @@ Remember: Extract information ONLY from service user documents above. Templates 
         return res.status(400).json({ message: "Document content and assessment category required" });
       }
 
+      // Prevent oversized documents crashing the LLM call
+      const MAX_DOCUMENT_LENGTH = 300_000;
+      if (typeof documentContent !== "string" || documentContent.length > MAX_DOCUMENT_LENGTH) {
+        return res.status(400).json({ message: `Document content must be under ${MAX_DOCUMENT_LENGTH.toLocaleString()} characters` });
+      }
+
+      // Sanitize assessmentCategory: strip newlines/control chars to prevent prompt injection
+      const safeAssessmentCategory = String(assessmentCategory || "")
+        .replace(/[\r\n\x00-\x1F\x7F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100);
+
       const safeServiceUserInitials = piiVault.scrubString(String(serviceUserInitials || "N.N."));
       const resolvedPerformedBy = resolveRiskAssessmentPerformerName(performedBy, req.user);
       const safePerformedBy = piiVault.scrubString(resolvedPerformedBy);
@@ -15513,7 +15526,7 @@ Remember: Extract information ONLY from service user documents above. Templates 
         const fallbackDocumentContent = piiVault.scrub(documentContent);
         const fallbackResult = buildRuleBasedRiskAssessmentPayload({
           documentContent: fallbackDocumentContent,
-          assessmentCategory,
+          assessmentCategory: safeAssessmentCategory,
           serviceUserInitials: safeServiceUserInitials,
           performedBy: safePerformedBy,
           performedByJobTitle,
@@ -15583,7 +15596,7 @@ CRITICAL REMINDER:
         ? assessmentEvidence.evidenceSnippets.filter(isMeaningfulEvidence)
         : [];
       const evidenceSummary = typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "";
-      const assessmentKey = normalizeAssessmentKey(assessmentCategory);
+      const assessmentKey = normalizeAssessmentKey(safeAssessmentCategory);
       const categoryEvidenceTerms = ASSESSMENT_EVIDENCE_TERMS[assessmentKey] || [];
       const generationEvidenceFinder = buildDocumentEvidenceFinder(documentContent || "");
       const documentEvidenceSnippets = generationEvidenceFinder.findAllSnippets(categoryEvidenceTerms, 12).filter(isMeaningfulEvidence);
@@ -15693,7 +15706,7 @@ ${scrubbedProfileContext || "Not provided."}
 
 ${privacyDirective}
 
-RISK ASSESSMENT CATEGORY: ${assessmentCategory}
+RISK ASSESSMENT CATEGORY: ${safeAssessmentCategory}
 
 CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
 - A comprehensive risk assessment typically has MULTIPLE risks (usually 4-10 risks depending on the category)
@@ -15713,7 +15726,7 @@ For each risk identified in this category, provide detailed first-person content
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "category": "${assessmentCategory}",
+  "category": "${safeAssessmentCategory}",
   "serviceUserInitials": "${safeServiceUserInitials}",
   "assessmentDate": "Today's date in DD/Mon/YYYY format",
   "risks": [
@@ -15757,13 +15770,13 @@ Respond ONLY with valid JSON in this exact format:
       console.log('═══════════════════════════════════════════════════════════════════');
       console.log('📋 RISK ASSESSMENT AI INPUT - CONTENT SENT TO AI');
       console.log('═══════════════════════════════════════════════════════════════════');
-      console.log(`Assessment Category: ${assessmentCategory}`);
+      console.log(`Assessment Category: ${safeAssessmentCategory}`);
       console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
       console.log(`Service User: ${safeServiceUserInitials}`);
       console.log(`Performed By: ${safePerformedBy} (${performedByJobTitle})`);
       console.log('');
       
-      const userContent = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+      const userContent = `Generate a comprehensive ${safeAssessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : ''}Documents to analyze:\n${scrubbedDocumentContent}${scrubbedEvidencePack ? `\n\nKey Evidence:\n- ${scrubbedEvidencePack}` : ''}`;
       
@@ -15821,7 +15834,7 @@ ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : '
           feature: "risk_assessment",
           model: getRiskAssessmentGenerationModel(),
           userContext: aiUserContext,
-          inputText: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+          inputText: `Generate a comprehensive ${safeAssessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
@@ -16050,7 +16063,7 @@ Remember: Extract information ONLY from the service user documents above. Templa
           );
           const fallbackResult = buildRuleBasedRiskAssessmentPayload({
             documentContent: scrubbedDocumentContent,
-            assessmentCategory,
+            assessmentCategory: safeAssessmentCategory,
             serviceUserInitials: safeServiceUserInitials,
             performedBy: safePerformedBy,
             performedByJobTitle,
