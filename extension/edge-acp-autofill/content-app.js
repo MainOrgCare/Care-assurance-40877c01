@@ -133,7 +133,7 @@ const detectAndSyncInitialAppTheme = () => {
   }
 };
 
-const parseSseStream= async (response) => {
+const parseSseStream = async (response) => {
   const reader = response.body?.getReader();
   if (!reader) {
     throw new Error("No response stream available");

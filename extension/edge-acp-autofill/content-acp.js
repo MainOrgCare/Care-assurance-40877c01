@@ -1464,8 +1464,8 @@ const isPersonCentredRiskRow = (risk) => {
     .join(" ");
   if (!text) return true;
   const hasFirstPerson = FIRST_PERSON_RISK_PATTERNS.some((p) => p.test(text));
-  const allThirdPerson = THIRD_PERSON_RISK_PATTERNS.some((p) => p.test(risk?.riskDefinition || ""));
-  return hasFirstPerson || !allThirdPerson;
+  const hasThirdPersonStart = THIRD_PERSON_RISK_PATTERNS.some((p) => p.test(risk?.riskDefinition || ""));
+  return hasFirstPerson || !hasThirdPersonStart;
 };
 
 const buildRiskRowSignature = (risk) =>
