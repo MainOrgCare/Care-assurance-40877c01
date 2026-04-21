@@ -730,7 +730,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     isFullBleed ? "max-w-none" : "max-w-[var(--content-max-width)]"
   );
   const cardClass = cn(
-    "workspace-card rounded-xl sm:rounded-[1.4rem] border border-border/70 bg-card/96 p-3.5 sm:p-6 lg:p-7 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-medium)] motion-safe:animate-[fade-in_120ms_ease-out] backdrop-blur-sm",
+    "workspace-card rounded-xl sm:rounded-[1.4rem] border border-border/70 bg-card/96 p-4 sm:p-6 lg:p-7 flex flex-col w-full flex-1 min-h-0 shadow-[var(--shadow-medium)] motion-safe:animate-[fade-in_120ms_ease-out] backdrop-blur-sm",
     isFullBleed ? "p-0 border-0 rounded-none shadow-none bg-transparent overflow-hidden" : ""
   );
   const mainClass = cn(
