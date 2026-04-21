@@ -2332,11 +2332,39 @@ const toFirstPerson = (text: string): string => {
 };
 
 const PII_TOKEN_CATEGORY_FRAGMENT = String.raw`(?:NAME|NHS_NUM|NI_NUM|POSTCODE|EMAIL|PHONE|NETWORK|BANK|CARD|LICENSE|PASSPORT|VEHICLE|FIELD|DATE|DOB|AGE|ADDRESS|CONTACT|LOCATION|BIOGRAPHICAL|HEALTH|IP|MAC)`;
+const WELL_FORMED_PII_TOKEN_PATTERN = new RegExp(
+  String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`,
+  "gi",
+);
+
+const stripMalformedLeakedPiiTokensFromString = (text: string): string => {
+  if (!text) return text;
+
+  const preservedTokens: string[] = [];
+  const protectedText = text.replace(WELL_FORMED_PII_TOKEN_PATTERN, (match) => {
+    const placeholder = `__CA_PII_TOKEN_${preservedTokens.length}__`;
+    preservedTokens.push(match);
+    return placeholder;
+  });
+
+  return protectedText
+    .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+`, "gi"), "")
+    .replace(/\{\{[^{}\n]*PII_[^{}\n]*\}\}/gi, "")
+    .replace(/\{\{[^{}\n]*PII_[^{}\n]*/gi, "")
+    .replace(/\bPII_[a-z0-9]+_[A-Z_]+_\d+\b/gi, "")
+    .replace(new RegExp(String.raw`\bPII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
+    .replace(new RegExp(String.raw`\b[a-z0-9]{1,12}_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
+    .replace(/\{\{PII_/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim()
+    .replace(/__CA_PII_TOKEN_(\d+)__/g, (_match, index) => preservedTokens[Number(index)] || "");
+};
 
 const stripLeakedPiiTokensFromString = (text: string): string => {
   if (!text) return text;
   return text
-    .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+\}\}`, "gi"), "")
+    .replace(WELL_FORMED_PII_TOKEN_PATTERN, "")
     .replace(new RegExp(String.raw`\{\{PII_[a-z0-9]+_${PII_TOKEN_CATEGORY_FRAGMENT}_\d+`, "gi"), "")
     .replace(/\{\{[^{}\n]*PII_[^{}\n]*\}\}/gi, "")
     .replace(/\{\{[^{}\n]*PII_[^{}\n]*/gi, "")
@@ -2402,7 +2430,7 @@ const PERSON_NAME_PARTICLES = new Set([
 
 const cleanRiskArtifactText = (value: string | undefined | null): string => {
   if (typeof value !== "string") return "";
-  let cleaned = stripLeakedPiiTokensFromString(value)
+  let cleaned = stripMalformedLeakedPiiTokensFromString(value)
     .replace(/\bunderstand the information provided\b/gi, "")
     .replace(/\bservice user information\b/gi, "")
     .replace(/\bservice user details\b/gi, "")
@@ -16020,22 +16048,9 @@ Remember: Extract information ONLY from the service user documents above. Templa
             result.additionalNotes = "";
           }
         }
-        const riskDerivedEvidence = Array.isArray(result.risks)
-          ? result.risks
-              .map((risk: any) =>
-                sanitizeEvidenceSnippet(
-                  [risk?.riskDefinition, risk?.howItsARisk]
-                    .filter((value) => typeof value === "string")
-                    .join(" ")
-                )
-              )
-              .filter(isMeaningfulEvidence)
-          : [];
-
         const mergedSupportingEvidence = normalizeStringArray([
           ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
           ...scrubbedSupportingEvidence,
-          ...riskDerivedEvidence,
         ]).filter(isMeaningfulEvidence);
 
         const minimumEvidenceCount = Math.min(10, Math.max(3, Array.isArray(result.risks) ? result.risks.length : 3));

@@ -1478,6 +1478,11 @@ html.theme-sunrise body {
     scroll-behavior: auto !important;
   }
 
+  .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+
   body::after {
     animation: none !important;
   }
@@ -1502,6 +1507,12 @@ body.reduce-motion *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
   transition-delay: 0ms !important;
+}
+
+html.reduce-motion .animate-spin,
+body.reduce-motion .animate-spin {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
 }
 
 html.reduce-motion body::after,
