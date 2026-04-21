@@ -167,3 +167,29 @@ export function countPersonCentredViolations(risks: unknown[]): number {
     return narrativeText.length > 12 && !hasFirstPersonMarkers(narrativeText);
   }).length;
 }
+
+/**
+ * Removes blank and duplicate risk rows from an AI-generated risks array.
+ * Deduplication uses a composite key of riskDefinition + howItsARisk to avoid
+ * collapsing distinct risks that share similar opening sentences.
+ * Apply this BEFORE enrichment (toFirstPerson) and quality scoring.
+ */
+export function normalizeGeneratedRiskRows(risks: unknown[]): unknown[] {
+  if (!Array.isArray(risks)) return [];
+  const seen = new Set<string>();
+  return risks.filter((risk) => {
+    if (!risk || typeof risk !== "object") return false;
+    const r = risk as Record<string, unknown>;
+    const def = typeof r.riskDefinition === "string" ? r.riskDefinition.trim() : "";
+    if (def.length < 10) return false;
+    const how = typeof r.howItsARisk === "string" ? r.howItsARisk.trim() : "";
+    const compositeKey = `${def} ${how}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .slice(0, 120);
+    if (seen.has(compositeKey)) return false;
+    seen.add(compositeKey);
+    return true;
+  });
+}

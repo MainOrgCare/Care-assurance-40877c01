@@ -53,10 +53,12 @@ import { getRiskAnalysisCache, setRiskAnalysisCache } from "./services/riskAnaly
 import {
   RULE_BASED_SIGNAL_GROUPS,
   buildFallbackRiskProfileSummary,
+  countPersonCentredViolations,
   deescalateRiskRating,
   extractSignalLabels,
   getRuleBasedRiskTargetCount,
   looksLikeStructuredRiskArtifactText,
+  normalizeGeneratedRiskRows,
   normalizeRiskRating,
 } from "./services/riskAnalysisWorkflow";
 import multer from "multer";
@@ -2898,8 +2900,8 @@ const normalizePrnProtocol = (rawProtocol: any, medicationName: string) => {
 const getLowCostModel = () => "gpt-4.1-mini";
 const getAccurateModel = () => getLowCostModel(); // temporarily low cost
 const getRiskAssessmentModel = () => getLowCostModel(); // temporarily low cost
-const getRiskAssessmentRecommendationModel = () => getLowCostModel();
-const getRiskAssessmentGenerationModel = () => getLowCostModel();
+const getRiskAssessmentRecommendationModel = () => getPreferredModel();
+const getRiskAssessmentGenerationModel = () => getPreferredModel();
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -15516,6 +15518,9 @@ Remember: Extract information ONLY from service user documents above. Templates 
           performedBy: safePerformedBy,
           performedByJobTitle,
         });
+        if (Array.isArray(fallbackResult.risks)) {
+          fallbackResult.risks = normalizeGeneratedRiskRows(fallbackResult.risks) as typeof fallbackResult.risks;
+        }
         const templateResult = piiVault.toPlaceholders(fallbackResult);
         const vaultExport = piiVault.export();
         const payload = {
@@ -15874,6 +15879,15 @@ Remember: Extract information ONLY from the service user documents above. Templa
         // Apply PII scrubbing to the rest (risks, notes, etc.)
         result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
 
+        // Normalize risk rows: drop blank entries and deduplicate on composite key.
+        // Must run BEFORE toFirstPerson enrichment so the person-centred check sees raw AI output.
+        if (Array.isArray(result.risks)) {
+          result.risks = normalizeGeneratedRiskRows(result.risks);
+        }
+
+        // Count person-centred violations on raw AI output before enrichment converts them.
+        const rawPersonCentredViolations = countPersonCentredViolations(result.risks || []);
+
         // Helper to clean "not aware" type phrases from any string
         const cleanNotAwarePhrases = (text: string): string => {
           if (!text || typeof text !== "string") return text;
@@ -16011,10 +16025,17 @@ Remember: Extract information ONLY from the service user documents above. Templa
           ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
           ...scrubbedSupportingEvidence,
         ]).filter(isMeaningfulEvidence).length;
-        const evidenceCoverageRatio = Array.isArray(result.risks) && result.risks.length > 0
-          ? evidenceCandidateCount / result.risks.length
+
+        // Adaptive minimum: narrow categories with sparse evidence need fewer risks to be valid.
+        const minimumRiskCount =
+          evidenceCandidateCount <= 2 ? 2
+          : evidenceCandidateCount <= 4 ? 3
+          : Math.min(6, Math.max(4, Math.ceil(evidenceCandidateCount / 2)));
+
+        // Person-centred failure rate on RAW AI output (checked before toFirstPerson enrichment above).
+        const personCentredFailureRate = (result.risks?.length || 0) > 0
+          ? rawPersonCentredViolations / result.risks.length
           : 0;
-        const minimumRiskCount = Math.min(6, Math.max(4, Math.ceil(evidenceCandidateCount / 2)));
 
         if (
           !result.risks ||
@@ -16022,10 +16043,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
           averageRiskScore < 70 ||
           riskDiversityRatio < 0.7 ||
           lowDetailRiskCount > Math.floor((result.risks?.length || 0) / 2) ||
-          evidenceCoverageRatio < 0.8
+          personCentredFailureRate > 0.5
         ) {
           console.warn(
-            `[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, minimum=${minimumRiskCount}, avgScore=${averageRiskScore.toFixed(1)}, diversity=${riskDiversityRatio.toFixed(2)}, lowDetail=${lowDetailRiskCount}, evidenceCoverage=${evidenceCoverageRatio.toFixed(2)}). Using rule-based fallback.`
+            `[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, minimum=${minimumRiskCount}, avgScore=${averageRiskScore.toFixed(1)}, diversity=${riskDiversityRatio.toFixed(2)}, lowDetail=${lowDetailRiskCount}, personCentredViolations=${rawPersonCentredViolations}/${result.risks?.length || 0}). Using rule-based fallback.`
           );
           const fallbackResult = buildRuleBasedRiskAssessmentPayload({
             documentContent: scrubbedDocumentContent,
@@ -16034,6 +16055,9 @@ Remember: Extract information ONLY from the service user documents above. Templa
             performedBy: safePerformedBy,
             performedByJobTitle,
           });
+          if (Array.isArray(fallbackResult.risks)) {
+            fallbackResult.risks = normalizeGeneratedRiskRows(fallbackResult.risks) as typeof fallbackResult.risks;
+          }
           result = fallbackResult;
           result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
           result.assessmentDate = preservedFields.assessmentDate;
