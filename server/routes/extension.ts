@@ -11,7 +11,7 @@
  * management additionally require admin role.
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, RequestHandler } from "express";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
@@ -680,9 +680,11 @@ async function getExtensionPackageMetadata(options: { forceBuild: boolean; updat
 // ── Route Registration ────────────────────────────────────────────────
 
 interface ExtensionRouteDeps {
-  requireAuth: any;
-  requireAdmin: any;
+  requireAuth: RequestHandler;
+  requireAdmin: RequestHandler;
 }
+
+type AuthenticatedRequest = Request & { user?: { id?: unknown; username?: unknown; role?: unknown } };
 
 export function registerExtensionRoutes(
   app: Express,
@@ -691,8 +693,9 @@ export function registerExtensionRoutes(
   const { requireAuth, requireAdmin } = deps;
 
   // Get extension status and connection info
-  app.get("/api/extension/status", requireAuth, async (req: any, res) => {
+  app.get("/api/extension/status", requireAuth, async (req: Request, res: Response) => {
     try {
+      const user = (req as AuthenticatedRequest).user;
       const [manifestVersion, packageStatus, crxPath] = await Promise.all([
         readExtensionManifestVersion(),
         getExtensionPackageStatus(),
@@ -722,11 +725,11 @@ export function registerExtensionRoutes(
 
       return res.json({
         connected: true,
-        version: manifestVersion || "0.3.4",
+        version: manifestVersion || "0.6.40",
         user: {
-          id: req.user?.id,
-          username: req.user?.username,
-          role: req.user?.role
+          id: user?.id,
+          username: user?.username,
+          role: user?.role
         },
         package: packageStatus,
         crx: {
