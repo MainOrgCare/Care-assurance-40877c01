@@ -31,7 +31,7 @@
     "import:acp-service-users": "tsx script/importAccessCarePlanningServiceUsers.ts",
     "package:extension": "node script/package-extension.mjs",
     "package:extension:all": "node script/package-extension.mjs",
-    "extension":"npm run package:extension"
+    "extension": "npm run package:extension"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -166,5 +166,8 @@
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.12"
     }
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.2.4"
   }
 }
