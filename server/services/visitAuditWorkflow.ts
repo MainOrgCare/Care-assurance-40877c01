@@ -22,8 +22,11 @@ const parseAuditDate = (value: string) => {
   if (!match) return null;
   const day = Number(match[1]);
   const month = Number(match[2]) - 1;
-  const year = match[3] ? Number(match[3]) : new Date().getFullYear();
+  const rawYear = match[3] ? Number(match[3]) : new Date().getFullYear();
+  const year = rawYear < 100 ? 2000 + rawYear : rawYear;
   const date = new Date(year, month, day);
+  // Reject rolled-over dates (e.g. 31/04 → May 1st)
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -36,15 +39,36 @@ const formatAuditDate = (date: Date) => {
 const parseVisitDurationMinutes = (value: string) => {
   if (!value) return null;
   const trimmed = value.trim();
+
+  // "1h 30m", "1hr", "1.5hrs" — hours with optional minutes
+  const hMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*h(?:r(?:s)?)?(?:\s*(\d+)\s*m(?:in(?:s)?)?)?$/i);
+  if (hMatch) {
+    const total = Math.round(Number(hMatch[1]) * 60) + (hMatch[2] ? Number(hMatch[2]) : 0);
+    return total > 0 ? total : null;
+  }
+
+  // "90 mins", "45m" — plain minutes
+  const mMatch = trimmed.match(/^(\d+)\s*m(?:in(?:s)?)?$/i);
+  if (mMatch) {
+    const total = Number(mMatch[1]);
+    return total > 0 ? total : null;
+  }
+
+  // Pure numeric: integer = raw minutes, fractional (contains ".") = hours
   const numeric = Number(trimmed);
   if (!Number.isNaN(numeric)) {
+    if (numeric < 0) return null;
     if (trimmed.includes(".")) return Math.round(numeric * 60);
     return Math.round(numeric);
   }
+
+  // "H:MM" — hours and minutes
   const timeMatch = trimmed.match(/(\d{1,2}):(\d{2})/);
   if (timeMatch) {
-    return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+    const total = Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+    return total > 0 ? total : null;
   }
+
   return null;
 };
 
@@ -172,7 +196,7 @@ export function buildDeterministicVisitAudit(lines: string[]) {
       ? justificationKeywords.some((keyword) => notes.toLowerCase().includes(keyword))
       : false;
 
-    const percentageStayed = expectedMinutes !== null && actualMinutes !== null
+    const percentageStayed = expectedMinutes !== null && actualMinutes !== null && expectedMinutes > 0
       ? Math.round((actualMinutes / expectedMinutes) * 100)
       : 100;
     const durationOK = expectedMinutes ? percentageStayed >= 70 : true;

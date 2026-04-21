@@ -408,11 +408,6 @@ function filterSupersededRows(rows: NormalizedBillingRow[]): NormalizedBillingRo
         }
       }
       
-      // 3. Very similar times (within 15 mins) and same service type category
-      if (timesOverlap && sameService) {
-        return true;
-      }
-      
       return false;
     });
     

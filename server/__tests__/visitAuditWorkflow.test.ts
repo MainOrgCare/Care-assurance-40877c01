@@ -212,3 +212,34 @@ test("buildDeterministicVisitAudit correctly rejects 'not ok' location as non-co
   assert.equal(result.careCalls[0].compliant, false);
   assert.ok(result.discrepancies.some((d) => /location/i.test(d.issue)));
 });
+
+test("buildDeterministicVisitAudit handles natural-language duration strings", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|06/04|1h 30m|90 mins|yes|",
+  ]);
+
+  assert.equal(result.careCalls[0].expectedTime, "90m");
+  assert.equal(result.careCalls[0].actualTime, "90m");
+  assert.equal(result.careCalls[0].percentageStayed, 100);
+  assert.equal(result.careCalls[0].compliant, true);
+});
+
+test("buildDeterministicVisitAudit treats zero expected duration as no duration target (no discrepancy)", () => {
+  // expectedMinutes === 0 must NOT cause division by zero; percentageStayed defaults to 100
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|06/04|0|45|yes|",
+  ]);
+
+  assert.equal(result.careCalls[0].percentageStayed, 100);
+  assert.equal(result.careCalls[0].compliant, true);
+});
+
+test("buildDeterministicVisitAudit rejects invalid rollover audit dates", () => {
+  // 31/04 does not exist; normalizeAuditContext should treat it as invalid and not roll to May 1st
+  const context = { auditPeriodStart: "31/04/2026", auditPeriodEnd: "30/04/2026", notes: "", serviceUserName: "J.S." };
+  const normalized = normalizeAuditContext(context);
+  // Invalid date should not produce a rolled-over period
+  assert.ok(!normalized.auditPeriodStart.startsWith("01/05"), "Rolled-over date must not be accepted");
+});

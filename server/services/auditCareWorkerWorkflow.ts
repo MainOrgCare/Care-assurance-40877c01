@@ -58,8 +58,11 @@ const parseComparableDate = (value: string): number | null => {
     const month = Number(slashMatch[2]) - 1;
     const rawYear = slashMatch[3] ? Number(slashMatch[3]) : new Date().getFullYear();
     const year = rawYear < 100 ? 2000 + rawYear : rawYear;
-    const parsed = new Date(year, month, day).getTime();
-    if (!Number.isNaN(parsed)) return parsed;
+    const parsed = new Date(year, month, day);
+    // Reject rolled-over dates (e.g. "31/04" silently becomes May 1st)
+    if (parsed.getFullYear() !== year || parsed.getMonth() !== month || parsed.getDate() !== day) return null;
+    const ts = parsed.getTime();
+    if (!Number.isNaN(ts)) return ts;
   }
 
   // Fall back to native parsing for ISO-style strings (e.g. "2026-04-02").
