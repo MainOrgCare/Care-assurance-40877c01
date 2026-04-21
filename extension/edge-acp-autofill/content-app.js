@@ -110,7 +110,30 @@ const syncThemePreferenceToExtension = (theme) => {
   }
 };
 
-const parseSseStream = async (response) => {
+const detectAndSyncInitialAppTheme = () => {
+  // Try to detect the current app theme from the DOM on startup
+  const rootEl = document.documentElement;
+  let detectedTheme = "";
+  // Check data-app-theme attribute first
+  const attrTheme = rootEl.getAttribute("data-app-theme") || "";
+  if (attrTheme) {
+    detectedTheme = attrTheme;
+  } else {
+    // Fallback: check class list for theme-* classes
+    for (const cls of rootEl.classList) {
+      if (cls.startsWith("theme-")) {
+        detectedTheme = cls.replace("theme-", "");
+        break;
+      }
+    }
+  }
+  const normalized = normalizeAppThemeValue(detectedTheme);
+  if (normalized) {
+    syncThemePreferenceToExtension(normalized);
+  }
+};
+
+const parseSseStream= async (response) => {
   const reader = response.body?.getReader();
   if (!reader) {
     throw new Error("No response stream available");
@@ -507,3 +530,10 @@ window.addEventListener("message", (event) => {
   };
   sendWithRetry();
 });
+
+// Sync the current app theme on content script load
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", detectAndSyncInitialAppTheme, { once: true });
+} else {
+  detectAndSyncInitialAppTheme();
+}

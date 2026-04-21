@@ -33,6 +33,19 @@ const FALLBACK_LEAD_IN_PATTERNS = [
   /^i have (?:a|an)\s+(?:priority|additional)\s+.+?\s+risk identified in my records\.?$/i,
 ];
 
+const FIRST_PERSON_RISK_INDICATORS = [
+  /\bi\s+(?:am|have|need|can|will|experience|use|require|feel|struggle|find|may|get|was|had|could|must)\b/i,
+  /\bmy\s+(?:carer|care\s+team|key\s+worker|support\s+worker|gp|doctor|family|medication|condition|health|mobility|home|plan|risk|needs?|routine|ability|independence|safety|wellbeing|personal|care)\b/i,
+  /\bme\s+(?:to|when|with|by|for|at|from|if)\b/i,
+  /\bi(?:'m|'ve|'ll|'d)\s/i,
+];
+
+const THIRD_PERSON_RISK_INDICATORS = [
+  /^\s*the\s+(?:service\s+user|client|resident|patient|individual)\b/i,
+  /^\s*(?:he|she|they|him|her)\s+(?:is|are|was|were|has|have|needs?|requires?|struggles?)\b/i,
+  /^\s*(?:client|service\s+user|resident)\s+(?:needs?|requires?|has|is|was|struggles?|presents?|experiences?)\b/i,
+];
+
 const STRUCTURED_FIELD_LABEL_PATTERNS = [
   /\bcare assessment\b/i,
   /\bsupport plan\b/i,
@@ -223,9 +236,22 @@ export function sanitizeRiskRow<T extends SanitizableRiskRow>(row: T): T {
   };
 }
 
+function isPersonCentredRiskRow(row: SanitizableRiskRow): boolean {
+  const narrativeFields = [row.riskDefinition, row.howItsARisk, row.controlMeasures]
+    .map((v) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""))
+    .filter((v) => v.length >= 12);
+  if (narrativeFields.length === 0) return true; // no content to judge, let through
+  const hasFirstPerson = narrativeFields.some((text) => looksLikePersonCentredRiskNarrative(text));
+  const allThirdPerson = narrativeFields.every(
+    (text) => !looksLikePersonCentredRiskNarrative(text) && looksLikeThirdPersonRiskNarrative(text),
+  );
+  // Row passes if any field is first-person, or if it's ambiguous (not clearly third-person)
+  return hasFirstPerson || !allThirdPerson;
+}
+
 export function sanitizeGeneratedAssessmentResult<T extends SanitizableGeneratedAssessment>(assessment: T): T {
   const seenRiskRows = new Set<string>();
-  const risks = Array.isArray(assessment.risks)
+  const sanitizedRisks = Array.isArray(assessment.risks)
     ? assessment.risks
         .map((risk) => sanitizeRiskRow(risk))
         .filter((risk) => hasMeaningfulRiskNarrative(risk))
@@ -236,6 +262,9 @@ export function sanitizeGeneratedAssessmentResult<T extends SanitizableGenerated
           return true;
         })
     : [];
+  // Soft filter: prefer person-centred first-person rows, but don't empty the assessment
+  const personCentredRisks = sanitizedRisks.filter(isPersonCentredRiskRow);
+  const risks = personCentredRisks.length > 0 ? personCentredRisks : sanitizedRisks;
 
   return {
     ...assessment,
@@ -299,4 +328,18 @@ export function sanitizePerformerName(value?: string | null): string {
   const normalized = cleaned.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
   if (!normalized || SIGNED_BY_PLACEHOLDER_VALUES.has(normalized)) return "";
   return cleaned;
+}
+
+export function looksLikePersonCentredRiskNarrative(value?: string | null): boolean {
+  if (typeof value !== "string") return false;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (cleaned.length < 12) return false;
+  return FIRST_PERSON_RISK_INDICATORS.some((pattern) => pattern.test(cleaned));
+}
+
+export function looksLikeThirdPersonRiskNarrative(value?: string | null): boolean {
+  if (typeof value !== "string") return false;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (cleaned.length < 12) return false;
+  return THIRD_PERSON_RISK_INDICATORS.some((pattern) => pattern.test(cleaned));
 }

@@ -4,9 +4,11 @@ import test from "node:test";
 import {
   RULE_BASED_SIGNAL_GROUPS,
   buildFallbackRiskProfileSummary,
+  countPersonCentredViolations,
   deescalateRiskRating,
   extractSignalLabels,
   getRuleBasedRiskTargetCount,
+  hasFirstPersonMarkers,
   looksLikeStructuredRiskArtifactText,
   normalizeRiskRating,
 } from "../services/riskAnalysisWorkflow";
@@ -105,5 +107,43 @@ test("getRuleBasedRiskTargetCount stays conservative when evidence is weak or ge
       hasDiverseEvidence: true,
     }),
     4,
+  );
+});
+
+test("hasFirstPersonMarkers detects first-person language in risk text", () => {
+  assert.equal(hasFirstPersonMarkers("I am at risk of falling due to my balance difficulties."), true);
+  assert.equal(hasFirstPersonMarkers("My carers support me to take my medication safely."), true);
+  assert.equal(hasFirstPersonMarkers("I need support to move safely around my home."), true);
+  assert.equal(hasFirstPersonMarkers("The service user is at risk of falling."), false);
+  assert.equal(hasFirstPersonMarkers("Client needs support with daily activities."), false);
+  assert.equal(hasFirstPersonMarkers(""), false);
+});
+
+test("countPersonCentredViolations counts risks lacking first-person language", () => {
+  assert.equal(
+    countPersonCentredViolations([
+      {
+        riskDefinition: "I am at risk of falling.",
+        howItsARisk: "My balance makes falls likely.",
+        controlMeasures: "My care team monitor me when I mobilise.",
+      },
+      {
+        riskDefinition: "The service user is at risk of medication errors.",
+        howItsARisk: "They may take incorrect doses.",
+        controlMeasures: "Staff to administer medication at all times.",
+      },
+    ]),
+    1,
+  );
+
+  assert.equal(
+    countPersonCentredViolations([
+      {
+        riskDefinition: "I am at risk of falling.",
+        howItsARisk: "My balance makes falls likely.",
+        controlMeasures: "My care team monitor me when I mobilise.",
+      },
+    ]),
+    0,
   );
 });

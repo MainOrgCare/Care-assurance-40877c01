@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  looksLikePersonCentredRiskNarrative,
   looksLikeServiceUserName,
+  looksLikeThirdPersonRiskNarrative,
   sanitizeGeneratedAssessmentResult,
   sanitizePerformerName,
   sanitizeRiskDisplayText,
@@ -98,5 +100,73 @@ describe("riskAssessmentUtils", () => {
     expect(sanitizePerformerName("USER")).toBe("");
     expect(sanitizePerformerName("{{PII_test_NAME_1}}")).toBe("");
     expect(sanitizePerformerName("J. Smith")).toBe("J Smith");
+  });
+
+  describe("person-centred first-person narrative detection", () => {
+    it("recognises first-person risk narrative", () => {
+      expect(looksLikePersonCentredRiskNarrative("I am at risk of falling due to my balance difficulties.")).toBe(true);
+      expect(looksLikePersonCentredRiskNarrative("My carers support me to take my medication safely each day.")).toBe(true);
+      expect(looksLikePersonCentredRiskNarrative("I need support to move safely around my home.")).toBe(true);
+      expect(looksLikePersonCentredRiskNarrative("I've experienced episodes of dizziness when standing.")).toBe(true);
+    });
+
+    it("does not flag short or empty strings as first-person", () => {
+      expect(looksLikePersonCentredRiskNarrative("")).toBe(false);
+      expect(looksLikePersonCentredRiskNarrative("I")).toBe(false);
+    });
+
+    it("recognises third-person risk narrative", () => {
+      expect(looksLikeThirdPersonRiskNarrative("The service user is at risk of falling.")).toBe(true);
+      expect(looksLikeThirdPersonRiskNarrative("The client needs support with mobility.")).toBe(false); // does not match 'the client needs'
+      expect(looksLikeThirdPersonRiskNarrative("Client needs support with daily activities.")).toBe(true);
+    });
+
+    it("sanitizeGeneratedAssessmentResult keeps first-person rows and soft-filters third-person", () => {
+      const result = sanitizeGeneratedAssessmentResult({
+        category: "Falls Prevention",
+        risks: [
+          {
+            riskDefinition: "The service user is at risk of falling due to balance issues.",
+            howItsARisk: "The client may sustain injuries.",
+            whoWillBeHarmed: "Service User",
+            controlMeasures: "Staff to monitor the client at all times.",
+            initialRating: "High",
+            ratingAfterControls: "Medium",
+          },
+          {
+            riskDefinition: "I am at risk of falling due to my balance difficulties.",
+            howItsARisk: "My falls could cause me injury and distress.",
+            whoWillBeHarmed: "Service User",
+            controlMeasures: "My care team support me to move safely with my walking frame.",
+            initialRating: "High",
+            ratingAfterControls: "Low",
+          },
+        ],
+      });
+      // The first-person row must be present
+      expect(result.risks.some((r) => r.riskDefinition?.startsWith("I am at risk"))).toBe(true);
+      // The person-centred filter should have removed or deprioritised the third-person row
+      const thirdPersonPresent = result.risks.some((r) => r.riskDefinition?.startsWith("The service user"));
+      // When first-person rows exist, third-person rows should be filtered out
+      expect(thirdPersonPresent).toBe(false);
+    });
+
+    it("sanitizeGeneratedAssessmentResult keeps all rows when none are first-person (graceful degradation)", () => {
+      const result = sanitizeGeneratedAssessmentResult({
+        category: "Falls Prevention",
+        risks: [
+          {
+            riskDefinition: "The service user is at risk of falling.",
+            howItsARisk: "They may sustain injuries.",
+            whoWillBeHarmed: "Service User",
+            controlMeasures: "Staff to monitor at all times.",
+            initialRating: "High",
+            ratingAfterControls: "Medium",
+          },
+        ],
+      });
+      // Should not return empty array - graceful degradation keeps all rows
+      expect(result.risks.length).toBe(1);
+    });
   });
 });

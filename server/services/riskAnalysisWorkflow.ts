@@ -143,3 +143,26 @@ export function deescalateRiskRating(rating: "Low" | "Medium" | "High"): "Low" |
   if (rating === "High") return "Medium";
   return "Low";
 }
+
+export function hasFirstPersonMarkers(text: string): boolean {
+  if (typeof text !== "string" || !text) return false;
+  const lower = text.toLowerCase();
+  return (
+    /\bi\s+(?:am|have|need|can|will|experience|use|require|feel|struggle|find|may|get|was|had|could|must)\b/.test(lower) ||
+    /\bmy\s+(?:carer|care\s+team|medication|condition|health|mobility|home|plan|risk|needs?|routine|ability|independence|safety)\b/.test(lower) ||
+    /\bi(?:'m|'ve|'ll|'d)\s/.test(lower) ||
+    /\bme\s+(?:to|when|with|by|for|at|from|if)\b/.test(lower)
+  );
+}
+
+export function countPersonCentredViolations(risks: unknown[]): number {
+  if (!Array.isArray(risks)) return 0;
+  return risks.filter((risk) => {
+    if (!risk || typeof risk !== "object") return false;
+    const r = risk as Record<string, unknown>;
+    const narrativeText = [r.riskDefinition, r.howItsARisk, r.controlMeasures]
+      .filter((v) => typeof v === "string" && (v as string).trim().length > 20)
+      .join(" ");
+    return narrativeText.length > 20 && !hasFirstPersonMarkers(narrativeText);
+  }).length;
+}
