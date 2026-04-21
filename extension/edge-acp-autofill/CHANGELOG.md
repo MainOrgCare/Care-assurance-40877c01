@@ -1,5 +1,16 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.42 - Auto-Collect XHR Fallback Fix
+
+### Bug Fixes
+
+- **Auto-collect: XHR string-response downloads no longer silently fail.** When Mobizio serves a document via XHR with the default `responseType = ""` (i.e. the page does not explicitly request a blob), the extension could not capture the response body. Previously the code detected a download-like response (by Content-Type / Content-Disposition), failed to extract a Blob because the response was a DOMString, and then silently dropped the result — *without* recording the URL as a candidate for the direct-fetch retry loop, because the `else if (responseUrl)` branch was only reached when `isDownloadLikeResponse` returned false. The auto-collect workflow would end with no downloaded file and no actionable error.
+  - Fixed in **`runRowClickDownload`** and **`runCarePlanDashboardExport`**: when a download-like XHR response arrives but blob extraction yields nothing, the `responseURL` is now recorded as a candidate URL, allowing the direct-fetch fallback loop to attempt the download independently.
+
+### Versioning
+
+- Bumped extension version to `0.6.42` and synchronized manifest.
+
 ## Version 0.6.41 - Corporate Visual Refresh & Reliability Hardening
 
 ### Visual Polish (popup)
