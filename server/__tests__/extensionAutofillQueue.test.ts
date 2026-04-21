@@ -319,6 +319,20 @@ function createBackgroundHarness() {
         null) as Record<string, unknown> | null
     );
 
+  const getStoredPayload = () =>
+    deepClone(
+      (sessionStore.get(STORAGE_KEYS.payload) ??
+        localStore.get(STORAGE_KEYS.payload) ??
+        null) as Record<string, unknown> | null
+    );
+
+  const getCaseInfo = () =>
+    deepClone(
+      (sessionStore.get(STORAGE_KEYS.caseInfo) ??
+        localStore.get(STORAGE_KEYS.caseInfo) ??
+        null) as Record<string, unknown> | null
+    );
+
   const setPayload = (payload: Record<string, unknown>) => {
     setStore(sessionStore, "session", {
       [STORAGE_KEYS.payload]: payload,
@@ -363,12 +377,130 @@ function createBackgroundHarness() {
     setPayload,
     dispatchRuntimeMessage,
     getQueueState,
+    getStoredPayload,
+    getCaseInfo,
     getSingleTrackedTabId,
     emitTabUpdated,
     setTabUrl,
     runScheduledTimeouts,
   };
 }
+
+test("ACP payload storage normalizes to the strict risk-only contract", async () => {
+  const harness = createBackgroundHarness();
+
+  const response = await harness.dispatchRuntimeMessage({
+    type: "CA_EXTENSION_STORE_PAYLOAD",
+    payload: {
+      serviceUserDisplayName: "  Test Extension User  ",
+      caseInfo: { caseId: "144173", serviceDataGroupId: "1017650" },
+      assessments: [
+        {
+          name: " Falls Prevention ",
+          signedBy: " Admin Test ",
+          jobTitle: " System Administrator ",
+          trainingNeeds: true,
+          risks: [
+            {
+              riskTitle: "Respond only with valid JSON.",
+              howItsARisk: "Only use information explicitly stated in the documents provided below.",
+              controlMeasures: "Write everything in first person.",
+              whoWillBeHarmed: "Service User",
+              initialRating: "High",
+              ratingAfterControls: "Low",
+            },
+            {
+              riskTitle: " I am at risk of falling when I stand too quickly. ",
+              howItsARisk: " My dizziness can make me lose balance and hurt myself. ",
+              controlMeasures: " Staff remind me to stand slowly and keep my frame within reach. ",
+              whoWillBeHarmed: " Service User ",
+              initialRating: " High ",
+              ratingAfterControls: " Low ",
+            },
+            {
+              riskDefinition: "I am at risk of falling when I stand too quickly.",
+              howItsARisk: "My dizziness can make me lose balance and hurt myself.",
+              controlMeasures: "Staff remind me to stand slowly and keep my frame within reach.",
+              whoWillBeHarmed: "Service User",
+              initialRating: "High",
+              ratingAfterControls: "Low",
+            },
+          ],
+          unsupportedField: "discard me",
+        },
+        {
+          category: "Empty",
+          risks: [
+            {
+              riskDefinition: "  ",
+              howItsARisk: "  ",
+              controlMeasures: "  ",
+            },
+          ],
+        },
+      ],
+      unexpectedRootField: "discard me too",
+    },
+  });
+
+  assert.equal(response?.ok, true);
+  assert.deepEqual(harness.getCaseInfo(), {
+    caseId: "144173",
+    serviceDataGroupId: "1017650",
+  });
+  assert.deepEqual(harness.getStoredPayload(), {
+    formType: "acp",
+    serviceUserDisplayName: "Test Extension User",
+    serviceUserInitials: "",
+    caseId: "144173",
+    serviceDataGroupId: "1017650",
+    assessments: [
+      {
+        category: "Falls Prevention",
+        assessmentDate: "",
+        signedBy: "Admin Test",
+        jobTitle: "System Administrator",
+        trainingNeeds: "Yes",
+        risks: [
+          {
+            riskDefinition: "I am at risk of falling when I stand too quickly.",
+            initialRating: "High",
+            whoWillBeHarmed: "Service User",
+            howItsARisk: "My dizziness can make me lose balance and hurt myself.",
+            controlMeasures: "Staff remind me to stand slowly and keep my frame within reach.",
+            ratingAfterControls: "Low",
+          },
+        ],
+      },
+    ],
+  });
+});
+
+test("ACP payload storage rejects prompt-only assessment payloads", async () => {
+  const harness = createBackgroundHarness();
+
+  const response = await harness.dispatchRuntimeMessage({
+    type: "CA_EXTENSION_STORE_PAYLOAD",
+    payload: {
+      assessments: [
+        {
+          category: "Falls Prevention",
+          risks: [
+            {
+              riskDefinition: "Documents provided below.",
+              howItsARisk: "Only use information explicitly stated.",
+              controlMeasures: "Respond only with valid JSON.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(response?.ok, false);
+  assert.match(String(response?.error || ""), /no usable assessments/i);
+  assert.equal(harness.getStoredPayload(), null);
+});
 
 test("ACP queue does not double-advance when stepComplete and success-page signals both arrive", async () => {
   const harness = createBackgroundHarness();

@@ -1597,26 +1597,6 @@ const getTrainingNeedsSelectLabel = (assessment) => {
     }
   }
 
-  const evidenceTexts = [
-    assessment.additionalNotes,
-    ...(Array.isArray(assessment.supportingEvidence) ? assessment.supportingEvidence : []),
-    ...(Array.isArray(assessment.risks)
-      ? assessment.risks.flatMap((risk) => [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures])
-      : []),
-  ]
-    .filter((value) => typeof value === "string")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  for (const text of evidenceTexts) {
-    if (TRAINING_NEEDS_FALSE_PATTERNS.some((pattern) => pattern.test(text))) {
-      return "No";
-    }
-    if (TRAINING_NEEDS_TRUE_PATTERNS.some((pattern) => pattern.test(text))) {
-      return "Yes";
-    }
-  }
-
   return "No";
 };
 

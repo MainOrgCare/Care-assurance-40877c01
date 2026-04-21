@@ -113,6 +113,163 @@ const pickFirstNonEmptyPayloadValue = (...values) => {
   return "";
 };
 
+const normalizePayloadText = (value) =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+const ACP_PROMPT_ARTIFACT_PATTERNS = [
+  /\brespond only with valid json\b/i,
+  /\breturn only with valid json\b/i,
+  /\breturn only valid json\b/i,
+  /\bvalid json\b/i,
+  /\bevidence pack\b/i,
+  /\bprofile context\b/i,
+  /\brisk assessment category\b/i,
+  /\bcritical requirement\b/i,
+  /\bservice user documents?\b/i,
+  /\bdocuments? provided below\b/i,
+  /\bonly use information explicitly stated\b/i,
+  /\bdo not (?:invent|fabricate|assume)\b/i,
+  /\bwrite everything in first person\b/i,
+  /\btemplates? (?:above|below)\b/i,
+  /\bbased on the documents provided\b/i,
+];
+
+const containsAcpPromptArtifact = (value) => {
+  const normalized = normalizePayloadText(value);
+  if (!normalized) return false;
+  return ACP_PROMPT_ARTIFACT_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
+const buildAcpRiskSignature = (risk) =>
+  [
+    risk.riskDefinition,
+    risk.howItsARisk,
+    risk.whoWillBeHarmed,
+    risk.controlMeasures,
+    risk.initialRating,
+    risk.ratingAfterControls,
+  ]
+    .map((value) => normalizePayloadText(value).toLowerCase())
+    .join("||");
+
+const normalizeAcpTrainingNeeds = (value) => {
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  const normalized = normalizePayloadText(value);
+  if (!normalized) return "";
+
+  const lower = normalized.toLowerCase();
+  if (["yes", "true", "required", "needed"].includes(lower)) return "Yes";
+  if (["no", "false", "none", "n/a", "na"].includes(lower)) return "No";
+  return normalized;
+};
+
+const normalizeAcpRiskRow = (risk) => {
+  if (!risk || typeof risk !== "object") return null;
+
+  const normalized = {
+    riskDefinition: normalizePayloadText(risk.riskDefinition || risk.riskTitle || risk.title),
+    initialRating: normalizePayloadText(risk.initialRating),
+    whoWillBeHarmed: normalizePayloadText(risk.whoWillBeHarmed),
+    howItsARisk: normalizePayloadText(risk.howItsARisk),
+    controlMeasures: normalizePayloadText(risk.controlMeasures),
+    ratingAfterControls: normalizePayloadText(risk.ratingAfterControls),
+  };
+
+  const narrativeFields = [normalized.riskDefinition, normalized.howItsARisk, normalized.controlMeasures];
+  if (!narrativeFields.some(Boolean)) {
+    return null;
+  }
+  if (narrativeFields.some((field) => containsAcpPromptArtifact(field))) {
+    return null;
+  }
+
+  return normalized;
+};
+
+const normalizeAcpAssessment = (assessment) => {
+  if (!assessment || typeof assessment !== "object") return null;
+
+  const seenRiskRows = new Set();
+  const normalizedRisks = (Array.isArray(assessment.risks) ? assessment.risks : [])
+    .map((risk) => normalizeAcpRiskRow(risk))
+    .filter(Boolean)
+    .filter((risk) => {
+      const signature = buildAcpRiskSignature(risk);
+      if (!signature || seenRiskRows.has(signature)) return false;
+      seenRiskRows.add(signature);
+      return true;
+    });
+
+  if (!normalizedRisks.length) {
+    return null;
+  }
+
+  return {
+    category: normalizePayloadText(assessment.category || assessment.name),
+    assessmentDate: normalizePayloadText(assessment.assessmentDate || assessment.date),
+    signedBy: normalizePayloadText(assessment.signedBy),
+    jobTitle: normalizePayloadText(assessment.jobTitle),
+    trainingNeeds: normalizeAcpTrainingNeeds(
+      assessment.trainingNeeds ??
+        assessment.trainingNeed ??
+        assessment.trainingRequirement ??
+        assessment.trainingRequirements ??
+        assessment.requiresTraining ??
+        assessment.additionalTrainingRequired ??
+        assessment.isStandardPractice,
+    ),
+    risks: normalizedRisks,
+  };
+};
+
+const normalizeStoredPayload = (payload) => {
+  if (!payload || typeof payload !== "object") return payload;
+
+  const rawFormType = normalizePayloadText(payload.formType).toLowerCase();
+  const formType = rawFormType === "initialassessment"
+    ? "initialAssessment"
+    : rawFormType === "emar"
+      ? "emar"
+      : rawFormType === "custom"
+        ? "custom"
+        : "acp";
+
+  if (formType !== "acp") {
+    return {
+      ...payload,
+      formType,
+    };
+  }
+
+  const normalizedAssessments = (Array.isArray(payload.assessments) ? payload.assessments : [])
+    .map((assessment) => normalizeAcpAssessment(assessment))
+    .filter(Boolean);
+
+  return {
+    formType: "acp",
+    serviceUserDisplayName: normalizePayloadText(
+      payload.serviceUserDisplayName || payload.serviceUserName || payload.serviceUser?.displayName || payload.serviceUser?.name,
+    ),
+    serviceUserInitials: normalizePayloadText(payload.serviceUserInitials || payload.serviceUser?.initials),
+    caseId: pickFirstNonEmptyPayloadValue(
+      normalizePayloadText(payload.caseId),
+      normalizePayloadText(payload.acpId),
+      normalizePayloadText(payload.accessCarePlanningId),
+      normalizePayloadText(payload.serviceUser?.acpId),
+      normalizePayloadText(payload.serviceUser?.accessCarePlanningId),
+      normalizePayloadText(payload.caseInfo?.caseId),
+    ),
+    serviceDataGroupId: pickFirstNonEmptyPayloadValue(
+      normalizePayloadText(payload.serviceDataGroupId),
+      normalizePayloadText(payload.caseInfo?.serviceDataGroupId),
+    ),
+    assessments: normalizedAssessments,
+  };
+};
+
 const buildCaseInfoFromPayload = (payload, existingCaseInfo = null) => {
   if (!payload || typeof payload !== "object") return existingCaseInfo || null;
 
@@ -1003,7 +1160,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.storePayload) {
     Promise.resolve()
       .then(async () => {
-        const payload = message?.payload;
+        const payload = normalizeStoredPayload(message?.payload);
+        if (payload?.formType === "acp" && (!Array.isArray(payload.assessments) || payload.assessments.length === 0)) {
+          throw new Error("ACP payload has no usable assessments to store.");
+        }
         const storedValues = await getStored([STORAGE_KEYS.caseInfo]);
         const nextCaseInfo = buildCaseInfoFromPayload(payload, storedValues?.[STORAGE_KEYS.caseInfo] || null);
 

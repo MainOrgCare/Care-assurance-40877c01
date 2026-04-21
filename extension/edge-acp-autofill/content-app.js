@@ -14,6 +14,7 @@ const EXTENSION_APP_THEME_KEY = window.CA_EXTENSION_CONSTANTS?.STORAGE_KEYS?.app
 const EXTENSION_RUNTIME_CONFIG_KEY = window.CA_EXTENSION_CONSTANTS?.STORAGE_KEYS?.runtimeConfig || "caAcpRuntimeConfig";
 const normalizeRuntimeConfig = window.CA_EXTENSION_CONSTANTS?.normalizeRuntimeConfig || ((value) => value);
 const SUPPORTED_APP_THEMES = new Set(["light", "sunrise", "dark", "midnight", "ocean", "aurora"]);
+const SUPPORTED_APP_THEME_CLASS_PATTERN = /^theme-(light|sunrise|dark|midnight|ocean|aurora)$/;
 
 let lastSyncedAppTheme = "";
 
@@ -121,7 +122,7 @@ const detectAndSyncInitialAppTheme = () => {
   } else {
     // Fallback: check class list for theme-* classes
     for (const cls of rootEl.classList) {
-      if (cls.startsWith("theme-")) {
+      if (SUPPORTED_APP_THEME_CLASS_PATTERN.test(cls)) {
         detectedTheme = cls.replace("theme-", "");
         break;
       }
