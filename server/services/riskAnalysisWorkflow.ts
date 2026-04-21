@@ -1,6 +1,6 @@
 export const RULE_BASED_SIGNAL_GROUPS = {
   medicalConditions: [
-    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hyperglycem"] },
+    { label: "Diabetes", terms: ["diabet", "insulin", "blood glucose", "hypogly", "hyperglyce"] },
     { label: "Dementia or cognitive impairment", terms: ["dementia", "alzheimer", "memory", "cognit", "confus"] },
     { label: "Epilepsy or seizures", terms: ["epilep", "seizure"] },
     { label: "Respiratory condition", terms: ["copd", "asthma", "breathless", "oxygen", "inhaler"] },
