@@ -432,6 +432,11 @@ const shouldReplaceEntry = (current: any, candidate: any): boolean => {
     return candidateCode.length > currentCode.length;
   }
 
+  // Final tiebreaker: prefer isOfficeClosed=true (more informative — records out-of-hours context)
+  const currentClosed = Boolean(current?.isOfficeClosed);
+  const candidateClosed = Boolean(candidate?.isOfficeClosed);
+  if (currentClosed !== candidateClosed) return candidateClosed;
+
   return false;
 };
 
