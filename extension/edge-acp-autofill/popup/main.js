@@ -7282,12 +7282,8 @@ function bindEvents() {
     if (!state.selectedUser) return;
     setButtonLoading(dom.loadRiskBtn, true);
     try {
-      const res = await apiProxy(`/api/extension/risk-assessment/${state.selectedUser.riskAssessmentId}`);
-      if (!res.ok) throw new Error(res.error || "Failed to load risk assessment");
-      await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
-      showSuccess("Risk assessment loaded! Go to Autofill tab.");
-      switchTab("autofill");
-      schedulePopupRefresh({ payload: true, immediate: true });
+      await openCareAssuranceRoute("/service-users/risk-assessment");
+      showInfo("Open the service user's latest risk assessment there, then use Send to extension for ACP autofill.");
     } catch (error) { showError(error.message); } finally { setButtonLoading(dom.loadRiskBtn, false); }
   });
 

@@ -1437,6 +1437,10 @@ export function selectUser(userId) {
   state.selectedUser = state.serviceUsers.find((u) => u.id === userId);
   if (!state.selectedUser) return;
 
+  const riskGuidance = state.selectedUser.hasRiskAssessment
+    ? "Open the live Risk Assessment page to review the latest assessment and use Send to extension for ACP-ready data."
+    : "Use the live Risk Assessment page to generate a fresh assessment, then send the ACP-ready payload straight to the extension.";
+
   if (dom.selectedUserSection) dom.selectedUserSection.hidden = false;
   if (dom.selectedUserInfo) {
     dom.selectedUserInfo.innerHTML = `
@@ -1451,11 +1455,12 @@ export function selectUser(userId) {
         </div>
       </div>
       ${state.selectedUser.summary ? `<div class="summary-box">${escapeHtml(state.selectedUser.summary)}</div>` : ""}
+      <div class="summary-box selected-user-guidance"><strong>Risk assessments:</strong> ${escapeHtml(riskGuidance)}</div>
     `;
   }
 
   if (dom.loadCarePlanBtn) dom.loadCarePlanBtn.disabled = !state.selectedUser.hasCarePlan;
-  if (dom.loadRiskBtn) dom.loadRiskBtn.disabled = !state.selectedUser.hasRiskAssessment;
+  if (dom.loadRiskBtn) dom.loadRiskBtn.disabled = false;
   renderCaseContextStrip();
 }
 

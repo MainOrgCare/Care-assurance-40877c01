@@ -29,6 +29,48 @@ const DISPLAY_BOILERPLATE_PATTERNS = [
   /\bthis section should be completed\b/i,
 ];
 
+const AI_INSTRUCTION_PATTERNS = [
+  /\brespond only with valid json\b/i,
+  /\breturn only with valid json\b/i,
+  /\breturn only valid json\b/i,
+  /\bvalid json\b/i,
+  /\bevidence pack\b/i,
+  /\bprofile context\b/i,
+  /\brisk assessment category\b/i,
+  /\bcritical requirement\b/i,
+  /\bservice user documents?\b/i,
+  /\bdocuments? provided below\b/i,
+  /\bonly use information explicitly stated\b/i,
+  /\bdo not (?:invent|fabricate|assume)\b/i,
+  /\bevery risk(?: you identify)? must be traceable\b/i,
+  /\bwrite everything in first person\b/i,
+  /\btemplates? (?:above|below)\b/i,
+  /\bbased on the documents provided\b/i,
+  /\bextract information only\b/i,
+  /\buse (?:this|these) (?:facts|evidence|documents?) first\b/i,
+];
+
+const TRAINING_NEEDS_FALSE_PATTERNS = [
+  /\bno(?:\s+additional)?\s+training\s+(?:needs?|needed|required)\b/i,
+  /\bstandard\s+practi[cs]e\b/i,
+  /\bstandard\s+procedure\b/i,
+  /\bnormal\s+induction\b/i,
+  /\broutine\s+training\b/i,
+];
+
+const TRAINING_NEEDS_TRUE_PATTERNS = [
+  /\bnot\s+standard\s+practi[cs]e\b/i,
+  /\badditional\s+training\b/i,
+  /\bextra\s+training\b/i,
+  /\bfurther\s+training\b/i,
+  /\brefresher\s+training\b/i,
+  /\bspecial(?:ist)?\s+training\b/i,
+  /\btargeted\s+training\b/i,
+  /\bbespoke\s+training\b/i,
+  /\btraining\s+(?:need|needs|needed|required|requirement|gap|gaps)\b/i,
+  /\bcompetenc(?:y|ies)\s+(?:gap|gaps|issue|issues)\b/i,
+];
+
 const FALLBACK_LEAD_IN_PATTERNS = [
   /^i have (?:a|an)\s+(?:priority|additional)\s+.+?\s+risk identified in my records\.?$/i,
 ];
@@ -143,6 +185,10 @@ function looksLikeStructuredFieldNoise(value: string): boolean {
   return labelMatches >= 2 && punctuationArtifacts > 0;
 }
 
+function looksLikeAiInstructionText(value: string): boolean {
+  return AI_INSTRUCTION_PATTERNS.some((pattern) => pattern.test(value));
+}
+
 export function sanitizeRiskDisplayText(value?: string | null): string {
   if (typeof value !== "string") return "";
   let cleaned = value;
@@ -167,6 +213,7 @@ export function sanitizeRiskDisplayText(value?: string | null): string {
     .filter((part) => !FALLBACK_LEAD_IN_PATTERNS.some((pattern) => pattern.test(part)))
     .filter((part) => !QUESTIONNAIRE_SENTENCE_PATTERNS.some((pattern) => pattern.test(part)))
     .filter((part) => !DISPLAY_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(part)))
+    .filter((part) => !looksLikeAiInstructionText(part))
     .filter((part) => !looksLikeStructuredFieldNoise(part))
     .filter((part) => {
       if (/[.!?]$/.test(part)) return true;
@@ -200,6 +247,92 @@ export function sanitizeStringList(values?: string[]): string[] {
   });
 
   return cleaned;
+}
+
+function normalizeTrainingNeedsDecision(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (["yes", "true", "required", "needed"].includes(normalized)) {
+    return true;
+  }
+
+  if (["no", "false", "none", "n/a", "na"].includes(normalized)) {
+    return false;
+  }
+
+  if (TRAINING_NEEDS_FALSE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+
+  if (TRAINING_NEEDS_TRUE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  return null;
+}
+
+type TrainingNeedsAssessmentLike = SanitizableGeneratedAssessment & {
+  trainingNeeds?: unknown;
+  trainingNeed?: unknown;
+  trainingRequirement?: unknown;
+  trainingRequirements?: unknown;
+  requiresTraining?: unknown;
+  additionalTrainingRequired?: unknown;
+  isStandardPractice?: unknown;
+};
+
+export function deriveTrainingNeedsLabel(assessment?: TrainingNeedsAssessmentLike | null): "Yes" | "No" {
+  if (!assessment || typeof assessment !== "object") {
+    return "No";
+  }
+
+  const explicitCandidates = [
+    assessment.trainingNeeds,
+    assessment.trainingNeed,
+    assessment.trainingRequirement,
+    assessment.trainingRequirements,
+    assessment.requiresTraining,
+    assessment.additionalTrainingRequired,
+    assessment.isStandardPractice,
+  ];
+
+  for (const candidate of explicitCandidates) {
+    const normalized = normalizeTrainingNeedsDecision(candidate);
+    if (normalized !== null) {
+      return normalized ? "Yes" : "No";
+    }
+  }
+
+  const evidenceTexts = [
+    assessment.additionalNotes,
+    ...(Array.isArray(assessment.supportingEvidence) ? assessment.supportingEvidence : []),
+    ...(Array.isArray(assessment.risks)
+      ? assessment.risks.flatMap((risk) => [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures])
+      : []),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  for (const text of evidenceTexts) {
+    if (TRAINING_NEEDS_FALSE_PATTERNS.some((pattern) => pattern.test(text))) {
+      return "No";
+    }
+    if (TRAINING_NEEDS_TRUE_PATTERNS.some((pattern) => pattern.test(text))) {
+      return "Yes";
+    }
+  }
+
+  return "No";
 }
 
 function normalizeCompactText(value?: string | null): string {

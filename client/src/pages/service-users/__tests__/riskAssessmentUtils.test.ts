@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deriveTrainingNeedsLabel,
   looksLikePersonCentredRiskNarrative,
   looksLikeServiceUserName,
   looksLikeThirdPersonRiskNarrative,
@@ -34,6 +35,20 @@ describe("riskAssessmentUtils", () => {
         "I have a priority community access and social support assessment risk identified in my records. My documents note: === === Support Plan This Support Plan is for:: Date of birth: Client ID: PER9107 Address:,,,, Phone:: This plan is: a review and update support plan update support plan following a reass. I need a clear, detailed plan so this risk is managed safely and consistently in daily care.",
       ),
     ).toBe("I need a clear, detailed plan so this risk is managed safely and consistently in daily care.");
+  });
+
+  it("removes leaked AI instruction text from generated risk content", () => {
+    expect(
+      sanitizeRiskDisplayText(
+        "Critical requirement: only use information explicitly stated in the service user documents provided below. I am at risk of falling when I stand too quickly because I become dizzy.",
+      ),
+    ).toBe("I am at risk of falling when I stand too quickly because I become dizzy.");
+
+    expect(
+      sanitizeRiskDisplayText(
+        "Respond only with valid JSON. Based on the documents provided, my carers need to support me with safe transfers using my frame.",
+      ),
+    ).toBe("");
   });
 
   it("deduplicates sanitized string lists", () => {
@@ -89,6 +104,41 @@ describe("riskAssessmentUtils", () => {
     expect(assessment.additionalNotes).toBe("");
   });
 
+  it("drops prompt-like risk rows so only real risks remain", () => {
+    const assessment = sanitizeGeneratedAssessmentResult({
+      category: "Falls Prevention",
+      risks: [
+        {
+          riskDefinition: "Documents to analyze: return only valid JSON.",
+          howItsARisk: "Only use information explicitly stated in the documents provided below.",
+          whoWillBeHarmed: "Service User",
+          controlMeasures: "Write everything in first person.",
+          initialRating: "High",
+          ratingAfterControls: "Medium",
+        },
+        {
+          riskDefinition: "I am at risk of falling when I rush to stand up from my chair.",
+          howItsARisk: "My dizziness can make me lose balance and hurt myself.",
+          whoWillBeHarmed: "Service User",
+          controlMeasures: "My care team remind me to stand slowly and keep my frame within reach.",
+          initialRating: "High",
+          ratingAfterControls: "Low",
+        },
+      ],
+    });
+
+    expect(assessment.risks).toEqual([
+      {
+        riskDefinition: "I am at risk of falling when I rush to stand up from my chair.",
+        howItsARisk: "My dizziness can make me lose balance and hurt myself.",
+        whoWillBeHarmed: "Service User",
+        controlMeasures: "My care team remind me to stand slowly and keep my frame within reach.",
+        initialRating: "High",
+        ratingAfterControls: "Low",
+      },
+    ]);
+  });
+
   it("accepts realistic service-user names and rejects placeholders", () => {
     expect(looksLikeServiceUserName("Mary van Buren")).toBe(true);
     expect(sanitizeServiceUserName("Service User Name")).toBe("");
@@ -100,6 +150,27 @@ describe("riskAssessmentUtils", () => {
     expect(sanitizePerformerName("USER")).toBe("");
     expect(sanitizePerformerName("{{PII_test_NAME_1}}")).toBe("");
     expect(sanitizePerformerName("J. Smith")).toBe("J Smith");
+  });
+
+  it("derives training-needs labels from explicit values first", () => {
+    expect(deriveTrainingNeedsLabel({ trainingNeeds: true })).toBe("Yes");
+    expect(deriveTrainingNeedsLabel({ trainingNeeds: "No additional training needed" })).toBe("No");
+  });
+
+  it("derives training-needs labels from assessment evidence when no explicit value exists", () => {
+    expect(
+      deriveTrainingNeedsLabel({
+        additionalNotes: "My carers require refresher training before supporting this task.",
+        risks: [],
+      }),
+    ).toBe("Yes");
+
+    expect(
+      deriveTrainingNeedsLabel({
+        supportingEvidence: ["This remains standard practice with routine training only."],
+        risks: [],
+      }),
+    ).toBe("No");
   });
 
   describe("person-centred first-person narrative detection", () => {

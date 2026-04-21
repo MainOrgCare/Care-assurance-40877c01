@@ -20,6 +20,7 @@ import { ClientPIIVault, VaultExport } from "@/lib/pii-vault";
 import { consumeJsonSseStream } from "@/lib/sse";
 import { normalizeServiceUserInitials } from "./riskIdentity";
 import {
+  deriveTrainingNeedsLabel,
   looksLikeServiceUserName,
   sanitizePerformerName,
   sanitizeGeneratedAssessmentResult,
@@ -1457,28 +1458,17 @@ export default function RiskAssessment() {
       return;
     }
     const payload = {
-      version: 1,
-      createdAt: new Date().toISOString(),
       serviceUserDisplayName: requiredName,
       serviceUserInitials: payloadInitials,
       caseId: extensionCaseId || undefined,
-      acpId: extensionCaseId || undefined,
-      accessCarePlanningId: extensionCaseId || undefined,
       serviceDataGroupId: extensionServiceGroupId || undefined,
-      caseInfo: extensionCaseId || extensionServiceGroupId
-        ? {
-            caseId: extensionCaseId || undefined,
-            serviceDataGroupId: extensionServiceGroupId || undefined,
-          }
-        : undefined,
       assessments: normalizedAssessments.map((safeAssessment) => {
         return {
           category: safeAssessment.category,
-          serviceUserInitials: safeAssessment.serviceUserInitials,
           assessmentDate: safeAssessment.assessmentDate,
           signedBy: safeAssessment.signedBy,
           jobTitle: safeAssessment.jobTitle,
-          additionalNotes: safeAssessment.additionalNotes,
+          trainingNeeds: deriveTrainingNeedsLabel(safeAssessment),
           risks: safeAssessment.risks.map((risk) => ({
             riskDefinition: risk.riskDefinition,
             initialRating: risk.initialRating,

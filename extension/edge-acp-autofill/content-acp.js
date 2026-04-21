@@ -1461,6 +1461,27 @@ const THIRD_PERSON_RISK_PATTERNS = [
   /^\s*(?:he|she|they)\s+(?:is|are|was|were|has|have|needs?|requires?)\b/i,
   /^\s*(?:client|service\s+user|resident)\s+(?:needs?|requires?|has|is|was|struggles?)\b/i,
 ];
+const AI_INSTRUCTION_RISK_PATTERNS = [
+  /\brespond only with valid json\b/i,
+  /\bvalid json\b/i,
+  /\bevidence pack\b/i,
+  /\bprofile context\b/i,
+  /\brisk assessment category\b/i,
+  /\bcritical requirement\b/i,
+  /\bservice user documents?\b/i,
+  /\bdocuments? provided below\b/i,
+  /\bonly use information explicitly stated\b/i,
+  /\bdo not (?:invent|fabricate|assume)\b/i,
+  /\bwrite everything in first person\b/i,
+  /\btemplates? (?:above|below)\b/i,
+  /\bbased on the documents provided\b/i,
+];
+
+const containsPromptArtifact = (value) => {
+  const normalized = normalizeRiskRowText(value);
+  if (!normalized) return false;
+  return AI_INSTRUCTION_RISK_PATTERNS.some((pattern) => pattern.test(normalized));
+};
 
 const isPersonCentredRiskRow = (risk) => {
   const narrativeFields = [risk?.riskDefinition, risk?.howItsARisk, risk?.controlMeasures]
@@ -1499,6 +1520,10 @@ const normalizeAssessmentRisks = (assessment) => {
       initialRating: normalizeRiskRowText(risk?.initialRating),
       ratingAfterControls: normalizeRiskRowText(risk?.ratingAfterControls),
     }))
+    .filter((risk) => {
+      const narrativeFields = [risk.riskDefinition, risk.howItsARisk, risk.controlMeasures];
+      return !narrativeFields.some((field) => containsPromptArtifact(field));
+    })
     .filter((risk) => risk.riskDefinition || risk.howItsARisk || risk.controlMeasures)
     .filter((risk) => {
       const signature = buildRiskRowSignature(risk);

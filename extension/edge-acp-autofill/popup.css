@@ -1236,6 +1236,10 @@ body {
   font-weight: 600;
 }
 
+.selected-user-guidance {
+  margin-top: 10px;
+}
+
 /* ===== DOCUMENT TYPE GRID ===== */
 .document-type-grid {
   display: grid;

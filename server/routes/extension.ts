@@ -1087,30 +1087,10 @@ export function registerExtensionRoutes(
   // Get risk assessment data formatted for extension autofill
   app.get("/api/extension/risk-assessment/:id", requireAuth, async (req: any, res) => {
     try {
-      const { id } = req.params;
-      const allLogs = await storage.getAllRiskAssessmentLogs();
-      const riskAssessment = allLogs.find((log: RiskAssessmentLog) => log.id === id);
-
-      if (!riskAssessment) {
-        return res.status(404).json({ message: "Risk assessment not found" });
-      }
-
-      const selectedAssessments = (riskAssessment.selectedAssessments || []) as string[];
-
-      const payload = {
-        formType: "acp",
-        serviceUser: {
-          name: riskAssessment.serviceUserInitials,
-          initials: riskAssessment.serviceUserInitials
-        },
-        assessments: selectedAssessments.map((name: string) => ({ name, riskLevel: "Medium", findings: "" })),
-        metadata: {
-          generatedAt: riskAssessment.createdAt,
-          generatedBy: riskAssessment.performedBy
-        }
-      };
-
-      return res.json(payload);
+      return res.status(410).json({
+        message:
+          "Legacy popup risk loading is no longer available. Open the live Risk Assessment page and send the fresh ACP-ready payload directly to the extension.",
+      });
     } catch (error: unknown) {
       console.error("Extension risk assessment error:", error);
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to get risk assessment") });
