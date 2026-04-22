@@ -59,6 +59,7 @@
       ],
       "js": [
         "constants.js",
+        "realistic-typing.js",
         "content-acp.js",
         "content-initial-assessment.js",
         "content-emar.js",

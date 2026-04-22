@@ -15722,6 +15722,101 @@ CRITICAL REMINDER:
       const evidenceSummary = typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "";
       const assessmentKey = normalizeAssessmentKey(safeAssessmentCategory);
       const categoryEvidenceTerms = ASSESSMENT_EVIDENCE_TERMS[assessmentKey] || [];
+      // Topic spectrum that the AI must spread its risk rows across so two
+      // rows in the same assessment never describe the same underlying
+      // hazard. For "General Risk Assessment" (which has no narrow term
+      // list), the spectrum spans the major care domains so each generated
+      // risk row covers a genuinely different aspect of daily care.
+      const buildCategoryTopicSpectrum = (key: string, category: string): string[] => {
+        const generalSpectrum = [
+          "Falls and unsteady mobility",
+          "Medication safety and administration",
+          "Skin integrity and pressure area care",
+          "Nutrition, hydration and swallowing",
+          "Personal care, continence and dignity",
+          "Mental health, mood and social isolation",
+          "Cognition, memory and decision making",
+          "Home environment hazards (trip, fire, access)",
+          "Infection prevention",
+          "Communication and sensory needs",
+          "Lone working and emergency response",
+        ];
+        if (key === "general risk assessment" || /^general/i.test(category) || categoryEvidenceTerms.length === 0) {
+          return generalSpectrum;
+        }
+        const categorySpecific: Record<string, string[]> = {
+          "falls prevention": [
+            "Balance and dizziness",
+            "Environmental trip hazards",
+            "Footwear and walking aid use",
+            "Medication side effects (sedation, postural drop)",
+            "Visual impairment and lighting",
+            "Transfer technique and assistance level",
+            "Night-time mobilising and bathroom access",
+          ],
+          "medication administration": [
+            "Right person / right dose / right time",
+            "Refusals and missed doses",
+            "Time-critical medicines",
+            "Side-effect monitoring",
+            "Storage, expiry and controlled drugs",
+            "PRN decision making",
+            "Self-administration capacity",
+          ],
+          "nutrition": [
+            "Reduced appetite and weight loss",
+            "Hydration and fluid intake",
+            "Swallowing difficulty / choking",
+            "Special diet adherence (diabetic, soft, fortified)",
+            "Meal preparation and timing",
+            "Cultural or preference-based food needs",
+          ],
+          "skin integrity": [
+            "Pressure damage at common bony points",
+            "Moisture lesions and continence-related skin breakdown",
+            "Skin tears from transfers",
+            "Wound monitoring and dressing changes",
+            "Repositioning regime",
+          ],
+          "mobility and moving and handling": [
+            "Safe transfer technique with chosen equipment",
+            "Hoist sling fitting and inspection",
+            "Floor recovery if a fall occurs",
+            "Lone-working transfer constraints",
+            "Pain on movement",
+          ],
+          "dementia care": [
+            "Disorientation and time/place confusion",
+            "Wandering and exit-seeking behaviour",
+            "Sundowning and changes through the day",
+            "Capacity to consent to care tasks",
+            "Recognising and responding to distress",
+          ],
+          "mental health": [
+            "Mood changes and depression indicators",
+            "Anxiety and agitation triggers",
+            "Sleep disturbance",
+            "Social isolation and engagement",
+            "Self-neglect indicators",
+          ],
+          "infection control": [
+            "Hand hygiene and PPE use",
+            "Symptomatic infection escalation (UTI, chest, COVID-style)",
+            "Equipment cleaning between uses",
+            "Visitor/multi-carer cross-contamination",
+            "Wound and catheter site infection signs",
+          ],
+          "environmental safety": [
+            "Trip hazards and clutter",
+            "Lighting and stair safety",
+            "Fire safety (smoke alarms, smoking, oxygen near heat)",
+            "Pets and unfamiliar visitors",
+            "Lone working access (key safe, door entry)",
+          ],
+        };
+        return categorySpecific[key] || generalSpectrum;
+      };
+      const topicSpectrum = buildCategoryTopicSpectrum(assessmentKey, safeAssessmentCategory);
       const generationEvidenceFinder = buildDocumentEvidenceFinder(documentContent || "");
       const documentEvidenceSnippets = generationEvidenceFinder.findAllSnippets(categoryEvidenceTerms, 12).filter(isMeaningfulEvidence);
       const supportingEvidencePool = Array.from(new Set(
@@ -15832,6 +15927,9 @@ ${privacyDirective}
 
 RISK ASSESSMENT CATEGORY: ${safeAssessmentCategory}
 
+TOPIC SPECTRUM FOR THIS CATEGORY (each generated risk row MUST cover a different topic from this list, only when the SERVICE USER documents contain evidence for that topic):
+${topicSpectrum.map((topic, i) => `${i + 1}. ${topic}`).join("\n")}
+
 CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
 - A comprehensive risk assessment typically has MULTIPLE risks (usually 4-10 risks depending on the category)
 - Return at least 4 distinct risk entries whenever the documents contain multiple concerns in this category
@@ -15839,6 +15937,14 @@ CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
 - Think broadly about all the different ways this category could present risks for this service user
 - Examples: Falls Prevention might include risks from: dizziness/balance issues, environmental hazards, medication side effects, visual impairment, footwear, etc.
 - DO NOT combine multiple distinct risks into a single entry - separate them out
+- DO NOT repeat the same underlying hazard with different wording. Two rows starting with the same opening clause, or both describing "general daily care needs", are NOT acceptable.
+- Each risk row MUST address a DIFFERENT topic from the spectrum above. If only one topic has evidence, return only one risk row.
+- riskDefinition, howItsARisk and controlMeasures must be specific to the chosen topic - generic phrases like "my care needs could place my safety at risk" are NOT acceptable as a riskDefinition.
+
+PERSON-CENTRED VOICE (MANDATORY):
+- Every narrative field (riskDefinition, howItsARisk, controlMeasures) MUST be written in first person ("I", "my", "me").
+- Never use third person ("the service user", "they", "the client", "Mr X") in narrative fields.
+- Make it sound like the service user is describing their own life, not a clinician describing them.
 
 For each risk identified in this category, provide detailed first-person content:
 - Risk definition (what is the risk - written in first person)

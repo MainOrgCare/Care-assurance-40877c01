@@ -693,15 +693,16 @@ const setValue = async (fieldName, value) => {
     logAction(`Manual assist: please fill ${fieldName}.`);
     return true;
   }
-  const setNativeFieldValue = (target, nextValue) => {
+  const __caRT = window.__CA_RealisticTyping || {};
+  const setNativeFieldValue = __caRT.setNativeFieldValue || ((target, nextValue) => {
     const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target) || {}, "value");
     if (descriptor?.set) {
       descriptor.set.call(target, nextValue);
       return;
     }
     target.value = nextValue;
-  };
-  const dispatchInputEvent = (target, data = null) => {
+  });
+  const dispatchInputEvent = __caRT.dispatchInputEvent || ((target, data = null) => {
     if (typeof InputEvent === "function") {
       target.dispatchEvent(new InputEvent("input", {
         bubbles: true,
@@ -711,112 +712,22 @@ const setValue = async (fieldName, value) => {
       return;
     }
     target.dispatchEvent(new Event("input", { bubbles: true }));
-  };
-  const dispatchCommitEvents = (target) => {
+  });
+  const dispatchCommitEvents = __caRT.dispatchCommitEvents || ((target) => {
     target.dispatchEvent(new Event("change", { bubbles: true }));
     target.dispatchEvent(new Event("blur", { bubbles: true }));
-  };
-  const REALISTIC_TYPING_TIMING = {
-    base: { min: 35, max: 95 },
-    space: { min: 70, max: 170 },
-    punctuation: { min: 110, max: 240 },
-    newline: { min: 180, max: 360 },
-    thinkingChance: 0.07,
-    thinking: { min: 220, max: 520 },
-    initialFocusDelay: 60,
-  };
-  const isContentEditableTarget = (target) =>
-    !!target && target.isContentEditable === true && target.tagName !== "INPUT" && target.tagName !== "TEXTAREA";
-  const dispatchKeyboardEvent = (target, type, char) => {
-    if (typeof KeyboardEvent !== "function") return;
-    try {
-      const isEnter = char === "\n" || char === "\r";
-      const key = isEnter ? "Enter" : char;
-      let code = "";
-      if (isEnter) code = "Enter";
-      else if (char === " ") code = "Space";
-      else if (/^[a-zA-Z]$/.test(char)) code = `Key${char.toUpperCase()}`;
-      else if (/^[0-9]$/.test(char)) code = `Digit${char}`;
-      target.dispatchEvent(new KeyboardEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        key,
-        code,
-      }));
-    } catch (_) {
-      // Ignore unsupported KeyboardEvent options.
-    }
-  };
-  const dispatchBeforeInputEvent = (target, char) => {
-    if (typeof InputEvent !== "function") return;
-    try {
-      target.dispatchEvent(new InputEvent("beforeinput", {
-        bubbles: true,
-        cancelable: true,
-        data: char,
-        inputType: "insertText",
-      }));
-    } catch (_) {
-      // beforeinput unsupported — fall through.
-    }
-  };
-  const computeRealisticDelay = (char, charIndex, totalChars) => {
-    const range =
-      char === "\n" || char === "\r"
-        ? REALISTIC_TYPING_TIMING.newline
-        : /\s/.test(char)
-        ? REALISTIC_TYPING_TIMING.space
-        : /[.,;:!?()[\]{}\-/\\'"]/.test(char)
-        ? REALISTIC_TYPING_TIMING.punctuation
-        : REALISTIC_TYPING_TIMING.base;
-    let delay = range.min + Math.random() * (range.max - range.min);
-    if (
-      charIndex > 4 &&
-      charIndex < totalChars - 1 &&
-      Math.random() < REALISTIC_TYPING_TIMING.thinkingChance
-    ) {
-      delay +=
-        REALISTIC_TYPING_TIMING.thinking.min +
-        Math.random() * (REALISTIC_TYPING_TIMING.thinking.max - REALISTIC_TYPING_TIMING.thinking.min);
-    }
-    return delay;
-  };
-  const appendCharToField = (target, char) => {
-    if (isContentEditableTarget(target)) {
-      target.textContent = `${target.textContent || ""}${char}`;
-      return;
-    }
-    const current = typeof target.value === "string" ? target.value : "";
-    setNativeFieldValue(target, `${current}${char}`);
-  };
-  const clearFieldForRealisticTyping = (target) => {
-    if (isContentEditableTarget(target)) {
-      target.textContent = "";
-      return;
-    }
+  });
+  const typeLikeHuman = __caRT.typeLikeHuman || (async (target, nextValue) => {
+    target.focus();
     setNativeFieldValue(target, "");
-  };
-  const typeLikeHuman = async (target, nextValue) => {
-    try {
-      target.focus({ preventScroll: false });
-    } catch (_) {
-      target.focus();
-    }
-    await wait(REALISTIC_TYPING_TIMING.initialFocusDelay);
-    clearFieldForRealisticTyping(target);
     dispatchInputEvent(target, null);
-    const text = String(nextValue);
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      dispatchKeyboardEvent(target, "keydown", char);
-      dispatchBeforeInputEvent(target, char);
-      appendCharToField(target, char);
+    for (const char of String(nextValue)) {
+      setNativeFieldValue(target, `${target.value}${char}`);
       dispatchInputEvent(target, char);
-      dispatchKeyboardEvent(target, "keyup", char);
-      await wait(computeRealisticDelay(char, i, text.length));
+      await wait(25 + Math.random() * 30);
     }
     dispatchCommitEvents(target);
-  };
+  });
   if (INTERACTION_MODE === "slow") {
     await typeLikeHuman(field, value);
     return true;

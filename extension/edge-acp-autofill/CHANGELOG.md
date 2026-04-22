@@ -1,14 +1,17 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
-## Version 0.6.43 - Realistic Typing Fidelity
+## Version 0.6.43 - Realistic Typing Fidelity & Shared Helper
 
 ### Improvements
 
 - **"Realistic Typing" fill mode now actually behaves like a human typist.** The shared `typeLikeHuman` helper across `content-acp.js`, `content-initial-assessment.js`, and `content-emar.js` previously only fired `input` events at a uniform 25–55ms cadence. Many Mobizio form fields and embedded validators key off `keydown` / `beforeinput` / `keyup`, so typed values were sometimes ignored or treated as a paste, and the cadence felt mechanical. The helper now:
-  - Dispatches a full `keydown` → `beforeinput` → value mutation → `input` → `keyup` event sequence for each character, with `KeyboardEvent.key`/`code` populated for letters, digits, space and Enter.
+  - Dispatches a full `keydown` → `beforeinput` → value mutation → `input` → `keyup` event sequence for each character, with `KeyboardEvent.key`/`code` populated for letters, digits, space, and Enter.
   - Uses character-aware delays: faster for letters/digits, longer pauses for spaces, punctuation, and newlines, plus an occasional ~7% "thinking" pause mid-word so the cadence is not perfectly periodic.
   - Awaits an initial focus delay before clearing the field so focus listeners run before the first character.
   - Falls back gracefully on contenteditable targets by mutating `textContent` instead of the `value` setter.
+  - **Caps total per-field typing duration at ~6 seconds** by scaling per-character delays proportionally for very long inputs (e.g. 400-char control measures), so a multi-field workflow no longer stalls for several minutes in Realistic mode.
+  - **Skips disabled/read-only/`aria-disabled` fields** rather than silently emitting events into a non-fillable target.
+- **Extracted shared typing pipeline into `realistic-typing.js`**, loaded first in `manifest.content_scripts` so each Mobizio content script delegates to a single `window.__CA_RealisticTyping` implementation. Each consumer keeps a small inline fallback in case the shared module fails to load. Net: ~330 lines of duplicated typing logic removed across the three content scripts.
 
 ### Versioning
 
