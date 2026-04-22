@@ -437,15 +437,116 @@ const dispatchCommitEvents = (field) => {
   field.dispatchEvent(new Event("blur", { bubbles: true }));
 };
 
+const REALISTIC_TYPING_TIMING = {
+  base: { min: 35, max: 95 },
+  space: { min: 70, max: 170 },
+  punctuation: { min: 110, max: 240 },
+  newline: { min: 180, max: 360 },
+  thinkingChance: 0.07,
+  thinking: { min: 220, max: 520 },
+  initialFocusDelay: 60,
+};
+
+const isContentEditableTarget = (field) =>
+  !!field && field.isContentEditable === true && field.tagName !== "INPUT" && field.tagName !== "TEXTAREA";
+
+const dispatchKeyboardEvent = (field, type, char) => {
+  if (typeof KeyboardEvent !== "function") return;
+  try {
+    const isEnter = char === "\n" || char === "\r";
+    const key = isEnter ? "Enter" : char;
+    let code = "";
+    if (isEnter) code = "Enter";
+    else if (char === " ") code = "Space";
+    else if (/^[a-zA-Z]$/.test(char)) code = `Key${char.toUpperCase()}`;
+    else if (/^[0-9]$/.test(char)) code = `Digit${char}`;
+    field.dispatchEvent(
+      new KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        key,
+        code,
+      }),
+    );
+  } catch (_) {
+    // Older runtimes may reject KeyboardEvent options; safe to ignore.
+  }
+};
+
+const dispatchBeforeInputEvent = (field, char) => {
+  if (typeof InputEvent !== "function") return;
+  try {
+    field.dispatchEvent(
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        data: char,
+        inputType: "insertText",
+      }),
+    );
+  } catch (_) {
+    // beforeinput unsupported in this runtime — fall through.
+  }
+};
+
+const computeRealisticDelay = (char, charIndex, totalChars) => {
+  const range =
+    char === "\n" || char === "\r"
+      ? REALISTIC_TYPING_TIMING.newline
+      : /\s/.test(char)
+      ? REALISTIC_TYPING_TIMING.space
+      : /[.,;:!?()[\]{}\-/\\'"]/.test(char)
+      ? REALISTIC_TYPING_TIMING.punctuation
+      : REALISTIC_TYPING_TIMING.base;
+  let delay = range.min + Math.random() * (range.max - range.min);
+  if (
+    charIndex > 4 &&
+    charIndex < totalChars - 1 &&
+    Math.random() < REALISTIC_TYPING_TIMING.thinkingChance
+  ) {
+    delay +=
+      REALISTIC_TYPING_TIMING.thinking.min +
+      Math.random() * (REALISTIC_TYPING_TIMING.thinking.max - REALISTIC_TYPING_TIMING.thinking.min);
+  }
+  return delay;
+};
+
+const appendCharToField = (field, char) => {
+  if (isContentEditableTarget(field)) {
+    field.textContent = `${field.textContent || ""}${char}`;
+    return;
+  }
+  const current = typeof field.value === "string" ? field.value : "";
+  setNativeFieldValue(field, `${current}${char}`);
+};
+
+const clearFieldForRealisticTyping = (field) => {
+  if (isContentEditableTarget(field)) {
+    field.textContent = "";
+    return;
+  }
+  setNativeFieldValue(field, "");
+};
+
 const typeLikeHuman = async (field, value) => {
   if (!field) return false;
-  field.focus();
-  setNativeFieldValue(field, "");
+  try {
+    field.focus({ preventScroll: false });
+  } catch (_) {
+    field.focus();
+  }
+  await wait(REALISTIC_TYPING_TIMING.initialFocusDelay);
+  clearFieldForRealisticTyping(field);
   dispatchInputEvent(field, null);
-  for (const char of String(value)) {
-    setNativeFieldValue(field, `${field.value}${char}`);
+  const text = String(value);
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    dispatchKeyboardEvent(field, "keydown", char);
+    dispatchBeforeInputEvent(field, char);
+    appendCharToField(field, char);
     dispatchInputEvent(field, char);
-    await wait(25 + Math.random() * 30);
+    dispatchKeyboardEvent(field, "keyup", char);
+    await wait(computeRealisticDelay(char, i, text.length));
   }
   dispatchCommitEvents(field);
   return true;

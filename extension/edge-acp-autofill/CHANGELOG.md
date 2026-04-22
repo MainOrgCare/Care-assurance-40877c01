@@ -1,5 +1,19 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.43 - Realistic Typing Fidelity
+
+### Improvements
+
+- **"Realistic Typing" fill mode now actually behaves like a human typist.** The shared `typeLikeHuman` helper across `content-acp.js`, `content-initial-assessment.js`, and `content-emar.js` previously only fired `input` events at a uniform 25–55ms cadence. Many Mobizio form fields and embedded validators key off `keydown` / `beforeinput` / `keyup`, so typed values were sometimes ignored or treated as a paste, and the cadence felt mechanical. The helper now:
+  - Dispatches a full `keydown` → `beforeinput` → value mutation → `input` → `keyup` event sequence for each character, with `KeyboardEvent.key`/`code` populated for letters, digits, space and Enter.
+  - Uses character-aware delays: faster for letters/digits, longer pauses for spaces, punctuation, and newlines, plus an occasional ~7% "thinking" pause mid-word so the cadence is not perfectly periodic.
+  - Awaits an initial focus delay before clearing the field so focus listeners run before the first character.
+  - Falls back gracefully on contenteditable targets by mutating `textContent` instead of the `value` setter.
+
+### Versioning
+
+- Bumped extension version to `0.6.43` and synchronized manifest.
+
 ## Version 0.6.42 - Auto-Collect XHR Fallback Fix
 
 ### Bug Fixes
