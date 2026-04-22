@@ -1075,11 +1075,12 @@ const dispatchInputEvent = (field, data = null) => {
 };
 const dispatchTypingKeyEvent = (field, type, key) => {
   if (typeof KeyboardEvent !== "function" || !key) return;
-  const keyCode = String(key).toUpperCase().charCodeAt(0);
+  const keyValue = String(key);
+  const keyCode = keyValue.codePointAt(0) || 0;
   field.dispatchEvent(new KeyboardEvent(type, {
     bubbles: true,
     cancelable: true,
-    key: String(key),
+    key: keyValue,
     keyCode,
     which: keyCode,
     charCode: type === "keypress" ? keyCode : 0,

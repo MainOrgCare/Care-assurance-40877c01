@@ -714,11 +714,12 @@ const setValue = async (fieldName, value) => {
   };
   const dispatchTypingKeyEvent = (target, type, key) => {
     if (typeof KeyboardEvent !== "function" || !key) return;
-    const keyCode = String(key).toUpperCase().charCodeAt(0);
+    const keyValue = String(key);
+    const keyCode = keyValue.codePointAt(0) || 0;
     target.dispatchEvent(new KeyboardEvent(type, {
       bubbles: true,
       cancelable: true,
-      key: String(key),
+      key: keyValue,
       keyCode,
       which: keyCode,
       charCode: type === "keypress" ? keyCode : 0,
