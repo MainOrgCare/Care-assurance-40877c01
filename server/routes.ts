@@ -3767,36 +3767,160 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
     }
   }
 
-  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet) => {
+  type RiskTopic = {
+    id: string;
+    pattern: RegExp;
+    label: string;
+    riskOpener: (evidence: string) => string;
+    howItsARisk: string;
+    controlMeasures: string;
+    whoWillBeHarmed: string;
+  };
+
+  const RISK_TOPICS: RiskTopic[] = [
+    {
+      id: "falls",
+      pattern: /fall|trip|slip|balance|unsteady|stairs|stumble/,
+      label: "falls and unsteady mobility",
+      riskOpener: (e) => `I am at risk of falls and losing my balance during transfers and walking. ${e}.`,
+      howItsARisk: "If I slip, trip or lose my balance I could be injured, lose confidence and become reliant on others for movement. Early warning signs include unsteadiness, slower transfers and reduced confidence with movement.",
+      controlMeasures: "My carers check my footwear, walking aids and the immediate environment for trip hazards before mobilising me, follow any moving and handling plan and record any near-miss or fall.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "mobility",
+      pattern: /mobility|transfer|hoist|wheelchair|frame|rollator|stand aid/,
+      label: "mobility and transfers",
+      riskOpener: (e) => `My mobility and transfers need careful support so I do not become injured or lose independence. ${e}.`,
+      howItsARisk: "If transfers are rushed or done without the right equipment I could be hurt, develop pain or refuse to mobilise.",
+      controlMeasures: "My carers use the agreed equipment, follow my moving and handling plan, take their time and check my comfort before, during and after each transfer.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "medication",
+      pattern: /medication|medicine|tablet|dose|insulin|inhaler|mar|blister|dosette/,
+      label: "medication safety",
+      riskOpener: (e) => `My medication needs to be given safely, on time and as prescribed. ${e}.`,
+      howItsARisk: "Missed, late or incorrect medication could cause my health to deteriorate, lead to side effects or trigger an emergency. Watch for drowsiness, confusion, pain or reduced engagement after doses.",
+      controlMeasures: "My carers follow my MAR chart, record every administration, check my response and escalate refusals, errors or omissions to senior staff and the GP without delay.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "skin",
+      pattern: /skin|pressure|ulcer|wound|sore|tear|integrity/,
+      label: "skin integrity",
+      riskOpener: (e) => `My skin integrity could break down if pressure areas, moisture or friction are not managed. ${e}.`,
+      howItsARisk: "Pressure damage can develop quickly, cause pain and infection and take a long time to heal once established.",
+      controlMeasures: "My carers reposition me as planned, check pressure areas at personal care, keep my skin clean and dry, use any pressure-relieving equipment provided and report any redness or breakdown promptly.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "nutrition",
+      pattern: /nutrition|hydration|meal|drink|weight|swallow|choking|diet|fluid/,
+      label: "nutrition and hydration",
+      riskOpener: (e) => `My nutrition and hydration need consistent support so I do not lose weight or become unwell. ${e}.`,
+      howItsARisk: "Reduced intake, poor hydration or swallowing difficulty can cause weight loss, infections, confusion and choking.",
+      controlMeasures: "My carers prepare meals and drinks I can manage, prompt and assist as needed, record intake and report any swallowing concerns or refusals to senior staff.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "personal-care",
+      pattern: /personal care|wash|bath|shower|dress|toilet|continence|incontinence|catheter|pad|bowel/,
+      label: "personal care and continence",
+      riskOpener: (e) => `My personal care and continence needs must be supported with dignity and consistency. ${e}.`,
+      howItsARisk: "Inconsistent personal care can lead to skin problems, infections, embarrassment and loss of dignity.",
+      controlMeasures: "My carers offer personal care in the way I prefer, change continence products promptly, observe my skin and report any soreness, infection signs or changes in continence.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "cognition",
+      pattern: /dementia|cognit|memory|confus|disorient|capacity/,
+      label: "cognition and memory",
+      riskOpener: (e) => `My memory and orientation can fluctuate, which affects how I make day-to-day decisions safely. ${e}.`,
+      howItsARisk: "Confusion or memory loss can lead to missed medication, wandering, poor nutrition or unsafe use of appliances.",
+      controlMeasures: "My carers use clear, calm communication, follow my familiar routine, prompt me through tasks and report any new or worsening confusion to senior staff.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "mental-health",
+      pattern: /depress|anxiety|mood|mental health|isolat|lonely|psych/,
+      label: "mental health and wellbeing",
+      riskOpener: (e) => `My mental health and emotional wellbeing need ongoing attention so my mood and engagement do not decline. ${e}.`,
+      howItsARisk: "Low mood, anxiety or isolation can reduce my engagement with care, my appetite, my sleep and my willingness to accept support.",
+      controlMeasures: "My carers spend time talking with me, notice changes in mood or engagement, encourage activities I enjoy and report concerns to senior staff or my GP.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "environment",
+      pattern: /environment|home|property|clutter|lighting|floor|stair|key safe|door|fire|smoke/,
+      label: "home environment and safety",
+      riskOpener: (e) => `My home environment can introduce hazards that affect my safety and the safety of those supporting me. ${e}.`,
+      howItsARisk: "Trip hazards, poor lighting, fire risks or access issues can cause accidents and delay help in an emergency.",
+      controlMeasures: "My carers check the environment on arrival, keep walkways clear, follow access arrangements and report any new hazards or maintenance needs.",
+      whoWillBeHarmed: "Service User, Care Workers and Visitors",
+    },
+    {
+      id: "infection",
+      pattern: /infection|uti|mrsa|sepsis|covid|hygiene|cross.?contam/,
+      label: "infection prevention",
+      riskOpener: (e) => `Infection prevention is important so that I do not become unwell or pass infection to others. ${e}.`,
+      howItsARisk: "Infections can develop quickly in older or vulnerable adults and can cause confusion, falls and hospital admission.",
+      controlMeasures: "My carers follow hand hygiene, use PPE as required, clean equipment between uses and report signs of infection promptly.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "social",
+      pattern: /community|appointment|shopping|companionship|social|outing|escort|family/,
+      label: "social engagement and community access",
+      riskOpener: (e) => `Maintaining social contact and access to the community matters for my wellbeing and independence. ${e}.`,
+      howItsARisk: "Reduced social contact, missed appointments or loss of community routines can lead to isolation, low mood and reduced confidence leaving home.",
+      controlMeasures: "My carers support me to attend appointments, encourage contact with family and friends, and report changes in my social engagement to senior staff.",
+      whoWillBeHarmed: "Service User",
+    },
+  ];
+
+  const usedTopics = new Set<string>();
+  const fallbackTopic: RiskTopic = {
+    id: "general",
+    pattern: /.*/,
+    label: "general daily care",
+    riskOpener: (e) => `My documented daily care needs require consistent, person-centred support to keep me safe and well. ${e}.`,
+    howItsARisk: "If routine support is missed or rushed, my comfort, safety and independence can deteriorate without it being noticed early.",
+    controlMeasures: "My carers follow my agreed care plan, record observations clearly, use the right equipment and escalate any concern to senior staff without delay.",
+    whoWillBeHarmed: "Service User and Care Workers",
+  };
+
+  const pickTopic = (lowerEvidence: string, index: number): RiskTopic => {
+    const matched = RISK_TOPICS.find((t) => t.pattern.test(lowerEvidence) && !usedTopics.has(t.id));
+    if (matched) {
+      usedTopics.add(matched.id);
+      return matched;
+    }
+    const unused = RISK_TOPICS.find((t) => !usedTopics.has(t.id));
+    if (unused) {
+      usedTopics.add(unused.id);
+      return unused;
+    }
+    return { ...fallbackTopic, id: `${fallbackTopic.id}-${index}` };
+  };
+
+  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet, index) => {
     const evidenceLine = truncateEvidence(sanitizeEvidenceSnippet(snippet) || "Information recorded in supporting documents.", 190);
     const lowerEvidence = evidenceLine.toLowerCase();
-    const whoWillBeHarmed =
-      /family|visitor|home|environment|property|trip|hazard/.test(lowerEvidence)
-        ? "Service User, Care Workers and Visitors"
-        : "Service User and Care Workers";
-    const earlyWarningFocus =
-      /fall|trip|slip|balance|mobility|transfer|hoist|stairs/.test(lowerEvidence)
-        ? "Early warning signs include unsteadiness, slower transfers and reduced confidence with movement."
-        : /medication|dose|tablet|insulin|pain|sedat|drows|side effect/.test(lowerEvidence)
-        ? "Early warning signs include changes after medicines, increasing drowsiness, confusion, pain or reduced engagement."
-        : /nutrition|hydration|meal|drink|weight|swallow|choking/.test(lowerEvidence)
-        ? "Early warning signs include reduced intake, poor hydration, swallowing difficulty or fatigue around meals."
-        : /community|appointment|shopping|companionship|social|isolation|outing|escort/.test(lowerEvidence)
-        ? "Early warning signs include increasing isolation, reduced confidence leaving home, missed appointments or difficulty maintaining social routines."
-        : "Early warning signs include changes in mood, behaviour, comfort, sleep, breathing, skin condition or routine tolerance.";
+    const topic = pickTopic(lowerEvidence, index);
 
     return {
       riskDefinition: toFirstPerson(
-        `My ${category.toLowerCase()} needs could place my safety, wellbeing and independence at risk if they are not supported consistently. ${evidenceLine}. I need a clear, detailed plan so this is managed safely and consistently in daily care.`
+        `${topic.riskOpener(evidenceLine)} I need this aspect of my ${category.toLowerCase()} to be planned and reviewed so it stays safe for me.`
       ),
       initialRating: baseline,
       howItsARisk: toFirstPerson(
-        `This ${category.toLowerCase()} risk could affect my safety, comfort and independence if it is not managed promptly. If warning signs linked to this evidence are missed, my routine and wellbeing could deteriorate quickly. ${earlyWarningFocus} I need carers to notice changes early and respond in line with my care plan.`
+        `${topic.howItsARisk} I need carers to notice changes early and respond in line with my care plan.`
       ),
-      whoWillBeHarmed,
+      whoWillBeHarmed: topic.whoWillBeHarmed,
       controlMeasures: toFirstPerson(
         sanitizeOutOfScopeText(
-          `My care team follows my agreed care plan, records observations linked to this risk, uses the correct equipment and escalates any concern without delay. Support should be calm, consistent and clearly documented at each relevant visit. My care notes should include what changed, what actions were taken and what follow-up is needed before the next visit.`
+          `${topic.controlMeasures} Support should be calm, consistent and clearly documented at each relevant visit.`
         )
       ),
       ratingAfterControls: residual,
