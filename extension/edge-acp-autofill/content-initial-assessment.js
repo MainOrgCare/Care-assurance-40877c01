@@ -431,6 +431,18 @@ const dispatchInputEvent = (field, data = null) => {
   }
   field.dispatchEvent(new Event("input", { bubbles: true }));
 };
+const dispatchTypingKeyEvent = (field, type, key) => {
+  if (typeof KeyboardEvent !== "function" || !key) return;
+  const keyCode = String(key).toUpperCase().charCodeAt(0);
+  field.dispatchEvent(new KeyboardEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    key: String(key),
+    keyCode,
+    which: keyCode,
+    charCode: type === "keypress" ? keyCode : 0,
+  }));
+};
 
 const dispatchCommitEvents = (field) => {
   field.dispatchEvent(new Event("change", { bubbles: true }));
@@ -443,8 +455,11 @@ const typeLikeHuman = async (field, value) => {
   setNativeFieldValue(field, "");
   dispatchInputEvent(field, null);
   for (const char of String(value)) {
+    dispatchTypingKeyEvent(field, "keydown", char);
+    dispatchTypingKeyEvent(field, "keypress", char);
     setNativeFieldValue(field, `${field.value}${char}`);
     dispatchInputEvent(field, char);
+    dispatchTypingKeyEvent(field, "keyup", char);
     await wait(25 + Math.random() * 30);
   }
   dispatchCommitEvents(field);

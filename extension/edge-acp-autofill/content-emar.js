@@ -712,6 +712,18 @@ const setValue = async (fieldName, value) => {
     }
     target.dispatchEvent(new Event("input", { bubbles: true }));
   };
+  const dispatchTypingKeyEvent = (target, type, key) => {
+    if (typeof KeyboardEvent !== "function" || !key) return;
+    const keyCode = String(key).toUpperCase().charCodeAt(0);
+    target.dispatchEvent(new KeyboardEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      key: String(key),
+      keyCode,
+      which: keyCode,
+      charCode: type === "keypress" ? keyCode : 0,
+    }));
+  };
   const dispatchCommitEvents = (target) => {
     target.dispatchEvent(new Event("change", { bubbles: true }));
     target.dispatchEvent(new Event("blur", { bubbles: true }));
@@ -721,8 +733,11 @@ const setValue = async (fieldName, value) => {
     setNativeFieldValue(target, "");
     dispatchInputEvent(target, null);
     for (const char of String(nextValue)) {
+      dispatchTypingKeyEvent(target, "keydown", char);
+      dispatchTypingKeyEvent(target, "keypress", char);
       setNativeFieldValue(target, `${target.value}${char}`);
       dispatchInputEvent(target, char);
+      dispatchTypingKeyEvent(target, "keyup", char);
       await wait(25 + Math.random() * 30);
     }
     dispatchCommitEvents(target);
