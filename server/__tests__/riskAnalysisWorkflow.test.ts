@@ -44,6 +44,10 @@ test("extractSignalLabels finds rule-based signals across medical, care and envi
 test("extractSignalLabels matches diabetes signals from hyperglycemia terminology", () => {
   const content = "Client experiences hyperglycemia episodes overnight and requires glucose monitoring.";
   assert.deepEqual(extractSignalLabels(content, [...RULE_BASED_SIGNAL_GROUPS.medicalConditions]), ["Diabetes"]);
+  assert.deepEqual(
+    extractSignalLabels("Client reports hyperglycemic symptoms after meals.", [...RULE_BASED_SIGNAL_GROUPS.medicalConditions]),
+    ["Diabetes"],
+  );
 });
 
 test("buildFallbackRiskProfileSummary returns default text when no signals exist", () => {
@@ -113,6 +117,14 @@ test("getRuleBasedRiskTargetCount stays conservative when evidence is weak or ge
       hasDiverseEvidence: true,
     }),
     4,
+  );
+  assert.equal(
+    getRuleBasedRiskTargetCount({
+      hasCategoryEvidenceTerms: true,
+      evidencePool: new Array(20).fill("Detailed evidence statement."),
+      hasDiverseEvidence: true,
+    }),
+    7,
   );
 });
 
