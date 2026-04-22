@@ -2003,7 +2003,120 @@ html.theme-aurora {
   --surface-orb-c: none;
 }
 
-/* Font size adjustments */
+/* ========================================
+   THEME PALETTE COMPLETION
+   Each theme above defines its own primary/secondary/background/etc.,
+   but some inherit destructive / warning / success / chart colors from
+   the :root or .dark fallback, which clashes with the theme's accent
+   family (e.g. Sunrise orange + cool-blue charts, Ocean teal + blue
+   charts). The blocks below fill those gaps with palette-matched values
+   so status indicators, alerts, and charts feel native to each theme.
+   ======================================== */
+
+/* Sunrise - warm orange/amber palette */
+html.theme-sunrise {
+  --color-destructive: hsl(2 78% 44%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-destructive-border: hsl(2 78% 44% / 0.22);
+  --color-success: hsl(150 60% 32%);
+  --color-success-foreground: hsl(0 0% 100%);
+  --color-chart-1: hsl(18 78% 40%);
+  --color-chart-2: hsl(38 80% 42%);
+  --color-chart-3: hsl(150 50% 36%);
+  --color-chart-4: hsl(2 78% 50%);
+  --color-chart-5: hsl(20 16% 46%);
+  --shadow-xs: 0 1px 2px 0 rgba(66, 31, 16, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(66, 31, 16, 0.07), 0 1px 2px -1px rgba(66, 31, 16, 0.05);
+  --shadow-soft: 0 4px 12px -2px rgba(66, 31, 16, 0.08), 0 2px 4px -2px rgba(66, 31, 16, 0.05);
+  --shadow-medium: 0 8px 24px -6px rgba(66, 31, 16, 0.12), 0 4px 8px -4px rgba(66, 31, 16, 0.07);
+  --shadow-strong: 0 24px 48px -12px rgba(66, 31, 16, 0.20), 0 8px 16px -8px rgba(66, 31, 16, 0.10);
+}
+
+/* Midnight - deep blue + amber accent */
+html.theme-midnight {
+  --color-destructive: hsl(0 76% 60%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(28 90% 60%);
+  --color-warning-foreground: hsl(28 60% 10%);
+  --color-success: hsl(150 56% 50%);
+  --color-success-foreground: hsl(150 70% 9%);
+  --color-chart-1: hsl(200 78% 56%);
+  --color-chart-2: hsl(28 78% 54%);
+  --color-chart-3: hsl(180 60% 50%);
+  --color-chart-4: hsl(260 60% 68%);
+  --color-chart-5: hsl(220 14% 70%);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.32);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.34), 0 1px 2px -1px rgba(0, 0, 0, 0.26);
+  --shadow-soft: 0 4px 12px -2px rgba(0, 0, 0, 0.42), 0 2px 4px -2px rgba(0, 0, 0, 0.30);
+  --shadow-medium: 0 8px 24px -6px rgba(0, 0, 0, 0.52), 0 4px 8px -4px rgba(0, 0, 0, 0.32);
+  --shadow-strong: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 8px 16px -8px rgba(0, 0, 0, 0.34);
+}
+
+/* Ocean - teal + cyan palette */
+html.theme-ocean {
+  --color-destructive: hsl(2 76% 58%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 90% 58%);
+  --color-warning-foreground: hsl(30 60% 10%);
+  --color-success: hsl(160 64% 46%);
+  --color-success-foreground: hsl(160 70% 8%);
+  --color-chart-1: hsl(168 76% 42%);
+  --color-chart-2: hsl(199 89% 48%);
+  --color-chart-3: hsl(186 70% 52%);
+  --color-chart-4: hsl(220 72% 60%);
+  --color-chart-5: hsl(200 16% 70%);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 22, 26, 0.32);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 22, 26, 0.34), 0 1px 2px -1px rgba(0, 22, 26, 0.26);
+  --shadow-soft: 0 4px 12px -2px rgba(0, 22, 26, 0.42), 0 2px 4px -2px rgba(0, 22, 26, 0.30);
+  --shadow-medium: 0 8px 24px -6px rgba(0, 22, 26, 0.52), 0 4px 8px -4px rgba(0, 22, 26, 0.32);
+  --shadow-strong: 0 24px 48px -12px rgba(0, 22, 26, 0.65), 0 8px 16px -8px rgba(0, 22, 26, 0.34);
+}
+
+/* Aurora - emerald palette */
+html.theme-aurora {
+  --color-destructive: hsl(0 72% 60%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(38 90% 58%);
+  --color-warning-foreground: hsl(30 60% 10%);
+  --color-success: hsl(152 56% 46%);
+  --color-success-foreground: hsl(150 70% 9%);
+  --color-chart-1: hsl(152 56% 46%);
+  --color-chart-2: hsl(178 60% 50%);
+  --color-chart-3: hsl(108 56% 52%);
+  --color-chart-4: hsl(196 70% 56%);
+  --color-chart-5: hsl(156 14% 72%);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 26, 18, 0.32);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 26, 18, 0.34), 0 1px 2px -1px rgba(0, 26, 18, 0.26);
+  --shadow-soft: 0 4px 12px -2px rgba(0, 26, 18, 0.42), 0 2px 4px -2px rgba(0, 26, 18, 0.30);
+  --shadow-medium: 0 8px 24px -6px rgba(0, 26, 18, 0.52), 0 4px 8px -4px rgba(0, 26, 18, 0.32);
+  --shadow-strong: 0 24px 48px -12px rgba(0, 26, 18, 0.65), 0 8px 16px -8px rgba(0, 26, 18, 0.34);
+}
+
+/* ========================================
+   THEME SWITCH SMOOTHING
+   When SettingsContext applies the .theme-transitioning class to <html>
+   (briefly, around a theme change), animate the colour-bearing
+   properties of every element so the swap is a soft 220ms cross-fade
+   instead of an abrupt flicker. The class is only present during the
+   change window so steady-state interactions remain instant.
+   ======================================== */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 220ms ease, color 220ms ease,
+    border-color 220ms ease, fill 220ms ease, stroke 220ms ease,
+    box-shadow 220ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transitioning,
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition: none !important;
+  }
+}
 .font-small {
   font-size: 14px;
 }

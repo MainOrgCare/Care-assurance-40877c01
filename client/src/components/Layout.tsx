@@ -1167,16 +1167,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {isDashboardRoute && !isSingleScreenRoute && (
-          <footer className="workspace-footer workspace-footer--inline mt-auto flex-shrink-0 border-t border-border/60 px-2 py-0.5 sm:px-3 transition-[background-color,border-color] duration-200">
-            {footerContent}
-          </footer>
-        )}
-
         </main>
 
-        {/* Footer */}
-        {!isSingleScreenRoute && !isDashboardRoute && (
+        {/* Footer — sibling of <main> so it always pins to the viewport bottom
+           regardless of dashboard vs other routes. Hidden only for full-bleed
+           single-screen routes that need every pixel. */}
+        {!isSingleScreenRoute && (
           <footer className="workspace-footer flex-shrink-0 border-t border-border/60 px-2 py-0.5 sm:px-3 transition-[background-color,border-color] duration-200">
             {footerContent}
           </footer>
