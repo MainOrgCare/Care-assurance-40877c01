@@ -410,7 +410,12 @@ const resolveTable = (tableId) =>
 const resolveTableAddButton = (tableId) =>
   resolveCachedElement(`tableAdd:${tableId}`, () => document.querySelector(`a#${tableId}`));
 
-const setNativeFieldValue = (field, value) => {
+// Realistic Typing helpers come from realistic-typing.js (loaded first
+// in manifest content_scripts). Each declaration falls back to a minimal
+// inline implementation so this script keeps working if the shared helper
+// somehow fails to load.
+const __caRT = window.__CA_RealisticTyping || {};
+const setNativeFieldValue = __caRT.setNativeFieldValue || ((field, value) => {
   if (!field) return;
   const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
   if (descriptor?.set) {
@@ -418,9 +423,8 @@ const setNativeFieldValue = (field, value) => {
     return;
   }
   field.value = value;
-};
-
-const dispatchInputEvent = (field, data = null) => {
+});
+const dispatchInputEvent = __caRT.dispatchInputEvent || ((field, data = null) => {
   if (typeof InputEvent === "function") {
     field.dispatchEvent(new InputEvent("input", {
       bubbles: true,
@@ -430,14 +434,12 @@ const dispatchInputEvent = (field, data = null) => {
     return;
   }
   field.dispatchEvent(new Event("input", { bubbles: true }));
-};
-
-const dispatchCommitEvents = (field) => {
+});
+const dispatchCommitEvents = __caRT.dispatchCommitEvents || ((field) => {
   field.dispatchEvent(new Event("change", { bubbles: true }));
   field.dispatchEvent(new Event("blur", { bubbles: true }));
-};
-
-const typeLikeHuman = async (field, value) => {
+});
+const typeLikeHuman = __caRT.typeLikeHuman || (async (field, value) => {
   if (!field) return false;
   field.focus();
   setNativeFieldValue(field, "");
@@ -449,7 +451,8 @@ const typeLikeHuman = async (field, value) => {
   }
   dispatchCommitEvents(field);
   return true;
-};
+});
+
 
 const buildProcessedKey = (queueState, payload) => {
   const batchId = queueState?.batchId || payload?.metadata?.batchId || payload?.batchId || payload?.caseId || "legacy";

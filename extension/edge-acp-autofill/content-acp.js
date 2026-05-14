@@ -1050,19 +1050,19 @@ const highlightField = (field) => {
   field.style.outline = "2px solid #1ea97a";
   field.style.outlineOffset = "2px";
 };
-const setNativeFieldValue = (field, value) => {
+// Realistic Typing helpers are loaded from realistic-typing.js (declared
+// first in manifest content_scripts), exposed via window.__CA_RealisticTyping.
+const __caRT = window.__CA_RealisticTyping || {};
+const setNativeFieldValue = __caRT.setNativeFieldValue || ((field, value) => {
   if (!field) return;
-  // Use the native "value" setter when available because some frameworks
-  // (and custom element wrappers) rely on property setter interception for
-  // reactivity/change tracking; direct assignment alone can bypass that path.
   const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(field) || {}, "value");
   if (descriptor?.set) {
     descriptor.set.call(field, value);
     return;
   }
   field.value = value;
-};
-const dispatchInputEvent = (field, data = null) => {
+});
+const dispatchInputEvent = __caRT.dispatchInputEvent || ((field, data = null) => {
   if (typeof InputEvent === "function") {
     field.dispatchEvent(new InputEvent("input", {
       bubbles: true,
@@ -1072,11 +1072,11 @@ const dispatchInputEvent = (field, data = null) => {
     return;
   }
   field.dispatchEvent(new Event("input", { bubbles: true }));
-};
-const dispatchCommitEvents = (field) => {
+});
+const dispatchCommitEvents = __caRT.dispatchCommitEvents || ((field) => {
   field.dispatchEvent(new Event("change", { bubbles: true }));
   field.dispatchEvent(new Event("blur", { bubbles: true }));
-};
+});
 const SCRIPT_RUN_INSTANCE_ID = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 const buildProcessedKey = (queueState) => {
   const batchId = queueState?.batchId || `legacy_${SCRIPT_RUN_INSTANCE_ID}`;
@@ -1084,7 +1084,7 @@ const buildProcessedKey = (queueState) => {
   return `caAutofillProcessed_${batchId}_${currentIndex}`;
 };
 
-const typeLikeHuman = async (field, value) => {
+const typeLikeHuman = __caRT.typeLikeHuman || (async (field, value) => {
   if (!field) return false;
   field.focus();
   setNativeFieldValue(field, "");
@@ -1096,7 +1096,7 @@ const typeLikeHuman = async (field, value) => {
   }
   dispatchCommitEvents(field);
   return true;
-};
+});
 
 const setValue = async (fieldName, value) => {
   const field = document.querySelector(`[name="${fieldName}"]`);

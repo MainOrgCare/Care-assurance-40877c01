@@ -4343,6 +4343,10 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
                     contentDisposition,
                     url: responseUrl,
                   });
+                } else if (responseUrl) {
+                  // Response body unavailable (XHR responseType was not blob/arraybuffer);
+                  // record the URL so the direct-fetch fallback loop can retrieve it.
+                  recordCandidateUrl(responseUrl);
                 }
               } else if (responseUrl) {
                 recordCandidateUrl(responseUrl);
@@ -4636,6 +4640,10 @@ const downloadMobizioDocumentInPage = async (documentEntry) => {
                     contentDisposition,
                     url: responseUrl,
                   });
+                } else if (responseUrl) {
+                  // Response body unavailable (XHR responseType was not blob/arraybuffer);
+                  // record the URL so the direct-fetch fallback loop can retrieve it.
+                  recordCandidateUrl(responseUrl);
                 }
               } else if (responseUrl) {
                 recordCandidateUrl(responseUrl);

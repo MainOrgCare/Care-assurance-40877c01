@@ -122,6 +122,9 @@ export async function analyzeScheduleWithAI(
   input: ScheduleAnalysisInput,
   aiUserContext?: AiUserContext
 ): Promise<ScheduleAnalysisResult> {
+  if (!input.workers || input.workers.length === 0) {
+    throw new Error("Schedule analysis requires at least one worker");
+  }
   // Anonymize worker names before sending to AI
   const vault = new ScheduleNameVault();
   

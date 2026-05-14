@@ -693,15 +693,16 @@ const setValue = async (fieldName, value) => {
     logAction(`Manual assist: please fill ${fieldName}.`);
     return true;
   }
-  const setNativeFieldValue = (target, nextValue) => {
+  const __caRT = window.__CA_RealisticTyping || {};
+  const setNativeFieldValue = __caRT.setNativeFieldValue || ((target, nextValue) => {
     const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target) || {}, "value");
     if (descriptor?.set) {
       descriptor.set.call(target, nextValue);
       return;
     }
     target.value = nextValue;
-  };
-  const dispatchInputEvent = (target, data = null) => {
+  });
+  const dispatchInputEvent = __caRT.dispatchInputEvent || ((target, data = null) => {
     if (typeof InputEvent === "function") {
       target.dispatchEvent(new InputEvent("input", {
         bubbles: true,
@@ -711,12 +712,12 @@ const setValue = async (fieldName, value) => {
       return;
     }
     target.dispatchEvent(new Event("input", { bubbles: true }));
-  };
-  const dispatchCommitEvents = (target) => {
+  });
+  const dispatchCommitEvents = __caRT.dispatchCommitEvents || ((target) => {
     target.dispatchEvent(new Event("change", { bubbles: true }));
     target.dispatchEvent(new Event("blur", { bubbles: true }));
-  };
-  const typeLikeHuman = async (target, nextValue) => {
+  });
+  const typeLikeHuman = __caRT.typeLikeHuman || (async (target, nextValue) => {
     target.focus();
     setNativeFieldValue(target, "");
     dispatchInputEvent(target, null);
@@ -726,7 +727,7 @@ const setValue = async (fieldName, value) => {
       await wait(25 + Math.random() * 30);
     }
     dispatchCommitEvents(target);
-  };
+  });
   if (INTERACTION_MODE === "slow") {
     await typeLikeHuman(field, value);
     return true;

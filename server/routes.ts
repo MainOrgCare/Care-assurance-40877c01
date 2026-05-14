@@ -53,10 +53,12 @@ import { getRiskAnalysisCache, setRiskAnalysisCache } from "./services/riskAnaly
 import {
   RULE_BASED_SIGNAL_GROUPS,
   buildFallbackRiskProfileSummary,
+  countPersonCentredViolations,
   deescalateRiskRating,
   extractSignalLabels,
   getRuleBasedRiskTargetCount,
   looksLikeStructuredRiskArtifactText,
+  normalizeGeneratedRiskRows,
   normalizeRiskRating,
 } from "./services/riskAnalysisWorkflow";
 import multer from "multer";
@@ -2898,8 +2900,8 @@ const normalizePrnProtocol = (rawProtocol: any, medicationName: string) => {
 const getLowCostModel = () => "gpt-4.1-mini";
 const getAccurateModel = () => getLowCostModel(); // temporarily low cost
 const getRiskAssessmentModel = () => getLowCostModel(); // temporarily low cost
-const getRiskAssessmentRecommendationModel = () => getLowCostModel();
-const getRiskAssessmentGenerationModel = () => getLowCostModel();
+const getRiskAssessmentRecommendationModel = () => getPreferredModel();
+const getRiskAssessmentGenerationModel = () => getPreferredModel();
 
 const inferGenericNameFromMedicationLabel = (name: string): string => {
   if (!name) return "";
@@ -3765,36 +3767,160 @@ const buildRuleBasedRiskAssessmentPayload = (params: {
     }
   }
 
-  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet) => {
+  type RiskTopic = {
+    id: string;
+    pattern: RegExp;
+    label: string;
+    riskOpener: (evidence: string) => string;
+    howItsARisk: string;
+    controlMeasures: string;
+    whoWillBeHarmed: string;
+  };
+
+  const RISK_TOPICS: RiskTopic[] = [
+    {
+      id: "falls",
+      pattern: /fall|trip|slip|balance|unsteady|stairs|stumble/,
+      label: "falls and unsteady mobility",
+      riskOpener: (e) => `I am at risk of falls and losing my balance during transfers and walking. ${e}.`,
+      howItsARisk: "If I slip, trip or lose my balance I could be injured, lose confidence and become reliant on others for movement. Early warning signs include unsteadiness, slower transfers and reduced confidence with movement.",
+      controlMeasures: "My carers check my footwear, walking aids and the immediate environment for trip hazards before mobilising me, follow any moving and handling plan and record any near-miss or fall.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "mobility",
+      pattern: /mobility|transfer|hoist|wheelchair|frame|rollator|stand aid/,
+      label: "mobility and transfers",
+      riskOpener: (e) => `My mobility and transfers need careful support so I do not become injured or lose independence. ${e}.`,
+      howItsARisk: "If transfers are rushed or done without the right equipment I could be hurt, develop pain or refuse to mobilise.",
+      controlMeasures: "My carers use the agreed equipment, follow my moving and handling plan, take their time and check my comfort before, during and after each transfer.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "medication",
+      pattern: /medication|medicine|tablet|dose|insulin|inhaler|mar|blister|dosette/,
+      label: "medication safety",
+      riskOpener: (e) => `My medication needs to be given safely, on time and as prescribed. ${e}.`,
+      howItsARisk: "Missed, late or incorrect medication could cause my health to deteriorate, lead to side effects or trigger an emergency. Watch for drowsiness, confusion, pain or reduced engagement after doses.",
+      controlMeasures: "My carers follow my MAR chart, record every administration, check my response and escalate refusals, errors or omissions to senior staff and the GP without delay.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "skin",
+      pattern: /skin|pressure|ulcer|wound|sore|tear|integrity/,
+      label: "skin integrity",
+      riskOpener: (e) => `My skin integrity could break down if pressure areas, moisture or friction are not managed. ${e}.`,
+      howItsARisk: "Pressure damage can develop quickly, cause pain and infection and take a long time to heal once established.",
+      controlMeasures: "My carers reposition me as planned, check pressure areas at personal care, keep my skin clean and dry, use any pressure-relieving equipment provided and report any redness or breakdown promptly.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "nutrition",
+      pattern: /nutrition|hydration|meal|drink|weight|swallow|choking|diet|fluid/,
+      label: "nutrition and hydration",
+      riskOpener: (e) => `My nutrition and hydration need consistent support so I do not lose weight or become unwell. ${e}.`,
+      howItsARisk: "Reduced intake, poor hydration or swallowing difficulty can cause weight loss, infections, confusion and choking.",
+      controlMeasures: "My carers prepare meals and drinks I can manage, prompt and assist as needed, record intake and report any swallowing concerns or refusals to senior staff.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "personal-care",
+      pattern: /personal care|wash|bath|shower|dress|toilet|continence|incontinence|catheter|pad|bowel/,
+      label: "personal care and continence",
+      riskOpener: (e) => `My personal care and continence needs must be supported with dignity and consistency. ${e}.`,
+      howItsARisk: "Inconsistent personal care can lead to skin problems, infections, embarrassment and loss of dignity.",
+      controlMeasures: "My carers offer personal care in the way I prefer, change continence products promptly, observe my skin and report any soreness, infection signs or changes in continence.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "cognition",
+      pattern: /dementia|cognit|memory|confus|disorient|capacity/,
+      label: "cognition and memory",
+      riskOpener: (e) => `My memory and orientation can fluctuate, which affects how I make day-to-day decisions safely. ${e}.`,
+      howItsARisk: "Confusion or memory loss can lead to missed medication, wandering, poor nutrition or unsafe use of appliances.",
+      controlMeasures: "My carers use clear, calm communication, follow my familiar routine, prompt me through tasks and report any new or worsening confusion to senior staff.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "mental-health",
+      pattern: /depress|anxiety|mood|mental health|isolat|lonely|psych/,
+      label: "mental health and wellbeing",
+      riskOpener: (e) => `My mental health and emotional wellbeing need ongoing attention so my mood and engagement do not decline. ${e}.`,
+      howItsARisk: "Low mood, anxiety or isolation can reduce my engagement with care, my appetite, my sleep and my willingness to accept support.",
+      controlMeasures: "My carers spend time talking with me, notice changes in mood or engagement, encourage activities I enjoy and report concerns to senior staff or my GP.",
+      whoWillBeHarmed: "Service User",
+    },
+    {
+      id: "environment",
+      pattern: /environment|home|property|clutter|lighting|floor|stair|key safe|door|fire|smoke/,
+      label: "home environment and safety",
+      riskOpener: (e) => `My home environment can introduce hazards that affect my safety and the safety of those supporting me. ${e}.`,
+      howItsARisk: "Trip hazards, poor lighting, fire risks or access issues can cause accidents and delay help in an emergency.",
+      controlMeasures: "My carers check the environment on arrival, keep walkways clear, follow access arrangements and report any new hazards or maintenance needs.",
+      whoWillBeHarmed: "Service User, Care Workers and Visitors",
+    },
+    {
+      id: "infection",
+      pattern: /infection|uti|mrsa|sepsis|covid|hygiene|cross.?contam/,
+      label: "infection prevention",
+      riskOpener: (e) => `Infection prevention is important so that I do not become unwell or pass infection to others. ${e}.`,
+      howItsARisk: "Infections can develop quickly in older or vulnerable adults and can cause confusion, falls and hospital admission.",
+      controlMeasures: "My carers follow hand hygiene, use PPE as required, clean equipment between uses and report signs of infection promptly.",
+      whoWillBeHarmed: "Service User and Care Workers",
+    },
+    {
+      id: "social",
+      pattern: /community|appointment|shopping|companionship|social|outing|escort|family/,
+      label: "social engagement and community access",
+      riskOpener: (e) => `Maintaining social contact and access to the community matters for my wellbeing and independence. ${e}.`,
+      howItsARisk: "Reduced social contact, missed appointments or loss of community routines can lead to isolation, low mood and reduced confidence leaving home.",
+      controlMeasures: "My carers support me to attend appointments, encourage contact with family and friends, and report changes in my social engagement to senior staff.",
+      whoWillBeHarmed: "Service User",
+    },
+  ];
+
+  const usedTopics = new Set<string>();
+  const fallbackTopic: RiskTopic = {
+    id: "general",
+    pattern: /.*/,
+    label: "general daily care",
+    riskOpener: (e) => `My documented daily care needs require consistent, person-centred support to keep me safe and well. ${e}.`,
+    howItsARisk: "If routine support is missed or rushed, my comfort, safety and independence can deteriorate without it being noticed early.",
+    controlMeasures: "My carers follow my agreed care plan, record observations clearly, use the right equipment and escalate any concern to senior staff without delay.",
+    whoWillBeHarmed: "Service User and Care Workers",
+  };
+
+  const pickTopic = (lowerEvidence: string, index: number): RiskTopic => {
+    const matched = RISK_TOPICS.find((t) => t.pattern.test(lowerEvidence) && !usedTopics.has(t.id));
+    if (matched) {
+      usedTopics.add(matched.id);
+      return matched;
+    }
+    const unused = RISK_TOPICS.find((t) => !usedTopics.has(t.id));
+    if (unused) {
+      usedTopics.add(unused.id);
+      return unused;
+    }
+    return { ...fallbackTopic, id: `${fallbackTopic.id}-${index}` };
+  };
+
+  const risks = riskEvidence.slice(0, targetRiskCount).map((snippet, index) => {
     const evidenceLine = truncateEvidence(sanitizeEvidenceSnippet(snippet) || "Information recorded in supporting documents.", 190);
     const lowerEvidence = evidenceLine.toLowerCase();
-    const whoWillBeHarmed =
-      /family|visitor|home|environment|property|trip|hazard/.test(lowerEvidence)
-        ? "Service User, Care Workers and Visitors"
-        : "Service User and Care Workers";
-    const earlyWarningFocus =
-      /fall|trip|slip|balance|mobility|transfer|hoist|stairs/.test(lowerEvidence)
-        ? "Early warning signs include unsteadiness, slower transfers and reduced confidence with movement."
-        : /medication|dose|tablet|insulin|pain|sedat|drows|side effect/.test(lowerEvidence)
-        ? "Early warning signs include changes after medicines, increasing drowsiness, confusion, pain or reduced engagement."
-        : /nutrition|hydration|meal|drink|weight|swallow|choking/.test(lowerEvidence)
-        ? "Early warning signs include reduced intake, poor hydration, swallowing difficulty or fatigue around meals."
-        : /community|appointment|shopping|companionship|social|isolation|outing|escort/.test(lowerEvidence)
-        ? "Early warning signs include increasing isolation, reduced confidence leaving home, missed appointments or difficulty maintaining social routines."
-        : "Early warning signs include changes in mood, behaviour, comfort, sleep, breathing, skin condition or routine tolerance.";
+    const topic = pickTopic(lowerEvidence, index);
 
     return {
       riskDefinition: toFirstPerson(
-        `My ${category.toLowerCase()} needs could place my safety, wellbeing and independence at risk if they are not supported consistently. ${evidenceLine}. I need a clear, detailed plan so this is managed safely and consistently in daily care.`
+        `${topic.riskOpener(evidenceLine)} I need this aspect of my ${category.toLowerCase()} to be planned and reviewed so it stays safe for me.`
       ),
       initialRating: baseline,
       howItsARisk: toFirstPerson(
-        `This ${category.toLowerCase()} risk could affect my safety, comfort and independence if it is not managed promptly. If warning signs linked to this evidence are missed, my routine and wellbeing could deteriorate quickly. ${earlyWarningFocus} I need carers to notice changes early and respond in line with my care plan.`
+        `${topic.howItsARisk} I need carers to notice changes early and respond in line with my care plan.`
       ),
-      whoWillBeHarmed,
+      whoWillBeHarmed: topic.whoWillBeHarmed,
       controlMeasures: toFirstPerson(
         sanitizeOutOfScopeText(
-          `My care team follows my agreed care plan, records observations linked to this risk, uses the correct equipment and escalates any concern without delay. Support should be calm, consistent and clearly documented at each relevant visit. My care notes should include what changed, what actions were taken and what follow-up is needed before the next visit.`
+          `${topic.controlMeasures} Support should be calm, consistent and clearly documented at each relevant visit.`
         )
       ),
       ratingAfterControls: residual,
@@ -15475,6 +15601,19 @@ Remember: Extract information ONLY from service user documents above. Templates 
         return res.status(400).json({ message: "Document content and assessment category required" });
       }
 
+      // Prevent oversized documents crashing the LLM call
+      const MAX_DOCUMENT_LENGTH = 300_000;
+      if (typeof documentContent !== "string" || documentContent.length > MAX_DOCUMENT_LENGTH) {
+        return res.status(400).json({ message: `Document content must be under ${MAX_DOCUMENT_LENGTH.toLocaleString()} characters` });
+      }
+
+      // Sanitize assessmentCategory: strip newlines/control chars to prevent prompt injection
+      const safeAssessmentCategory = String(assessmentCategory || "")
+        .replace(/[\r\n\x00-\x1F\x7F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100);
+
       const safeServiceUserInitials = piiVault.scrubString(String(serviceUserInitials || "N.N."));
       const resolvedPerformedBy = resolveRiskAssessmentPerformerName(performedBy, req.user);
       const safePerformedBy = piiVault.scrubString(resolvedPerformedBy);
@@ -15523,11 +15662,14 @@ Remember: Extract information ONLY from service user documents above. Templates 
         const fallbackDocumentContent = piiVault.scrub(documentContent);
         const fallbackResult = buildRuleBasedRiskAssessmentPayload({
           documentContent: fallbackDocumentContent,
-          assessmentCategory,
+          assessmentCategory: safeAssessmentCategory,
           serviceUserInitials: safeServiceUserInitials,
           performedBy: safePerformedBy,
           performedByJobTitle,
         });
+        if (Array.isArray(fallbackResult.risks)) {
+          fallbackResult.risks = normalizeGeneratedRiskRows(fallbackResult.risks) as typeof fallbackResult.risks;
+        }
         const templateResult = piiVault.toPlaceholders(fallbackResult);
         const vaultExport = piiVault.export();
         const payload = {
@@ -15590,8 +15732,103 @@ CRITICAL REMINDER:
         ? assessmentEvidence.evidenceSnippets.filter(isMeaningfulEvidence)
         : [];
       const evidenceSummary = typeof assessmentEvidence?.evidence === "string" ? assessmentEvidence.evidence.trim() : "";
-      const assessmentKey = normalizeAssessmentKey(assessmentCategory);
+      const assessmentKey = normalizeAssessmentKey(safeAssessmentCategory);
       const categoryEvidenceTerms = ASSESSMENT_EVIDENCE_TERMS[assessmentKey] || [];
+      // Topic spectrum that the AI must spread its risk rows across so two
+      // rows in the same assessment never describe the same underlying
+      // hazard. For "General Risk Assessment" (which has no narrow term
+      // list), the spectrum spans the major care domains so each generated
+      // risk row covers a genuinely different aspect of daily care.
+      const buildCategoryTopicSpectrum = (key: string, category: string): string[] => {
+        const generalSpectrum = [
+          "Falls and unsteady mobility",
+          "Medication safety and administration",
+          "Skin integrity and pressure area care",
+          "Nutrition, hydration and swallowing",
+          "Personal care, continence and dignity",
+          "Mental health, mood and social isolation",
+          "Cognition, memory and decision making",
+          "Home environment hazards (trip, fire, access)",
+          "Infection prevention",
+          "Communication and sensory needs",
+          "Lone working and emergency response",
+        ];
+        if (key === "general risk assessment" || /^general/i.test(category) || categoryEvidenceTerms.length === 0) {
+          return generalSpectrum;
+        }
+        const categorySpecific: Record<string, string[]> = {
+          "falls prevention": [
+            "Balance and dizziness",
+            "Environmental trip hazards",
+            "Footwear and walking aid use",
+            "Medication side effects (sedation, postural drop)",
+            "Visual impairment and lighting",
+            "Transfer technique and assistance level",
+            "Night-time mobilising and bathroom access",
+          ],
+          "medication administration": [
+            "Right person / right dose / right time",
+            "Refusals and missed doses",
+            "Time-critical medicines",
+            "Side-effect monitoring",
+            "Storage, expiry and controlled drugs",
+            "PRN decision making",
+            "Self-administration capacity",
+          ],
+          "nutrition": [
+            "Reduced appetite and weight loss",
+            "Hydration and fluid intake",
+            "Swallowing difficulty / choking",
+            "Special diet adherence (diabetic, soft, fortified)",
+            "Meal preparation and timing",
+            "Cultural or preference-based food needs",
+          ],
+          "skin integrity": [
+            "Pressure damage at common bony points",
+            "Moisture lesions and continence-related skin breakdown",
+            "Skin tears from transfers",
+            "Wound monitoring and dressing changes",
+            "Repositioning regime",
+          ],
+          "mobility and moving and handling": [
+            "Safe transfer technique with chosen equipment",
+            "Hoist sling fitting and inspection",
+            "Floor recovery if a fall occurs",
+            "Lone-working transfer constraints",
+            "Pain on movement",
+          ],
+          "dementia care": [
+            "Disorientation and time/place confusion",
+            "Wandering and exit-seeking behaviour",
+            "Sundowning and changes through the day",
+            "Capacity to consent to care tasks",
+            "Recognising and responding to distress",
+          ],
+          "mental health": [
+            "Mood changes and depression indicators",
+            "Anxiety and agitation triggers",
+            "Sleep disturbance",
+            "Social isolation and engagement",
+            "Self-neglect indicators",
+          ],
+          "infection control": [
+            "Hand hygiene and PPE use",
+            "Symptomatic infection escalation (UTI, chest, COVID-style)",
+            "Equipment cleaning between uses",
+            "Visitor/multi-carer cross-contamination",
+            "Wound and catheter site infection signs",
+          ],
+          "environmental safety": [
+            "Trip hazards and clutter",
+            "Lighting and stair safety",
+            "Fire safety (smoke alarms, smoking, oxygen near heat)",
+            "Pets and unfamiliar visitors",
+            "Lone working access (key safe, door entry)",
+          ],
+        };
+        return categorySpecific[key] || generalSpectrum;
+      };
+      const topicSpectrum = buildCategoryTopicSpectrum(assessmentKey, safeAssessmentCategory);
       const generationEvidenceFinder = buildDocumentEvidenceFinder(documentContent || "");
       const documentEvidenceSnippets = generationEvidenceFinder.findAllSnippets(categoryEvidenceTerms, 12).filter(isMeaningfulEvidence);
       const supportingEvidencePool = Array.from(new Set(
@@ -15700,7 +15937,10 @@ ${scrubbedProfileContext || "Not provided."}
 
 ${privacyDirective}
 
-RISK ASSESSMENT CATEGORY: ${assessmentCategory}
+RISK ASSESSMENT CATEGORY: ${safeAssessmentCategory}
+
+TOPIC SPECTRUM FOR THIS CATEGORY (each generated risk row MUST cover a different topic from this list, only when the SERVICE USER documents contain evidence for that topic):
+${topicSpectrum.map((topic, i) => `${i + 1}. ${topic}`).join("\n")}
 
 CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
 - A comprehensive risk assessment typically has MULTIPLE risks (usually 4-10 risks depending on the category)
@@ -15709,6 +15949,14 @@ CRITICAL REQUIREMENT - IDENTIFY ALL RISKS:
 - Think broadly about all the different ways this category could present risks for this service user
 - Examples: Falls Prevention might include risks from: dizziness/balance issues, environmental hazards, medication side effects, visual impairment, footwear, etc.
 - DO NOT combine multiple distinct risks into a single entry - separate them out
+- DO NOT repeat the same underlying hazard with different wording. Two rows starting with the same opening clause, or both describing "general daily care needs", are NOT acceptable.
+- Each risk row MUST address a DIFFERENT topic from the spectrum above. If only one topic has evidence, return only one risk row.
+- riskDefinition, howItsARisk and controlMeasures must be specific to the chosen topic - generic phrases like "my care needs could place my safety at risk" are NOT acceptable as a riskDefinition.
+
+PERSON-CENTRED VOICE (MANDATORY):
+- Every narrative field (riskDefinition, howItsARisk, controlMeasures) MUST be written in first person ("I", "my", "me").
+- Never use third person ("the service user", "they", "the client", "Mr X") in narrative fields.
+- Make it sound like the service user is describing their own life, not a clinician describing them.
 
 For each risk identified in this category, provide detailed first-person content:
 - Risk definition (what is the risk - written in first person)
@@ -15720,7 +15968,7 @@ For each risk identified in this category, provide detailed first-person content
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "category": "${assessmentCategory}",
+  "category": "${safeAssessmentCategory}",
   "serviceUserInitials": "${safeServiceUserInitials}",
   "assessmentDate": "Today's date in DD/Mon/YYYY format",
   "risks": [
@@ -15764,13 +16012,13 @@ Respond ONLY with valid JSON in this exact format:
       console.log('═══════════════════════════════════════════════════════════════════');
       console.log('📋 RISK ASSESSMENT AI INPUT - CONTENT SENT TO AI');
       console.log('═══════════════════════════════════════════════════════════════════');
-      console.log(`Assessment Category: ${assessmentCategory}`);
+      console.log(`Assessment Category: ${safeAssessmentCategory}`);
       console.log(`Model: ${getRiskAssessmentGenerationModel()}`);
       console.log(`Service User: ${safeServiceUserInitials}`);
       console.log(`Performed By: ${safePerformedBy} (${performedByJobTitle})`);
       console.log('');
       
-      const userContent = `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+      const userContent = `Generate a comprehensive ${safeAssessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : ''}Documents to analyze:\n${scrubbedDocumentContent}${scrubbedEvidencePack ? `\n\nKey Evidence:\n- ${scrubbedEvidencePack}` : ''}`;
       
@@ -15828,7 +16076,7 @@ ${scrubbedProfileContext ? `Profile Context:\n${scrubbedProfileContext}\n\n` : '
           feature: "risk_assessment",
           model: getRiskAssessmentGenerationModel(),
           userContext: aiUserContext,
-          inputText: `Generate a comprehensive ${assessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
+          inputText: `Generate a comprehensive ${safeAssessmentCategory} risk assessment in first person based on the SERVICE USER documents below.
 
 ⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY ⚠️
 
@@ -15885,6 +16133,15 @@ Remember: Extract information ONLY from the service user documents above. Templa
         
         // Apply PII scrubbing to the rest (risks, notes, etc.)
         result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
+
+        // Normalize risk rows: drop blank entries and deduplicate on composite key.
+        // Must run BEFORE toFirstPerson enrichment so the person-centred check sees raw AI output.
+        if (Array.isArray(result.risks)) {
+          result.risks = normalizeGeneratedRiskRows(result.risks);
+        }
+
+        // Count person-centred violations on raw AI output before enrichment converts them.
+        const rawPersonCentredViolations = countPersonCentredViolations(result.risks || []);
 
         // Helper to clean "not aware" type phrases from any string
         const cleanNotAwarePhrases = (text: string): string => {
@@ -16023,10 +16280,17 @@ Remember: Extract information ONLY from the service user documents above. Templa
           ...(Array.isArray(result.supportingEvidence) ? result.supportingEvidence : []),
           ...scrubbedSupportingEvidence,
         ]).filter(isMeaningfulEvidence).length;
-        const evidenceCoverageRatio = Array.isArray(result.risks) && result.risks.length > 0
-          ? evidenceCandidateCount / result.risks.length
+
+        // Adaptive minimum: narrow categories with sparse evidence need fewer risks to be valid.
+        const minimumRiskCount =
+          evidenceCandidateCount <= 2 ? 2
+          : evidenceCandidateCount <= 4 ? 3
+          : Math.min(6, Math.max(4, Math.ceil(evidenceCandidateCount / 2)));
+
+        // Person-centred failure rate on RAW AI output (checked before toFirstPerson enrichment above).
+        const personCentredFailureRate = (result.risks?.length || 0) > 0
+          ? rawPersonCentredViolations / result.risks.length
           : 0;
-        const minimumRiskCount = Math.min(6, Math.max(4, Math.ceil(evidenceCandidateCount / 2)));
 
         if (
           !result.risks ||
@@ -16034,18 +16298,21 @@ Remember: Extract information ONLY from the service user documents above. Templa
           averageRiskScore < 70 ||
           riskDiversityRatio < 0.7 ||
           lowDetailRiskCount > Math.floor((result.risks?.length || 0) / 2) ||
-          evidenceCoverageRatio < 0.8
+          personCentredFailureRate > 0.5
         ) {
           console.warn(
-            `[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, minimum=${minimumRiskCount}, avgScore=${averageRiskScore.toFixed(1)}, diversity=${riskDiversityRatio.toFixed(2)}, lowDetail=${lowDetailRiskCount}, evidenceCoverage=${evidenceCoverageRatio.toFixed(2)}). Using rule-based fallback.`
+            `[RiskAssessment] Low quality AI output (risks=${result.risks?.length || 0}, minimum=${minimumRiskCount}, avgScore=${averageRiskScore.toFixed(1)}, diversity=${riskDiversityRatio.toFixed(2)}, lowDetail=${lowDetailRiskCount}, personCentredViolations=${rawPersonCentredViolations}/${result.risks?.length || 0}). Using rule-based fallback.`
           );
           const fallbackResult = buildRuleBasedRiskAssessmentPayload({
             documentContent: scrubbedDocumentContent,
-            assessmentCategory,
+            assessmentCategory: safeAssessmentCategory,
             serviceUserInitials: safeServiceUserInitials,
             performedBy: safePerformedBy,
             performedByJobTitle,
           });
+          if (Array.isArray(fallbackResult.risks)) {
+            fallbackResult.risks = normalizeGeneratedRiskRows(fallbackResult.risks) as typeof fallbackResult.risks;
+          }
           result = fallbackResult;
           result.serviceUserInitials = normalizeInitials(result.serviceUserInitials);
           result.assessmentDate = preservedFields.assessmentDate;

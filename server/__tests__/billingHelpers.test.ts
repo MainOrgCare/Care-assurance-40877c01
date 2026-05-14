@@ -126,6 +126,15 @@ describe("normalizeTime", () => {
     assert.equal(normalizeTime("14:30"), "14:30");
   });
 
+  test("converts 12-hour AM/PM to 24-hour format", () => {
+    assert.equal(normalizeTime("12:00 AM"), "00:00"); // midnight
+    assert.equal(normalizeTime("12:00 PM"), "12:00"); // noon
+    assert.equal(normalizeTime("1:30 PM"), "13:30");
+    assert.equal(normalizeTime("11:59 pm"), "23:59");
+    assert.equal(normalizeTime("9:00 am"), "09:00");
+    assert.equal(normalizeTime("12:30 am"), "00:30");
+  });
+
   test("returns null for invalid input", () => {
     assert.equal(normalizeTime(null), null);
     assert.equal(normalizeTime(""), null);
@@ -149,6 +158,23 @@ describe("parseDurationMinutes", () => {
   test("returns null for empty", () => {
     assert.equal(parseDurationMinutes(null), null);
     assert.equal(parseDurationMinutes(""), null);
+  });
+
+  test("parses H:MM format", () => {
+    assert.equal(parseDurationMinutes("1:30"), 90);
+    assert.equal(parseDurationMinutes("0:45"), 45);
+  });
+
+  test("parses compound hour+minute strings", () => {
+    assert.equal(parseDurationMinutes("1h 30m"), 90);
+    assert.equal(parseDurationMinutes("2h 45m"), 165);
+    assert.equal(parseDurationMinutes("1hr"), 60);
+    assert.equal(parseDurationMinutes("1.5h"), 90);
+  });
+
+  test("parses plain minute strings", () => {
+    assert.equal(parseDurationMinutes("90 mins"), 90);
+    assert.equal(parseDurationMinutes("45m"), 45);
   });
 });
 

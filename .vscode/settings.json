@@ -49,12 +49,10 @@
     "*.scpt": "shellscript"
   },
   "git.confirmSync": false,
-  "javascript.updateImportsOnFileMove.enabled": "always",
-  "javascript.format.insertSpaceBeforeFunctionParenthesis": true,
-  "material-icon-theme.hidesExplorerArrows": true,
-  "workbench.iconTheme": "material-icon-theme",
+  "js/ts.updateImportsOnFileMove.enabled": "always",
+  "js/ts.format.insertSpaceBeforeFunctionParenthesis": true,
   "workbench.startupEditor": "readme",
-
+  "vscode_custom_css.imports": ["file:///c:/Users/lewis/.vscode/extensions/brandonkirbyson.vscode-animations-2.0.7/dist/updateHandler.js"],
   "[javascript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   },
@@ -86,5 +84,5 @@
   "livePreview.portNumber": 5173,
   "animations.CursorAnimation": true,
   "animations.Focus-Dimming-Mode": "Everything But Editor",
-  "animations.UseCursorColorForCursorAnimation": true,
+  "animations.UseCursorColorForCursorAnimation": true
 }

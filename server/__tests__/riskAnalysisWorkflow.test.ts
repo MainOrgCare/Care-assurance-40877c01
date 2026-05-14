@@ -10,6 +10,7 @@ import {
   getRuleBasedRiskTargetCount,
   hasFirstPersonMarkers,
   looksLikeStructuredRiskArtifactText,
+  normalizeGeneratedRiskRows,
   normalizeRiskRating,
 } from "../services/riskAnalysisWorkflow";
 
@@ -43,6 +44,10 @@ test("extractSignalLabels finds rule-based signals across medical, care and envi
 test("extractSignalLabels matches diabetes signals from hyperglycemia terminology", () => {
   const content = "Client experiences hyperglycemia episodes overnight and requires glucose monitoring.";
   assert.deepEqual(extractSignalLabels(content, [...RULE_BASED_SIGNAL_GROUPS.medicalConditions]), ["Diabetes"]);
+  assert.deepEqual(
+    extractSignalLabels("Client reports hyperglycemic symptoms after meals.", [...RULE_BASED_SIGNAL_GROUPS.medicalConditions]),
+    ["Diabetes"],
+  );
 });
 
 test("buildFallbackRiskProfileSummary returns default text when no signals exist", () => {
@@ -113,6 +118,14 @@ test("getRuleBasedRiskTargetCount stays conservative when evidence is weak or ge
     }),
     4,
   );
+  assert.equal(
+    getRuleBasedRiskTargetCount({
+      hasCategoryEvidenceTerms: true,
+      evidencePool: new Array(20).fill("Detailed evidence statement."),
+      hasDiverseEvidence: true,
+    }),
+    7,
+  );
 });
 
 test("hasFirstPersonMarkers detects first-person language in risk text", () => {
@@ -151,4 +164,83 @@ test("countPersonCentredViolations counts risks lacking first-person language", 
     ]),
     0,
   );
+});
+
+test("normalizeGeneratedRiskRows drops blank and near-blank risk rows", () => {
+  const risks = [
+    { riskDefinition: "", howItsARisk: "Something", controlMeasures: "Something" },
+    { riskDefinition: "   ", howItsARisk: "Something", controlMeasures: "Something" },
+    { riskDefinition: "Short", howItsARisk: "Short", controlMeasures: "Short" },
+    { riskDefinition: "I am at risk of falling due to my balance difficulties.", howItsARisk: "My balance makes me unsteady.", controlMeasures: "My carer supports me." },
+  ];
+  const result = normalizeGeneratedRiskRows(risks);
+  assert.equal(result.length, 1);
+  assert.equal((result[0] as any).riskDefinition, "I am at risk of falling due to my balance difficulties.");
+});
+
+test("normalizeGeneratedRiskRows deduplicates on composite riskDefinition+howItsARisk key", () => {
+  const risks = [
+    {
+      riskDefinition: "I am at risk of a fall due to unsteady gait.",
+      howItsARisk: "My balance deteriorates when tired.",
+      controlMeasures: "My care team use a gait belt.",
+    },
+    {
+      riskDefinition: "I am at risk of a fall due to unsteady gait.",
+      howItsARisk: "My balance deteriorates when tired.",
+      controlMeasures: "Different control measures here.",
+    },
+    {
+      riskDefinition: "I am at risk of skin breakdown from prolonged sitting.",
+      howItsARisk: "Pressure builds on my sacrum during long periods in my chair.",
+      controlMeasures: "My carers reposition me every two hours.",
+    },
+  ];
+  const result = normalizeGeneratedRiskRows(risks);
+  assert.equal(result.length, 2);
+});
+
+test("normalizeGeneratedRiskRows keeps distinct risks that share similar opening sentences", () => {
+  const risks = [
+    {
+      riskDefinition: "I am at risk of falling when mobilising indoors.",
+      howItsARisk: "My hallway is narrow and has a step that I can catch my foot on.",
+      controlMeasures: "My carer walks close beside me.",
+    },
+    {
+      riskDefinition: "I am at risk of falling when mobilising indoors.",
+      howItsARisk: "My medication causes dizziness which increases my fall risk.",
+      controlMeasures: "My GP has reviewed my medication.",
+    },
+  ];
+  const result = normalizeGeneratedRiskRows(risks);
+  assert.equal(result.length, 2);
+});
+
+test("normalizeGeneratedRiskRows passes through an empty array unchanged", () => {
+  assert.deepEqual(normalizeGeneratedRiskRows([]), []);
+});
+
+test("normalizeGeneratedRiskRows handles non-array input gracefully", () => {
+  assert.deepEqual(normalizeGeneratedRiskRows(null as unknown as unknown[]), []);
+  assert.deepEqual(normalizeGeneratedRiskRows(undefined as unknown as unknown[]), []);
+});
+
+test("normalizeGeneratedRiskRows keeps rows with same definition/how but different findings", () => {
+  // Bug: composite key was only def+how, so rows with the same definition and explanation
+  // but different findings evidence were incorrectly deduplicated (one silently dropped).
+  const risks = [
+    {
+      riskDefinition: "I am at risk of a fall due to unsteady gait.",
+      howItsARisk: "My balance deteriorates when tired.",
+      findings: "Recent fall last week on the stairs",
+    },
+    {
+      riskDefinition: "I am at risk of a fall due to unsteady gait.",
+      howItsARisk: "My balance deteriorates when tired.",
+      findings: "History of vertigo documented by GP",
+    },
+  ];
+  const result = normalizeGeneratedRiskRows(risks);
+  assert.equal(result.length, 2, "Distinct findings must preserve both rows");
 });

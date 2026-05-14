@@ -177,3 +177,92 @@ test("enrichVisitResult backfills empty audit results without overwriting popula
   assert.equal(enriched.discrepancies.length, 1);
   assert.equal(enriched.hasDiscrepancies, true);
 });
+
+test("buildDeterministicVisitAudit flags zero-minute actual visit as non-compliant", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|05/04|30|0|yes|",
+  ]);
+
+  assert.equal(result.careCalls[0].actualTime, "0m");
+  assert.equal(result.careCalls[0].percentageStayed, 0);
+  assert.equal(result.careCalls[0].compliant, false);
+  assert.equal(result.hasDiscrepancies, true);
+});
+
+test("buildDeterministicVisitAudit treats justified location non-compliance as compliant", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|05/04|30|25|outside|Service user requested care outside usual location due to hospital appointment",
+  ]);
+
+  assert.equal(result.careCalls[0].compliant, true);
+  assert.equal(result.careCalls[0].justification, "Justified - see notes");
+  assert.equal(result.discrepancies.length, 0);
+  assert.equal(result.hasDiscrepancies, false);
+});
+
+test("buildDeterministicVisitAudit correctly rejects 'not ok' location as non-compliant", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|05/04|30|30|not ok|",
+  ]);
+
+  assert.equal(result.careCalls[0].locationOK, false);
+  assert.equal(result.careCalls[0].compliant, false);
+  assert.ok(result.discrepancies.some((d) => /location/i.test(d.issue)));
+});
+
+test("buildDeterministicVisitAudit handles natural-language duration strings", () => {
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|06/04|1h 30m|90 mins|yes|",
+  ]);
+
+  assert.equal(result.careCalls[0].expectedTime, "90m");
+  assert.equal(result.careCalls[0].actualTime, "90m");
+  assert.equal(result.careCalls[0].percentageStayed, 100);
+  assert.equal(result.careCalls[0].compliant, true);
+});
+
+test("buildDeterministicVisitAudit treats zero expected duration as no duration target (no discrepancy)", () => {
+  // expectedMinutes === 0 must NOT cause division by zero; percentageStayed defaults to 100
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|06/04|0|45|yes|",
+  ]);
+
+  assert.equal(result.careCalls[0].percentageStayed, 100);
+  assert.equal(result.careCalls[0].compliant, true);
+});
+
+test("buildDeterministicVisitAudit rejects invalid rollover audit dates", () => {
+  // 31/04 does not exist; normalizeAuditContext should treat it as invalid and not roll to May 1st
+  const context = { auditPeriodStart: "31/04/2026", auditPeriodEnd: "30/04/2026", notes: "", serviceUserName: "J.S." };
+  const normalized = normalizeAuditContext(context);
+  // Invalid date should not produce a rolled-over period
+  assert.ok(!normalized.auditPeriodStart.startsWith("01/05"), "Rolled-over date must not be accepted");
+});
+
+test("buildDeterministicVisitAudit handles duplicate column headers without data corruption", () => {
+  // If the LLM emits a duplicate header (e.g. Date|Date|SU), the second Date must be renamed
+  // rather than silently overwriting the first, so values are assigned to the correct columns.
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|Date|Date|CWa|ExpDur|ActDur|Loc|Notes",
+    "J.S.|05/04|05/04|A.Brown|30|25|yes|",
+  ]);
+  // Correct worker name extracted despite duplicate header
+  assert.equal(result.careCalls[0].careWorkerName, "A.Brown");
+  assert.equal(result.careCalls[0].compliant, true);
+});
+
+test("buildDeterministicVisitAudit durationOK uses explicit null check for expectedMinutes=0", () => {
+  // expectedMinutes=0 is falsy but should be treated as "no duration target", not as a compliance failure
+  const result = buildDeterministicVisitAudit([
+    "Columns:SU|CWa|Date|ExpDur|ActDur|Loc|Notes",
+    "J.S.|A.Brown|06/04|0|20|yes|",
+  ]);
+  // 0-minute expected visit: no duration target, so durationOK should be true regardless of actual
+  assert.equal(result.careCalls[0].compliant, true);
+  assert.equal(result.careCalls[0].percentageStayed, 100);
+});

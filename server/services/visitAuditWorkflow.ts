@@ -22,8 +22,11 @@ const parseAuditDate = (value: string) => {
   if (!match) return null;
   const day = Number(match[1]);
   const month = Number(match[2]) - 1;
-  const year = match[3] ? Number(match[3]) : new Date().getFullYear();
+  const rawYear = match[3] ? Number(match[3]) : new Date().getFullYear();
+  const year = rawYear < 100 ? 2000 + rawYear : rawYear;
   const date = new Date(year, month, day);
+  // Reject rolled-over dates (e.g. 31/04 → May 1st)
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -36,15 +39,36 @@ const formatAuditDate = (date: Date) => {
 const parseVisitDurationMinutes = (value: string) => {
   if (!value) return null;
   const trimmed = value.trim();
+
+  // "1h 30m", "1hr", "1.5hrs" — hours with optional minutes
+  const hMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*h(?:r(?:s)?)?(?:\s*(\d+)\s*m(?:in(?:s)?)?)?$/i);
+  if (hMatch) {
+    const total = Math.round(Number(hMatch[1]) * 60) + (hMatch[2] ? Number(hMatch[2]) : 0);
+    return total > 0 ? total : null;
+  }
+
+  // "90 mins", "45m" — plain minutes
+  const mMatch = trimmed.match(/^(\d+)\s*m(?:in(?:s)?)?$/i);
+  if (mMatch) {
+    const total = Number(mMatch[1]);
+    return total > 0 ? total : null;
+  }
+
+  // Pure numeric: integer = raw minutes, fractional (contains ".") = hours
   const numeric = Number(trimmed);
   if (!Number.isNaN(numeric)) {
+    if (numeric < 0) return null;
     if (trimmed.includes(".")) return Math.round(numeric * 60);
     return Math.round(numeric);
   }
+
+  // "H:MM" — hours and minutes
   const timeMatch = trimmed.match(/(\d{1,2}):(\d{2})/);
   if (timeMatch) {
-    return Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+    const total = Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+    return total > 0 ? total : null;
   }
+
   return null;
 };
 
@@ -52,7 +76,14 @@ const parseCompactVisitRows = (lines: string[]) => {
   if (!lines.length) return [];
   const headerLine = lines[0];
   if (!headerLine.startsWith("Columns:")) return [];
-  const headers = headerLine.replace("Columns:", "").split("|").map((header) => header.trim());
+  const rawHeaders = headerLine.replace("Columns:", "").split("|").map((h) => h.trim());
+  // Deduplicate header names by appending an index to any repeated entry
+  const headerCount = new Map<string, number>();
+  const headers = rawHeaders.map((h) => {
+    const count = headerCount.get(h) ?? 0;
+    headerCount.set(h, count + 1);
+    return count === 0 ? h : `${h}#${count}`;
+  });
   const rows: Array<Record<string, string>> = [];
   for (let i = 1; i < lines.length; i += 1) {
     const values = lines[i].split("|");
@@ -160,18 +191,25 @@ export function buildDeterministicVisitAudit(lines: string[]) {
     serviceUsers.add(serviceUser);
 
     const locationOK = locationValue
-      ? ["y", "yes", "within", "compliant", "ok", "true"].some((token) => locationValue.includes(token))
+      ? (() => {
+          const lower = locationValue.trim();
+          if (/\b(not\s+ok|outside|non[- ]?compliant|no)\b/i.test(lower)) return false;
+          if (lower === "y" || lower === "n") return lower === "y";
+          return ["yes", "within", "compliant", "ok", "true"].some((token) => lower.includes(token));
+        })()
       : true;
 
     const hasJustification = notes
       ? justificationKeywords.some((keyword) => notes.toLowerCase().includes(keyword))
       : false;
 
-    const percentageStayed = expectedMinutes && actualMinutes
+    const percentageStayed = expectedMinutes !== null && actualMinutes !== null && expectedMinutes > 0
       ? Math.round((actualMinutes / expectedMinutes) * 100)
       : 100;
-    const durationOK = expectedMinutes ? percentageStayed >= 70 : true;
-    const compliant = locationOK && (durationOK || hasJustification);
+    const durationOK = (expectedMinutes !== null && expectedMinutes > 0) ? percentageStayed >= 70 : true;
+    const unjustifiedLocation = !locationOK && !hasJustification;
+    const unjustifiedDuration = !durationOK && !hasJustification;
+    const compliant = !unjustifiedLocation && !unjustifiedDuration;
 
     if (date && date.includes("/")) {
       const dateMatch = date.match(/(\d{1,2})\/(\d{1,2})/);
@@ -187,15 +225,15 @@ export function buildDeterministicVisitAudit(lines: string[]) {
       careWorkerName: careWorker,
       date,
       locationOK,
-      expectedTime: expectedMinutes ? `${expectedMinutes}m` : "NA",
-      actualTime: actualMinutes ? `${actualMinutes}m` : "NA",
+      expectedTime: expectedMinutes !== null ? `${expectedMinutes}m` : "NA",
+      actualTime: actualMinutes !== null ? `${actualMinutes}m` : "NA",
       percentageStayed,
       compliant,
       justification: hasJustification ? "Justified - see notes" : "NA",
       comment: compliant ? "NA" : "Performance discrepancy",
     });
 
-    if (!locationOK && !hasJustification) {
+    if (unjustifiedLocation) {
       locationIssues += 1;
       discrepancies.push({
         careWorkerName: careWorker,
@@ -205,7 +243,7 @@ export function buildDeterministicVisitAudit(lines: string[]) {
       });
     }
 
-    if (!durationOK && !hasJustification) {
+    if (unjustifiedDuration) {
       durationIssues += 1;
       discrepancies.push({
         careWorkerName: careWorker,
@@ -278,8 +316,8 @@ export function enrichVisitResult<T extends VisitAuditResultLike>(
   if (!result.serviceUserName || result.serviceUserName === "Multiple") {
     result.serviceUserName = fallback.serviceUserName || result.serviceUserName;
   }
-  if (!result.themesAndTrends) result.themesAndTrends = fallback.themesAndTrends;
-  if (!result.gapsInKnowledge) result.gapsInKnowledge = fallback.gapsInKnowledge;
+  if (!result.themesAndTrends) result.themesAndTrends = fallback.themesAndTrends || "";
+  if (!result.gapsInKnowledge) result.gapsInKnowledge = fallback.gapsInKnowledge || "";
   result.hasDiscrepancies = Array.isArray(result.discrepancies) && result.discrepancies.length > 0;
   return result;
 }

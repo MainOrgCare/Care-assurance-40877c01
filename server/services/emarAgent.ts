@@ -432,6 +432,11 @@ const shouldReplaceEntry = (current: any, candidate: any): boolean => {
     return candidateCode.length > currentCode.length;
   }
 
+  // Final tiebreaker: prefer isOfficeClosed=true (more informative — records out-of-hours context)
+  const currentClosed = Boolean(current?.isOfficeClosed);
+  const candidateClosed = Boolean(candidate?.isOfficeClosed);
+  if (currentClosed !== candidateClosed) return candidateClosed;
+
   return false;
 };
 
@@ -576,7 +581,8 @@ const reconcileConsensusEntries = (passResults: any[][]): any[] => {
   for (const [key, variants] of Array.from(grouped.entries())) {
     const voteCount = new Map<string, number>();
     for (const v of variants) {
-      const vKey = String(v.code || "BLANK").toUpperCase();
+      // Normalize codes so FA/F/F/A all count as the same key and priority lookup works.
+      const vKey = normalizeCode(String(v.code || "BLANK"));
       voteCount.set(vKey, (voteCount.get(vKey) || 0) + 1);
     }
 
@@ -594,9 +600,9 @@ const reconcileConsensusEntries = (passResults: any[][]): any[] => {
       }
     }
 
-    // Pick the best example of this code from the variants
+    // Pick the best example of this code from the variants (normalize before comparing)
     const bestVariant = variants
-      .filter((v) => String(v.code || "").toUpperCase() === winnerCode)
+      .filter((v) => normalizeCode(String(v.code || "")) === winnerCode)
       .sort((a, b) => {
         const scoreA = (a.hasTime ? 2 : 0) + (a.careWorkerInitials ? 1 : 0);
         const scoreB = (b.hasTime ? 2 : 0) + (b.careWorkerInitials ? 1 : 0);
@@ -887,6 +893,7 @@ export const emarAgent = {
 
         let bestCandidate: { medicationId: number; scheduledTimeSlots: string[] } | null = null;
         let bestScore = 0;
+        let ambiguousAtBest = false;
         for (const [candidateKey, candidates] of medCandidatesByKey.entries()) {
           if (!candidateKey) continue;
           const hit = candidateKey.includes(key) || key.includes(candidateKey);
@@ -895,10 +902,14 @@ export const emarAgent = {
           if (score > bestScore) {
             bestScore = score;
             bestCandidate = candidates[0] || null;
+            ambiguousAtBest = false;
+          } else if (score === bestScore) {
+            // Two different medications tie at the same substring overlap — ambiguous.
+            ambiguousAtBest = true;
           }
         }
 
-        if (bestScore >= 6 && bestCandidate) {
+        if (bestScore >= 6 && bestCandidate && !ambiguousAtBest) {
           if (timeSlotHint) {
             const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
             const candidates = medCandidatesByKey.get(normalizeMedicationKey(name || "")) || [];
@@ -910,6 +921,23 @@ export const emarAgent = {
           }
           return bestCandidate.medicationId;
         }
+        if (bestScore >= 6 && ambiguousAtBest && timeSlotHint) {
+          // Tie between candidates: try to break it using the time slot
+          const normalizedHint = normalizeTimeSlot(timeSlotHint) || timeSlotHint;
+          const slotFiltered: Array<{ medicationId: number }> = [];
+          for (const [candidateKey, candidates] of medCandidatesByKey.entries()) {
+            if (!candidateKey) continue;
+            const hit = candidateKey.includes(key) || key.includes(candidateKey);
+            if (!hit) continue;
+            const score = Math.min(candidateKey.length, key.length);
+            if (score < bestScore) continue;
+            for (const c of candidates) {
+              const slots = c.scheduledTimeSlots.map((s) => normalizeTimeSlot(s) || s);
+              if (slots.includes(normalizedHint)) slotFiltered.push(c);
+            }
+          }
+          if (slotFiltered.length === 1) return slotFiltered[0].medicationId;
+        }
         return null;
       };
 
@@ -920,6 +948,9 @@ export const emarAgent = {
 
       const buildEntriesFromGrid = (): any[] => {
         const entries: any[] = [];
+        // Track every (medId, date, timeSlot) that has ANY cell (including N/A) so we
+        // don't generate false MISSED entries where the EMAR deliberately recorded N/A.
+        const coveredKeys = new Set<string>();
 
         for (const cell of rawCells) {
           const medId =
@@ -948,6 +979,8 @@ export const emarAgent = {
 
           code = normalizeMedicationCodeForType(code, isPrn, hasTime);
 
+          if (date && medId) coveredKeys.add(`${medId}|${date.toLowerCase()}|${timeSlot.toLowerCase()}`);
+
           if (!date || !code) continue;
           if (code === "N/A" || code === "BLANK") continue;
 
@@ -961,6 +994,38 @@ export const emarAgent = {
             hasTime,
             isOfficeClosed: false,
           });
+        }
+
+        // For every scheduled (non-PRN) medication, generate a MISSED entry for each
+        // (date × timeSlot) combination that has no cell at all — blank cells in the
+        // EMAR grid represent doses that were never recorded.  N/A cells are
+        // intentional (coveredKeys prevents MISSED from overriding them).
+        for (const med of medsWithIds) {
+          if (prnMedIds.has(med.medicationId)) continue;
+          const slots = uniqueStrings(
+            (Array.isArray(med.scheduledTimeSlots) ? med.scheduledTimeSlots : gridTimeSlots)
+              .map(normalizeTimeSlot)
+              .filter(Boolean)
+          );
+          for (const rawDate of gridDates) {
+            const normalizedDate = normalizeDate(rawDate);
+            if (!normalizedDate) continue;
+            for (const slot of slots) {
+              const key = `${med.medicationId}|${normalizedDate.toLowerCase()}|${slot.toLowerCase()}`;
+              if (!coveredKeys.has(key)) {
+                entries.push({
+                  medicationId: med.medicationId,
+                  date: normalizedDate,
+                  timeSlot: slot,
+                  code: "MISSED",
+                  careWorkerInitials: null,
+                  time: "",
+                  hasTime: false,
+                  isOfficeClosed: false,
+                });
+              }
+            }
+          }
         }
 
         return deduplicateEntries(entries);
