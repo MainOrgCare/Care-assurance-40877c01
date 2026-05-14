@@ -3,7 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
+import { useSettings, FontSize } from "@/context/SettingsContext";
+import { THEME_CATALOG } from "@/config/themeCatalog";
 import { Type, Layout, Bell, Palette, Sparkles, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -17,15 +18,6 @@ const fontSizeOptions: { value: FontSize; label: string; px: string }[] = [
   { value: "small", label: "Small", px: "12px" },
   { value: "medium", label: "Medium", px: "14px" },
   { value: "large", label: "Large", px: "16px" },
-];
-
-const themeChoices: Array<{ id: AppTheme; label: string; icon: string; color: string }> = [
-  { id: "light", label: "Light", icon: "☀️", color: "bg-card border-border" },
-  { id: "sunrise", label: "Sunrise", icon: "🌅", color: "bg-amber-100 border-amber-300" },
-  { id: "dark", label: "Dark", icon: "🌙", color: "bg-foreground border-foreground/80" },
-  { id: "midnight", label: "Midnight", icon: "🌌", color: "bg-primary border-primary/80" },
-  { id: "ocean", label: "Ocean", icon: "🌊", color: "bg-secondary border-secondary/80" },
-  { id: "aurora", label: "Aurora", icon: "🌲", color: "bg-emerald-900 border-emerald-600" },
 ];
 
 export default function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
@@ -78,20 +70,20 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
               Appearance
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {themeChoices.map((t) => (
+              {THEME_CATALOG.map((themeOption) => (
                 <motion.div
-                  key={t.id}
+                  key={themeOption.value}
                   whileHover={{ y: -2, scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => setTheme(t.id)}
+                  onClick={() => setTheme(themeOption.value)}
                   className={cn(
                     "relative cursor-pointer flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200",
-                    theme === t.id 
+                    theme === themeOption.value 
                       ? "border-primary bg-primary/5 shadow-md" 
                       : "border-border bg-muted/30 hover:bg-muted/60 hover:border-primary/40"
                   )}
                 >
-                  {theme === t.id && (
+                  {theme === themeOption.value && (
                     <motion.div 
                       layoutId="activeTheme"
                       className="absolute -top-2 -right-2 h-5 w-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-sm"
@@ -99,14 +91,25 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
                       <CheckCircle2 size={12} fill="currentColor" stroke="none" />
                     </motion.div>
                   )}
-                  <div className={cn("h-10 w-10 rounded-full border shadow-sm flex items-center justify-center text-lg", t.color)}>
-                    {t.icon}
+                  <div
+                    className="relative h-11 w-11 overflow-hidden rounded-2xl border shadow-sm"
+                    style={{
+                      background: `linear-gradient(135deg, ${themeOption.preview.bgStart}, ${themeOption.preview.bgEnd})`,
+                      borderColor: theme === themeOption.value ? themeOption.preview.accent : themeOption.preview.border,
+                    }}
+                  >
+                    <div className="absolute inset-x-1.5 top-1.5 h-1 rounded-full" style={{ backgroundColor: themeOption.preview.accent }} />
+                    <div className="absolute right-1.5 top-4 h-2 w-2 rounded-full" style={{ backgroundColor: themeOption.preview.accentAlt }} />
+                    <div className="absolute inset-x-1.5 bottom-1.5 grid grid-cols-2 gap-1">
+                      <div className="h-2 rounded-sm" style={{ backgroundColor: themeOption.preview.surface }} />
+                      <div className="h-2 rounded-sm" style={{ backgroundColor: themeOption.preview.surfaceAlt }} />
+                    </div>
                   </div>
                   <span className={cn(
                     "text-xs font-semibold", 
-                    theme === t.id ? "text-primary" : "text-muted-foreground"
+                    theme === themeOption.value ? "text-primary" : "text-muted-foreground"
                   )}>
-                    {t.label}
+                    {themeOption.label}
                   </span>
                 </motion.div>
               ))}

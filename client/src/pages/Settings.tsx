@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useSettings, FontSize, AppTheme } from "@/context/SettingsContext";
+import { useSettings, FontSize } from "@/context/SettingsContext";
+import { THEME_CATALOG } from "@/config/themeCatalog";
 import { useAuth } from "@/context/AuthContext";
 import { Type, Layout as LayoutIcon, Bell, ArrowLeft, KeyRound, Loader2, SwatchBook, Download, Keyboard, Database, FileText, Shield, Settings as SettingsIcon, Eye, Info, ShieldCheck, ClipboardCopy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -23,71 +24,6 @@ const fontSizeOptions: { value: FontSize; label: string }[] = [
   { value: "small", label: "Small" },
   { value: "medium", label: "Medium" },
   { value: "large", label: "Large" },
-];
-
-const themeOptions: Array<{
-  value: AppTheme;
-  label: string;
-  description: string;
-  bgStart: string;
-  bgEnd: string;
-  accent: string;
-  surface: string;
-}> = [
-  {
-    value: "light",
-    label: "Light",
-    description: "Standard light workspace",
-    bgStart: "hsl(216 24% 97%)",
-    bgEnd: "hsl(0 0% 100%)",
-    accent: "hsl(214 62% 28%)",
-    surface: "hsl(210 20% 93%)",
-  },
-  {
-    value: "sunrise",
-    label: "Sunrise",
-    description: "Warm daytime palette",
-    bgStart: "hsl(34 92% 95%)",
-    bgEnd: "hsl(18 86% 90%)",
-    accent: "hsl(18 82% 44%)",
-    surface: "hsl(24 70% 85%)",
-  },
-  {
-    value: "dark",
-    label: "Dark",
-    description: "Reduced-glare dark mode",
-    bgStart: "hsl(222 45% 9%)",
-    bgEnd: "hsl(222 38% 14%)",
-    accent: "hsl(213 72% 59%)",
-    surface: "hsl(218 32% 20%)",
-  },
-  {
-    value: "midnight",
-    label: "Midnight",
-    description: "High-contrast dark mode",
-    bgStart: "hsl(226 35% 11%)",
-    bgEnd: "hsl(249 42% 20%)",
-    accent: "hsl(199 89% 60%)",
-    surface: "hsl(245 38% 33%)",
-  },
-  {
-    value: "ocean",
-    label: "Ocean",
-    description: "Teal-accented dark mode",
-    bgStart: "hsl(200 55% 11%)",
-    bgEnd: "hsl(186 58% 16%)",
-    accent: "hsl(172 66% 50%)",
-    surface: "hsl(176 57% 19%)",
-  },
-  {
-    value: "aurora",
-    label: "Aurora",
-    description: "Emerald dark palette",
-    bgStart: "hsl(164 42% 10%)",
-    bgEnd: "hsl(182 40% 16%)",
-    accent: "hsl(148 62% 44%)",
-    surface: "hsl(170 32% 20%)",
-  },
 ];
 
 const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include an uppercase letter, lowercase letter, number, and special character.`;
@@ -406,7 +342,7 @@ export default function Settings() {
               <h3 className="text-[0.8125rem] font-bold text-foreground tracking-[-0.01em]">Theme</h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Theme selection">
-              {themeOptions.map((option) => {
+              {THEME_CATALOG.map((option) => {
                 const isActive = theme === option.value;
                 return (
                   <motion.button
@@ -428,17 +364,20 @@ export default function Settings() {
                     <div
                       className="relative h-16 overflow-hidden rounded-lg border"
                       style={{
-                        background: `linear-gradient(135deg, ${option.bgStart}, ${option.bgEnd})`,
-                        borderColor: isActive ? `${option.accent}80` : `${option.surface}90`,
+                        background: `linear-gradient(135deg, ${option.preview.bgStart}, ${option.preview.bgEnd})`,
+                        borderColor: isActive ? option.preview.accent : option.preview.border,
                       }}
                     >
                       <div className="absolute inset-0 p-2">
-                        <div className="h-1.5 w-9 rounded-sm" style={{ backgroundColor: option.accent }} />
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="h-1.5 w-9 rounded-sm" style={{ backgroundColor: option.preview.accent }} />
+                          <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.preview.accentAlt }} />
+                        </div>
                         <div className="mt-2 grid grid-cols-2 gap-1.5">
-                          <div className="h-3 rounded-sm opacity-90" style={{ backgroundColor: option.surface }} />
-                          <div className="h-3 rounded-sm opacity-75" style={{ backgroundColor: option.surface }} />
-                          <div className="h-3 rounded-sm opacity-60" style={{ backgroundColor: option.surface }} />
-                          <div className="h-3 rounded-sm opacity-80" style={{ backgroundColor: option.surface }} />
+                          <div className="h-3 rounded-sm opacity-95" style={{ backgroundColor: option.preview.surface }} />
+                          <div className="h-3 rounded-sm opacity-85" style={{ backgroundColor: option.preview.surfaceAlt }} />
+                          <div className="h-3 rounded-sm opacity-70" style={{ backgroundColor: option.preview.surfaceAlt }} />
+                          <div className="h-3 rounded-sm opacity-80" style={{ backgroundColor: option.preview.surface }} />
                         </div>
                       </div>
                     </div>
