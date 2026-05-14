@@ -225,10 +225,6 @@ export function sanitizeRiskDisplayText(value?: string | null): string {
     .replace(/\s+([,.;:])/g, "$1")
     .trim();
 
-  if (NAME_PLACEHOLDER_LABELS.has(cleaned.toLowerCase())) {
-    return "";
-  }
-
   return cleaned;
 }
 
@@ -442,6 +438,7 @@ export function looksLikeServiceUserName(value: string): boolean {
 export function sanitizeServiceUserName(value?: string | null): string {
   const cleaned = sanitizeRiskDisplayText(value);
   if (!cleaned) return "";
+  if (NAME_PLACEHOLDER_LABELS.has(cleaned.toLowerCase())) return "";
   if (/information not found/i.test(cleaned)) return "";
   if (!looksLikeServiceUserName(cleaned)) return "";
   return cleaned;

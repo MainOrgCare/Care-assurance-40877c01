@@ -99,9 +99,19 @@ export function hasActiveCarePlanFilters(
   return searchQuery.trim().length > 0 || priorityFilter !== "all" || sortMode !== "default";
 }
 
+const SERVICE_USER_NAME_LABEL_PATTERN = /^(?:name|known as|full name)\s*[:;]?\s*(.+)$/i;
+const SERVICE_USER_NAME_VALUE_PATTERN = /^[A-Z][A-Za-z'’-]+(?:\s+(?:[A-Z][A-Za-z'’-]+|(?:van|von|de|del|da|di|la|le|st\.?))){1,4}$/;
+
 export function extractServiceUserNameFromDocumentContent(documentContent: string): string | null {
-  const nameMatch = documentContent.match(
-    /(?:Name|Known as|Full name)[:;]?[\s]*([A-Z][A-Za-z'’-]+(?:[\s]+(?:[A-Z][A-Za-z'’-]+|(?:van|von|de|del|da|di|la|le|st\.?))){1,4})/i,
-  );
-  return nameMatch?.[1] || null;
+  for (const line of documentContent.split(/\r?\n/)) {
+    const nameMatch = line.trim().match(SERVICE_USER_NAME_LABEL_PATTERN);
+    if (!nameMatch) continue;
+
+    const candidate = nameMatch[1]?.trim().replace(/\s+/g, " ") || "";
+    if (SERVICE_USER_NAME_VALUE_PATTERN.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }

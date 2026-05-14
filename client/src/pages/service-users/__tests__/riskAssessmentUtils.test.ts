@@ -51,6 +51,11 @@ describe("riskAssessmentUtils", () => {
     ).toBe("");
   });
 
+  it("keeps legitimate harm labels while still rejecting placeholder names", () => {
+    expect(sanitizeRiskDisplayText("Service User")).toBe("Service User");
+    expect(sanitizeServiceUserName("Service User Name")).toBe("");
+  });
+
   it("deduplicates sanitized string lists", () => {
     expect(sanitizeStringList([" Calm and cooperative ", "calm and cooperative", ""])).toEqual([
       "Calm and cooperative",
