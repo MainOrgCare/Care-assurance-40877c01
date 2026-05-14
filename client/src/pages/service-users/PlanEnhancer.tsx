@@ -18,7 +18,7 @@ import { TemplateFiller } from "@/components/TemplateFiller";
 import { Badge } from "@/components/ui/badge";
 import { processVaultResponse } from "@/lib/pii-vault";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { consumeJsonSseStream } from "@/lib/sse";
+import { buildJsonSseRequest, consumeJsonSseStream, isAbortError } from "@/lib/sse";
 import {
   assessPlanEnhancerPayloadSize,
   buildPlanEnhancerTokenLimitError,
@@ -671,28 +671,18 @@ export default function PlanEnhancer() {
       const payloadJSON = JSON.stringify(finalPayload);
       const payloadSizeMB = (new Blob([payloadJSON]).size / (1024 * 1024)).toFixed(2);
 
-      // 6-minute client timeout — must exceed server-side AI timeout (5 min) to
-      // avoid aborting while the server is still generating the plan.
-      const controller = new AbortController();
-      const clientTimeout = setTimeout(() => controller.abort(), 360_000);
-
       let response: Response;
       try {
-        response = await fetch("/api/ai/enhance-plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          signal: controller.signal,
-          body: payloadJSON,
-        });
+        response = await fetch(
+          "/api/ai/enhance-plan",
+          buildJsonSseRequest(finalPayload),
+        );
       } catch (err: any) {
-        clearTimeout(clientTimeout);
-        if (err.name === "AbortError") {
+        if (isAbortError(err)) {
           throw new Error("The AI service took too long to respond. Please try again — shorter documents may help.");
         }
         throw err;
       }
-      clearTimeout(clientTimeout);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -732,27 +722,34 @@ export default function PlanEnhancer() {
       let resultRaw: CarePlanTemplate | null = null;
       let resultScrubbed: CarePlanTemplate | null = null;
 
-      await consumeJsonSseStream(response, ({ eventType, data }) => {
-        const payload = data as any;
-        if (eventType === "progress") {
-          const percent = typeof payload?.percent === "number" ? payload.percent : 0;
-          const status = typeof payload?.status === "string" ? payload.status : "Generating care plan...";
-          throttledSetProgress(percent, status);
-          return;
+      try {
+        await consumeJsonSseStream(response, ({ eventType, data }) => {
+          const payload = data as any;
+          if (eventType === "progress") {
+            const percent = typeof payload?.percent === "number" ? payload.percent : 0;
+            const status = typeof payload?.status === "string" ? payload.status : "Generating care plan...";
+            throttledSetProgress(percent, status);
+            return;
+          }
+          if (eventType === "error") {
+            throw new Error(payload?.message || "Plan enhancement failed");
+          }
+          if (eventType !== "result" || !payload || typeof payload !== "object") {
+            return;
+          }
+          const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
+            payload,
+            true // Always restore full names via vault
+          );
+          resultScrubbed = scrubbed;
+          resultRaw = raw || scrubbed;
+        });
+      } catch (err) {
+        if (isAbortError(err)) {
+          throw new Error("The AI service took too long to respond. Please try again — shorter documents may help.");
         }
-        if (eventType === "error") {
-          throw new Error(payload?.message || "Plan enhancement failed");
-        }
-        if (eventType !== "result" || !payload || typeof payload !== "object") {
-          return;
-        }
-        const { scrubbed, raw } = processVaultResponse<CarePlanTemplate>(
-          payload,
-          true // Always restore full names via vault
-        );
-        resultScrubbed = scrubbed;
-        resultRaw = raw || scrubbed;
-      });
+        throw err;
+      }
 
       if (!resultRaw) {
         throw new Error("No result received from server");

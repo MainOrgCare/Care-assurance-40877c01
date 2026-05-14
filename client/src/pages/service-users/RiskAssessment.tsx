@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { ClientPIIVault, VaultExport } from "@/lib/pii-vault";
-import { consumeJsonSseStream } from "@/lib/sse";
+import { buildJsonSseRequest, consumeJsonSseStream, isAbortError } from "@/lib/sse";
 import { normalizeServiceUserInitials } from "./riskIdentity";
 import {
   deriveTrainingNeedsLabel,
@@ -28,30 +28,6 @@ import {
   sanitizeServiceUserName,
   sanitizeStringList,
 } from "./riskAssessmentUtils";
-
-const AI_STREAM_TIMEOUT_MS = 180_000;
-
-function isAbortError(error: unknown): boolean {
-  return Boolean(
-    error &&
-      typeof error === "object" &&
-      "name" in error &&
-      (error as { name?: string }).name === "AbortError"
-  );
-}
-
-function buildAiStreamRequest(body: unknown): RequestInit & { timeoutMs: number } {
-  return {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    credentials: "include",
-    body: JSON.stringify(body),
-    timeoutMs: AI_STREAM_TIMEOUT_MS,
-  };
-}
 
 /**
  * Count placeholders in text
@@ -703,7 +679,7 @@ export default function RiskAssessment() {
         
         const response = await fetch(
           "/api/ai/analyze-risks",
-          buildAiStreamRequest({
+          buildJsonSseRequest({
             documentContent,
             allowSensitive: true,
             serviceUserNameHint: analysisNameHint || undefined,
@@ -776,7 +752,7 @@ export default function RiskAssessment() {
 
       const response = await fetch(
         "/api/ai/analyze-risks",
-        buildAiStreamRequest({
+        buildJsonSseRequest({
           documentContent,
           allowSensitive: true,
           serviceUserNameHint: analysisNameHint || undefined,
@@ -1064,7 +1040,7 @@ export default function RiskAssessment() {
           : null;
         const response = await fetch(
           "/api/ai/generate-risk-assessment",
-          buildAiStreamRequest({
+          buildJsonSseRequest({
             documentContent,
             assessmentCategory: assessmentName,
             serviceUserInitials: normalizeServiceUserInitials(

@@ -9833,11 +9833,23 @@ Return JSON with EXACT shape:
         return meds.map((med, idx) => {
           const updated = byIndex.get(idx);
           if (!updated) return med;
-          const nextName = typeof updated.name === "string" && updated.name.trim() ? updated.name.trim() : med.name;
+          const originalName = typeof med?.name === "string" ? med.name.trim() : "";
+          const originalInstructions = typeof med?.instructions === "string" ? med.instructions.trim() : "";
+          const updatedName = typeof updated.name === "string" ? updated.name.trim() : "";
+          const updatedInstructions = typeof updated.instructions === "string" ? updated.instructions.trim() : "";
+          const originalNameKey = normalizeMedicationKey(originalName);
+          const updatedNameKey = normalizeMedicationKey(updatedName);
+          const updatedInstructionsKey = normalizeMedicationKey(updatedInstructions);
+          const keepParsedName = Boolean(originalNameKey);
+          const nextName = keepParsedName
+            ? (updatedNameKey === originalNameKey && updatedName ? updatedName : originalName)
+            : (updatedName || med.name);
           const nextInstructions =
-            typeof updated.instructions === "string" && updated.instructions.trim()
-              ? updated.instructions.trim()
-              : med.instructions;
+            updatedInstructions &&
+            updatedInstructionsKey !== originalNameKey &&
+            updatedInstructionsKey !== updatedNameKey
+              ? updatedInstructions
+              : originalInstructions;
           return {
             ...med,
             name: nextName,

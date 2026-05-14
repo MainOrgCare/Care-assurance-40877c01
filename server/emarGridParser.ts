@@ -147,7 +147,9 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "at",
   "and",
   "then",
-  // Incomplete medication parts (often appear on split rows)
+]);
+
+const MEDICATION_NAME_FRAGMENT_STARTERS = new Set([
   "sulfate",
   "sulphate",
   "hydrochloride",
@@ -160,7 +162,7 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "tartrate",
 ]);
 
-const splitMedicationLabel = (label: string): { name: string; instructions: string } => {
+export const splitMedicationLabel = (label: string): { name: string; instructions: string } => {
   const cleaned = String(label || "")
     .replace(/[–—]/g, "-")
     .replace(/\s+/g, " ")
@@ -214,6 +216,10 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
     }
 
     if (startsWithDigit) {
+      // Skip leading numeric prefixes like "0.9%" in "0.9% Sodium Chloride".
+      if (nameTokens.length === 0) {
+        continue;
+      }
       const compact = token.replace(/[()]/g, "").trim();
       if (strengthPattern.test(compact) || strengthRatioPattern.test(compact)) {
         nameTokens.push(token);
@@ -222,10 +228,6 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
       if (rangePattern.test(token)) {
         stopIndex = i;
         break;
-      }
-      // Skip leading numeric prefixes like "0.9%" in "0.9% Sodium Chloride".
-      if (nameTokens.length === 0) {
-        continue;
       }
       stopIndex = i;
       break;
@@ -283,7 +285,7 @@ const splitMedicationLabel = (label: string): { name: string; instructions: stri
   if (nameLooksDoseOnly) {
     return { name: "", instructions: cleaned };
   }
-  return { name, instructions: instructions || cleaned };
+  return { name, instructions };
 };
 
 interface TextItem {
@@ -1660,7 +1662,9 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
         const lowInfoCandidate = isLowInformationMedicationName(trimmedCandidate);
         const firstToken = trimmedCandidate.split(/\s+/)[0]?.toLowerCase() || "";
         const startsWithStopWord = MEDICATION_NAME_STOP_WORDS.has(firstToken);
-        const startsWithInstructionWord = MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken);
+        const startsWithInstructionWord =
+          MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken) ||
+          MEDICATION_NAME_FRAGMENT_STARTERS.has(firstToken);
         const instructionVerbPattern = /\b(take|apply|administer|give|dissolve|mix|use|insert|instill|inhale|inject)\b/i;
         const instructionLike = instructionVerbPattern.test(trimmedCandidate) && (startsWithStopWord || startsWithInstructionWord);
         const isInstructionOnly = /^\d/.test(trimmedCandidate) && /\btake\b/i.test(trimmedCandidate);
@@ -1877,7 +1881,9 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
       const hasMeaningfulToken = hasMeaningfulMedicationToken(medName);
       const firstToken = medName.split(/\s+/)[0]?.toLowerCase() || "";
       const startsWithInstruction =
-        MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken) || MEDICATION_NAME_BAD_STARTERS.has(firstToken);
+        MEDICATION_NAME_INSTRUCTION_WORDS.has(firstToken) ||
+        MEDICATION_NAME_FRAGMENT_STARTERS.has(firstToken) ||
+        MEDICATION_NAME_BAD_STARTERS.has(firstToken);
       const rowHasTimeSlot = extractSlotLabels(cleanedLeft).length > 0;
       const looksLikeMedicationHeader =
         Boolean(medName) &&
@@ -2285,12 +2291,12 @@ async function parseEMARGridWithOptions(pdfBuffer: Buffer, options: ParseOptions
 
 	          if (cleanMedName && !isLowInformationMedicationName(cleanMedName)) {
 	            medicationNameForCells = cleanMedName;
-              const baseInstructions = medInstructions || rawLabel;
+              const baseInstructions = medInstructions || stripNamePrefix(rawLabel, cleanMedName);
               const combinedInstructions = [baseInstructions, extraInstructionText].filter(Boolean).join(" ").trim();
 	            transposedMedications.push({
 	              name: medicationNameForCells,
 	              row: transposedMedications.length,
-	              instructions: combinedInstructions || rawLabel,
+                instructions: combinedInstructions,
 	              timeSlots: assignedColumns.map((c) => c.slot),
 	            });
 	            medicationIndex = transposedMedications.length - 1;

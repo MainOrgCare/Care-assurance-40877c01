@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TemplateFiller } from "@/components/TemplateFiller";
 import { processVaultResponse } from "@/lib/pii-vault";
-import { consumeJsonSseStream } from "@/lib/sse";
+import { buildJsonSseRequest, consumeJsonSseStream, isAbortError } from "@/lib/sse";
 import {
   countPlaceholders,
   extractServiceUserNameFromDocumentContent,
@@ -337,16 +337,22 @@ export default function CarePlanning() {
       const sectionsInProgressRaw: CarePlanSection[] = [];
       const sectionsInProgressScrubbed: CarePlanSection[] = [];
 
-      const response = await fetch("/api/ai/generate-care-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ 
-          documentContent, 
-          callType: requestedCallType,
-          allowSensitive: true // Always request vault export for automatic restoration
-        }),
-      });
+      let response: Response;
+      try {
+        response = await fetch(
+          "/api/ai/generate-care-plan",
+          buildJsonSseRequest({
+            documentContent,
+            callType: requestedCallType,
+            allowSensitive: true, // Always request vault export for automatic restoration
+          }),
+        );
+      } catch (error) {
+        if (isAbortError(error)) {
+          throw new Error(`${requestedCallType} care plan generation took too long. Please try again.`);
+        }
+        throw error;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -361,58 +367,65 @@ export default function CarePlanning() {
       let resultRaw: CarePlanResult | null = null;
       let resultScrubbed: CarePlanResult | null = null;
 
-      await consumeJsonSseStream(response, ({ eventType, data }) => {
-        const payload = data as any;
-        if (eventType === "progress") {
-          const percent = typeof payload?.percent === "number" ? payload.percent : 0;
-          const status = typeof payload?.status === "string" ? payload.status : "Generating care plan...";
-          throttledSetProgress(percent, status);
-          return;
-        }
-        if (eventType === "section") {
-          if (!payload?.section || typeof payload.index !== "number") return;
-          const sectionScrubbed = payload.scrubbedSection || payload.section;
-          sectionsInProgressRaw[payload.index] = payload.section;
-          sectionsInProgressScrubbed[payload.index] = sectionScrubbed;
-          const validSectionsRaw = sectionsInProgressRaw.filter((s): s is CarePlanSection => s !== undefined);
-          const validSectionsScrubbed = sectionsInProgressScrubbed.filter((s): s is CarePlanSection => s !== undefined);
-          setCarePlanRaw((prev) => ({
-            serviceUserInitials: prev?.serviceUserInitials || "N.N.",
-            generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
-            sections: validSectionsRaw,
-            emergencyContacts: prev?.emergencyContacts || "Loading...",
-            gpDetails: prev?.gpDetails || "Loading...",
-            additionalNotes: prev?.additionalNotes || "Loading...",
-          }));
-          setCarePlanScrubbed((prev) => ({
-            serviceUserInitials: prev?.serviceUserInitials || "N.N.",
-            generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
-            sections: validSectionsScrubbed,
-            emergencyContacts: prev?.emergencyContacts || "Loading...",
-            gpDetails: prev?.gpDetails || "Loading...",
-            additionalNotes: prev?.additionalNotes || "Loading...",
-          }));
-          setExpandedSections((prev) => {
-            const next = new Set(prev);
-            next.add(payload.index);
-            return next;
-          });
-          return;
-        }
-        if (eventType === "error") {
-          throw new Error(payload?.message || "Care plan generation failed");
-        }
-        if (eventType !== "result" || !payload || typeof payload !== "object") {
-          return;
-        }
+      try {
+        await consumeJsonSseStream(response, ({ eventType, data }) => {
+          const payload = data as any;
+          if (eventType === "progress") {
+            const percent = typeof payload?.percent === "number" ? payload.percent : 0;
+            const status = typeof payload?.status === "string" ? payload.status : "Generating care plan...";
+            throttledSetProgress(percent, status);
+            return;
+          }
+          if (eventType === "section") {
+            if (!payload?.section || typeof payload.index !== "number") return;
+            const sectionScrubbed = payload.scrubbedSection || payload.section;
+            sectionsInProgressRaw[payload.index] = payload.section;
+            sectionsInProgressScrubbed[payload.index] = sectionScrubbed;
+            const validSectionsRaw = sectionsInProgressRaw.filter((s): s is CarePlanSection => s !== undefined);
+            const validSectionsScrubbed = sectionsInProgressScrubbed.filter((s): s is CarePlanSection => s !== undefined);
+            setCarePlanRaw((prev) => ({
+              serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+              generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+              sections: validSectionsRaw,
+              emergencyContacts: prev?.emergencyContacts || "Loading...",
+              gpDetails: prev?.gpDetails || "Loading...",
+              additionalNotes: prev?.additionalNotes || "Loading...",
+            }));
+            setCarePlanScrubbed((prev) => ({
+              serviceUserInitials: prev?.serviceUserInitials || "N.N.",
+              generatedDate: prev?.generatedDate || new Date().toLocaleDateString("en-GB"),
+              sections: validSectionsScrubbed,
+              emergencyContacts: prev?.emergencyContacts || "Loading...",
+              gpDetails: prev?.gpDetails || "Loading...",
+              additionalNotes: prev?.additionalNotes || "Loading...",
+            }));
+            setExpandedSections((prev) => {
+              const next = new Set(prev);
+              next.add(payload.index);
+              return next;
+            });
+            return;
+          }
+          if (eventType === "error") {
+            throw new Error(payload?.message || "Care plan generation failed");
+          }
+          if (eventType !== "result" || !payload || typeof payload !== "object") {
+            return;
+          }
 
-        const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
-          payload,
-          true // Always restore full names via vault
-        );
-        resultScrubbed = scrubbed;
-        resultRaw = raw || scrubbed;
-      });
+          const { scrubbed, raw } = processVaultResponse<CarePlanResult>(
+            payload,
+            true // Always restore full names via vault
+          );
+          resultScrubbed = scrubbed;
+          resultRaw = raw || scrubbed;
+        });
+      } catch (error) {
+        if (isAbortError(error)) {
+          throw new Error(`${requestedCallType} care plan generation took too long. Please try again.`);
+        }
+        throw error;
+      }
 
       if (!resultRaw) {
         throw new Error("No result received from server");

@@ -4,6 +4,49 @@ export type SseEventPayload = {
   rawData: string;
 };
 
+export type JsonSseRequestInit = RequestInit & {
+  timeoutMs: number;
+};
+
+export const DEFAULT_AI_STREAM_TIMEOUT_MS = 540_000;
+
+export function isAbortError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "name" in error &&
+      (error as { name?: string }).name === "AbortError",
+  );
+}
+
+export function buildJsonSseRequest(
+  body: unknown,
+  options?: {
+    timeoutMs?: number;
+    headers?: HeadersInit;
+    method?: string;
+    credentials?: RequestCredentials;
+    signal?: AbortSignal;
+  },
+): JsonSseRequestInit {
+  const headers = new Headers(options?.headers ?? undefined);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "text/event-stream");
+  }
+
+  return {
+    method: options?.method ?? "POST",
+    headers,
+    credentials: options?.credentials ?? "include",
+    body: JSON.stringify(body),
+    signal: options?.signal,
+    timeoutMs: options?.timeoutMs ?? DEFAULT_AI_STREAM_TIMEOUT_MS,
+  };
+}
+
 type SseEventHandler = (event: SseEventPayload) => void | Promise<void>;
 
 const parseSseMessage = (message: string): { eventType: string; rawData: string } | null => {
