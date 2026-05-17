@@ -338,7 +338,7 @@ const SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS = [
 ];
 
 type RowStatus = "clean" | "attention";
-type ProcessingState = "idle" | "parsing" | "analyzing" | "complete";
+type ProcessingState = "idle" | "parsing" | "ready" | "analyzing" | "complete";
 type RosteringWorkspaceTab = "data" | "analyse" | "view";
 type RecommendationDecision = "implemented" | "rejected";
 
@@ -540,10 +540,14 @@ interface CareCallRecommendation {
   timeBandLabel: string;
   callTypeLabel: string;
   totalCalls: number;
+  callsWithTimes: number;
+  callsWithDurations: number;
   averageStartOffsetMinutes: number | null;
   averageActualStartMinutes: number | null;
   averagePlannedStartMinutes: number | null;
+  averageDurationPercent: number | null;
   suggestedPlannedTimeLabel: string;
+  suggestedPlannedDurationMinutes: number | null;
   advice: string[];
   offsetConsistency: number | null;
 }
@@ -572,7 +576,7 @@ const ROSTERING_TAB_META: Record<
     title: "Rostering Analyse",
     pageTitle: ROSTERING_ANALYSE_NAME,
     description:
-      "Review the full former Testing Features workspace here, with the upload flow moved into Data.",
+      "Run analysis on uploaded data, review flagged rows, and build the full rostering picture.",
   },
   view: {
     badge: "Presentation Workspace",
@@ -793,6 +797,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const [isComparisonMode, setIsComparisonMode] = useState(false);
   const analysisJobRef = useRef<number>(0);
   const dragCounterRef = useRef(0);
+  const restoreWorkerSelectionFromProgressRef = useRef(false);
+  const pendingSourceRowsRef = useRef<Record<string, any>[] | null>(null);
+  const [hasPendingSourceRows, setHasPendingSourceRows] = useState(false);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
   const queryClient = useQueryClient();
 
@@ -1416,8 +1423,14 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         typeof snapshot.selectedRowNumber === "number"
           ? snapshot.analysisResults.find((row) => row.rowNumber === snapshot.selectedRowNumber) ?? null
           : null;
+      restoreWorkerSelectionFromProgressRef.current =
+        Boolean(snapshot.selectedCareWorkerKey) &&
+        Array.isArray(snapshot.selectedWorkerCallKeys) &&
+        snapshot.selectedWorkerCallKeys.length > 0;
 
       analysisJobRef.current = Date.now();
+      pendingSourceRowsRef.current = null;
+      setHasPendingSourceRows(false);
       setFileMeta(snapshot.fileMeta ?? null);
       setSourceHash(snapshot.sourceHash ?? null);
       setConvertedBlob(null);
@@ -1572,6 +1585,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       const jobId = Date.now();
       analysisJobRef.current = jobId;
+      restoreWorkerSelectionFromProgressRef.current = false;
       setProcessingState("parsing");
       setProgress(0);
       setFileMeta(null);
@@ -1636,17 +1650,17 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
           totalRows: rows.length,
         });
 
+        // Store rows for deferred analysis — user must click "Run analysis" in Analyse tab
+        pendingSourceRowsRef.current = rows;
+        setHasPendingSourceRows(true);
+
         toast({
           title: "File ready",
-          description: `Loaded ${rows.length.toLocaleString()} rows for analysis.`,
+          description: `Loaded ${rows.length.toLocaleString()} rows. Open Analyse to run analysis.`,
         });
 
-        setProcessingState("analyzing");
-        await analyzeRows(rows, jobId);
-        if (analysisJobRef.current === jobId) {
-          setProcessingState("complete");
-          setProgress(100);
-        }
+        setProcessingState("ready");
+        setProgress(0);
       } catch (error) {
         console.error(error);
         setSourceHash(null);
@@ -1658,8 +1672,37 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         setProcessingState("idle");
       }
     },
-    [analyzeRows, toast]
+    [toast]
   );
+
+  /** User clicks "Run analysis" in the Analyse tab — consumes the pending rows */
+  const handleRunAnalysis = useCallback(async () => {
+    const rows = pendingSourceRowsRef.current;
+    if (!rows || !rows.length) return;
+    const jobId = Date.now();
+    analysisJobRef.current = jobId;
+    setProcessingState("analyzing");
+    setProgress(0);
+    pendingSourceRowsRef.current = null;
+    setHasPendingSourceRows(false);
+    try {
+      await analyzeRows(rows, jobId);
+      if (analysisJobRef.current === jobId) {
+        setProcessingState("complete");
+        setProgress(100);
+      }
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : "Unexpected error occurred.",
+        variant: "destructive",
+      });
+      setProcessingState("ready");
+      pendingSourceRowsRef.current = rows;
+      setHasPendingSourceRows(true);
+    }
+  }, [analyzeRows, toast]);
 
   const handleSourceFileChange = useCallback(
     async (event: any) => {
@@ -2700,10 +2743,14 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         timeBandLabel: trend.timeBandLabel,
         callTypeLabel: trend.callTypeLabel,
         totalCalls: trend.totalCalls,
+        callsWithTimes: trend.callsWithTimes,
+        callsWithDurations: trend.callsWithDurations,
         averageStartOffsetMinutes: trend.averageStartOffsetMinutes,
         averageActualStartMinutes: trend.averageActualStartMinutes,
         averagePlannedStartMinutes: trend.averagePlannedStartMinutes,
+        averageDurationPercent: trend.averageDurationPercent,
         suggestedPlannedTimeLabel: trend.suggestedPlannedTimeLabel || "Review manually",
+        suggestedPlannedDurationMinutes: trend.suggestedPlannedDurationMinutes,
         advice: trend.advice,
         offsetConsistency: trend.offsetConsistency,
       }))
@@ -3660,8 +3707,16 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
   useEffect(() => {
     if (!selectedCareWorker) return;
-    setSelectedWorkerCallKeys(templatedAutoSelection);
-  }, [selectedCareWorker, templatedAutoSelection]);
+    setSelectedWorkerCallKeys((prev) => {
+      if (restoreWorkerSelectionFromProgressRef.current) {
+        restoreWorkerSelectionFromProgressRef.current = false;
+        const validKeys = new Set(resolvedCallGroups.map((group) => group.key));
+        const restoredKeys = prev.filter((key) => validKeys.has(key));
+        return restoredKeys.length ? restoredKeys : templatedAutoSelection;
+      }
+      return templatedAutoSelection;
+    });
+  }, [resolvedCallGroups, selectedCareWorker, templatedAutoSelection]);
 
   useEffect(() => {
     setExpandedTemplateGroupKeys([]);
@@ -4423,6 +4478,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
   const handleReset = useCallback(() => {
     analysisJobRef.current = Date.now();
+    restoreWorkerSelectionFromProgressRef.current = false;
+    pendingSourceRowsRef.current = null;
+    setHasPendingSourceRows(false);
     setFileMeta(null);
     setSourceHash(null);
     setConvertedBlob(null);
@@ -4622,17 +4680,27 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       "Time Band": recommendation.timeBandLabel,
       "Call Type": recommendation.callTypeLabel,
       "Suggested Planned Time": recommendation.suggestedPlannedTimeLabel,
+      "Suggested Duration":
+        recommendation.suggestedPlannedDurationMinutes !== null
+          ? formatMinutesDisplay(recommendation.suggestedPlannedDurationMinutes)
+          : "",
       "Avg Planned Time": deriveTimeLabel(recommendation.averagePlannedStartMinutes, null) ?? "",
       "Avg Actual Time": deriveTimeLabel(recommendation.averageActualStartMinutes, null) ?? "",
       "Avg Drift":
         typeof recommendation.averageStartOffsetMinutes === "number"
           ? formatSignedMinutes(recommendation.averageStartOffsetMinutes)
           : "",
+      "Avg Duration Match":
+        typeof recommendation.averageDurationPercent === "number"
+          ? `${recommendation.averageDurationPercent.toFixed(0)}%`
+          : "",
       "Consistency":
         typeof recommendation.offsetConsistency === "number"
           ? `${Math.round(recommendation.offsetConsistency * 100)}%`
           : "",
-      "Calls Analysed": recommendation.totalCalls,
+      "Total Calls": recommendation.totalCalls,
+      "Timing Samples": recommendation.callsWithTimes,
+      "Duration Samples": recommendation.callsWithDurations,
       Status: recommendationDecisions[recommendation.key] ?? "pending",
       Remaining: recommendationDecisions[recommendation.key] ? "No" : "Yes",
       Recommendation: recommendation.advice.join(" | "),
@@ -5314,11 +5382,27 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       ];
     }
 
-    if (processingState === "parsing" || processingState === "analyzing") {
+    if (processingState === "parsing") {
       return [
-        `Stay on Data while ${processingState === "parsing" ? "the workbook is prepared" : "rows are analyzed in batches"}.`,
+        "Stay on Data while the workbook is being prepared.",
         "Download a progress file once processing completes if you need to pause or hand work over.",
-        "Move into Analyse when the pipeline reaches Ready.",
+        "The file will be ready for analysis shortly.",
+      ];
+    }
+
+    if (processingState === "ready") {
+      return [
+        `Workbook loaded: ${fileMeta.name} with ${fileMeta.totalRows.toLocaleString()} rows ready to analyse.`,
+        "Open the Analyse tab and press Run Analysis to start processing rows.",
+        "Download a progress file whenever you want to save this exact working state and continue later.",
+      ];
+    }
+
+    if (processingState === "analyzing") {
+      return [
+        `Rows are being analyzed in batches — ${progress}% complete.`,
+        "Download a progress file once processing completes if you need to pause or hand work over.",
+        "Move into Analyse to see results as they become available.",
       ];
     }
 
@@ -5343,6 +5427,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       {/* Accessibility: Live region for status announcements */}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {processingState === "parsing" && "Parsing workbook file. Please wait."}
+        {processingState === "ready" && "File loaded. Open the Analyse tab and press Run Analysis."}
         {processingState === "analyzing" && `Analyzing data. ${progress}% complete.`}
         {processingState === "complete" && `Analysis complete. Found ${summary.totalPrimary} unique slots with ${summary.attention} rows needing attention.`}
       </div>
@@ -5415,15 +5500,16 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Pipeline status</p>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-sm font-semibold capitalize">{processingState}</span>
-                  <Badge variant={processingState === "complete" ? "default" : "secondary"} className="text-[10px] uppercase">
-                    {processingState === "complete" ? "Ready" : "Running"}
+                  <Badge variant={processingState === "complete" ? "default" : processingState === "ready" ? "outline" : "secondary"} className="text-[10px] uppercase">
+                    {processingState === "complete" ? "Done" : processingState === "ready" ? "Awaiting analysis" : "Running"}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {processingState === "idle" && "Waiting for ECM upload or progress restore"}
                   {processingState === "parsing" && "Parsing workbook structure"}
+                  {processingState === "ready" && "File loaded — open Analyse to run analysis"}
                   {processingState === "analyzing" && "Scanning rows in batches"}
-                  {processingState === "complete" && "Dataset is ready for analysis"}
+                  {processingState === "complete" && "Dataset fully analyzed and ready to review"}
                 </p>
               </div>
             </div>
@@ -6117,6 +6203,70 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           />
                         </div>
 
+                        {(typeof selectedRecommendation.averageDurationPercent === "number" || selectedRecommendation.suggestedPlannedDurationMinutes !== null) && (
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <GroupMetric
+                              label="Avg Duration Match"
+                              value={
+                                typeof selectedRecommendation.averageDurationPercent === "number"
+                                  ? `${selectedRecommendation.averageDurationPercent.toFixed(0)}%`
+                                  : "—"
+                              }
+                              helper="Actual vs planned duration ratio"
+                              tone={
+                                typeof selectedRecommendation.averageDurationPercent === "number" &&
+                                (selectedRecommendation.averageDurationPercent > DURATION_OVERRUN_THRESHOLD_PERCENT ||
+                                  selectedRecommendation.averageDurationPercent < DURATION_SHORTFALL_THRESHOLD_PERCENT)
+                                  ? "warning"
+                                  : "default"
+                              }
+                            />
+                            <GroupMetric
+                              label="Suggested Duration"
+                              value={
+                                selectedRecommendation.suggestedPlannedDurationMinutes !== null
+                                  ? formatMinutesDisplay(selectedRecommendation.suggestedPlannedDurationMinutes)
+                                  : "—"
+                              }
+                              helper="Data-driven planned duration"
+                            />
+                            <GroupMetric
+                              label="Duration Samples"
+                              value={`${selectedRecommendation.callsWithDurations}`}
+                              helper="Calls with valid duration data"
+                            />
+                          </div>
+                        )}
+
+                        <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data evidence</p>
+                          <div className="grid gap-2 sm:grid-cols-3 text-sm">
+                            <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                              <span className="text-xs text-muted-foreground">Total calls</span>
+                              <p className="font-semibold">{selectedRecommendation.totalCalls}</p>
+                            </div>
+                            <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                              <span className="text-xs text-muted-foreground">Timing samples</span>
+                              <p className="font-semibold">{selectedRecommendation.callsWithTimes}
+                                <span className="text-xs font-normal text-muted-foreground ml-1">
+                                  ({selectedRecommendation.totalCalls > 0
+                                    ? Math.round((selectedRecommendation.callsWithTimes / selectedRecommendation.totalCalls) * 100)
+                                    : 0}%)
+                                </span>
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                              <span className="text-xs text-muted-foreground">Consistency</span>
+                              <p className="font-semibold">
+                                {typeof selectedRecommendation.offsetConsistency === "number"
+                                  ? `${Math.round(selectedRecommendation.offsetConsistency * 100)}%`
+                                  : "—"}
+                                <span className="text-xs font-normal text-muted-foreground ml-1">directional</span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommendation rationale</p>
                           {selectedRecommendation.advice.map((advice, index) => (
@@ -6125,7 +6275,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                             </div>
                           ))}
                           <p className="text-xs text-muted-foreground">
-                            Built from {selectedRecommendation.totalCalls} comparable calls using schedule drift, planned versus actual start times, and trimmed timing samples to reduce outlier noise.
+                            Built from {selectedRecommendation.callsWithTimes} timing samples out of {selectedRecommendation.totalCalls} total calls, using IQR-trimmed data with {typeof selectedRecommendation.offsetConsistency === "number" ? `${Math.round(selectedRecommendation.offsetConsistency * 100)}%` : "unknown"} directional consistency. Minimum thresholds: {TREND_MIN_CALLS} calls, {TREND_MIN_AVG_OFFSET_MINUTES} min avg drift, {Math.round(TREND_CONSISTENCY * 100)}% consistency.
                           </p>
                         </div>
 
@@ -6207,6 +6357,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   Analyzing
                 </div>
               )}
+              {processingState === "ready" && (
+                <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 bg-amber-50">
+                  Awaiting analysis
+                </Badge>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {fileMeta ? (
@@ -6225,6 +6380,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   <div className="rounded-2xl border border-border bg-background/60 p-4 space-y-3 shadow-soft">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Actions</p>
                     <div className="flex flex-wrap gap-2">
+                      {hasPendingSourceRows && processingState === "ready" && (
+                        <Button size="sm" variant="default" onClick={handleRunAnalysis}>
+                          <FlaskConical className="h-4 w-4 mr-2" /> Run Analysis
+                        </Button>
+                      )}
                       <Button size="sm" variant="secondary" onClick={() => handleWorkspaceTabChange("data")}>
                         <UploadCloud className="h-4 w-4 mr-2" /> Open Data
                       </Button>
@@ -6262,6 +6422,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               <CardDescription>
                 {processingState === "analyzing" && "Crunching rows in batches"}
                 {processingState === "parsing" && "Preparing workbook"}
+                {processingState === "ready" && "Press Run Analysis to start"}
                 {processingState === "complete" && "Analysis finished"}
                 {processingState === "idle" && "Awaiting upload"}
               </CardDescription>
