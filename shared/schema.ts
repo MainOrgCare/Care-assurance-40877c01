@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, pgView, text, varchar, timestamp, integer, jsonb, json, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { DEFAULT_USER_ROLE } from "./roles";
 
 // Current terms version - increment when terms are updated
 export const CURRENT_TERMS_VERSION = "1.0";
@@ -13,7 +14,7 @@ export const users = pgTable("users", {
   firstName: text("first_name"),
   lastName: text("last_name"),
   password: text("password").notNull(),
-  role: text("role").notNull().default("staff"), // 'admin' or 'staff'
+  role: text("role").notNull().default(DEFAULT_USER_ROLE), // 'admin', 'staff', or 'pilot'
   status: text("status").notNull().default("pending"), // 'pending' or 'active'
   jobTitle: text("job_title"),
   suspendedUntil: timestamp("suspended_until"),

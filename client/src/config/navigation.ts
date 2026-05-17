@@ -92,12 +92,30 @@ export const PAGE_META_RULES: PageMetaRule[] = [
     },
   },
   {
-    match: (p) => p.startsWith("/rostering"),
+    match: (p) => p === "/rostering/data",
     meta: {
       section: "Rostering",
-      title: "Rostering Studio",
+      title: "Rostering Data",
       subtitle:
-        "Plan, optimize, and compare schedules with clear workload and quality signals.",
+        "Upload a workbook, continue from a saved progress file, and prepare the current rostering dataset.",
+    },
+  },
+  {
+    match: (p) => p === "/rostering/analyse",
+    meta: {
+      section: "Rostering",
+      title: "Rostering Analysis",
+      subtitle:
+        "Review row-level issues, duplicates, and quality signals across the current rostering dataset.",
+    },
+  },
+  {
+    match: (p) => p === "/rostering/view",
+    meta: {
+      section: "Rostering",
+      title: "Rostering View",
+      subtitle:
+        "Explore service-user call stacks and operational patterns from the current rostering dataset.",
     },
   },
   {
@@ -142,6 +160,15 @@ export const PAGE_META_RULES: PageMetaRule[] = [
       section: "Administration",
       title: "System Settings",
       subtitle: "Configure security, user preferences, and operating defaults.",
+    },
+  },
+  {
+    match: (p) => p === "/rostering-tool" || p === "/testing-features",
+    meta: {
+      section: "Administration",
+      title: "Rostering Tool",
+      subtitle:
+        "Ingest workbooks, validate roster data quality, and prepare optimized handoffs.",
     },
   },
   {
@@ -205,7 +232,11 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     else if (location === "/care-workers/visit-audit") crumbs.push({ label: "Visit Audit" });
     else if (location === "/care-workers/performance") crumbs.push({ label: "Performance" });
   } else if (location.startsWith("/rostering")) {
-    crumbs.push({ label: "Rostering Studio" });
+    crumbs.push({ label: "Rostering", href: "/rostering/data" });
+    if (location === "/rostering/data") crumbs.push({ label: "Data" });
+    else if (location === "/rostering/analyse") crumbs.push({ label: "Analyse" });
+    else if (location === "/rostering/view") crumbs.push({ label: "View" });
+    else crumbs.push({ label: "Workspace" });
   } else if (location === "/call-reconciliation") {
     crumbs.push({ label: "Call Reconciliation" });
   } else if (location === "/shadow-admin-portal") {
@@ -226,9 +257,9 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     crumbs.push({ label: "CQC Self-Assessment" });
   } else if (location === "/policy-acknowledgement") {
     crumbs.push({ label: "Policy Acknowledgement" });
-  } else if (location === "/testing-features") {
+  } else if (location === "/rostering-tool" || location === "/testing-features") {
     crumbs.push({ label: "Admin", href: "/shadow-admin-portal" });
-    crumbs.push({ label: "Testing Features" });
+    crumbs.push({ label: "Rostering Tool" });
   }
 
   return crumbs;
@@ -288,12 +319,21 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Rostering",
+    icon: FlaskConical,
+    isActive: (loc) => loc.startsWith("/rostering"),
+    children: [
+      { href: "/rostering/data", label: "Data", icon: Upload },
+      { href: "/rostering/analyse", label: "Analyse", icon: ClipboardList },
+      { href: "/rostering/view", label: "View", icon: FileSpreadsheet },
+    ],
+  },
+  {
     label: "Admin",
     icon: Lock,
     isActive: (loc) =>
       loc.startsWith("/admin") ||
       loc === "/shadow-admin-portal" ||
-      loc === "/testing-features" ||
       loc === "/care-worker-rotas" ||
       loc === "/rostering-unified" ||
       loc === "/billing-tool" ||
@@ -303,9 +343,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/shadow-admin-portal", label: "Administrator Controls", icon: ShieldCheck },
       { href: "/admin/extension-manager", label: "Extension Manager", icon: Download },
       { href: "/roi-calculator", label: "Features & Benefits", icon: Calculator },
-      { href: "/testing-features", label: "Testing Features", icon: FlaskConical },
       { href: "/system-logs", label: "System Logs", icon: Terminal },
-      { href: "/rostering-unified", label: "Rostering Studio", icon: ClipboardList },
       { href: "/billing-tool", label: "Billing Tool", icon: FileSpreadsheet },
     ],
   },

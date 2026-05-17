@@ -47,6 +47,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { canAccessAppPath } from "@shared/roles";
 
 interface DashboardStats {
   auditsCompleted: number;
@@ -177,6 +178,59 @@ const QUICK_ACTIONS: {
   },
 ];
 
+const PRIMARY_ANALYSIS_ACTIONS: Array<{
+  path: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  iconClassName: string;
+}> = [
+  {
+    path: "/care-workers/emar-audit",
+    label: "EMAR Audit",
+    description: "Analyze medication records",
+    icon: Pill,
+    iconClassName: "text-primary",
+  },
+  {
+    path: "/service-users/upload",
+    label: "Care Plan",
+    description: "Generate AI care plans",
+    icon: FileText,
+    iconClassName: "text-secondary",
+  },
+  {
+    path: "/service-users/risk-assessment",
+    label: "Risk Assessment",
+    description: "Create risk assessments",
+    icon: Shield,
+    iconClassName: "text-warning",
+  },
+  {
+    path: "/service-users/plan-enhancer",
+    label: "Plan Enhancer",
+    description: "Enhance existing plans",
+    icon: Sparkles,
+    iconClassName: "text-success",
+  },
+];
+
+const SECONDARY_ANALYSIS_ACTIONS: Array<{
+  path: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  iconClassName: string;
+}> = [
+  {
+    path: "/care-workers/visit-audit",
+    label: "Visit Audit",
+    description: "Audit care visits",
+    icon: ClipboardList,
+    iconClassName: "text-muted-foreground",
+  },
+];
+
 export default function Dashboard() {
   const { user } = useAuth();
   usePageTitle("Dashboard");
@@ -186,6 +240,18 @@ export default function Dashboard() {
   const [activeWidgets, setActiveWidgets] = useState<string[]>(DEFAULT_WIDGETS);
   const [widgetOrder, setWidgetOrder] = useState<string[]>(ALL_WIDGETS.map(w => w.id));
   const [, navigate] = useLocation();
+  const availableQuickActions = useMemo(
+    () => QUICK_ACTIONS.filter((action) => canAccessAppPath(user?.role, action.href)),
+    [user?.role],
+  );
+  const availablePrimaryAnalysisActions = useMemo(
+    () => PRIMARY_ANALYSIS_ACTIONS.filter((action) => canAccessAppPath(user?.role, action.path)),
+    [user?.role],
+  );
+  const availableSecondaryAnalysisActions = useMemo(
+    () => SECONDARY_ANALYSIS_ACTIONS.filter((action) => canAccessAppPath(user?.role, action.path)),
+    [user?.role],
+  );
 
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 5 } });
   const keyboardSensor = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates });
@@ -656,6 +722,7 @@ export default function Dashboard() {
             {isRefetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Refresh
           </Button>
+          {(availablePrimaryAnalysisActions.length > 0 || availableSecondaryAnalysisActions.length > 0) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="min-w-[9.5rem] justify-between" data-testid="button-new-analysis">
@@ -667,44 +734,28 @@ export default function Dashboard() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Start New Analysis</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate("/care-workers/emar-audit")} className="cursor-pointer">
-                <Pill className="h-4 w-4 mr-2 text-primary" />
-                <div className="flex flex-col">
-                  <span>EMAR Audit</span>
-                  <span className="text-xs text-muted-foreground">Analyze medication records</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/service-users/upload")} className="cursor-pointer">
-                <FileText className="h-4 w-4 mr-2 text-secondary" />
-                <div className="flex flex-col">
-                  <span>Care Plan</span>
-                  <span className="text-xs text-muted-foreground">Generate AI care plans</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/service-users/risk-assessment")} className="cursor-pointer">
-                <Shield className="h-4 w-4 mr-2 text-warning" />
-                <div className="flex flex-col">
-                  <span>Risk Assessment</span>
-                  <span className="text-xs text-muted-foreground">Create risk assessments</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/service-users/plan-enhancer")} className="cursor-pointer">
-                <Sparkles className="h-4 w-4 mr-2 text-success" />
-                <div className="flex flex-col">
-                  <span>Plan Enhancer</span>
-                  <span className="text-xs text-muted-foreground">Enhance existing plans</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate("/care-workers/visit-audit")} className="cursor-pointer">
-                <ClipboardList className="h-4 w-4 mr-2 text-muted-foreground" />
-                <div className="flex flex-col">
-                  <span>Visit Audit</span>
-                  <span className="text-xs text-muted-foreground">Audit care visits</span>
-                </div>
-              </DropdownMenuItem>
+              {availablePrimaryAnalysisActions.map((action) => (
+                <DropdownMenuItem key={action.path} onClick={() => navigate(action.path)} className="cursor-pointer">
+                  <action.icon className={`h-4 w-4 mr-2 ${action.iconClassName}`} />
+                  <div className="flex flex-col">
+                    <span>{action.label}</span>
+                    <span className="text-xs text-muted-foreground">{action.description}</span>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+              {availablePrimaryAnalysisActions.length > 0 && availableSecondaryAnalysisActions.length > 0 && <DropdownMenuSeparator />}
+              {availableSecondaryAnalysisActions.map((action) => (
+                <DropdownMenuItem key={action.path} onClick={() => navigate(action.path)} className="cursor-pointer">
+                  <action.icon className={`h-4 w-4 mr-2 ${action.iconClassName}`} />
+                  <div className="flex flex-col">
+                    <span>{action.label}</span>
+                    <span className="text-xs text-muted-foreground">{action.description}</span>
+                  </div>
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -753,6 +804,7 @@ export default function Dashboard() {
       )}
 
       {/* Quick Actions */}
+      {availableQuickActions.length > 0 && (
       <div className="space-y-3.5 animate-slide-up stagger-3">
         <div className="flex items-center gap-2.5 px-0.5">
           <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-warning/10 border border-warning/15 shadow-[var(--shadow-xs)]">
@@ -764,8 +816,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {QUICK_ACTIONS.map((action, index) => (
-            <Link key={index} href={action.href}>
+          {availableQuickActions.map((action, index) => (
+            <Link key={action.href} href={action.href}>
               <motion.div whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }} className="h-full">
               <Card className=" group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
                 <CardContent className={`relative overflow-hidden p-4 border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-[var(--shadow-medium)]`}>
@@ -805,6 +857,7 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+      )}
 
       {isLoading && !stats ? (
         <>

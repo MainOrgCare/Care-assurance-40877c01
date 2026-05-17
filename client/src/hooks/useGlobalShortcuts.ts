@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/context/AuthContext";
+import { canAccessAppPath } from "@shared/roles";
 
 /**
  * Two-key "go-to" navigation shortcuts (e.g., G then D → Dashboard).
@@ -34,6 +36,7 @@ export function useGlobalShortcuts({
   onToggleSidebar,
   onOpenKeyboardShortcuts,
 }: UseGlobalShortcutsOptions = {}) {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const pendingGoRef = useRef(false);
   const goTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,7 +93,7 @@ export function useGlobalShortcuts({
         if (pendingGoRef.current) {
           clearGoState();
           const dest = GO_ROUTES[key];
-          if (dest) {
+          if (dest && canAccessAppPath(user?.role, dest)) {
             e.preventDefault();
             setLocation(dest);
           }
@@ -116,5 +119,5 @@ export function useGlobalShortcuts({
       window.removeEventListener("keydown", handleKeyDown);
       clearGoState();
     };
-  }, [setLocation, onToggleCommandPalette, onToggleChatAssistant, onToggleSidebar, onOpenKeyboardShortcuts, clearGoState]);
+  }, [setLocation, onToggleCommandPalette, onToggleChatAssistant, onToggleSidebar, onOpenKeyboardShortcuts, clearGoState, user?.role]);
 }

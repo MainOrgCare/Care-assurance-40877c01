@@ -1,4 +1,5 @@
 import "express";
+import type { UserRole } from "@shared/roles";
 
 /**
  * Express Request augmentation.
@@ -14,7 +15,7 @@ export interface AuthenticatedUser {
   username: string;
   firstName?: string | null;
   lastName?: string | null;
-  role: "admin" | "staff";
+  role: UserRole;
   status?: "active" | "pending" | "suspended" | null;
   jobTitle?: string | null;
   email?: string | null;

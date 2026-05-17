@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings, type AppTheme, type FontSize } from "@/context/SettingsContext";
+import { canAccessAppPath } from "@shared/roles";
 
 interface CommandRoute {
   label: string;
@@ -77,7 +78,7 @@ const ADMIN_ROUTES: CommandRoute[] = [
   { label: "Administrator Controls", icon: ShieldCheck, path: "/shadow-admin-portal", keywords: ["admin", "platform", "controls", "management"] },
   { label: "Extension Manager", icon: Download, path: "/admin/extension-manager", keywords: ["extension", "edge", "autofill", "install", "update"] },
   { label: "Features & Benefits", icon: Calculator, path: "/roi-calculator", keywords: ["roi", "cost", "savings", "features"] },
-  { label: "Testing Features", icon: FlaskConical, path: "/testing-features", keywords: ["test", "debug", "experiment"] },
+  { label: "Rostering Tool", icon: FlaskConical, path: "/rostering-tool", keywords: ["rostering", "workbook", "rota", "planning"] },
   { label: "System Logs", icon: Terminal, path: "/system-logs", keywords: ["logs", "events", "activity", "audit trail"] },
   { label: "Rostering Studio", icon: ClipboardList, path: "/rostering-unified", keywords: ["rota", "schedule", "roster", "shift"] },
   { label: "Billing Tool", icon: FileSpreadsheet, path: "/billing-tool", keywords: ["billing", "invoice", "payment"] },
@@ -134,6 +135,22 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
   } = useSettings();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
+  const navigationRoutes = useMemo(
+    () => NAVIGATION_ROUTES.filter((route) => canAccessAppPath(user?.role, route.path)),
+    [user?.role],
+  );
+  const serviceUserRoutes = useMemo(
+    () => SERVICE_USER_ROUTES.filter((route) => canAccessAppPath(user?.role, route.path)),
+    [user?.role],
+  );
+  const careWorkerRoutes = useMemo(
+    () => CARE_WORKER_ROUTES.filter((route) => canAccessAppPath(user?.role, route.path)),
+    [user?.role],
+  );
+  const adminRoutes = useMemo(
+    () => (isAdmin ? ADMIN_ROUTES.filter((route) => canAccessAppPath(user?.role, route.path)) : []),
+    [isAdmin, user?.role],
+  );
 
   // Reset search when palette opens
   useEffect(() => {
@@ -217,7 +234,7 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
         </CommandEmpty>
 
         <CommandGroup heading="Navigation">
-          {NAVIGATION_ROUTES.map((route) => (
+          {navigationRoutes.map((route) => (
             <CommandItem
               key={route.path}
               value={`${route.label} ${route.keywords.join(" ")}`}
@@ -232,41 +249,47 @@ export default function CommandPalette({ open, onOpenChange, onOpenKeyboardShort
           ))}
         </CommandGroup>
 
-        <CommandSeparator />
+        {serviceUserRoutes.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Service Users">
+              {serviceUserRoutes.map((route) => (
+                <CommandItem
+                  key={route.path}
+                  value={`${route.label} ${route.keywords.join(" ")}`}
+                  onSelect={() => navigate(route.path)}
+                >
+                  <route.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{route.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
 
-        <CommandGroup heading="Service Users">
-          {SERVICE_USER_ROUTES.map((route) => (
-            <CommandItem
-              key={route.path}
-              value={`${route.label} ${route.keywords.join(" ")}`}
-              onSelect={() => navigate(route.path)}
-            >
-              <route.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>{route.label}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
+        {careWorkerRoutes.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Care Workers">
+              {careWorkerRoutes.map((route) => (
+                <CommandItem
+                  key={route.path}
+                  value={`${route.label} ${route.keywords.join(" ")}`}
+                  onSelect={() => navigate(route.path)}
+                >
+                  <route.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{route.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
 
-        <CommandSeparator />
-
-        <CommandGroup heading="Care Workers">
-          {CARE_WORKER_ROUTES.map((route) => (
-            <CommandItem
-              key={route.path}
-              value={`${route.label} ${route.keywords.join(" ")}`}
-              onSelect={() => navigate(route.path)}
-            >
-              <route.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-              <span>{route.label}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        {isAdmin && (
+        {adminRoutes.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Administration">
-              {ADMIN_ROUTES.map((route) => (
+              {adminRoutes.map((route) => (
                 <CommandItem
                   key={route.path}
                   value={`${route.label} ${route.keywords.join(" ")}`}

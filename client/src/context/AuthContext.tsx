@@ -2,13 +2,14 @@ import { createContext, useContext, useState, ReactNode, useEffect, useMemo, use
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { AUTH_EXPIRED_EVENT, normalizeApiPayload } from "@/lib/queryClient";
+import { DEFAULT_USER_ROLE, getUserRoleLabel, type UserRole } from "@shared/roles";
 
 interface User {
   id: string;
   username: string;
   firstName?: string;
   lastName?: string;
-  role: "admin" | "staff";
+  role: UserRole;
   status: "active" | "pending";
   jobTitle?: string;
   termsAcceptedAt?: string;
@@ -53,7 +54,7 @@ interface AuthContextType {
   users: User[];
   approveUser: (id: string) => Promise<void>;
   rejectUser: (id: string) => Promise<void>;
-  createUser: (username: string, password: string, role: string) => Promise<void>;
+  createUser: (username: string, password: string, role: UserRole) => Promise<void>;
   fetchUsers: () => Promise<void>;
   refetchUser: () => Promise<void>;
   logAction: (action: string, target: string, status?: "Authorized" | "Flagged" | "Blocked" | "System", alert?: string, details?: Record<string, unknown>) => void;
@@ -497,7 +498,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password, role: "staff" }),
+        body: JSON.stringify({ username, password, role: DEFAULT_USER_ROLE }),
         credentials: "include",
       });
 
@@ -597,7 +598,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchUsers, logAction, toast]);
 
-  const createUser = useCallback(async (username: string, password: string, role: string) => {
+  const createUser = useCallback(async (username: string, password: string, role: UserRole) => {
     try {
       const response = await fetch("/api/users", {
         method: "POST",
@@ -622,7 +623,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await fetchUsers();
       toast({
         title: "User Account Created",
-        description: "New staff account has been added to the registry.",
+        description: `New ${getUserRoleLabel(role).toLowerCase()} account has been added to the registry.`,
       });
       logAction("Created User", username, "Authorized");
     } catch (error) {

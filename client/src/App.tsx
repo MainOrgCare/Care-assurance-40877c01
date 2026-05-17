@@ -14,6 +14,7 @@ import React, { Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PageLoadingBar } from "@/components/PageLoadingBar";
+import { getAuthenticatedHomePath } from "@shared/roles";
 
 // Lazy loaded pages for code splitting - reduces initial bundle size
 const NotFound = React.lazy(() => import("@/pages/not-found"));
@@ -110,7 +111,7 @@ function HomeRoute() {
   }, [user]);
 
   if (user) {
-    return <Redirect to="/dashboard" />;
+    return <Redirect to={getAuthenticatedHomePath()} />;
   }
   return <Homepage />;
 }
@@ -146,7 +147,16 @@ function Router() {
           <ProtectedRoute path="/cqc-assessment" component={CQCSelfAssessment} />
           <ProtectedRoute path="/policy-acknowledgement" component={PolicyAcknowledgement} />
           <AdminRoute path="/roi-calculator" component={ROICalculator} />
-          <AdminRoute path="/testing-features" component={TestingFeatures} />
+          <Route path="/rostering">
+            <Redirect to="/rostering/data" />
+          </Route>
+          <ProtectedRoute path="/rostering/:tab" component={TestingFeatures} />
+          <Route path="/testing-features">
+            <Redirect to="/rostering/data" />
+          </Route>
+          <Route path="/rostering-tool">
+            <Redirect to="/rostering/data" />
+          </Route>
           <AdminRoute path="/system-logs" component={SystemLogs} />
           <AdminRoute path="/rostering-unified" component={RosteringStudioUnified} />
           <Route path="/rostering-studio">

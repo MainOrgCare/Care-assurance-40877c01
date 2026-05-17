@@ -22,6 +22,20 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
+import { DEFAULT_USER_ROLE, getUserRoleLabel, type UserRole } from "@shared/roles";
+
+const USER_ROLE_OPTIONS: readonly UserRole[] = ["staff", "pilot", "admin"];
+
+const getRoleBadgeClassName = (role: string): string => {
+  switch (role) {
+    case "admin":
+      return "border-primary/40 text-primary bg-primary/10";
+    case "pilot":
+      return "border-secondary/40 text-secondary bg-secondary/10";
+    default:
+      return "border-border text-muted-foreground bg-muted/50";
+  }
+};
 
 interface AdminAlert {
   id: string;
@@ -4215,7 +4229,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
 interface EditingUser {
   id: string;
   username: string;
-  role: string;
+  role: UserRole;
   status: string;
   jobTitle: string;
   firstName: string;
@@ -4233,7 +4247,7 @@ export default function SecretAdminPortal() {
   // New User State
   const [newUserUsername, setNewUserUsername] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
-  const [newUserRole, setNewUserRole] = useState("staff");
+  const [newUserRole, setNewUserRole] = useState<UserRole>(DEFAULT_USER_ROLE);
   const [newUserJobTitle, setNewUserJobTitle] = useState("");
   const [newUserFirstName, setNewUserFirstName] = useState("");
   const [newUserLastName, setNewUserLastName] = useState("");
@@ -4662,7 +4676,7 @@ export default function SecretAdminPortal() {
         await fetchUsers();
         setNewUserUsername("");
         setNewUserPassword("");
-        setNewUserRole("staff");
+        setNewUserRole(DEFAULT_USER_ROLE);
         setNewUserJobTitle("");
         setNewUserFirstName("");
         setNewUserLastName("");
@@ -5611,8 +5625,8 @@ export default function SecretAdminPortal() {
                           <TableCell className="font-medium text-foreground">{u.username}</TableCell>
                           <TableCell className="text-muted-foreground">{u.jobTitle || "-"}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={u.role === "admin" ? "border-primary/40 text-primary bg-primary/10" : "border-border text-muted-foreground bg-muted/50"}>
-                              {u.role}
+                            <Badge variant="outline" className={getRoleBadgeClassName(u.role)}>
+                              {getUserRoleLabel(u.role)}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -5710,13 +5724,14 @@ export default function SecretAdminPortal() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-muted-foreground text-xs">Role</Label>
-                        <Select value={newUserRole} onValueChange={setNewUserRole}>
+                        <Select value={newUserRole} onValueChange={(value) => setNewUserRole(value as UserRole)}>
                           <SelectTrigger className="bg-card border-border text-foreground" data-testid="select-new-role">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="staff">Staff</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            {USER_ROLE_OPTIONS.map((role) => (
+                              <SelectItem key={role} value={role}>{getUserRoleLabel(role)}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -5756,7 +5771,7 @@ export default function SecretAdminPortal() {
                             </div>
                             <div>
                               <p className="text-sm font-medium text-foreground">{u.username}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{u.role} • Requested access</p>
+                              <p className="text-xs text-muted-foreground">{getUserRoleLabel(u.role)} • Requested access</p>
                             </div>
                           </div>
                           <div className="flex gap-2">
@@ -5801,6 +5816,7 @@ export default function SecretAdminPortal() {
                         <SelectContent>
                           <SelectItem value="all">All Roles</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="pilot">Pilot</SelectItem>
                           <SelectItem value="staff">Staff</SelectItem>
                         </SelectContent>
                       </Select>
@@ -5836,13 +5852,13 @@ export default function SecretAdminPortal() {
                           <TableCell className="font-medium text-foreground" data-testid={`text-username-${u.id}`}>
                             <div>{u.username}</div>
                             <div className="sm:hidden text-xs text-muted-foreground mt-1">
-                              {u.role} - {u.status}
+                              {getUserRoleLabel(u.role)} - {u.status}
                             </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground hidden sm:table-cell" data-testid={`text-jobtitle-${u.id}`}>{u.jobTitle || "-"}</TableCell>
                           <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className={u.role === "admin" ? "border-primary/50 text-primary" : "border-border text-foreground"} data-testid={`badge-role-${u.id}`}>
-                              {u.role}
+                            <Badge variant="outline" className={getRoleBadgeClassName(u.role)} data-testid={`badge-role-${u.id}`}>
+                              {getUserRoleLabel(u.role)}
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
@@ -6021,6 +6037,10 @@ export default function SecretAdminPortal() {
                       <span className="text-sm font-semibold text-primary">{users.filter(u => u.role === 'admin').length}</span>
                    </div>
                    <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
+                     <span className="text-xs text-muted-foreground">Pilots</span>
+                     <span className="text-sm font-semibold text-secondary">{users.filter(u => u.role === 'pilot').length}</span>
+                   </div>
+                   <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
                       <span className="text-xs text-muted-foreground">Staff</span>
                       <span className="text-sm font-semibold text-foreground">{users.filter(u => u.role === 'staff').length}</span>
                    </div>
@@ -6106,13 +6126,14 @@ export default function SecretAdminPortal() {
               </div>
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Role</Label>
-                <Select value={editingUser.role} onValueChange={(val) => setEditingUser({...editingUser, role: val})}>
+                <Select value={editingUser.role} onValueChange={(val) => setEditingUser({...editingUser, role: val as UserRole})}>
                   <SelectTrigger className="bg-muted border-border text-foreground" data-testid="select-edit-role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    {USER_ROLE_OPTIONS.map((role) => (
+                      <SelectItem key={role} value={role}>{getUserRoleLabel(role)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

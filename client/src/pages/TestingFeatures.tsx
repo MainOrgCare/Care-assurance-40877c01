@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as React from "react";
 import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Link } from "wouter";
+import { Link, Redirect, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,9 @@ import {
 
 const ROW_BATCH_SIZE = 250;
 const INITIAL_VISIBLE_ROWS = 75;
+const ROSTERING_ANALYSE_NAME = "Rostering Analyse";
+const ROSTERING_ANALYSE_FILE_PREFIX = "rostering-analyse";
+const ROSTERING_PROGRESS_VERSION = 1;
 
 const TREND_MIN_CALLS = 4;
 const TREND_CONSISTENCY = 0.7;
@@ -334,6 +338,9 @@ const SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS = [
 ];
 
 type RowStatus = "clean" | "attention";
+type ProcessingState = "idle" | "parsing" | "analyzing" | "complete";
+type RosteringWorkspaceTab = "data" | "analyse" | "view";
+type RecommendationDecision = "implemented" | "rejected";
 
 interface RowAnalysis {
   rowNumber: number;
@@ -399,6 +406,16 @@ interface FileMeta {
   totalRows: number;
 }
 
+interface FilterPreset {
+  id: string;
+  name: string;
+  status: RowStatus | "all";
+  searchTerm: string;
+  showDuplicates: boolean;
+  includeCancelled: boolean;
+  includeMismatched: boolean;
+}
+
 type DetectedField = {
   key: string;
   value: any;
@@ -436,10 +453,12 @@ interface DuplicateCluster {
 
 interface SlotTrendSummary {
   key: string;
+  serviceUserKey: string;
   serviceUserName: string | null;
   serviceUserArea: string | null;
   serviceUserAddress: string | null;
   callTypeLabel: string;
+  timeBandLabel: string;
   totalCalls: number;
   callsWithTimes: number;
   averageStartOffsetMinutes: number | null;
@@ -480,6 +499,139 @@ interface TemplateOverride {
   week2Days: WeekdayLabel[];
   requirementStartMinutes: number | null;
 }
+
+interface RosteringProgressSnapshot {
+  version: number;
+  exportedAt: string;
+  fileMeta: FileMeta | null;
+  sourceHash: string | null;
+  analysisResults: RowAnalysis[];
+  filterStatus: RowStatus | "all";
+  searchTerm: string;
+  showDuplicateRows: boolean;
+  includeCancelledCalls: boolean;
+  includeMismatchedWorkers: boolean;
+  excludeOfficeStaffFromPdf: boolean;
+  selectedTemplateWeek: TemplateWeekKey;
+  selectedTemplateDay: WeekdayLabel;
+  enforceTimeCriticalWindow: boolean;
+  packCallsBackToBack: boolean;
+  useObservedAverages: boolean;
+  templateOverrides: Record<string, TemplateOverride>;
+  expandedTemplateGroupKeys: string[];
+  selectedCareWorkerKey: string | null;
+  selectedWorkerCallKeys: string[];
+  selectedCompany: string;
+  selectedBranch: string;
+  filterPresets: FilterPreset[];
+  recommendedTemplates: Record<string, string[]>;
+  selectedRowNumber: number | null;
+  recommendationDecisions: Record<string, RecommendationDecision>;
+  selectedRecommendationServiceUser: string | null;
+  selectedRecommendationKey: string | null;
+}
+
+interface CareCallRecommendation {
+  key: string;
+  serviceUserKey: string;
+  serviceUserName: string;
+  serviceUserArea: string | null;
+  serviceUserAddress: string | null;
+  timeBandLabel: string;
+  callTypeLabel: string;
+  totalCalls: number;
+  averageStartOffsetMinutes: number | null;
+  averageActualStartMinutes: number | null;
+  averagePlannedStartMinutes: number | null;
+  suggestedPlannedTimeLabel: string;
+  advice: string[];
+  offsetConsistency: number | null;
+}
+
+const DEFAULT_ROSTERING_TAB: RosteringWorkspaceTab = "data";
+const TIME_BAND_ORDER = ["AM", "Lunch", "Tea", "Evening", "Night", "Unscheduled"] as const;
+
+const ROSTERING_TAB_META: Record<
+  RosteringWorkspaceTab,
+  {
+    badge: string;
+    title: string;
+    pageTitle: string;
+    description: string;
+  }
+> = {
+  data: {
+    badge: "Data Workspace",
+    title: "Rostering Data",
+    pageTitle: "Rostering Data",
+    description:
+      "Load ECM exports, reupload a saved progress file, and keep the current rostering dataset moving.",
+  },
+  analyse: {
+    badge: "Analysis Workspace",
+    title: "Rostering Analyse",
+    pageTitle: ROSTERING_ANALYSE_NAME,
+    description:
+      "Review the full former Testing Features workspace here, with the upload flow moved into Data.",
+  },
+  view: {
+    badge: "Presentation Workspace",
+    title: "Rostering View",
+    pageTitle: "Rostering View",
+    description:
+      "Keep room for presentation-focused roster views while the main analysis stays in Analyse.",
+  },
+};
+
+const isRosteringWorkspaceTab = (
+  value: string | undefined,
+): value is RosteringWorkspaceTab => value === "data" || value === "analyse" || value === "view";
+
+const averageNumbers = (values: number[]): number | null => {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+};
+
+const getTimeBandSortValue = (timeBandLabel: string | null | undefined): number => {
+  if (!timeBandLabel) return TIME_BAND_ORDER.length;
+  const index = TIME_BAND_ORDER.indexOf(timeBandLabel as (typeof TIME_BAND_ORDER)[number]);
+  return index >= 0 ? index : TIME_BAND_ORDER.length;
+};
+
+const buildSlotTrendKey = (
+  serviceUserKey: string | null | undefined,
+  timeBandLabel: string | null | undefined,
+  callTypeKey: string | null | undefined,
+): string | null => {
+  if (!serviceUserKey || !timeBandLabel || !callTypeKey) return null;
+  return `${serviceUserKey}|band-${timeBandLabel}|type-${callTypeKey}`;
+};
+
+const quantile = (sortedValues: number[], percentile: number): number => {
+  if (!sortedValues.length) return 0;
+  const clamped = Math.min(Math.max(percentile, 0), 1);
+  const index = (sortedValues.length - 1) * clamped;
+  const lowerIndex = Math.floor(index);
+  const upperIndex = Math.ceil(index);
+  const lower = sortedValues[lowerIndex] ?? sortedValues[sortedValues.length - 1] ?? 0;
+  const upper = sortedValues[upperIndex] ?? lower;
+  if (lowerIndex === upperIndex) return lower;
+  return lower + (upper - lower) * (index - lowerIndex);
+};
+
+const trimIqrOutliers = (values: number[]): number[] => {
+  if (values.length < 4) return values;
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const firstQuartile = quantile(sortedValues, 0.25);
+  const thirdQuartile = quantile(sortedValues, 0.75);
+  const iqr = thirdQuartile - firstQuartile;
+  if (!Number.isFinite(iqr) || iqr === 0) return values;
+
+  const lowerBound = firstQuartile - iqr * 1.5;
+  const upperBound = thirdQuartile + iqr * 1.5;
+  const filteredValues = sortedValues.filter((value) => value >= lowerBound && value <= upperBound);
+  return filteredValues.length >= Math.max(3, Math.ceil(values.length * 0.6)) ? filteredValues : values;
+};
 
 interface ResolvedWorkerCallGroup extends WorkerCallGroup {
   overrideKey: string;
@@ -561,16 +713,19 @@ interface CareWorkerRotaPayload {
   optimizedRun: OptimizedRouteEntry[];
 }
 
-export default function TestingFeatures() {
+export default function TestingFeatures({ tab }: { tab?: string }) {
+  const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const activeTab = isRosteringWorkspaceTab(tab) ? tab : DEFAULT_ROSTERING_TAB;
+  const shouldRedirectToDefaultTab = Boolean(tab) && !isRosteringWorkspaceTab(tab);
+  const activeTabMeta = ROSTERING_TAB_META[activeTab];
+  usePageTitle(activeTabMeta.pageTitle);
   const isAdmin = user?.role === "admin";
   const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
   const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<RowAnalysis[]>([]);
-  const [processingState, setProcessingState] = useState<
-    "idle" | "parsing" | "analyzing" | "complete"
-  >("idle");
+  const [processingState, setProcessingState] = useState<ProcessingState>("idle");
   const [progress, setProgress] = useState(0);
   const [convertedBlob, setConvertedBlob] = useState<Blob | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -578,21 +733,14 @@ export default function TestingFeatures() {
   const [filterStatus, setFilterStatus] = useState<RowStatus | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 200);
+  const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const tableRef = useRef<HTMLDivElement | null>(null);
   const [tableScrollTop, setTableScrollTop] = useState(0);
   const [tableViewportHeight, setTableViewportHeight] = useState(480);
   const [showDuplicateRows, setShowDuplicateRows] = useState(false);
   // Filter presets state
-  const [filterPresets, setFilterPresets] = useState<Array<{
-    id: string;
-    name: string;
-    status: RowStatus | "all";
-    searchTerm: string;
-    showDuplicates: boolean;
-    includeCancelled: boolean;
-    includeMismatched: boolean;
-  }>>([]);
+  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
   const [filterHistory, setFilterHistory] = useState<Array<{
     status: RowStatus | "all";
     searchTerm: string;
@@ -603,10 +751,17 @@ export default function TestingFeatures() {
   const [excludeOfficeStaffFromPdf, setExcludeOfficeStaffFromPdf] = useState(false);
   const [callGroupSearch, setCallGroupSearch] = useState("");
   const debouncedCallGroupSearch = useDebounce(callGroupSearch, 200);
+  const deferredCallGroupSearch = useDeferredValue(debouncedCallGroupSearch);
   const [careWorkerSearch, setCareWorkerSearch] = useState("");
   const debouncedCareWorkerSearch = useDebounce(careWorkerSearch, 200);
+  const deferredCareWorkerSearch = useDeferredValue(debouncedCareWorkerSearch);
   const [rosterCallSearch, setRosterCallSearch] = useState("");
   const debouncedRosterCallSearch = useDebounce(rosterCallSearch, 200);
+  const deferredRosterCallSearch = useDeferredValue(debouncedRosterCallSearch);
+  const isRowSearchSettling = deferredSearchTerm !== debouncedSearchTerm;
+  const isStackSearchSettling = deferredCallGroupSearch !== debouncedCallGroupSearch;
+  const isCareWorkerSearchSettling = deferredCareWorkerSearch !== debouncedCareWorkerSearch;
+  const isRosterCallSearchSettling = deferredRosterCallSearch !== debouncedRosterCallSearch;
   const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
   const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
   const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(false);
@@ -625,6 +780,9 @@ export default function TestingFeatures() {
   const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<string>("");
   const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [recommendationDecisions, setRecommendationDecisions] = useState<Record<string, RecommendationDecision>>({});
+  const [selectedRecommendationServiceUser, setSelectedRecommendationServiceUser] = useState<string | null>(null);
+  const [selectedRecommendationKey, setSelectedRecommendationKey] = useState<string | null>(null);
   // Comparison mode state
   const [comparisonSnapshot, setComparisonSnapshot] = useState<{
     fileMeta: FileMeta;
@@ -698,11 +856,13 @@ export default function TestingFeatures() {
     },
   });
 
-  const scrollToAnchor = useCallback((anchorId: string) => {
-    const target = document.getElementById(anchorId);
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  const handleWorkspaceTabChange = useCallback(
+    (nextTab: string) => {
+      if (!isRosteringWorkspaceTab(nextTab)) return;
+      setLocation(`/rostering/${nextTab}`);
+    },
+    [setLocation]
+  );
 
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_ROWS);
@@ -1232,15 +1392,17 @@ export default function TestingFeatures() {
         if (shouldFlush) {
           const flushed = batch;
           batch = [];
+          const nextProgress = Math.round(((i + 1) / rows.length) * 100);
 
-          setAnalysisResults((prev) => {
-            if (analysisJobRef.current !== jobId) {
-              return prev;
-            }
-            return [...prev, ...flushed];
+          startTransition(() => {
+            setAnalysisResults((prev) => {
+              if (analysisJobRef.current !== jobId) {
+                return prev;
+              }
+              return [...prev, ...flushed];
+            });
+            setProgress(nextProgress);
           });
-
-          setProgress(Math.round(((i + 1) / rows.length) * 100));
           await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         }
       }
@@ -1248,16 +1410,157 @@ export default function TestingFeatures() {
     [runRowAnalysis]
   );
 
-  const processFile = useCallback(
+  const restoreProgressSnapshot = useCallback(
+    (snapshot: RosteringProgressSnapshot) => {
+      const restoredRow =
+        typeof snapshot.selectedRowNumber === "number"
+          ? snapshot.analysisResults.find((row) => row.rowNumber === snapshot.selectedRowNumber) ?? null
+          : null;
+
+      analysisJobRef.current = Date.now();
+      setFileMeta(snapshot.fileMeta ?? null);
+      setSourceHash(snapshot.sourceHash ?? null);
+      setConvertedBlob(null);
+      setDownloadUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setAnalysisResults(snapshot.analysisResults ?? []);
+      setSelectedRow(restoredRow);
+      setFilterStatus(snapshot.filterStatus ?? "all");
+      setSearchTerm(snapshot.searchTerm ?? "");
+      setShowDuplicateRows(Boolean(snapshot.showDuplicateRows));
+      setIncludeCancelledCalls(Boolean(snapshot.includeCancelledCalls));
+      setIncludeMismatchedWorkers(Boolean(snapshot.includeMismatchedWorkers));
+      setExcludeOfficeStaffFromPdf(Boolean(snapshot.excludeOfficeStaffFromPdf));
+      setSelectedTemplateWeek(snapshot.selectedTemplateWeek ?? DEFAULT_TEMPLATE_WEEK);
+      setSelectedTemplateDay(snapshot.selectedTemplateDay ?? DEFAULT_TEMPLATE_DAY);
+      setEnforceTimeCriticalWindow(Boolean(snapshot.enforceTimeCriticalWindow));
+      setPackCallsBackToBack(snapshot.packCallsBackToBack ?? true);
+      setUseObservedAverages(snapshot.useObservedAverages ?? true);
+      setTemplateOverrides(snapshot.templateOverrides ?? {});
+      setExpandedTemplateGroupKeys(snapshot.expandedTemplateGroupKeys ?? []);
+      setSelectedCareWorkerKey(snapshot.selectedCareWorkerKey ?? null);
+      setSelectedWorkerCallKeys(snapshot.selectedWorkerCallKeys ?? []);
+      setSelectedCompany(snapshot.selectedCompany ?? "");
+      setSelectedBranch(snapshot.selectedBranch ?? "");
+      setFilterPresets(snapshot.filterPresets ?? []);
+      setRecommendedTemplates(snapshot.recommendedTemplates ?? {});
+      setRecommendationDecisions(snapshot.recommendationDecisions ?? {});
+      setSelectedRecommendationServiceUser(snapshot.selectedRecommendationServiceUser ?? null);
+      setSelectedRecommendationKey(snapshot.selectedRecommendationKey ?? null);
+      setComparisonSnapshot(null);
+      setIsComparisonMode(false);
+      setCallGroupSearch("");
+      setCareWorkerSearch("");
+      setRosterCallSearch("");
+      setVisibleCount(INITIAL_VISIBLE_ROWS);
+      setProgress(snapshot.analysisResults.length ? 100 : 0);
+      setProcessingState(snapshot.analysisResults.length ? "complete" : "idle");
+    },
+    []
+  );
+
+  const buildProgressSnapshot = useCallback((): RosteringProgressSnapshot => ({
+    version: ROSTERING_PROGRESS_VERSION,
+    exportedAt: new Date().toISOString(),
+    fileMeta,
+    sourceHash,
+    analysisResults,
+    filterStatus,
+    searchTerm,
+    showDuplicateRows,
+    includeCancelledCalls,
+    includeMismatchedWorkers,
+    excludeOfficeStaffFromPdf,
+    selectedTemplateWeek,
+    selectedTemplateDay,
+    enforceTimeCriticalWindow,
+    packCallsBackToBack,
+    useObservedAverages,
+    templateOverrides,
+    expandedTemplateGroupKeys,
+    selectedCareWorkerKey,
+    selectedWorkerCallKeys,
+    selectedCompany,
+    selectedBranch,
+    filterPresets,
+    recommendedTemplates,
+    selectedRowNumber: selectedRow?.rowNumber ?? null,
+    recommendationDecisions,
+    selectedRecommendationServiceUser,
+    selectedRecommendationKey,
+  }), [
+    analysisResults,
+    enforceTimeCriticalWindow,
+    excludeOfficeStaffFromPdf,
+    expandedTemplateGroupKeys,
+    fileMeta,
+    filterPresets,
+    filterStatus,
+    includeCancelledCalls,
+    includeMismatchedWorkers,
+    packCallsBackToBack,
+    recommendedTemplates,
+    searchTerm,
+    selectedBranch,
+    selectedCareWorkerKey,
+    selectedCompany,
+    selectedRecommendationKey,
+    selectedRecommendationServiceUser,
+    selectedRow?.rowNumber,
+    selectedTemplateDay,
+    selectedTemplateWeek,
+    selectedWorkerCallKeys,
+    showDuplicateRows,
+    sourceHash,
+    templateOverrides,
+    useObservedAverages,
+    recommendationDecisions,
+  ]);
+
+  const buildProgressFilename = useCallback(() => {
+    const baseName = fileMeta?.name ? fileMeta.name.replace(/\.[^/.]+$/, "") : "rostering-progress";
+    const safeBaseName = baseName.replace(/[^A-Za-z0-9-_]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    return `${safeBaseName || "rostering-progress"}-progress.json`;
+  }, [fileMeta?.name]);
+
+  const processProgressFile = useCallback(
     async (file: File) => {
-      if (!isAdmin) {
+      if (!file.name.toLowerCase().endsWith(".json")) {
         toast({
-          title: "Restricted access",
-          description: "Administrator access is required to use Testing Features.",
+          title: "Unsupported progress file",
+          description: "Upload a downloaded rostering progress JSON file.",
           variant: "destructive",
         });
         return;
       }
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as Partial<RosteringProgressSnapshot>;
+        if (parsed.version !== ROSTERING_PROGRESS_VERSION || !Array.isArray(parsed.analysisResults)) {
+          throw new Error("This progress file is not in the expected format.");
+        }
+
+        restoreProgressSnapshot(parsed as RosteringProgressSnapshot);
+        toast({
+          title: "Progress restored",
+          description: `Loaded ${parsed.analysisResults.length.toLocaleString()} analyzed rows from the saved progress file.`,
+        });
+      } catch (error) {
+        toast({
+          title: "Unable to load progress",
+          description: error instanceof Error ? error.message : "Unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
+    },
+    [restoreProgressSnapshot, toast]
+  );
+
+  const processSourceFile = useCallback(
+    async (file: File) => {
       if (!file.name.toLowerCase().match(/\.(csv|xlsx|xls)$/)) {
         toast({
           title: "Unsupported file",
@@ -1288,6 +1591,9 @@ export default function TestingFeatures() {
       setExpandedTemplateGroupKeys([]);
       setSelectedCareWorkerKey(null);
       setSelectedWorkerCallKeys([]);
+      setRecommendationDecisions({});
+      setSelectedRecommendationServiceUser(null);
+      setSelectedRecommendationKey(null);
       setVisibleCount(INITIAL_VISIBLE_ROWS);
       setIncludeCancelledCalls(false);
       setIncludeMismatchedWorkers(false);
@@ -1352,17 +1658,27 @@ export default function TestingFeatures() {
         setProcessingState("idle");
       }
     },
-    [analyzeRows, isAdmin, toast]
+    [analyzeRows, toast]
   );
 
-  const handleFileChange = useCallback(
+  const handleSourceFileChange = useCallback(
     async (event: any) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      await processFile(file);
+      await processSourceFile(file);
       event.target.value = "";
     },
-    [processFile]
+    [processSourceFile]
+  );
+
+  const handleProgressFileChange = useCallback(
+    async (event: any) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await processProgressFile(file);
+      event.target.value = "";
+    },
+    [processProgressFile]
   );
 
   const handleDrop = useCallback(
@@ -1373,10 +1689,10 @@ export default function TestingFeatures() {
       setIsDragging(false);
       const file = event.dataTransfer?.files?.[0];
       if (file) {
-        await processFile(file);
+        await processSourceFile(file);
       }
     },
-    [processFile]
+    [processSourceFile]
   );
 
   const handleDragEnter = useCallback((event: any) => {
@@ -1517,8 +1833,8 @@ export default function TestingFeatures() {
       rows = rows.filter((row) => row.status === filterStatus);
     }
 
-    if (debouncedSearchTerm.trim()) {
-      const term = debouncedSearchTerm.toLowerCase();
+    if (deferredSearchTerm.trim()) {
+      const term = deferredSearchTerm.toLowerCase();
       rows = rows.filter((row) => {
         const matchesRowNumber = row.rowNumber.toString().includes(term);
         if (matchesRowNumber) return true;
@@ -1530,7 +1846,7 @@ export default function TestingFeatures() {
       });
     }
     return rows;
-  }, [dedupedResults, primaryRows, filterStatus, debouncedSearchTerm, showDuplicateRows]);
+  }, [dedupedResults, primaryRows, filterStatus, deferredSearchTerm, showDuplicateRows]);
 
   const visibleRows = filteredResults.slice(0, visibleCount);
 
@@ -2073,6 +2389,7 @@ export default function TestingFeatures() {
     if (!primaryRows.length) {
       return {
         topInsights: [] as SlotTrendSummary[],
+        allInsights: [] as SlotTrendSummary[],
         byKey: new Map<
           string,
           {
@@ -2087,10 +2404,12 @@ export default function TestingFeatures() {
 
     type Accumulator = {
       key: string;
+      serviceUserKey: string;
       serviceUserName: string | null;
       serviceUserArea: string | null;
       serviceUserAddress: string | null;
       callTypeLabel: string;
+      timeBandLabel: string;
       totalCalls: number;
       callsWithTimes: number;
       offsetSum: number;
@@ -2099,8 +2418,11 @@ export default function TestingFeatures() {
       offsetAbsOver15: number;
       callsWithActualStarts: number;
       actualStartSum: number;
+      actualStartSamples: number[];
       callsWithPlannedStarts: number;
       plannedStartSum: number;
+      plannedStartSamples: number[];
+      offsetSamples: number[];
       callsWithDurations: number;
       ratioSum: number;
       longCount: number;
@@ -2117,15 +2439,32 @@ export default function TestingFeatures() {
       const callTypeKey = normalizeCallTypeKey(row.callTypeLabel ?? null);
       if (!callTypeKey) continue;
 
-      const key = `${userKey}|type-${callTypeKey}`;
+      const baselineMinutesRaw =
+        typeof row.serviceRequirementTimeMinutes === "number"
+          ? row.serviceRequirementTimeMinutes
+          : typeof row.plannedTimeMinutes === "number"
+          ? row.plannedTimeMinutes
+          : null;
+      const groupingMinutes =
+        typeof baselineMinutesRaw === "number"
+          ? baselineMinutesRaw
+          : typeof row.actualTimeMinutes === "number"
+          ? row.actualTimeMinutes
+          : null;
+      const timeBandLabel = deriveTimeBandLabel(groupingMinutes);
+
+      const key = buildSlotTrendKey(userKey, timeBandLabel, callTypeKey);
+      if (!key) continue;
 
       if (!map.has(key)) {
         map.set(key, {
           key,
+          serviceUserKey: userKey,
           serviceUserName: row.serviceUserName ?? null,
           serviceUserArea: row.serviceUserArea ?? null,
           serviceUserAddress: row.serviceUserAddress ?? null,
           callTypeLabel: row.callTypeLabel ?? "Unknown",
+          timeBandLabel,
           totalCalls: 0,
           callsWithTimes: 0,
           offsetSum: 0,
@@ -2134,8 +2473,11 @@ export default function TestingFeatures() {
           offsetAbsOver15: 0,
           callsWithActualStarts: 0,
           actualStartSum: 0,
+          actualStartSamples: [],
           callsWithPlannedStarts: 0,
           plannedStartSum: 0,
+          plannedStartSamples: [],
+          offsetSamples: [],
           callsWithDurations: 0,
           ratioSum: 0,
           longCount: 0,
@@ -2151,24 +2493,20 @@ export default function TestingFeatures() {
       if (!acc.serviceUserArea && row.serviceUserArea) acc.serviceUserArea = row.serviceUserArea;
       if (!acc.serviceUserAddress && row.serviceUserAddress) acc.serviceUserAddress = row.serviceUserAddress;
       if (acc.callTypeLabel === "Unknown" && row.callTypeLabel) acc.callTypeLabel = row.callTypeLabel;
+      if (acc.timeBandLabel === "Unscheduled" && timeBandLabel !== "Unscheduled") acc.timeBandLabel = timeBandLabel;
 
       if (typeof row.actualTimeMinutes === "number") {
         const actual = clampMinutesOfDay(row.actualTimeMinutes);
         acc.callsWithActualStarts += 1;
         acc.actualStartSum += actual;
+        acc.actualStartSamples.push(actual);
       }
-
-      const baselineMinutesRaw =
-        typeof row.serviceRequirementTimeMinutes === "number"
-          ? row.serviceRequirementTimeMinutes
-          : typeof row.plannedTimeMinutes === "number"
-          ? row.plannedTimeMinutes
-          : null;
 
       if (typeof baselineMinutesRaw === "number") {
         const planned = clampMinutesOfDay(baselineMinutesRaw);
         acc.callsWithPlannedStarts += 1;
         acc.plannedStartSum += planned;
+        acc.plannedStartSamples.push(planned);
       }
 
       if (typeof row.actualTimeMinutes === "number" && typeof baselineMinutesRaw === "number") {
@@ -2179,6 +2517,7 @@ export default function TestingFeatures() {
           if (delta > 0) acc.offsetPositive += 1;
           if (delta < 0) acc.offsetNegative += 1;
           if (Math.abs(delta) >= 15) acc.offsetAbsOver15 += 1;
+          acc.offsetSamples.push(delta);
         }
       }
 
@@ -2212,26 +2551,29 @@ export default function TestingFeatures() {
     >();
     for (const acc of map.values()) {
       const advice: string[] = [];
-      const averageStartOffsetMinutes = acc.callsWithTimes ? acc.offsetSum / acc.callsWithTimes : null;
-      const dominantSignCount = Math.max(acc.offsetPositive, acc.offsetNegative);
-      const offsetConsistency = acc.callsWithTimes ? dominantSignCount / acc.callsWithTimes : null;
+      const trimmedOffsetSamples = trimIqrOutliers(acc.offsetSamples);
+      const trimmedActualStartSamples = trimIqrOutliers(acc.actualStartSamples);
+      const trimmedPlannedStartSamples = trimIqrOutliers(acc.plannedStartSamples);
+      const callsWithTimes = trimmedOffsetSamples.length;
+      const offsetPositive = trimmedOffsetSamples.filter((value) => value > 0).length;
+      const offsetNegative = trimmedOffsetSamples.filter((value) => value < 0).length;
+      const offsetAbsOver15 = trimmedOffsetSamples.filter((value) => Math.abs(value) >= 15).length;
+      const averageStartOffsetMinutes = averageNumbers(trimmedOffsetSamples);
+      const dominantSignCount = Math.max(offsetPositive, offsetNegative);
+      const offsetConsistency = callsWithTimes ? dominantSignCount / callsWithTimes : null;
 
-      const averageActualStartMinutes = acc.callsWithActualStarts
-        ? acc.actualStartSum / acc.callsWithActualStarts
-        : null;
-      const averagePlannedStartMinutes = acc.callsWithPlannedStarts
-        ? acc.plannedStartSum / acc.callsWithPlannedStarts
-        : null;
+      const averageActualStartMinutes = averageNumbers(trimmedActualStartSamples);
+      const averagePlannedStartMinutes = averageNumbers(trimmedPlannedStartSamples);
 
       let suggestedPlannedTimeLabel: string | null = null;
       let suggestedStartMinutes: number | null = null;
       if (
-        acc.callsWithTimes >= TREND_MIN_CALLS &&
+        callsWithTimes >= TREND_MIN_CALLS &&
         averageStartOffsetMinutes !== null &&
         Math.abs(averageStartOffsetMinutes) >= TREND_MIN_AVG_OFFSET_MINUTES &&
         offsetConsistency !== null &&
         offsetConsistency >= TREND_CONSISTENCY &&
-        acc.offsetAbsOver15 / acc.callsWithTimes >= TREND_CONSISTENCY
+        offsetAbsOver15 / callsWithTimes >= TREND_CONSISTENCY
       ) {
         const suggestedMinutes =
           typeof averageActualStartMinutes === "number"
@@ -2299,12 +2641,14 @@ export default function TestingFeatures() {
 
       result.push({
         key: acc.key,
+        serviceUserKey: acc.serviceUserKey,
         serviceUserName: acc.serviceUserName,
         serviceUserArea: acc.serviceUserArea,
         serviceUserAddress: acc.serviceUserAddress,
         callTypeLabel: acc.callTypeLabel,
+        timeBandLabel: acc.timeBandLabel,
         totalCalls: acc.totalCalls,
-        callsWithTimes: acc.callsWithTimes,
+        callsWithTimes,
         averageStartOffsetMinutes,
         offsetConsistency,
         averageActualStartMinutes,
@@ -2332,11 +2676,140 @@ export default function TestingFeatures() {
       })
       .slice(0, 10);
 
-    return { topInsights, byKey };
+    return { topInsights, allInsights: result, byKey };
   }, [primaryRows]);
 
   const slotTrends = slotTrendMetrics.topInsights;
+  const allSlotTrends = slotTrendMetrics.allInsights;
   const slotTrendLookup = slotTrendMetrics.byKey;
+
+  const careCallRecommendations = useMemo<CareCallRecommendation[]>(() => {
+    return allSlotTrends
+      .filter(
+        (trend) =>
+          Boolean(trend.suggestedPlannedTimeLabel) &&
+          trend.advice.length > 0 &&
+          Boolean(trend.serviceUserName)
+      )
+      .map((trend) => ({
+        key: trend.key,
+        serviceUserKey: trend.serviceUserKey,
+        serviceUserName: trend.serviceUserName || "Unknown service user",
+        serviceUserArea: trend.serviceUserArea,
+        serviceUserAddress: trend.serviceUserAddress,
+        timeBandLabel: trend.timeBandLabel,
+        callTypeLabel: trend.callTypeLabel,
+        totalCalls: trend.totalCalls,
+        averageStartOffsetMinutes: trend.averageStartOffsetMinutes,
+        averageActualStartMinutes: trend.averageActualStartMinutes,
+        averagePlannedStartMinutes: trend.averagePlannedStartMinutes,
+        suggestedPlannedTimeLabel: trend.suggestedPlannedTimeLabel || "Review manually",
+        advice: trend.advice,
+        offsetConsistency: trend.offsetConsistency,
+      }))
+      .sort((left, right) => {
+        if (left.serviceUserName !== right.serviceUserName) {
+          return left.serviceUserName.localeCompare(right.serviceUserName);
+        }
+        const leftBandOrder = getTimeBandSortValue(left.timeBandLabel);
+        const rightBandOrder = getTimeBandSortValue(right.timeBandLabel);
+        if (leftBandOrder !== rightBandOrder) {
+          return leftBandOrder - rightBandOrder;
+        }
+        return left.callTypeLabel.localeCompare(right.callTypeLabel);
+      });
+  }, [allSlotTrends]);
+
+  const recommendationServiceUsers = useMemo(() => {
+    const grouped = new Map<
+      string,
+      { key: string; label: string; total: number; remaining: number }
+    >();
+
+    careCallRecommendations.forEach((recommendation) => {
+      const existing = grouped.get(recommendation.serviceUserKey);
+      const isPending = !recommendationDecisions[recommendation.key];
+      if (existing) {
+        existing.total += 1;
+        if (isPending) existing.remaining += 1;
+        return;
+      }
+
+      grouped.set(recommendation.serviceUserKey, {
+        key: recommendation.serviceUserKey,
+        label: recommendation.serviceUserName,
+        total: 1,
+        remaining: isPending ? 1 : 0,
+      });
+    });
+
+    return Array.from(grouped.values()).sort((left, right) => left.label.localeCompare(right.label));
+  }, [careCallRecommendations, recommendationDecisions]);
+
+  const recommendationsForSelectedServiceUser = useMemo(
+    () =>
+      careCallRecommendations.filter(
+        (recommendation) => recommendation.serviceUserKey === selectedRecommendationServiceUser
+      ),
+    [careCallRecommendations, selectedRecommendationServiceUser]
+  );
+
+  const selectedRecommendation = useMemo(
+    () =>
+      recommendationsForSelectedServiceUser.find(
+        (recommendation) => recommendation.key === selectedRecommendationKey
+      ) ?? null,
+    [recommendationsForSelectedServiceUser, selectedRecommendationKey]
+  );
+
+  const remainingRecommendationCount = useMemo(
+    () =>
+      careCallRecommendations.filter(
+        (recommendation) => !recommendationDecisions[recommendation.key]
+      ).length,
+    [careCallRecommendations, recommendationDecisions]
+  );
+
+  const implementedRecommendationCount = useMemo(
+    () =>
+      Object.values(recommendationDecisions).filter((decision) => decision === "implemented").length,
+    [recommendationDecisions]
+  );
+
+  const rejectedRecommendationCount = useMemo(
+    () => Object.values(recommendationDecisions).filter((decision) => decision === "rejected").length,
+    [recommendationDecisions]
+  );
+
+  useEffect(() => {
+    if (!recommendationServiceUsers.length) {
+      setSelectedRecommendationServiceUser(null);
+      return;
+    }
+
+    if (
+      !selectedRecommendationServiceUser ||
+      !recommendationServiceUsers.some((serviceUser) => serviceUser.key === selectedRecommendationServiceUser)
+    ) {
+      setSelectedRecommendationServiceUser(recommendationServiceUsers[0]?.key ?? null);
+    }
+  }, [recommendationServiceUsers, selectedRecommendationServiceUser]);
+
+  useEffect(() => {
+    if (!recommendationsForSelectedServiceUser.length) {
+      setSelectedRecommendationKey(null);
+      return;
+    }
+
+    if (
+      !selectedRecommendationKey ||
+      !recommendationsForSelectedServiceUser.some(
+        (recommendation) => recommendation.key === selectedRecommendationKey
+      )
+    ) {
+      setSelectedRecommendationKey(recommendationsForSelectedServiceUser[0]?.key ?? null);
+    }
+  }, [recommendationsForSelectedServiceUser, selectedRecommendationKey]);
 
   const duplicateClusters = useMemo<DuplicateCluster[]>(() => {
     if (!dedupedResults.length) return [];
@@ -2459,7 +2932,7 @@ export default function TestingFeatures() {
       return { visibleServiceUserStacks: [], hasSearchMatch: true };
     }
 
-    const term = debouncedCallGroupSearch.trim().toLowerCase();
+    const term = deferredCallGroupSearch.trim().toLowerCase();
     if (!term) {
       return { visibleServiceUserStacks: serviceUserStacks.slice(0, 3), hasSearchMatch: true };
     }
@@ -2487,7 +2960,7 @@ export default function TestingFeatures() {
       visibleServiceUserStacks: source.map((entry) => entry.stack).slice(0, 3),
       hasSearchMatch: matches.length > 0,
     };
-  }, [serviceUserStacks, debouncedCallGroupSearch]);
+  }, [serviceUserStacks, deferredCallGroupSearch]);
 
   const rosterRows = useMemo(() => {
     if (!analysisResults.length) return [];
@@ -2811,7 +3284,7 @@ export default function TestingFeatures() {
     if (!careWorkerRosters.length) {
       return { visibleCareWorkerRosters: [], careWorkerHasMatch: true };
     }
-    const term = debouncedCareWorkerSearch.trim().toLowerCase();
+    const term = deferredCareWorkerSearch.trim().toLowerCase();
     if (!term) {
       return {
         visibleCareWorkerRosters: careWorkerRosters.slice(0, rosteringFullscreen ? 16 : 8),
@@ -2835,7 +3308,7 @@ export default function TestingFeatures() {
         .slice(0, rosteringFullscreen ? 16 : 8),
       careWorkerHasMatch: matches.length > 0,
     };
-  }, [careWorkerRosters, debouncedCareWorkerSearch, rosteringFullscreen]);
+  }, [careWorkerRosters, deferredCareWorkerSearch, rosteringFullscreen]);
 
   const clearTemplateRecommendations = useCallback(
     async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKeys: string[]): Promise<{ rateLimited: boolean }> => {
@@ -3113,9 +3586,7 @@ export default function TestingFeatures() {
       const override = templateOverrides[overrideKey];
 
       const trendKey =
-        group.normalizedServiceUserKey && group.callTypeKey
-          ? `${group.normalizedServiceUserKey}|type-${group.callTypeKey}`
-          : null;
+        buildSlotTrendKey(group.normalizedServiceUserKey, group.timeBandLabel, group.callTypeKey);
       const trend = trendKey ? slotTrendLookup.get(trendKey) : undefined;
       const suggestedStartMinutes = useObservedAverages ? trend?.suggestedStartMinutes : null;
 
@@ -3154,7 +3625,7 @@ export default function TestingFeatures() {
 
   const filteredResolvedCallGroups = useMemo(() => {
     if (!resolvedCallGroups.length) return [];
-    const term = debouncedRosterCallSearch.trim().toLowerCase();
+    const term = deferredRosterCallSearch.trim().toLowerCase();
     if (!term) return resolvedCallGroups;
     return resolvedCallGroups.filter((group) => {
       const haystack = [
@@ -3170,7 +3641,7 @@ export default function TestingFeatures() {
         .toLowerCase();
       return haystack.includes(term);
     });
-  }, [resolvedCallGroups, debouncedRosterCallSearch]);
+  }, [resolvedCallGroups, deferredRosterCallSearch]);
 
   const availableTemplateGroups = useMemo(
     () => resolvedCallGroups.filter((group) => group.effectiveTemplateWeekdayKeys.has(templateSelectionKey)),
@@ -3290,9 +3761,7 @@ export default function TestingFeatures() {
 
       sorted.forEach((group) => {
         const trendKey =
-          group.normalizedServiceUserKey && group.callTypeKey
-            ? `${group.normalizedServiceUserKey}|type-${group.callTypeKey}`
-            : null;
+          buildSlotTrendKey(group.normalizedServiceUserKey, group.timeBandLabel, group.callTypeKey);
         const trend = trendKey ? slotTrendLookup.get(trendKey) : undefined;
         const suggestedDurationMinutes = useObservedAverages ? trend?.suggestedDurationMinutes : null;
 
@@ -3975,6 +4444,9 @@ export default function TestingFeatures() {
     setExpandedTemplateGroupKeys([]);
     setSelectedCareWorkerKey(null);
     setSelectedWorkerCallKeys([]);
+    setRecommendationDecisions({});
+    setSelectedRecommendationServiceUser(null);
+    setSelectedRecommendationKey(null);
     setFilterStatus("all");
     setShowDuplicateRows(false);
     setIncludeCancelledCalls(false);
@@ -3984,27 +4456,6 @@ export default function TestingFeatures() {
     setProgress(0);
     setProcessingState("idle");
   }, []);
-
-  useEffect(() => {
-    if (
-      !isAdmin &&
-      (analysisResults.length > 0 ||
-        fileMeta ||
-        convertedBlob ||
-        downloadUrl ||
-        processingState !== "idle")
-    ) {
-      handleReset();
-    }
-  }, [
-    analysisResults.length,
-    convertedBlob,
-    downloadUrl,
-    fileMeta,
-    handleReset,
-    isAdmin,
-    processingState,
-  ]);
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -4105,15 +4556,122 @@ export default function TestingFeatures() {
     }
   }, [buildRotaExportRows, optimizedRun.length, toast]);
 
-  const handleExportFiltered = useCallback(() => {
-    if (!isAdmin) {
+  const handleDownloadProgress = useCallback(() => {
+    if (!analysisResults.length) {
       toast({
-        title: "Restricted access",
-        description: "Administrator access is required to export Testing Features data.",
+        title: "No progress to download",
+        description: "Upload and analyze an ECM export before downloading a progress file.",
         variant: "destructive",
       });
       return;
     }
+
+    const snapshot = buildProgressSnapshot();
+    triggerDownload(
+      new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8" }),
+      buildProgressFilename()
+    );
+    toast({
+      title: "Progress downloaded",
+      description: "You can reupload this progress file from the Data tab to continue later.",
+    });
+  }, [analysisResults.length, buildProgressFilename, buildProgressSnapshot, toast, triggerDownload]);
+
+  const handleRecommendationDecision = useCallback((decision: RecommendationDecision) => {
+    if (!selectedRecommendation) {
+      toast({
+        title: "No recommendation selected",
+        description: "Choose a service user and call before recording a decision.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRecommendationDecisions((prev) => ({
+      ...prev,
+      [selectedRecommendation.key]: decision,
+    }));
+    toast({
+      title: decision === "implemented" ? "Recommendation implemented" : "Recommendation rejected",
+      description: `${selectedRecommendation.serviceUserName} • ${selectedRecommendation.timeBandLabel}`,
+    });
+  }, [selectedRecommendation, toast]);
+
+  const handleDownloadRecommendations = useCallback(() => {
+    if (!careCallRecommendations.length) {
+      toast({
+        title: "No recommendations to download",
+        description: "Run Analyse first so the timing recommendations can be generated.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const summaryRows = [
+      { Metric: "Total recommendations", Value: careCallRecommendations.length },
+      { Metric: "Recommendations left", Value: remainingRecommendationCount },
+      { Metric: "Implemented", Value: implementedRecommendationCount },
+      { Metric: "Rejected", Value: rejectedRecommendationCount },
+      { Metric: "Exported at", Value: new Date().toISOString() },
+    ];
+
+    const recommendationRows = careCallRecommendations.map((recommendation) => ({
+      "Service User": recommendation.serviceUserName,
+      Area: recommendation.serviceUserArea ?? "",
+      Address: recommendation.serviceUserAddress ?? "",
+      "Time Band": recommendation.timeBandLabel,
+      "Call Type": recommendation.callTypeLabel,
+      "Suggested Planned Time": recommendation.suggestedPlannedTimeLabel,
+      "Avg Planned Time": deriveTimeLabel(recommendation.averagePlannedStartMinutes, null) ?? "",
+      "Avg Actual Time": deriveTimeLabel(recommendation.averageActualStartMinutes, null) ?? "",
+      "Avg Drift":
+        typeof recommendation.averageStartOffsetMinutes === "number"
+          ? formatSignedMinutes(recommendation.averageStartOffsetMinutes)
+          : "",
+      "Consistency":
+        typeof recommendation.offsetConsistency === "number"
+          ? `${Math.round(recommendation.offsetConsistency * 100)}%`
+          : "",
+      "Calls Analysed": recommendation.totalCalls,
+      Status: recommendationDecisions[recommendation.key] ?? "pending",
+      Remaining: recommendationDecisions[recommendation.key] ? "No" : "Yes",
+      Recommendation: recommendation.advice.join(" | "),
+    }));
+
+    const workbook = SafeXLSX.utils.book_new();
+    SafeXLSX.utils.book_append_sheet(
+      workbook,
+      SafeXLSX.utils.json_to_sheet(summaryRows),
+      "Summary"
+    );
+    SafeXLSX.utils.book_append_sheet(
+      workbook,
+      SafeXLSX.utils.json_to_sheet(recommendationRows),
+      "Recommendations"
+    );
+    const buffer = SafeXLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    triggerDownload(
+      new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `rostering-recommendations-${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+
+    toast({
+      title: "Recommendations downloaded",
+      description: `${remainingRecommendationCount} recommendation${remainingRecommendationCount === 1 ? "" : "s"} left to action.`,
+    });
+  }, [
+    careCallRecommendations,
+    implementedRecommendationCount,
+    recommendationDecisions,
+    rejectedRecommendationCount,
+    remainingRecommendationCount,
+    toast,
+    triggerDownload,
+  ]);
+
+  const handleExportFiltered = useCallback(() => {
     if (!filteredResults.length) {
       toast({
         title: "No rows to export",
@@ -4153,23 +4711,16 @@ export default function TestingFeatures() {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const mode = showDuplicateRows ? "with-duplicates" : "unique";
-    const filename = `testing-features-${filterStatus}-${mode}-${filteredResults.length}-rows.xlsx`;
+    const filename = `${ROSTERING_ANALYSE_FILE_PREFIX}-${filterStatus}-${mode}-${filteredResults.length}-rows.xlsx`;
     triggerDownload(blob, filename);
 
     toast({
       title: "Export ready",
       description: `Exported ${filteredResults.length.toLocaleString()} rows.`,
     });
-  }, [filteredResults, filterStatus, isAdmin, showDuplicateRows, toast, triggerDownload]);
+  }, [filteredResults, filterStatus, showDuplicateRows, toast, triggerDownload]);
 
   const handleExportPdf = useCallback(() => {
-    if (!isAdmin) {
-      toast({
-        title: "Restricted access",
-        description: "Administrator access is required to export Testing Features data.",
-      });
-      return;
-    }
     if (!callGroups.length) {
       toast({
         title: "No data to export",
@@ -4752,30 +5303,40 @@ export default function TestingFeatures() {
       .replace(/^-|-$/g, "");
     const fileLabel = safeBaseName || "service-user-calls";
     doc.save(`${fileLabel}-report-${exportDateStamp}.pdf`);
-  }, [callGroups, duplicateClusters, excludeOfficeStaffFromPdf, fileMeta, includeCancelledCalls, includeMismatchedWorkers, isAdmin, slotTrends, toast]);
+  }, [callGroups, duplicateClusters, excludeOfficeStaffFromPdf, fileMeta, includeCancelledCalls, includeMismatchedWorkers, slotTrends, toast]);
 
-  if (user?.role !== "admin") {
-    return (
-      <Card className="max-w-2xl mx-auto border-border/60 bg-background/70 shadow-medium">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <Shield size={18} />
-            Restricted Access
-          </CardTitle>
-          <CardDescription>
-            You need administrator privileges to view Testing Features.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
+  const workspaceRecommendations = useMemo(() => {
+    if (!fileMeta) {
+      return [
+        "Upload an ECM CSV or Excel export to create the current rostering dataset.",
+        "If you have already downloaded a progress file, use the progress upload action to restore it.",
+        "Open Analyse once the file finishes processing to access the full analysis workspace.",
+      ];
+    }
 
-  const workbookNavDisabled = analysisResults.length === 0;
-  const kpiNavDisabled = analysisResults.length === 0;
-  const insightsNavDisabled = analysisResults.length === 0;
-  const studioNavDisabled = careWorkerRosters.length === 0;
-  const stacksNavDisabled = serviceUserStacks.length === 0;
+    if (processingState === "parsing" || processingState === "analyzing") {
+      return [
+        `Stay on Data while ${processingState === "parsing" ? "the workbook is prepared" : "rows are analyzed in batches"}.`,
+        "Download a progress file once processing completes if you need to pause or hand work over.",
+        "Move into Analyse when the pipeline reaches Ready.",
+      ];
+    }
+
+    return [
+      `Current dataset: ${fileMeta.name} with ${fileMeta.totalRows.toLocaleString()} rows ready for review.`,
+      "Open Analyse to access the former Testing Features workspace without the upload controls.",
+      "Download a progress file whenever you want to save this exact working state and continue later.",
+    ];
+  }, [fileMeta, processingState]);
+
+  const showAnalyseTab = activeTab === "analyse";
+  const showDataTab = activeTab === "data";
+  const showViewTab = activeTab === "view";
   const showRosteringStudio = false;
+
+  if (shouldRedirectToDefaultTab) {
+    return <Redirect to="/rostering/data" />;
+  }
 
   return (
     <div className="page-shell max-w-7xl mx-auto space-y-10 relative pb-6">
@@ -4814,19 +5375,16 @@ export default function TestingFeatures() {
                     processingState === "analyzing" ? "bg-success/10 animate-pulse" : "bg-primary"
                   }`}
                 />
-                Admin Sandbox
+                {activeTabMeta.badge}
                 <Badge variant="secondary" className="ml-2 text-[10px] uppercase tracking-wide">
-                  Experimental
+                  {isAdmin ? "Admin actions on" : "Shared access"}
                 </Badge>
               </div>
               <div>
                 <h1 className="text-3xl font-heading font-bold text-foreground md:text-4xl">
-                  Testing <span className="gradient-text">Features</span>
+                  {activeTabMeta.title}
                 </h1>
-                <p className="text-muted-foreground max-w-2xl mt-2">
-                  Upload large CSV or Excel workbooks, automatically convert CSV files to Excel, and
-                  inspect every row with automated data quality checks before pushing experiments to production.
-                </p>
+                <p className="text-muted-foreground max-w-2xl mt-2">{activeTabMeta.description}</p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
@@ -4845,12 +5403,12 @@ export default function TestingFeatures() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-soft hover-elevate shimmer">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active file</p>
-                <p className="text-sm font-semibold text-foreground mt-2">
-                  {fileMeta?.name || "No workbook loaded"}
-                </p>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active dataset</p>
+                <p className="text-sm font-semibold text-foreground mt-2">{fileMeta?.name || "No dataset loaded"}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {fileMeta ? `${fileMeta.totalRows.toLocaleString()} rows • ${formatBytes(fileMeta.size)}` : "Upload a file to begin analysis."}
+                  {fileMeta
+                    ? `${fileMeta.totalRows.toLocaleString()} rows • ${formatBytes(fileMeta.size)}`
+                    : "Use Data to load an ECM export or restore saved progress."}
                 </p>
               </div>
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-soft hover-elevate shimmer">
@@ -4862,66 +5420,196 @@ export default function TestingFeatures() {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {processingState === "idle" && "Waiting for workbook upload"}
+                  {processingState === "idle" && "Waiting for ECM upload or progress restore"}
                   {processingState === "parsing" && "Parsing workbook structure"}
                   {processingState === "analyzing" && "Scanning rows in batches"}
-                  {processingState === "complete" && "Insights available below"}
+                  {processingState === "complete" && "Dataset is ready for analysis"}
                 </p>
               </div>
             </div>
           </div>
+
+          <Tabs value={activeTab} onValueChange={handleWorkspaceTabChange} className="space-y-4">
+            <TabsList className="grid w-full max-w-xl grid-cols-3 rounded-2xl bg-background/70 p-1">
+              <TabsTrigger value="data">Data</TabsTrigger>
+              <TabsTrigger value="analyse">Analyse</TabsTrigger>
+              <TabsTrigger value="view">View</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-stretch motion-safe:animate-slide-up stagger-2">
-        <Alert className="relative overflow-hidden border-warning/25 bg-warning/100/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-warning/30 dark:bg-warning/100/10">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
-          <AlertTitle className="flex items-center gap-2 text-base">
-            <Shield className="h-4 w-4 text-warning" />
-            {careWorkerRosters.length > 0 ? "Ready to save" : "Volatile workspace"}
-          </AlertTitle>
-          <AlertDescription className="text-sm">
-            {careWorkerRosters.length > 0
-              ? "Save your analysis to the library for persistent storage and reporting."
-              : "Data stays in-memory only. Refreshing the page clears every upload, so export a PDF if you need a temporary record."}
-          </AlertDescription>
-          {careWorkerRosters.length > 0 && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Company</Label>
-                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Select company" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COMPANY_OPTIONS.map((company) => (
-                      <SelectItem key={company} value={company}>
-                        {company}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+      {showDataTab && (
+        <div className="grid gap-4 lg:grid-cols-3 motion-safe:animate-slide-up stagger-2">
+          <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+            <CardHeader>
+              <CardTitle>ECM Upload</CardTitle>
+              <CardDescription>Upload the raw ECM CSV or Excel export that should drive this rostering run.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Upload ECM export. Accepts CSV, XLS, and XLSX formats."
+                className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  isDragging
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-border bg-background/60 hover:bg-muted/20 hover:shadow-soft"
+                }`}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    document.getElementById("rostering-ecm-upload")?.click();
+                  }
+                }}
+              >
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_55%)]" />
+                <input
+                  id="rostering-ecm-upload"
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  aria-hidden="true"
+                  onChange={handleSourceFileChange}
+                />
+                <label htmlFor="rostering-ecm-upload" className="relative z-10 cursor-pointer space-y-3 block">
+                  <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                    <UploadCloud className="h-5 w-5" aria-hidden="true" />
+                    <span>{isDragging ? "Drop the ECM export here" : "Choose an ECM export or drag it here"}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80">Accepted formats: CSV, XLS, XLSX.</p>
+                </label>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Branch</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Select branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BRANCH_OPTIONS.map((branch) => (
-                      <SelectItem key={branch} value={branch}>
-                        {branch}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              {fileMeta && (
+                <div className="rounded-2xl border border-border bg-background/60 p-4 shadow-soft">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Current dataset</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{fileMeta.name}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {fileMeta.totalRows.toLocaleString()} rows • {formatBytes(fileMeta.size)} • {fileMeta.type}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+            <CardHeader>
+              <CardTitle>Recommendations</CardTitle>
+              <CardDescription>Follow the next best step for the current workspace state.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {workspaceRecommendations.map((recommendation, index) => (
+                <div key={`${recommendation}-${index}`} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                  <div className="flex items-start gap-3">
+                    <Badge variant="secondary" className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                      {index + 1}
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">{recommendation}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+            <CardHeader>
+              <CardTitle>Progress Transfer</CardTitle>
+              <CardDescription>Upload a saved progress file or download the current state to continue later.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <input
+                id="rostering-progress-upload"
+                type="file"
+                accept=".json"
+                className="hidden"
+                aria-hidden="true"
+                onChange={handleProgressFileChange}
+              />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("rostering-progress-upload")?.click()}
+                  className="rounded-2xl border border-border/70 bg-background/60 p-4 text-left transition hover:bg-muted/20"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Upload</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">Restore saved progress</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Pick up an exported progress file exactly where you left off.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadProgress}
+                  disabled={!analysisResults.length}
+                  className="rounded-2xl border border-border/70 bg-background/60 p-4 text-left transition hover:bg-muted/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Download</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">Save current progress</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Export the current dataset and analysis state for later reupload.</p>
+                </button>
               </div>
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {careWorkerRosters.length > 0 ? (
-              <>
+              <p className="text-xs text-muted-foreground">
+                Progress files are local JSON snapshots of the current rostering workspace.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showAnalyseTab && (
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-stretch motion-safe:animate-slide-up stagger-2">
+          <Alert className="relative overflow-hidden border-warning/25 bg-warning/100/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-warning/30 dark:bg-warning/100/10">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
+            <AlertTitle className="flex items-center gap-2 text-base">
+              <Shield className="h-4 w-4 text-warning" />
+              {careWorkerRosters.length > 0 ? (isAdmin ? "Ready to save" : "Ready to hand off") : "Volatile workspace"}
+            </AlertTitle>
+            <AlertDescription className="text-sm">
+              {careWorkerRosters.length > 0
+                ? isAdmin
+                  ? "Save the analyzed workspace to the shared library or download a progress file for handoff."
+                  : "Download a progress file whenever you want to preserve the current analysis state."
+                : "Load or restore a dataset from Data first. Until then, the analysis workspace stays local to this browser session."}
+            </AlertDescription>
+            {isAdmin && careWorkerRosters.length > 0 && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Company</Label>
+                  <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select company" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COMPANY_OPTIONS.map((company) => (
+                        <SelectItem key={company} value={company}>
+                          {company}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Branch</Label>
+                  <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRANCH_OPTIONS.map((branch) => (
+                        <SelectItem key={branch} value={branch}>
+                          {branch}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {isAdmin && careWorkerRosters.length > 0 ? (
                 <Button
                   type="button"
                   size="sm"
@@ -4942,7 +5630,6 @@ export default function TestingFeatures() {
                         throw new Error("Call signature hash not available. Re-upload the workbook and try again.");
                       }
 
-                      // Convert Sets to arrays and drop per-row payloads to keep the save request small.
                       const serializableRosters = careWorkerRosters.map((roster) => ({
                         key: roster.key,
                         workerName: roster.workerName,
@@ -4977,7 +5664,6 @@ export default function TestingFeatures() {
                         })),
                       }));
 
-                      // Convert doubleUpSlots from Set to array
                       const serializableDoubleUpSlots: Record<string, string[]> = {};
                       doubleUpSlots.forEach((slotKey) => {
                         const workers = doubleUpSlotWorkers.get(slotKey);
@@ -4986,7 +5672,6 @@ export default function TestingFeatures() {
                         }
                       });
 
-                      // Enrich analysisResults with computed templateWeek, templateDay, and isDoubleUpSlot
                       const enrichedRowAnalysis = analysisResults.map((row) => {
                         const templateDate = parseDateKeyToLocalDate(row.plannedDateKey ?? null);
                         const templateWeek = templateDate
@@ -5004,7 +5689,7 @@ export default function TestingFeatures() {
                       });
 
                       saveWorkbookMutation.mutate({
-                        name: fileMeta.name.replace(/\.[^/.]+$/, ""), // Remove file extension
+                        name: fileMeta.name.replace(/\.[^/.]+$/, ""),
                         fileName: fileMeta.name,
                         sourceHash: dedupeHash,
                         company: selectedCompany,
@@ -5036,82 +5721,52 @@ export default function TestingFeatures() {
                   )}
                   Save to Library
                 </Button>
-              </>
-            ) : (
-              <>
-                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-                  In-memory only
-                </Badge>
-                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-                  No server storage
-                </Badge>
-              </>
-            )}
-          </div>
-        </Alert>
-
-        <Card className="h-full border-border/60 bg-background/70 hover-elevate shimmer">
-          <CardHeader>
-            <CardTitle>Quick navigation</CardTitle>
-            <CardDescription>Jump between workbook tools, KPIs, and insights.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={workbookNavDisabled}
-                onClick={() => scrollToAnchor("tf-workbook")}
-                className="gap-2"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Workbook
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={kpiNavDisabled}
-                onClick={() => scrollToAnchor("tf-kpi")}
-                className="gap-2"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                KPI
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={insightsNavDisabled}
-                onClick={() => scrollToAnchor("tf-insights")}
-                className="gap-2"
-              >
-                <Search className="h-3.5 w-3.5" />
-                Insights
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={stacksNavDisabled}
-                onClick={() => scrollToAnchor("tf-stacks")}
-                className="gap-2"
-              >
-                <Users className="h-3.5 w-3.5" />
-                Stacks
-              </Button>
+              ) : (
+                <>
+                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                    In-memory only
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                    Progress download available
+                  </Badge>
+                </>
+              )}
             </div>
-            <Separator />
-            <p className="text-xs text-muted-foreground">
-              Tip: sections appear as data is loaded (some anchors may not exist yet).
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          </Alert>
 
-      {/* Workbook Comparison Panel */}
-      {(comparisonSnapshot || (fileMeta && processingState === "complete")) && (
+          <Card className="h-full border-border/60 bg-background/70 hover-elevate shimmer">
+            <CardHeader>
+              <CardTitle>Workspace Controls</CardTitle>
+              <CardDescription>Switch between tabs, download progress, or reset this analysis run.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => handleWorkspaceTabChange("data")} className="gap-2">
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  Data
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleDownloadProgress} disabled={!analysisResults.length} className="gap-2">
+                  <Download className="h-3.5 w-3.5" />
+                  Download progress
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => handleWorkspaceTabChange("view")} className="gap-2">
+                  <Library className="h-3.5 w-3.5" />
+                  View
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={handleReset} disabled={!fileMeta && !analysisResults.length}>
+                  Reset
+                </Button>
+              </div>
+              <Separator />
+              <p className="text-xs text-muted-foreground">
+                Analyse now carries the full former Testing Features workspace. Upload and restore live in Data.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showAnalyseTab && (comparisonSnapshot || (fileMeta && processingState === "complete")) && (
         <Card className="relative overflow-hidden border-border/70 bg-background/70 shadow-soft hover-elevate motion-safe:animate-slide-up stagger-2">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_55%)]" />
           <CardHeader className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -5247,7 +5902,7 @@ export default function TestingFeatures() {
         </Card>
       )}
 
-      {showGlobalProgress && (
+      {showAnalyseTab && showGlobalProgress && (
         <div className="z-30 mb-6 motion-safe:animate-fade-in">
           <div className="rounded-full h-2 bg-border/50 overflow-hidden">
             <div
@@ -5255,20 +5910,277 @@ export default function TestingFeatures() {
               style={{ width: `${Math.min(Math.max(progress, 5), 100)}%` }}
             />
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Analyzing workbook… {progress}%</p>
+          <p className="text-xs text-muted-foreground mt-1">Processing roster workbook… {progress}%</p>
         </div>
       )}
 
+      {showViewTab && (
+        <div className="space-y-6 motion-safe:animate-slide-up stagger-2">
+          {!careCallRecommendations.length ? (
+            <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+              <CardHeader>
+                <CardTitle>Care Call Recommendations</CardTitle>
+                <CardDescription>
+                  Analyse will surface recommendations here once consistent service-user call drift has been detected.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>No recommendations generated yet</AlertTitle>
+                  <AlertDescription>
+                    The recommendation engine needs consistent planned-versus-actual timing patterns before it suggests moving a call.
+                  </AlertDescription>
+                </Alert>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => handleWorkspaceTabChange("analyse")}>
+                    Open Analyse
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => handleWorkspaceTabChange("data")}>
+                    Open Data
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-4">
+                <GroupMetric
+                  label="Total Recommendations"
+                  value={`${careCallRecommendations.length}`}
+                  helper="Generated from the current analysis"
+                />
+                <GroupMetric
+                  label="Recommendations Left"
+                  value={`${remainingRecommendationCount}`}
+                  helper="Still pending a decision"
+                  tone={remainingRecommendationCount > 0 ? "warning" : "default"}
+                />
+                <GroupMetric
+                  label="Implemented"
+                  value={`${implementedRecommendationCount}`}
+                  helper="Marked as actioned"
+                />
+                <GroupMetric
+                  label="Rejected"
+                  value={`${rejectedRecommendationCount}`}
+                  helper="Explicitly declined"
+                  tone={rejectedRecommendationCount > 0 ? "warning" : "default"}
+                />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[320px,1fr]">
+                <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+                  <CardHeader>
+                    <CardTitle>Recommendation Picker</CardTitle>
+                    <CardDescription>
+                      Select a service user, then choose the care call band to review the timing recommendation.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Service user</Label>
+                      <Select
+                        value={selectedRecommendationServiceUser ?? undefined}
+                        onValueChange={setSelectedRecommendationServiceUser}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select service user" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {recommendationServiceUsers.map((serviceUser) => (
+                            <SelectItem key={serviceUser.key} value={serviceUser.key}>
+                              {serviceUser.label} ({serviceUser.remaining}/{serviceUser.total} left)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Care call</Label>
+                      <Select
+                        value={selectedRecommendationKey ?? undefined}
+                        onValueChange={setSelectedRecommendationKey}
+                        disabled={!recommendationsForSelectedServiceUser.length}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select call" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {recommendationsForSelectedServiceUser.map((recommendation) => (
+                            <SelectItem key={recommendation.key} value={recommendation.key}>
+                              {recommendation.timeBandLabel}
+                              {recommendation.callTypeLabel && recommendation.callTypeLabel !== recommendation.timeBandLabel
+                                ? ` • ${recommendation.callTypeLabel}`
+                                : ""}
+                              {` (${recommendationDecisions[recommendation.key] ?? "pending"})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Download</p>
+                      <p className="text-sm text-muted-foreground">
+                        Export the latest recommendation pack with updated remaining counts and decision statuses.
+                      </p>
+                      <Button type="button" variant="outline" className="w-full" onClick={handleDownloadRecommendations}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download recommendations
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+                  <CardHeader>
+                    <CardTitle>Call Recommendation</CardTitle>
+                    <CardDescription>
+                      Suggested planned-time move based on schedule drift, outlier-trimmed timings, and planned versus actual starts.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!selectedRecommendation ? (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Select a recommendation</AlertTitle>
+                        <AlertDescription>
+                          Pick a service user and care call to review the suggested time change.
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-lg font-semibold text-foreground">{selectedRecommendation.serviceUserName}</p>
+                              <Badge variant="outline" className="text-xs font-semibold">
+                                {selectedRecommendation.timeBandLabel}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs font-semibold">
+                                {selectedRecommendation.callTypeLabel}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  recommendationDecisions[selectedRecommendation.key] === "implemented"
+                                    ? "default"
+                                    : recommendationDecisions[selectedRecommendation.key] === "rejected"
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                                className="text-xs font-semibold"
+                              >
+                                {recommendationDecisions[selectedRecommendation.key] ?? "pending"}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {(selectedRecommendation.serviceUserArea || "Area unavailable").toString()} • {selectedRecommendation.serviceUserAddress || "Address unavailable"}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-center">
+                            <p className="text-xs uppercase tracking-wide text-primary">Suggested move</p>
+                            <p className="mt-1 text-xl font-semibold text-foreground">{selectedRecommendation.suggestedPlannedTimeLabel}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <GroupMetric
+                            label="Avg Planned"
+                            value={deriveTimeLabel(selectedRecommendation.averagePlannedStartMinutes, null) ?? "—"}
+                            helper="Current planned start"
+                          />
+                          <GroupMetric
+                            label="Avg Actual"
+                            value={deriveTimeLabel(selectedRecommendation.averageActualStartMinutes, null) ?? "—"}
+                            helper="Observed start after trimming outliers"
+                          />
+                          <GroupMetric
+                            label="Avg Drift"
+                            value={
+                              typeof selectedRecommendation.averageStartOffsetMinutes === "number"
+                                ? formatSignedMinutes(selectedRecommendation.averageStartOffsetMinutes)
+                                : "—"
+                            }
+                            helper={
+                              typeof selectedRecommendation.offsetConsistency === "number"
+                                ? `${Math.round(selectedRecommendation.offsetConsistency * 100)}% direction consistency`
+                                : "No consistency score"
+                            }
+                            tone={
+                              typeof selectedRecommendation.averageStartOffsetMinutes === "number" &&
+                              Math.abs(selectedRecommendation.averageStartOffsetMinutes) >= TREND_MIN_AVG_OFFSET_MINUTES
+                                ? "warning"
+                                : "default"
+                            }
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommendation rationale</p>
+                          {selectedRecommendation.advice.map((advice, index) => (
+                            <div key={`${selectedRecommendation.key}-advice-${index}`} className="rounded-xl border border-border/50 bg-background/80 p-3 text-sm text-muted-foreground">
+                              {advice}
+                            </div>
+                          ))}
+                          <p className="text-xs text-muted-foreground">
+                            Built from {selectedRecommendation.totalCalls} comparable calls using schedule drift, planned versus actual start times, and trimmed timing samples to reduce outlier noise.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant={recommendationDecisions[selectedRecommendation.key] === "implemented" ? "default" : "secondary"}
+                            onClick={() => handleRecommendationDecision("implemented")}
+                          >
+                            Implemented
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={recommendationDecisions[selectedRecommendation.key] === "rejected" ? "destructive" : "outline"}
+                            onClick={() => handleRecommendationDecision("rejected")}
+                          >
+                            Rejected
+                          </Button>
+                          {recommendationDecisions[selectedRecommendation.key] && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() =>
+                                setRecommendationDecisions((prev) => {
+                                  const next = { ...prev };
+                                  delete next[selectedRecommendation.key];
+                                  return next;
+                                })
+                              }
+                            >
+                              Reset decision
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {showAnalyseTab && (
       <section id="tf-workbook" className="scroll-mt-24 space-y-6 motion-safe:animate-slide-up stagger-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-primary">
-              <UploadCloud className="h-4 w-4" />
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Workbook Lab</span>
+              <FlaskConical className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Analysis dataset</span>
             </div>
-            <h2 className="text-2xl font-heading font-bold text-foreground">Workbook command center</h2>
+            <h2 className="text-2xl font-heading font-bold text-foreground">Analyse workspace</h2>
             <p className="text-sm text-muted-foreground">
-              Load raw files, monitor batch progress, and validate the pipeline before sharing results.
+              The former Testing Features workspace now runs here. Upload and restore live under Data.
             </p>
           </div>
           {fileMeta && (
@@ -5282,11 +6194,11 @@ export default function TestingFeatures() {
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <UploadCloud className="h-5 w-5" />
+                  <FileSpreadsheet className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle>Upload Workbook</CardTitle>
-                  <CardDescription>Accepted formats: CSV, XLS, XLSX</CardDescription>
+                  <CardTitle>Current dataset</CardTitle>
+                  <CardDescription>Use Data to load a new ECM export or restore saved progress.</CardDescription>
                 </div>
               </div>
               {processingState === "analyzing" && (
@@ -5297,51 +6209,10 @@ export default function TestingFeatures() {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label="Upload workbook file. Accepts CSV, XLS, and XLSX formats. You can also drag and drop files here."
-                aria-describedby="upload-instructions"
-                className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                  isDragging
-                    ? "border-primary bg-primary/10 shadow-glow"
-                    : "border-border bg-background/60 hover:bg-muted/20 hover:shadow-soft"
-                }`}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    document.getElementById("testing-features-upload")?.click();
-                  }
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_55%)]" />
-                <input
-                  id="testing-features-upload"
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  className="hidden"
-                  aria-hidden="true"
-                  onChange={handleFileChange}
-                />
-                <label htmlFor="testing-features-upload" className="relative z-10 cursor-pointer space-y-3 block">
-                  <div className="flex items-center justify-center gap-3 text-muted-foreground">
-                    <UploadCloud className="h-5 w-5" aria-hidden="true" />
-                    <span>{isDragging ? "Drop the file to start analysis" : "Click to choose a data file or drag it here"}</span>
-                  </div>
-                  <p id="upload-instructions" className="text-xs text-muted-foreground/80">
-                    We keep everything client-side so you can experiment safely.
-                  </p>
-                </label>
-              </div>
-
-              {fileMeta && (
+              {fileMeta ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border border-border bg-background/60 p-4 shadow-soft">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Active file</p>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Active dataset</p>
                     <p className="font-medium text-sm mt-1">{fileMeta.name}</p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
                       <span>{fileMeta.type}</span>
@@ -5354,21 +6225,33 @@ export default function TestingFeatures() {
                   <div className="rounded-2xl border border-border bg-background/60 p-4 space-y-3 shadow-soft">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Actions</p>
                     <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => handleWorkspaceTabChange("data")}>
+                        <UploadCloud className="h-4 w-4 mr-2" /> Open Data
+                      </Button>
                       {downloadUrl && (
-                        <Button size="sm" variant="secondary" asChild>
+                        <Button size="sm" variant="outline" asChild>
                           <a href={downloadUrl} download={fileMeta?.name?.replace(/\.csv$/i, ".xlsx") || "converted.xlsx"}>
                             <Download className="h-4 w-4 mr-2" /> Download converted Excel
                           </a>
                         </Button>
                       )}
-                      {fileMeta && (
-                        <Button size="sm" variant="ghost" onClick={handleReset}>
-                          Reset
-                        </Button>
-                      )}
+                      <Button size="sm" variant="outline" onClick={handleDownloadProgress}>
+                        <Download className="h-4 w-4 mr-2" /> Download progress
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={handleReset}>
+                        Reset
+                      </Button>
                     </div>
                   </div>
                 </div>
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>No dataset loaded</AlertTitle>
+                  <AlertDescription>
+                    Open Data to upload an ECM export or restore a saved progress file before using Analyse.
+                  </AlertDescription>
+                </Alert>
               )}
             </CardContent>
           </Card>
@@ -5409,6 +6292,7 @@ export default function TestingFeatures() {
               </div>
             </CardContent>
           </Card>
+        </div>
 
           <Accordion type="multiple" className="w-full">
 
@@ -6473,7 +7357,12 @@ export default function TestingFeatures() {
                         Use filters to triage thousands of rows quickly. Showing {filteredResults.length.toLocaleString()} of {primaryRows.length.toLocaleString()} rows.
                       </CardDescription>
                     </div>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                      {isRowSearchSettling && (
+                        <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                          Updating results
+                        </Badge>
+                      )}
                     <div className="relative">
                       <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                       <Input
@@ -6555,12 +7444,17 @@ export default function TestingFeatures() {
                       Export filtered ({filteredResults.length})
                     </Button>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {(isStackSearchSettling || isCareWorkerSearchSettling || isRosterCallSearchSettling) && (
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                          Optimizing views
+                        </Badge>
+                      )}
                       <Switch id="toggle-duplicates" checked={showDuplicateRows} onCheckedChange={setShowDuplicateRows} />
                       <label htmlFor="toggle-duplicates" className="font-medium">
                         Show duplicate slot rows
                       </label>
                     </div>
-                  </div>
+                    </div>
                   {/* Filter Presets Row */}
                   {filterPresets.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border/60">
@@ -7256,10 +8150,8 @@ export default function TestingFeatures() {
             </AccordionItem>
           )}
         </Accordion>
-
-        </div>
-
       </section>
+      )}
 
     </div>
   );

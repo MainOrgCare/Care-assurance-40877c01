@@ -1508,13 +1508,13 @@ export default function RosteringStudioUnified({
         <div className="space-y-2 text-center">
           <p className="rstd-loading-text">No roster data loaded</p>
           <p className="text-xs text-muted-foreground">
-            Upload workbook data in Testing Features, then return here to plan and optimize the roster.
+            Upload workbook data in Rostering Tool, then return here to plan and optimize the roster.
           </p>
         </div>
         <Button asChild size="sm" className="gap-2">
-          <Link href="/testing-features">
+          <Link href="/rostering-tool">
             <ArrowLeft className="h-4 w-4" />
-            Open Workbook Uploads
+            Open Rostering Tool
           </Link>
         </Button>
       </div>

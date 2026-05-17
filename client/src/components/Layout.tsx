@@ -65,6 +65,7 @@ import {
   resolvePageMeta,
   buildBreadcrumbs,
 } from "@/config/navigation";
+import { isPilotRole } from "@shared/roles";
 
 // Page metadata and breadcrumbs are now defined in @/config/navigation.ts
 
@@ -143,6 +144,7 @@ const SidebarContent = memo(function SidebarContent({
   const { user } = useAuth();
   const { timeLeft } = useTemporaryDataTimer();
   const isAdminUser = user?.role === "admin";
+  const isPilotUser = isPilotRole(user?.role);
   const isCollapsed = Boolean(collapsed);
   const shouldAutoExpandSections = Boolean(autoExpandSections);
   
@@ -154,10 +156,11 @@ const SidebarContent = memo(function SidebarContent({
 
   const [openServiceUsers, setOpenServiceUsers] = useState(location.startsWith("/service-users"));
   const [openCareWorkers, setOpenCareWorkers] = useState(location.startsWith("/care-workers"));
+  const isRosteringRoute = location.startsWith("/rostering");
+  const [openRostering, setOpenRostering] = useState(isRosteringRoute);
   const isAdminRoute =
     location.startsWith("/admin") ||
     location === "/shadow-admin-portal" ||
-    location === "/testing-features" ||
     location === "/care-worker-rotas" ||
     location === "/rostering-unified" ||
     location === "/billing-tool" ||
@@ -167,13 +170,13 @@ const SidebarContent = memo(function SidebarContent({
   useEffect(() => {
     if (!shouldAutoExpandSections) return;
 
+    if (isRosteringRoute) setOpenRostering(true);
     if (location.startsWith("/service-users")) setOpenServiceUsers(true);
     if (location.startsWith("/care-workers")) setOpenCareWorkers(true);
     if (
       isAdminUser &&
       (location.startsWith("/admin") ||
         location === "/shadow-admin-portal" ||
-        location === "/testing-features" ||
         location === "/care-worker-rotas" ||
         location === "/rostering-unified" ||
         location === "/billing-tool" ||
@@ -181,7 +184,7 @@ const SidebarContent = memo(function SidebarContent({
     ) {
       setOpenAdmin(true);
     }
-  }, [location, isAdminUser, shouldAutoExpandSections]);
+  }, [isRosteringRoute, location, isAdminUser, shouldAutoExpandSections]);
 
   const navLinkClass = useCallback((isActive: boolean) =>
     cn(
@@ -241,207 +244,244 @@ const SidebarContent = memo(function SidebarContent({
             {!isCollapsed && location === "/dashboard" && <ArrowUpRight size={12} className="ml-auto opacity-50" />}
         </Link>
 
-        {/* Messages */}
-        <Link href="/messages" className={navLinkClass(location === "/messages")} title={isCollapsed ? "Messages" : undefined} aria-current={location === "/messages" ? "page" : undefined}>
-          <Inbox size={16} />
-          <span className={labelClass}>Messages</span>
-        </Link>
-
-        {/* Email Assistant */}
-        <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")} title={isCollapsed ? "Email Assistant" : undefined} aria-current={location === "/email-assistant" ? "page" : undefined}>
-          <Mail size={16} />
-          <span className={labelClass}>Email Assistant</span>
-        </Link>
-
-        {/* Compliance */}
-        <Link href="/compliance" className={navLinkClass(location === "/compliance")} title={isCollapsed ? "Compliance" : undefined} aria-current={location === "/compliance" ? "page" : undefined}>
-          <CheckCircle size={16} />
-          <span className={labelClass}>Compliance</span>
-        </Link>
-
-        {/* CQC Assessment */}
-        <Link href="/cqc-assessment" className={navLinkClass(location === "/cqc-assessment")} title={isCollapsed ? "CQC Assessment" : undefined} aria-current={location === "/cqc-assessment" ? "page" : undefined}>
-          <ShieldCheck size={16} />
-          <span className={labelClass}>CQC Assessment</span>
-        </Link>
-
-        {/* Policy Acknowledgement */}
-        <Link href="/policy-acknowledgement" className={navLinkClass(location === "/policy-acknowledgement")} title={isCollapsed ? "Policies" : undefined} aria-current={location === "/policy-acknowledgement" ? "page" : undefined}>
-          <FileText size={16} />
-          <span className={labelClass}>Policies</span>
-        </Link>
-
-        {/* Section Divider */}
-        {!isCollapsed ? (
-          <div className="px-3 pt-6 pb-2">
-            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/28">Modules</span>
-          </div>
-        ) : (
-          <div className="mx-auto my-3 h-px w-6 rounded-full bg-sidebar-border/50" />
-        )}
-
-        {/* Service Users */}
         {isCollapsed ? (
           <Link
-            href="/service-users/upload"
-            title="Service Users"
-            className={cn(
-              "workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
-            )}
+            href="/rostering/data"
+            title="Rostering"
+            className={navLinkClass(isRosteringRoute)}
+            aria-current={isRosteringRoute ? "page" : undefined}
           >
-            <div className="flex items-center gap-0">
-              <Users size={16} className="text-sidebar-foreground/50" />
-              <span className={labelClass}>Service Users</span>
-            </div>
+            <FlaskConical size={16} />
+            <span className={labelClass}>Rostering</span>
           </Link>
         ) : (
           <Collapsible
-            open={openServiceUsers}
-            onOpenChange={setOpenServiceUsers}
+            open={openRostering}
+            onOpenChange={setOpenRostering}
             className="space-y-0.5"
           >
-             <CollapsibleTrigger
+            <CollapsibleTrigger
               className={cn(
                 "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]",
-                openServiceUsers && "is-open"
+                openRostering && "is-open"
               )}
             >
               <div className="flex items-center gap-3">
-                <Users size={16} className="text-sidebar-foreground/50" />
-                 <span className={labelClass}>Service Users</span>
+                <FlaskConical size={16} className="text-sidebar-foreground/50" />
+                <span className={labelClass}>Rostering</span>
               </div>
-              <div className="flex items-center gap-2">
-                {timeLeft !== null && (
-                  <Badge variant="destructive" className="h-5 px-1.5 text-[9px] font-mono tabular-nums">
-                    {formatTime(timeLeft)}
-                  </Badge>
-                )}
-                <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openServiceUsers ? "rotate-180" : "")} />
-              </div>
+              <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openRostering ? "rotate-180" : "")} />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Service Users pages">
-              <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
-                 <Upload size={14} /> Data Upload
+            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Rostering pages">
+              <Link href="/rostering/data" className={subNavLinkClass(location === "/rostering/data")}>
+                <Upload size={14} /> Data
               </Link>
-              <Link href="/service-users/care-planning" className={subNavLinkClass(location === "/service-users/care-planning")}>
-                 <FileText size={14} /> Care Planning
+              <Link href="/rostering/analyse" className={subNavLinkClass(location === "/rostering/analyse")}>
+                <Search size={14} /> Analyse
               </Link>
-              <Link href="/service-users/risk-assessment" className={subNavLinkClass(location === "/service-users/risk-assessment")}>
-                 <ShieldAlert size={14} /> Risk Assessment
-              </Link>
-              <Link href="/service-users/plan-enhancer" className={subNavLinkClass(location === "/service-users/plan-enhancer")}>
-                 <Sparkles size={14} /> Plan Enhancer
+              <Link href="/rostering/view" className={subNavLinkClass(location === "/rostering/view")}>
+                <ClipboardList size={14} /> View
               </Link>
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {/* Care Workers */}
-        {isCollapsed ? (
-          <Link
-            href="/care-workers/list"
-            title="Care Workers"
-            className="workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
-          >
-            <div className="flex items-center gap-0">
-              <UserCog size={16} className="text-sidebar-foreground/50" />
-              <span className={labelClass}>Care Workers</span>
-            </div>
-          </Link>
-        ) : (
-          <Collapsible
-            open={openCareWorkers}
-            onOpenChange={setOpenCareWorkers}
-            className="space-y-0.5"
-          >
-             <CollapsibleTrigger
-              className={cn(
-                "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
-                openCareWorkers && "is-open"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <UserCog size={16} className="text-sidebar-foreground/50" />
-                 <span className={labelClass}>Care Workers</span>
-              </div>
-              <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openCareWorkers ? "rotate-180" : "")}/>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Care Workers pages">
-              <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
-                 <Users size={14} /> Carers
-              </Link>
-              <Link href="/care-workers/emar-audit" className={subNavLinkClass(location === "/care-workers/emar-audit")}>
-                 <Activity size={14} /> EMAR Audit
-              </Link>
-              <Link href="/care-workers/visit-audit" className={subNavLinkClass(location === "/care-workers/visit-audit")}>
-                 <ClipboardList size={14} /> Visit Audit
-              </Link>
-              <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
-                 <BarChart size={14} /> Performance
-              </Link>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-
-        {/* Admin */}
-        {isAdminUser && (
-          isCollapsed ? (
-            <Link
-              href="/shadow-admin-portal"
-              title="Admin"
-              className="workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
-            >
-              <div className="flex items-center gap-0">
-                <Lock size={16} className="text-sidebar-foreground/50" />
-                <span className={labelClass}>Admin</span>
-              </div>
+        {!isPilotUser && (
+          <>
+            {/* Messages */}
+            <Link href="/messages" className={navLinkClass(location === "/messages")} title={isCollapsed ? "Messages" : undefined} aria-current={location === "/messages" ? "page" : undefined}>
+              <Inbox size={16} />
+              <span className={labelClass}>Messages</span>
             </Link>
-          ) : (
-            <Collapsible
-              open={openAdmin}
-              onOpenChange={setOpenAdmin}
-              className="space-y-0.5"
-            >
-              <CollapsibleTrigger
+
+            {/* Email Assistant */}
+            <Link href="/email-assistant" className={navLinkClass(location === "/email-assistant")} title={isCollapsed ? "Email Assistant" : undefined} aria-current={location === "/email-assistant" ? "page" : undefined}>
+              <Mail size={16} />
+              <span className={labelClass}>Email Assistant</span>
+            </Link>
+
+            {/* Compliance */}
+            <Link href="/compliance" className={navLinkClass(location === "/compliance")} title={isCollapsed ? "Compliance" : undefined} aria-current={location === "/compliance" ? "page" : undefined}>
+              <CheckCircle size={16} />
+              <span className={labelClass}>Compliance</span>
+            </Link>
+
+            {/* CQC Assessment */}
+            <Link href="/cqc-assessment" className={navLinkClass(location === "/cqc-assessment")} title={isCollapsed ? "CQC Assessment" : undefined} aria-current={location === "/cqc-assessment" ? "page" : undefined}>
+              <ShieldCheck size={16} />
+              <span className={labelClass}>CQC Assessment</span>
+            </Link>
+
+            {/* Policy Acknowledgement */}
+            <Link href="/policy-acknowledgement" className={navLinkClass(location === "/policy-acknowledgement")} title={isCollapsed ? "Policies" : undefined} aria-current={location === "/policy-acknowledgement" ? "page" : undefined}>
+              <FileText size={16} />
+              <span className={labelClass}>Policies</span>
+            </Link>
+
+            {/* Section Divider */}
+            {!isCollapsed ? (
+              <div className="px-3 pt-6 pb-2">
+                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground/28">Modules</span>
+              </div>
+            ) : (
+              <div className="mx-auto my-3 h-px w-6 rounded-full bg-sidebar-border/50" />
+            )}
+
+            {/* Service Users */}
+            {isCollapsed ? (
+              <Link
+                href="/service-users/upload"
+                title="Service Users"
                 className={cn(
-                  "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
-                  openAdmin && "is-open"
+                  "workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]"
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <Lock size={16} className="text-sidebar-foreground/50" />
-                  <span className={labelClass}>Admin</span>
+                <div className="flex items-center gap-0">
+                  <Users size={16} className="text-sidebar-foreground/50" />
+                  <span className={labelClass}>Service Users</span>
                 </div>
-                <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openAdmin ? "rotate-180" : "")} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Admin pages">
-                <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
-                  <ShieldCheck size={14} /> Administrator Controls
-                </Link>
-                <Link href="/admin/extension-manager" className={subNavLinkClass(location === "/admin/extension-manager")}>
-                  <Download size={14} /> Extension Manager
-                </Link>
-                <Link href="/roi-calculator" className={subNavLinkClass(location === "/roi-calculator")} data-testid="link-roi-calculator">
-                  <Calculator size={14} /> Features & Benefits
-                </Link>
-                <Link href="/testing-features" className={subNavLinkClass(location === "/testing-features")}>
-                  <FlaskConical size={14} /> Testing Features
-                </Link>
-                <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
-                  <Terminal size={14} /> System Logs
-                </Link>
-                <Link
-                  href="/rostering-unified"
-                  className={subNavLinkClass(location === "/rostering-unified")}
+              </Link>
+            ) : (
+              <Collapsible
+                open={openServiceUsers}
+                onOpenChange={setOpenServiceUsers}
+                className="space-y-0.5"
+              >
+                 <CollapsibleTrigger
+                  className={cn(
+                    "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all duration-150 group hover:bg-sidebar-foreground/[0.06]",
+                    openServiceUsers && "is-open"
+                  )}
                 >
-                  <ClipboardList size={14} /> Rostering Studio
+                  <div className="flex items-center gap-3">
+                    <Users size={16} className="text-sidebar-foreground/50" />
+                     <span className={labelClass}>Service Users</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {timeLeft !== null && (
+                      <Badge variant="destructive" className="h-5 px-1.5 text-[9px] font-mono tabular-nums">
+                        {formatTime(timeLeft)}
+                      </Badge>
+                    )}
+                    <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openServiceUsers ? "rotate-180" : "")} />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Service Users pages">
+                  <Link href="/service-users/upload" className={subNavLinkClass(location === "/service-users/upload")}>
+                     <Upload size={14} /> Data Upload
+                  </Link>
+                  <Link href="/service-users/care-planning" className={subNavLinkClass(location === "/service-users/care-planning")}>
+                     <FileText size={14} /> Care Planning
+                  </Link>
+                  <Link href="/service-users/risk-assessment" className={subNavLinkClass(location === "/service-users/risk-assessment")}>
+                     <ShieldAlert size={14} /> Risk Assessment
+                  </Link>
+                  <Link href="/service-users/plan-enhancer" className={subNavLinkClass(location === "/service-users/plan-enhancer")}>
+                     <Sparkles size={14} /> Plan Enhancer
+                  </Link>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Care Workers */}
+            {isCollapsed ? (
+              <Link
+                href="/care-workers/list"
+                title="Care Workers"
+                className="workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+              >
+                <div className="flex items-center gap-0">
+                  <UserCog size={16} className="text-sidebar-foreground/50" />
+                  <span className={labelClass}>Care Workers</span>
+                </div>
+              </Link>
+            ) : (
+              <Collapsible
+                open={openCareWorkers}
+                onOpenChange={setOpenCareWorkers}
+                className="space-y-0.5"
+              >
+                 <CollapsibleTrigger
+                  className={cn(
+                    "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
+                    openCareWorkers && "is-open"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserCog size={16} className="text-sidebar-foreground/50" />
+                     <span className={labelClass}>Care Workers</span>
+                  </div>
+                  <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openCareWorkers ? "rotate-180" : "")}/>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Care Workers pages">
+                  <Link href="/care-workers/list" className={subNavLinkClass(location === "/care-workers/list")}>
+                     <Users size={14} /> Carers
+                  </Link>
+                  <Link href="/care-workers/emar-audit" className={subNavLinkClass(location === "/care-workers/emar-audit")}>
+                     <Activity size={14} /> EMAR Audit
+                  </Link>
+                  <Link href="/care-workers/visit-audit" className={subNavLinkClass(location === "/care-workers/visit-audit")}>
+                     <ClipboardList size={14} /> Visit Audit
+                  </Link>
+                  <Link href="/care-workers/performance" className={subNavLinkClass(location === "/care-workers/performance")}>
+                     <BarChart size={14} /> Performance
+                  </Link>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Admin */}
+            {isAdminUser && (
+              isCollapsed ? (
+                <Link
+                  href="/shadow-admin-portal"
+                  title="Admin"
+                  className="workspace-nav-trigger flex items-center justify-center w-full px-2.5 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]"
+                >
+                  <div className="flex items-center gap-0">
+                    <Lock size={16} className="text-sidebar-foreground/50" />
+                    <span className={labelClass}>Admin</span>
+                  </div>
                 </Link>
-                <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
-                  <FileSpreadsheet size={14} /> Billing Tool
-                </Link>
-              </CollapsibleContent>
-            </Collapsible>
-          )
+              ) : (
+                <Collapsible
+                  open={openAdmin}
+                  onOpenChange={setOpenAdmin}
+                  className="space-y-0.5"
+                >
+                  <CollapsibleTrigger
+                    className={cn(
+                      "workspace-nav-trigger flex items-center justify-between w-full px-3 py-[0.4375rem] text-[0.82rem] font-medium rounded-lg transition-all group hover:bg-sidebar-foreground/[0.06]",
+                      openAdmin && "is-open"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Lock size={16} className="text-sidebar-foreground/50" />
+                      <span className={labelClass}>Admin</span>
+                    </div>
+                    <ChevronDown size={13} className={cn("transition-transform duration-150 text-sidebar-foreground/40", openAdmin ? "rotate-180" : "")} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-0.5 pl-3 mt-0.5" role="group" aria-label="Admin pages">
+                    <Link href="/shadow-admin-portal" className={subNavLinkClass(location === "/shadow-admin-portal")}>
+                      <ShieldCheck size={14} /> Administrator Controls
+                    </Link>
+                    <Link href="/admin/extension-manager" className={subNavLinkClass(location === "/admin/extension-manager")}>
+                      <Download size={14} /> Extension Manager
+                    </Link>
+                    <Link href="/roi-calculator" className={subNavLinkClass(location === "/roi-calculator")} data-testid="link-roi-calculator">
+                      <Calculator size={14} /> Features & Benefits
+                    </Link>
+                    <Link href="/system-logs" className={subNavLinkClass(location === "/system-logs")}>
+                      <Terminal size={14} /> System Logs
+                    </Link>
+                    <Link href="/billing-tool" className={subNavLinkClass(location === "/billing-tool")} data-testid="link-billing-tool">
+                      <FileSpreadsheet size={14} /> Billing Tool
+                    </Link>
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            )}
+          </>
         )}
       </nav>
 
@@ -480,11 +520,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const pageMeta = useMemo(() => resolvePageMeta(location), [location]);
   const isDashboardRoute = location === "/dashboard";
   const isFullBleed = location === "/rostering-unified";
+  const { user, logout, refetchUser } = useAuth();
+  const isPilotUser = isPilotRole(user?.role);
   const isSingleScreenRoute =
     location === "/rostering-unified" || location === "/care-worker-rotas";
-  const shouldPollUnread = !isFullBleed && location !== "/messages";
+  const shouldPollUnread = !isFullBleed && location !== "/messages" && !isPilotUser;
   const [clickCount, setClickCount] = useState(0);
-  const { user, logout, refetchUser } = useAuth();
   const {
     autoExpandSections,
   } = useSettings();
@@ -634,7 +675,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [user?.id, shouldPollUnread, handleUnauthorized]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isPilotUser) return;
 
     let disposed = false;
     let controller: AbortController | null = null;
@@ -688,13 +729,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("online", handleOnline);
     };
-  }, [user?.id, handleUnauthorized]);
+  }, [user?.id, handleUnauthorized, isPilotUser]);
 
   useEffect(() => {
-    if (user) return;
+    if (user && !isPilotUser) return;
     setUnreadMessageCount(0);
     setPlatformControls(null);
-  }, [user]);
+  }, [isPilotUser, user]);
 
   // Show Compli-ee intro after user has accepted terms
   useEffect(() => {
@@ -1002,6 +1043,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
 
               {/* Messages Button */}
+              {!isPilotUser && (
               <Link href="/messages" className="hidden min-[420px]:inline-flex">
                 <button
                   className={cn(
@@ -1021,6 +1063,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   )}
                 </button>
               </Link>
+              )}
               
               {/* Compli-ee Help Button */}
               <ComplieeIdleButton

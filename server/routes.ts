@@ -44,6 +44,7 @@ import {
   registerEmailAssistantRoutes,
 } from "./routes/index";
 import { insertUserSchema, insertCareWorkerSchema, insertDiscrepancySchema, insertAuditSchema, insertPolicyDocumentSchema, insertSystemLogSchema, type RiskAssessmentLog, type AnalyzedServiceUser, type WorkbookUpload } from "@shared/schema";
+import { DEFAULT_USER_ROLE, canAccessApiPath, isUserRole } from "@shared/roles";
 import { getPreferredProvider, setPreferredProvider, setLocalLLMUrl, getPreferredModel, getUseEmarAgent, setUseEmarAgent, getUseAICache, setUseAICache, getUseRulesFirst, setUseRulesFirst, getAILiteMode, setAILiteMode, getRequireLiveWebForLocal, setRequireLiveWebForLocal, isLocalLLMAvailable, getLocalLLMUrl, getLocalLLMModel, ensureSettingsLoaded, isAIEnabled, setAIEnabled, getAIDisabledMessage, getAiErrorStatusCode, type AiUserContext, type AiProvider } from "./services/aiClient";
 import { getCacheStats, clearCache } from "./services/aiCache";
 import { analyzeRiskLevel, calculatePlanQuality, extractCommonFields, shouldUseAI, extractMedicationInfo, extractPersonalCareNeeds, extractContinenceInfo, extractNutritionInfo, extractEnvironmentInfo } from "./services/ruleBasedEngine";
@@ -5556,7 +5557,7 @@ export async function registerRoutes(
     firstName: "Demo",
     lastName: "User",
     email: "demo@careassurance.co.uk",
-    role: "staff",
+    role: DEFAULT_USER_ROLE,
     status: "active",
     isDemo: true,
     twoFactorEnabled: false,
@@ -5569,7 +5570,7 @@ export async function registerRoutes(
     username: user.username,
     firstName: user.firstName ?? null,
     lastName: user.lastName ?? null,
-    role: user.role === "admin" ? "admin" : "staff",
+    role: isUserRole(user.role) ? user.role : DEFAULT_USER_ROLE,
     status: user.status ?? null,
     jobTitle: user.jobTitle ?? null,
     email: user.email ?? null,
@@ -5640,6 +5641,10 @@ export async function registerRoutes(
       return apiUnauthorized(res);
     }
     req.user = user;
+
+    if (!canAccessApiPath(req.user.role, req.method, req.path)) {
+      return apiForbidden(res, "Forbidden: Pilot access is limited to Dashboard and Settings");
+    }
 
     if (req.user?.role !== "admin" && ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
       try {
@@ -6371,6 +6376,10 @@ export async function registerRoutes(
   app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
+      const role = validatedData.role ?? DEFAULT_USER_ROLE;
+      if (!isUserRole(role)) {
+        return res.status(400).json({ message: "Valid role required (admin, staff, or pilot)" });
+      }
       const passwordError = validatePassword(validatedData.password, validatedData.username);
       if (passwordError) {
         return res.status(400).json({ message: passwordError });
@@ -6383,6 +6392,7 @@ export async function registerRoutes(
 
       const user = await storage.createUser({
         ...validatedData,
+        role,
         status: "active", // Admin-created users are immediately active
       });
 
@@ -6486,8 +6496,8 @@ export async function registerRoutes(
   app.patch("/api/users/:id/role", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { role } = req.body;
-      if (!role || !["admin", "staff"].includes(role)) {
-        return res.status(400).json({ message: "Valid role required (admin or staff)" });
+      if (!isUserRole(role)) {
+        return res.status(400).json({ message: "Valid role required (admin, staff, or pilot)" });
       }
       const user = await storage.updateUserRole(req.params.id, role);
       if (!user) {
