@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as React from "react";
 import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
+import { setSharedRecommendations } from "@/pages/rosteringRunsStore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Link, Redirect } from "wouter";
@@ -2877,6 +2878,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         return left.callTypeLabel.localeCompare(right.callTypeLabel);
       });
   }, [allSlotTrends]);
+
+  // Sync recommendations to shared store so Runs page can access them
+  useEffect(() => {
+    setSharedRecommendations(careCallRecommendations);
+  }, [careCallRecommendations]);
 
   const recommendationServiceUsers = useMemo(() => {
     const grouped = new Map<

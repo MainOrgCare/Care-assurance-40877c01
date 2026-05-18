@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/use-toast";
+import { getSharedRecommendations, type SharedCareCallRecommendation } from "@/pages/rosteringRunsStore";
 import {
   Card,
   CardContent,
@@ -27,51 +28,15 @@ import {
   Copy,
   Download,
   ListOrdered,
-  Loader2,
   Search,
   Users,
 } from "lucide-react";
 
-interface Recommendation {
-  id: string;
-  serviceUserKey: string;
-  serviceUserName: string;
-  callTypeLabel: string;
-  recommendationType: string;
-  currentValue: string | null;
-  recommendedValue: string | null;
-  reason: string;
-  confidence: number;
-  priority: number;
-  dataPoints: number;
-  isApplied: boolean;
-  metadata: any;
-}
-
 interface ServiceUser {
   key: string;
   name: string;
-  calls: RunCall[];
-}
-
-interface RunCall {
-  serviceUserKey: string;
-  serviceUserName: string;
-  callTypeLabel: string;
-  recommendedTime: string | null;
-  recommendedMinutes: number | null;
-  currentTime: string | null;
-  currentMinutes: number | null;
-  reason: string;
-  confidence: number;
-  priority: number;
-}
-
-function parseTimeToMinutes(time: string | null): number | null {
-  if (!time) return null;
-  const match = time.match(/^(\d{1,2}):(\d{2})$/);
-  if (match) return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-  return null;
+  area: string | null;
+  calls: SharedCareCallRecommendation[];
 }
 
 function formatMinutesToTime(minutes: number): string {
@@ -88,50 +53,26 @@ export default function RosteringRuns() {
   const [callTypeFilter, setCallTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch pending recommendations from the server
-  const { data: recommendations = [], isLoading, error } = useQuery<Recommendation[]>({
-    queryKey: ["/api/admin/rostering/recommendations", { pendingOnly: "false" }],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/rostering/recommendations");
-      if (!res.ok) throw new Error("Failed to load recommendations");
-      return res.json();
-    },
-  });
+  // Read recommendations from shared store (populated by Analyse)
+  const recommendations = getSharedRecommendations();
 
-  // Derive service users and their calls from recommendations
+  // Derive service users and call types from analyse recommendations
   const { serviceUsers, callTypes } = useMemo(() => {
     const userMap = new Map<string, ServiceUser>();
     const typeSet = new Set<string>();
 
     for (const rec of recommendations) {
-      if (rec.recommendationType !== "time_change") continue;
-
       typeSet.add(rec.callTypeLabel);
-
-      const recMinutes = parseTimeToMinutes(rec.recommendedValue);
-      const curMinutes = parseTimeToMinutes(rec.currentValue);
-
-      const call: RunCall = {
-        serviceUserKey: rec.serviceUserKey,
-        serviceUserName: rec.serviceUserName,
-        callTypeLabel: rec.callTypeLabel,
-        recommendedTime: rec.recommendedValue,
-        recommendedMinutes: recMinutes,
-        currentTime: rec.currentValue,
-        currentMinutes: curMinutes,
-        reason: rec.reason,
-        confidence: rec.confidence,
-        priority: rec.priority,
-      };
 
       if (!userMap.has(rec.serviceUserKey)) {
         userMap.set(rec.serviceUserKey, {
           key: rec.serviceUserKey,
           name: rec.serviceUserName,
-          calls: [call],
+          area: rec.serviceUserArea,
+          calls: [rec],
         });
       } else {
-        userMap.get(rec.serviceUserKey)!.calls.push(call);
+        userMap.get(rec.serviceUserKey)!.calls.push(rec);
       }
     }
 
@@ -152,7 +93,7 @@ export default function RosteringRuns() {
   const optimalRun = useMemo(() => {
     if (selectedUsers.size === 0) return [];
 
-    const calls: RunCall[] = [];
+    const calls: SharedCareCallRecommendation[] = [];
     for (const su of serviceUsers) {
       if (!selectedUsers.has(su.key)) continue;
       for (const call of su.calls) {
@@ -161,24 +102,20 @@ export default function RosteringRuns() {
       }
     }
 
-    // Sort by recommended time (optimal order)
+    // Sort by recommended start time (optimal order)
     return calls.sort((a, b) => {
-      const aTime = a.recommendedMinutes ?? a.currentMinutes ?? 9999;
-      const bTime = b.recommendedMinutes ?? b.currentMinutes ?? 9999;
+      const aTime = a.averageActualStartMinutes ?? a.averagePlannedStartMinutes ?? 9999;
+      const bTime = b.averageActualStartMinutes ?? b.averagePlannedStartMinutes ?? 9999;
       return aTime - bTime;
     });
   }, [selectedUsers, callTypeFilter, serviceUsers]);
 
-  // Total travel gap estimation (difference between consecutive calls)
+  // Total time span estimation
   const totalGapMinutes = useMemo(() => {
     if (optimalRun.length < 2) return 0;
-    let gap = 0;
-    for (let i = 1; i < optimalRun.length; i++) {
-      const prev = optimalRun[i - 1].recommendedMinutes ?? optimalRun[i - 1].currentMinutes ?? 0;
-      const curr = optimalRun[i].recommendedMinutes ?? optimalRun[i].currentMinutes ?? 0;
-      gap += Math.max(0, curr - prev);
-    }
-    return gap;
+    const first = optimalRun[0].averageActualStartMinutes ?? optimalRun[0].averagePlannedStartMinutes ?? 0;
+    const last = optimalRun[optimalRun.length - 1].averageActualStartMinutes ?? optimalRun[optimalRun.length - 1].averagePlannedStartMinutes ?? 0;
+    return Math.max(0, last - first);
   }, [optimalRun]);
 
   const handleSelectAll = useCallback(() => {
@@ -201,7 +138,7 @@ export default function RosteringRuns() {
   const handleCopyRun = useCallback(() => {
     if (!optimalRun.length) return;
     const lines = optimalRun.map((call, idx) =>
-      `${idx + 1}. ${call.serviceUserName} — ${call.callTypeLabel} @ ${call.recommendedTime ?? call.currentTime ?? "TBC"}`
+      `${idx + 1}. ${call.serviceUserName} — ${call.callTypeLabel} (${call.timeBandLabel}) @ ${call.suggestedPlannedTimeLabel}`
     );
     const text = `Optimal Run (${optimalRun.length} calls)\n${"─".repeat(40)}\n${lines.join("\n")}`;
     navigator.clipboard.writeText(text);
@@ -210,9 +147,9 @@ export default function RosteringRuns() {
 
   const handleExportCSV = useCallback(() => {
     if (!optimalRun.length) return;
-    const header = "Order,Service User,Call Type,Recommended Time,Current Time,Reason";
+    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Duration (min),Area,Advice";
     const rows = optimalRun.map((call, idx) =>
-      `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.recommendedTime ?? ""}","${call.currentTime ?? ""}","${call.reason.replace(/"/g, '""')}"`
+      `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${call.suggestedPlannedTimeLabel}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${call.advice.join("; ").replace(/"/g, '""')}"`
     );
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -224,11 +161,35 @@ export default function RosteringRuns() {
     URL.revokeObjectURL(url);
   }, [optimalRun]);
 
-  if (isLoading) {
+  // Empty state: no analysis data available
+  if (recommendations.length === 0) {
     return (
-      <div className="page-shell max-w-5xl mx-auto flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <span className="ml-3 text-muted-foreground">Loading rostering data…</span>
+      <div className="page-shell max-w-5xl mx-auto space-y-6 pb-8">
+        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl md:p-8">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.1),transparent_55%)]" />
+          <div className="relative z-10 space-y-4">
+            <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+              <ListOrdered className="h-3.5 w-3.5" />
+              Optimal Ordering
+            </div>
+            <h1 className="text-3xl font-heading font-bold text-foreground">Rostering Runs</h1>
+          </div>
+        </div>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>No analysis data available</AlertTitle>
+          <AlertDescription>
+            Upload an ECM export in{" "}
+            <Link href="/rostering/data" className="underline font-medium text-primary">
+              Rostering → Data
+            </Link>{" "}
+            and run analysis in{" "}
+            <Link href="/rostering/analyse" className="underline font-medium text-primary">
+              Rostering → Analyse
+            </Link>{" "}
+            first. Recommendations will then appear here for optimal run building.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -270,192 +231,183 @@ export default function RosteringRuns() {
         </div>
       </div>
 
-      {error || (!isLoading && serviceUsers.length === 0) ? (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No recommendations available</AlertTitle>
-          <AlertDescription>
-            {error
-              ? "Failed to load rostering recommendations. Ensure data has been uploaded and analysed in Rostering → Data → Analyse."
-              : "No time-change recommendations exist yet. Upload an ECM export in Rostering → Data, run analysis, and recommendations will appear here."}
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
-          {/* Left: Service user selection */}
-          <Card className="border-border/60 bg-background/75 shadow-medium">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Select Service Users</CardTitle>
-              <CardDescription>Choose which service users to include in the optimised run.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Controls */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search service users…"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-8 pl-8 text-xs"
-                  />
-                </div>
-                <Select value={callTypeFilter} onValueChange={setCallTypeFilter}>
-                  <SelectTrigger className="h-8 w-36 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {callTypes.map((ct) => (
-                      <SelectItem key={ct} value={ct.toLowerCase()}>{ct}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
+        {/* Left: Service user selection */}
+        <Card className="border-border/60 bg-background/75 shadow-medium">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Select Service Users</CardTitle>
+            <CardDescription>Choose which service users to include in the optimised run.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Controls */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search service users…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-8 pl-8 text-xs"
+                />
               </div>
-
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSelectAll}>
-                  Select all ({filteredServiceUsers.length})
-                </Button>
-                {selectedUsers.size > 0 && (
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleClearSelection}>
-                    Clear
-                  </Button>
-                )}
-              </div>
-
-              {/* Service user list */}
-              <ScrollArea className="h-[400px] border rounded-xl">
-                <div className="divide-y">
-                  {filteredServiceUsers.map((su) => (
-                    <label
-                      key={su.key}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 cursor-pointer transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        className="rounded border-border h-4 w-4"
-                        checked={selectedUsers.has(su.key)}
-                        onChange={() => handleToggleUser(su.key)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{su.name}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {su.calls.length} call{su.calls.length === 1 ? "" : "s"}
-                        </div>
-                      </div>
-                      {selectedUsers.has(su.key) && (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                      )}
-                    </label>
+              <Select value={callTypeFilter} onValueChange={setCallTypeFilter}>
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {callTypes.map((ct) => (
+                    <SelectItem key={ct} value={ct.toLowerCase()}>{ct}</SelectItem>
                   ))}
-                  {filteredServiceUsers.length === 0 && (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
-                      {searchTerm ? "No matching service users." : "No service users with recommendations."}
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Right: Optimal run result */}
-          <Card className="border-border/60 bg-background/75 shadow-medium">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ListOrdered className="h-4 w-4 text-primary" />
-                    Optimal Run
-                  </CardTitle>
-                  <CardDescription>
-                    {optimalRun.length > 0
-                      ? `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} ordered by recommended time`
-                      : "Select service users to generate an optimal run"}
-                  </CardDescription>
-                </div>
-                {optimalRun.length > 0 && (
-                  <div className="flex gap-1.5">
-                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleCopyRun}>
-                      <Copy className="h-3 w-3" /> Copy
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleExportCSV}>
-                      <Download className="h-3 w-3" /> CSV
-                    </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSelectAll}>
+                Select all ({filteredServiceUsers.length})
+              </Button>
+              {selectedUsers.size > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleClearSelection}>
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Service user list */}
+            <ScrollArea className="h-[400px] border rounded-xl">
+              <div className="divide-y">
+                {filteredServiceUsers.map((su) => (
+                  <label
+                    key={su.key}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded border-border h-4 w-4"
+                      checked={selectedUsers.has(su.key)}
+                      onChange={() => handleToggleUser(su.key)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{su.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {su.area && <span>{su.area} · </span>}
+                        {su.calls.length} call{su.calls.length === 1 ? "" : "s"}
+                      </div>
+                    </div>
+                    {selectedUsers.has(su.key) && (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    )}
+                  </label>
+                ))}
+                {filteredServiceUsers.length === 0 && (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    {searchTerm ? "No matching service users." : "No service users with recommendations."}
                   </div>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Summary stats */}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Right: Optimal run result */}
+        <Card className="border-border/60 bg-background/75 shadow-medium">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ListOrdered className="h-4 w-4 text-primary" />
+                  Optimal Run
+                </CardTitle>
+                <CardDescription>
+                  {optimalRun.length > 0
+                    ? `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} ordered by recommended time`
+                    : "Select service users to generate an optimal run"}
+                </CardDescription>
+              </div>
               {optimalRun.length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Calls</p>
-                    <p className="text-lg font-bold text-foreground">{optimalRun.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Time span</p>
-                    <p className="text-lg font-bold text-foreground">
-                      {optimalRun.length >= 2
-                        ? `${formatMinutesToTime(optimalRun[0].recommendedMinutes ?? optimalRun[0].currentMinutes ?? 0)} – ${formatMinutesToTime(optimalRun[optimalRun.length - 1].recommendedMinutes ?? optimalRun[optimalRun.length - 1].currentMinutes ?? 0)}`
-                        : "—"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total gap</p>
-                    <p className="text-lg font-bold text-foreground">
-                      {totalGapMinutes > 0 ? `${Math.floor(totalGapMinutes / 60)}h ${totalGapMinutes % 60}m` : "—"}
-                    </p>
-                  </div>
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleCopyRun}>
+                    <Copy className="h-3 w-3" /> Copy
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleExportCSV}>
+                    <Download className="h-3 w-3" /> CSV
+                  </Button>
                 </div>
               )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Summary stats */}
+            {optimalRun.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Calls</p>
+                  <p className="text-lg font-bold text-foreground">{optimalRun.length}</p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Time span</p>
+                  <p className="text-lg font-bold text-foreground">
+                    {optimalRun.length >= 2
+                      ? `${optimalRun[0].suggestedPlannedTimeLabel} – ${optimalRun[optimalRun.length - 1].suggestedPlannedTimeLabel}`
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total span</p>
+                  <p className="text-lg font-bold text-foreground">
+                    {totalGapMinutes > 0 ? `${Math.floor(totalGapMinutes / 60)}h ${totalGapMinutes % 60}m` : "—"}
+                  </p>
+                </div>
+              </div>
+            )}
 
-              {/* Run list */}
-              {optimalRun.length > 0 ? (
-                <ScrollArea className="h-[380px] border rounded-xl">
-                  <div className="divide-y">
-                    {optimalRun.map((call, idx) => (
-                      <div key={`${call.serviceUserKey}-${call.callTypeLabel}-${idx}`} className="flex items-center gap-3 px-3 py-3">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{call.serviceUserName}</div>
-                          <div className="text-[11px] text-muted-foreground truncate">
-                            {call.callTypeLabel}
-                            {call.reason && ` — ${call.reason}`}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-mono font-semibold text-primary">
-                            {call.recommendedTime ?? call.currentTime ?? "TBC"}
-                          </div>
-                          {call.currentTime && call.recommendedTime && call.currentTime !== call.recommendedTime && (
-                            <div className="text-[10px] text-muted-foreground line-through">
-                              {call.currentTime}
-                            </div>
+            {/* Run list */}
+            {optimalRun.length > 0 ? (
+              <ScrollArea className="h-[380px] border rounded-xl">
+                <div className="divide-y">
+                  {optimalRun.map((call, idx) => (
+                    <div key={`${call.serviceUserKey}-${call.callTypeLabel}-${idx}`} className="flex items-center gap-3 px-3 py-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{call.serviceUserName}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          {call.callTypeLabel} · {call.timeBandLabel}
+                          {call.suggestedPlannedDurationMinutes != null && (
+                            <span> · {call.suggestedPlannedDurationMinutes} min</span>
                           )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <ListOrdered className="h-10 w-10 text-muted-foreground/40 mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    Select service users from the left panel to build an optimised run.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Calls will be sorted by their optimal times to create an efficient route.
-                  </p>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-mono font-semibold text-primary">
+                          {call.suggestedPlannedTimeLabel}
+                        </div>
+                        {call.serviceUserArea && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {call.serviceUserArea}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              </ScrollArea>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <ListOrdered className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Select service users from the left panel to build an optimised run.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Calls will be sorted by their optimal times to create an efficient route.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
