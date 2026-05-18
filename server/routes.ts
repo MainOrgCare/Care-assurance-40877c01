@@ -5680,7 +5680,10 @@ export async function registerRoutes(
   };
 
   const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user || req.user.role !== "admin") {
+    const isRosteringPath = (req.originalUrl || req.path || "").startsWith("/api/admin/rostering");
+    const isPilotOnRostering = req.user?.role === "pilot" && isRosteringPath;
+
+    if (!req.user || (req.user.role !== "admin" && !isPilotOnRostering)) {
       return apiForbidden(res, "Forbidden: Admin access required");
     }
 

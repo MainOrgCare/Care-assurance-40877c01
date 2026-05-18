@@ -25,6 +25,9 @@ const PILOT_ALLOWED_API_RULES: readonly PilotApiRule[] = [
   { method: "POST", path: "/api/auth/accept-terms" },
   { method: "GET", path: "/api/audits" },
   { method: "GET", path: "/api/discrepancies" },
+  // Rostering — pilots can access the rostering view and manage recommendations
+  { path: "/api/admin/rostering", match: "prefix" },
+  { path: "/api/admin/rostering-recommendations", match: "prefix" },
 ];
 
 const normalizePath = (path: string): string => {
