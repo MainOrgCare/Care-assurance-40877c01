@@ -734,6 +734,18 @@ interface CareWorkerRotaPayload {
   optimizedRun: OptimizedRouteEntry[];
 }
 
+// ─── Module-level workspace cache ─────────────────────────────────────
+// Survives component remounts so rostering data persists across tab
+// navigation (sidebar links trigger Wouter re-mount in production).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _wsCache: Record<string, any> = {};
+function _wsCached<T>(key: string, fallback: T): T {
+  return key in _wsCache ? (_wsCache[key] as T) : fallback;
+}
+function _wsCacheClear() {
+  for (const k of Object.keys(_wsCache)) delete _wsCache[k];
+}
+
 export default function TestingFeatures({ tab }: { tab?: string }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -745,15 +757,15 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const activeTabMeta = ROSTERING_TAB_META[activeTab];
   usePageTitle(activeTabMeta.pageTitle);
   const isAdmin = user?.role === "admin";
-  const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
-  const [sourceHash, setSourceHash] = useState<string | null>(null);
-  const [analysisResults, setAnalysisResults] = useState<RowAnalysis[]>([]);
-  const [processingState, setProcessingState] = useState<ProcessingState>("idle");
-  const [progress, setProgress] = useState(0);
-  const [convertedBlob, setConvertedBlob] = useState<Blob | null>(null);
+  const [fileMeta, setFileMeta] = useState<FileMeta | null>(() => _wsCached('fileMeta', null));
+  const [sourceHash, setSourceHash] = useState<string | null>(() => _wsCached('sourceHash', null));
+  const [analysisResults, setAnalysisResults] = useState<RowAnalysis[]>(() => _wsCached('analysisResults', []));
+  const [processingState, setProcessingState] = useState<ProcessingState>(() => _wsCached('processingState', "idle"));
+  const [progress, setProgress] = useState(() => _wsCached('progress', 0));
+  const [convertedBlob, setConvertedBlob] = useState<Blob | null>(() => _wsCached('convertedBlob', null));
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [selectedRow, setSelectedRow] = useState<RowAnalysis | null>(null);
-  const [filterStatus, setFilterStatus] = useState<RowStatus | "all">("all");
+  const [selectedRow, setSelectedRow] = useState<RowAnalysis | null>(() => _wsCached('selectedRow', null));
+  const [filterStatus, setFilterStatus] = useState<RowStatus | "all">(() => _wsCached('filterStatus', "all"));
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 200);
   const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
@@ -761,7 +773,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const tableRef = useRef<HTMLDivElement | null>(null);
   const [tableScrollTop, setTableScrollTop] = useState(0);
   const [tableViewportHeight, setTableViewportHeight] = useState(480);
-  const [showDuplicateRows, setShowDuplicateRows] = useState(false);
+  const [showDuplicateRows, setShowDuplicateRows] = useState(() => _wsCached('showDuplicateRows', false));
   // Filter presets state
   const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
   const [filterHistory, setFilterHistory] = useState<Array<{
@@ -769,9 +781,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     searchTerm: string;
     timestamp: number;
   }>>([]);
-  const [includeCancelledCalls, setIncludeCancelledCalls] = useState(false);
-  const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(false);
-  const [excludeOfficeStaffFromPdf, setExcludeOfficeStaffFromPdf] = useState(false);
+  const [includeCancelledCalls, setIncludeCancelledCalls] = useState(() => _wsCached('includeCancelledCalls', false));
+  const [includeMismatchedWorkers, setIncludeMismatchedWorkers] = useState(() => _wsCached('includeMismatchedWorkers', false));
+  const [excludeOfficeStaffFromPdf, setExcludeOfficeStaffFromPdf] = useState(() => _wsCached('excludeOfficeStaffFromPdf', false));
   const [callGroupSearch, setCallGroupSearch] = useState("");
   const debouncedCallGroupSearch = useDebounce(callGroupSearch, 200);
   const deferredCallGroupSearch = useDeferredValue(debouncedCallGroupSearch);
@@ -785,40 +797,40 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const isStackSearchSettling = deferredCallGroupSearch !== debouncedCallGroupSearch;
   const isCareWorkerSearchSettling = deferredCareWorkerSearch !== debouncedCareWorkerSearch;
   const isRosterCallSearchSettling = deferredRosterCallSearch !== debouncedRosterCallSearch;
-  const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(DEFAULT_TEMPLATE_WEEK);
-  const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(DEFAULT_TEMPLATE_DAY);
-  const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(false);
-  const [packCallsBackToBack, setPackCallsBackToBack] = useState(true);
-  const [useObservedAverages, setUseObservedAverages] = useState(true);
-  const [templateOverrides, setTemplateOverrides] = useState<Record<string, TemplateOverride>>({});
-  const [expandedTemplateGroupKeys, setExpandedTemplateGroupKeys] = useState<string[]>([]);
-  const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(null);
-  const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>([]);
-  const [recommendedTemplates, setRecommendedTemplates] = useState<Record<string, string[]>>({});
+  const [selectedTemplateWeek, setSelectedTemplateWeek] = useState<TemplateWeekKey>(() => _wsCached('selectedTemplateWeek', DEFAULT_TEMPLATE_WEEK));
+  const [selectedTemplateDay, setSelectedTemplateDay] = useState<WeekdayLabel>(() => _wsCached('selectedTemplateDay', DEFAULT_TEMPLATE_DAY));
+  const [enforceTimeCriticalWindow, setEnforceTimeCriticalWindow] = useState(() => _wsCached('enforceTimeCriticalWindow', false));
+  const [packCallsBackToBack, setPackCallsBackToBack] = useState(() => _wsCached('packCallsBackToBack', true));
+  const [useObservedAverages, setUseObservedAverages] = useState(() => _wsCached('useObservedAverages', true));
+  const [templateOverrides, setTemplateOverrides] = useState<Record<string, TemplateOverride>>(() => _wsCached('templateOverrides', {}));
+  const [expandedTemplateGroupKeys, setExpandedTemplateGroupKeys] = useState<string[]>(() => _wsCached('expandedTemplateGroupKeys', []));
+  const [selectedCareWorkerKey, setSelectedCareWorkerKey] = useState<string | null>(() => _wsCached('selectedCareWorkerKey', null));
+  const [selectedWorkerCallKeys, setSelectedWorkerCallKeys] = useState<string[]>(() => _wsCached('selectedWorkerCallKeys', []));
+  const [recommendedTemplates, setRecommendedTemplates] = useState<Record<string, string[]>>(() => _wsCached('recommendedTemplates', {}));
   const [isSavingRota, setIsSavingRota] = useState(false);
   const [isSavingAllRotas, setIsSavingAllRotas] = useState(false);
   const [bulkSaveProgress, setBulkSaveProgress] = useState<{ saved: number; skipped: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [rosteringFullscreen, setRosteringFullscreen] = useState(false);
   const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<string>("");
-  const [selectedBranch, setSelectedBranch] = useState<string>("");
-  const [recommendationDecisions, setRecommendationDecisions] = useState<Record<string, RecommendationDecision>>({});
-  const [selectedRecommendationServiceUser, setSelectedRecommendationServiceUser] = useState<string | null>(null);
-  const [selectedRecommendationKey, setSelectedRecommendationKey] = useState<string | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<string>(() => _wsCached('selectedCompany', ""));
+  const [selectedBranch, setSelectedBranch] = useState<string>(() => _wsCached('selectedBranch', ""));
+  const [recommendationDecisions, setRecommendationDecisions] = useState<Record<string, RecommendationDecision>>(() => _wsCached('recommendationDecisions', {}));
+  const [selectedRecommendationServiceUser, setSelectedRecommendationServiceUser] = useState<string | null>(() => _wsCached('selectedRecommendationServiceUser', null));
+  const [selectedRecommendationKey, setSelectedRecommendationKey] = useState<string | null>(() => _wsCached('selectedRecommendationKey', null));
   // Comparison mode state
   const [comparisonSnapshot, setComparisonSnapshot] = useState<{
     fileMeta: FileMeta;
     summary: typeof summary;
     healthSummary: typeof healthSummary;
     primaryRowCount: number;
-  } | null>(null);
-  const [isComparisonMode, setIsComparisonMode] = useState(false);
-  const analysisJobRef = useRef<number>(0);
+  } | null>(() => _wsCached('comparisonSnapshot', null));
+  const [isComparisonMode, setIsComparisonMode] = useState(() => _wsCached('isComparisonMode', false));
+  const analysisJobRef = useRef<number>(_wsCached('analysisJobRef', 0));
   const dragCounterRef = useRef(0);
   const restoreWorkerSelectionFromProgressRef = useRef(false);
-  const pendingSourceRowsRef = useRef<Record<string, any>[] | null>(null);
-  const [hasPendingSourceRows, setHasPendingSourceRows] = useState(false);
+  const pendingSourceRowsRef = useRef<Record<string, any>[] | null>(_wsCached('pendingSourceRows', null));
+  const [hasPendingSourceRows, setHasPendingSourceRows] = useState(() => _wsCached('hasPendingSourceRows', false));
   const analysisStartTimeRef = useRef<number>(0);
   const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
@@ -904,6 +916,37 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     setActiveTab((prev) => (prev !== incoming ? incoming : prev));
   }, [tab]);
 
+  // ─── Recover from stale transient states after remount ────────────
+  // If the component remounted while an async operation (parse / analyse)
+  // was in flight, the operation is lost but the cached processingState
+  // would leave the UI stuck.  Recover gracefully on mount.
+  useEffect(() => {
+    if (processingState === "parsing") {
+      // File parse was interrupted — if we have data, go to ready; else idle
+      if (pendingSourceRowsRef.current && fileMeta) {
+        setProcessingState("ready");
+      } else {
+        setProcessingState("idle");
+        setFileMeta(null);
+        setProgress(0);
+      }
+    } else if (processingState === "analyzing") {
+      // Analysis was interrupted — use whatever results we have
+      if (analysisResults.length > 0) {
+        setProcessingState("complete");
+        setProgress(100);
+      } else if (fileMeta) {
+        // Re-parse needed — let user re-upload
+        setProcessingState("idle");
+        setProgress(0);
+      } else {
+        setProcessingState("idle");
+        setProgress(0);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const node = tableRef.current;
     if (!node) return;
@@ -947,6 +990,25 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       URL.revokeObjectURL(url);
     };
   }, [convertedBlob]);
+
+  // ─── Sync workspace state to module-level cache ───────────────────
+  // Ensures data persists if the component remounts (e.g. sidebar navigation).
+  useEffect(() => {
+    Object.assign(_wsCache, {
+      fileMeta, sourceHash, analysisResults, processingState, progress,
+      convertedBlob, hasPendingSourceRows, selectedRow,
+      filterStatus, showDuplicateRows,
+      includeCancelledCalls, includeMismatchedWorkers, excludeOfficeStaffFromPdf,
+      selectedTemplateWeek, selectedTemplateDay, enforceTimeCriticalWindow,
+      packCallsBackToBack, useObservedAverages, templateOverrides,
+      expandedTemplateGroupKeys, selectedCareWorkerKey, selectedWorkerCallKeys,
+      recommendedTemplates, selectedCompany, selectedBranch,
+      recommendationDecisions, selectedRecommendationServiceUser,
+      selectedRecommendationKey, comparisonSnapshot, isComparisonMode,
+      analysisJobRef: analysisJobRef.current,
+      pendingSourceRows: pendingSourceRowsRef.current,
+    });
+  });
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1470,6 +1532,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       analysisJobRef.current = Date.now();
       pendingSourceRowsRef.current = null;
+      _wsCache.pendingSourceRows = null;
+      _wsCache.analysisJobRef = analysisJobRef.current;
       setHasPendingSourceRows(false);
       setFileMeta(snapshot.fileMeta ?? null);
       setSourceHash(snapshot.sourceHash ?? null);
@@ -1625,6 +1689,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       const jobId = Date.now();
       analysisJobRef.current = jobId;
+      _wsCache.analysisJobRef = jobId;
       restoreWorkerSelectionFromProgressRef.current = false;
       setProcessingState("parsing");
       setProgress(0);
@@ -1692,6 +1757,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
         // Store rows for deferred analysis — user must click "Run analysis" in Analyse tab
         pendingSourceRowsRef.current = rows;
+        _wsCache.pendingSourceRows = rows;
         setHasPendingSourceRows(true);
 
         toast({
@@ -1721,11 +1787,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     if (!rows || !rows.length) return;
     const jobId = Date.now();
     analysisJobRef.current = jobId;
+    _wsCache.analysisJobRef = jobId;
     analysisStartTimeRef.current = Date.now();
     setAnalysisElapsedSeconds(0);
     setProcessingState("analyzing");
     setProgress(0);
     pendingSourceRowsRef.current = null;
+    _wsCache.pendingSourceRows = null;
     setHasPendingSourceRows(false);
     try {
       await analyzeRows(rows, jobId);
@@ -1742,6 +1810,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       });
       setProcessingState("ready");
       pendingSourceRowsRef.current = rows;
+      _wsCache.pendingSourceRows = rows;
       setHasPendingSourceRows(true);
     }
   }, [analyzeRows, toast]);
@@ -4519,6 +4588,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   };
 
   const handleReset = useCallback(() => {
+    _wsCacheClear();
     analysisJobRef.current = Date.now();
     restoreWorkerSelectionFromProgressRef.current = false;
     pendingSourceRowsRef.current = null;
