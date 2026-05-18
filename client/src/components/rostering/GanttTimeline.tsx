@@ -937,6 +937,13 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
       {entry.isTimeCritical && <div className="text-rose-500 font-medium">⚠ Time Critical</div>}
       {entry.isDoubleUp && <div className="text-primary font-medium">👥 Double-Up Required</div>}
       {hasConflict && <div className="text-destructive font-medium">⚠ Schedule Conflict</div>}
+      {recommendedStatus?.hasRecommendation && (
+        <div className={`font-medium ${recommendedStatus.isWithinWindow ? "text-emerald-600" : "text-amber-600"}`}>
+          {recommendedStatus.isWithinWindow
+            ? `✓ On time (±${recommendedStatus.deviationMinutes}min)`
+            : `⏱ ${recommendedStatus.deviationMinutes}min off recommended`}
+        </div>
+      )}
     </div>
   );
 
@@ -956,7 +963,8 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
               ${isDragging ? "opacity-60 shadow-[var(--shadow-medium)] z-20" : "hover:shadow-[var(--shadow-medium)]"}
               ${isSelected ? "ring-1 ring-primary shadow-[var(--shadow-medium)] z-10" : ""}
               ${isFocused ? "ring-1 ring-primary z-10" : ""}
-              ${hasConflict ? "ring-1 ring-red-400" : ""}`}
+              ${hasConflict ? "ring-1 ring-red-400" : ""}
+              ${recommendedStatus?.hasRecommendation && !recommendedStatus.isWithinWindow && !hasConflict && !isSelected ? "ring-1 ring-amber-400/60" : ""}`}
           style={style}
           {...attributes}
           {...listeners}
@@ -984,11 +992,16 @@ const DraggableEntry: React.FC<DraggableEntryProps> = ({
           {/* Recommended time indicator */}
           {recommendedStatus?.hasRecommendation && !entry.isDoubleUp && (
             <div
-              className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center ${
-                recommendedStatus.isWithinWindow ? "bg-success/100" : "bg-warning"
+              className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border border-background flex items-center justify-center shadow-sm ${
+                recommendedStatus.isWithinWindow ? "bg-emerald-500" : "bg-amber-500"
               }`}
+              title={recommendedStatus.isWithinWindow
+                ? `On time (±${recommendedStatus.deviationMinutes}min)`
+                : `${recommendedStatus.deviationMinutes}min off target`}
             >
-              <Target className="h-2 w-2 text-white" />
+              {recommendedStatus.isWithinWindow 
+                ? <Check className="h-2 w-2 text-white" />
+                : <Target className="h-2 w-2 text-white" />}
             </div>
           )}
         </button>

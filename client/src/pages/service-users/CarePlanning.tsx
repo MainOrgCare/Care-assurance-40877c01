@@ -26,6 +26,45 @@ import {
 } from "./carePlanningUtils";
 
 /**
+ * Split a care plan content block into logical sections by paragraph.
+ * Treats double-newlines or sentence boundaries near natural topics as split points.
+ */
+function splitContentIntoSections(content: string): Array<{ title: string; content: string }> {
+  if (!content || !content.trim()) return [];
+
+  // Split by double newline first (most structured)
+  const paragraphs = content.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length >= 3) {
+    return paragraphs.map((paragraph, idx) => {
+      // Try to extract a title from the first sentence or use a default
+      const firstSentence = paragraph.match(/^(.{10,80}?)[.!?]\s/);
+      const title = firstSentence
+        ? firstSentence[1].replace(/^I\s/, "").replace(/^My\s/i, "").trim()
+        : `Section ${idx + 1}`;
+      return { title: title.length > 60 ? title.slice(0, 57) + "..." : title, content: paragraph };
+    });
+  }
+
+  // If only one or two paragraphs, split by sentences into chunks of ~3-5 sentences
+  const sentences = content.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 10);
+  if (sentences.length < 4) {
+    return [{ title: "Care Plan", content }];
+  }
+
+  const CHUNK_SIZE = Math.max(3, Math.ceil(sentences.length / Math.min(8, Math.ceil(sentences.length / 3))));
+  const sections: Array<{ title: string; content: string }> = [];
+  for (let i = 0; i < sentences.length; i += CHUNK_SIZE) {
+    const chunk = sentences.slice(i, i + CHUNK_SIZE).join(" ");
+    const firstSentence = chunk.match(/^(.{10,80}?)[.!?]/);
+    const title = firstSentence
+      ? firstSentence[1].replace(/^I\s/, "").replace(/^My\s/i, "").trim()
+      : `Section ${sections.length + 1}`;
+    sections.push({ title: title.length > 60 ? title.slice(0, 57) + "..." : title, content: chunk });
+  }
+  return sections;
+}
+
+/**
  * Highlight template placeholders like [Name], [NHS Number] etc.
  * Returns JSX with placeholders styled distinctly
  */
@@ -245,6 +284,14 @@ export default function CarePlanning() {
   // Handle both new simplified format (content field) and legacy format (sections array)
   const isSimplifiedFormat = !!(carePlan?.content && !carePlan?.sections);
   
+  // Split simplified content into multiple sections for multi-card display
+  const contentSections = useMemo(() => {
+    if (!isSimplifiedFormat || !carePlan?.content) return [];
+    return splitContentIntoSections(carePlan.content);
+  }, [isSimplifiedFormat, carePlan?.content]);
+
+  const [expandedContentSections, setExpandedContentSections] = useState<Set<number>>(new Set());
+
   const sectionsWithIndex = useMemo(() => {
     if (isSimplifiedFormat) {
       // New format - single content block
@@ -482,6 +529,9 @@ export default function CarePlanning() {
         // New simplified format with content block
         setCarePlanRaw(raw);
         setCarePlanScrubbed(scrubbed || raw);
+        // Expand all content sections by default
+        const sections = splitContentIntoSections(raw.content || "");
+        setExpandedContentSections(new Set(sections.map((_, i) => i)));
       }
 
       setSearchQuery("");
@@ -873,77 +923,161 @@ export default function CarePlanning() {
             </Card>
           )}
 
-          {/* New Simplified Format Display - Single Content Block */}
+          {/* Simplified Format Display - Multi-Section Cards */}
           {isSimplifiedFormat && carePlan.content && (
-            <Card className="app-surface overflow-hidden">
-              <CardHeader className="border-b border-border/40 pb-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {carePlan.callType && (
-                        <Badge variant="outline" className="font-semibold">{carePlan.callType}</Badge>
+            <>
+              <Card className="app-surface overflow-hidden">
+                <CardHeader className="border-b border-border/40 pb-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {carePlan.callType && (
+                          <Badge variant="outline" className="font-semibold">{carePlan.callType}</Badge>
+                        )}
+                        Person-Centred Care Plan
+                      </CardTitle>
+                      <CardDescription className="text-xs font-medium mt-1">
+                        CQC 2024 compliant • First-person narrative • {contentSections.length} section{contentSections.length !== 1 ? "s" : ""}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
+                        <>
+                          <Badge variant="secondary" className="bg-warning/10 dark:bg-warning/30 text-warning font-semibold">
+                            <Edit3 size={12} className="mr-1" />
+                            {countPlaceholders(carePlan.content)} fields to complete
+                          </Badge>
+                          <TemplateFiller
+                            templateText={carePlan.content}
+                            onComplete={(filledText) => {
+                              navigator.clipboard.writeText(filledText);
+                              toast({
+                                title: "Template Completed",
+                                description: "Filled care plan copied to clipboard",
+                              });
+                            }}
+                            title={`Complete ${carePlan.callType || "Care"} Plan`}
+                          />
+                        </>
                       )}
-                      Person-Centred Care Plan
-                    </CardTitle>
-                    <CardDescription className="text-xs font-medium mt-1">
-                      CQC 2024 compliant • First-person narrative • Template output
-                    </CardDescription>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(carePlan.content || "");
+                          toast({
+                            title: "Copied to Clipboard",
+                            description: `${carePlan.callType} care plan template copied`,
+                          });
+                        }}
+                        className="gap-2.5 rounded-xl border-border/60 font-medium tracking-tight shadow-sm"
+                      >
+                        <Copy size={16} /> Copy All
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
-                      <>
-                        <Badge variant="secondary" className="bg-warning/10 dark:bg-warning/30 text-warning font-semibold">
-                          <Edit3 size={12} className="mr-1" />
-                          {countPlaceholders(carePlan.content)} fields to complete
-                        </Badge>
-                        <TemplateFiller
-                          templateText={carePlan.content}
-                          onComplete={(filledText) => {
-                            navigator.clipboard.writeText(filledText);
-                            toast({
-                              title: "Template Completed",
-                              description: "Filled care plan copied to clipboard",
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
+                    <div className="mb-4 p-3 bg-warning/10 border border-warning/30 dark:border-warning/30 rounded-lg">
+                      <p className="text-xs text-warning font-medium flex items-center gap-2">
+                        <Edit3 size={14} />
+                        <span>
+                          <strong>Template Output:</strong> This plan contains {countPlaceholders(carePlan.content)} placeholder fields highlighted in yellow.
+                          Copy the template and replace each [placeholder] with actual data before saving to the care record.
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="rounded-lg font-semibold">{contentSections.length} SECTIONS</Badge>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpandedContentSections(new Set(contentSections.map((_, i) => i)))}
+                        className="rounded-lg font-medium text-[10px] uppercase border-border/60"
+                      >
+                        Expand All
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setExpandedContentSections(new Set())}
+                        className="rounded-lg font-medium text-[10px] uppercase text-muted-foreground"
+                      >
+                        Collapse All
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-4">
+                    {contentSections.map((section, sIdx) => (
+                      <Card
+                        key={sIdx}
+                        className={cn(
+                          "group overflow-hidden transition-all duration-300",
+                          expandedContentSections.has(sIdx) ? "shadow-medium" : ""
+                        )}
+                      >
+                        <CardHeader
+                          className="cursor-pointer py-4"
+                          onClick={() => {
+                            setExpandedContentSections((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(sIdx)) next.delete(sIdx);
+                              else next.add(sIdx);
+                              return next;
                             });
                           }}
-                          title={`Complete ${carePlan.callType || "Care"} Plan`}
-                        />
-                      </>
-                    )}
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(carePlan.content || "");
-                        toast({
-                          title: "Copied to Clipboard",
-                          description: `${carePlan.callType} care plan template copied`,
-                        });
-                      }}
-                      className="gap-2.5 rounded-xl border-border/60 font-medium tracking-tight shadow-sm"
-                    >
-                      <Copy size={16} /> Copy Raw
-                    </Button>
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-primary/8 border border-primary/15 text-primary text-xs font-black">
+                                {sIdx + 1}
+                              </div>
+                              <CardTitle className="text-sm font-medium tracking-tight group-hover:text-primary transition-colors">
+                                {section.title}
+                              </CardTitle>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(section.content);
+                                  toast({ title: "Copied", description: `Section ${sIdx + 1} copied to clipboard` });
+                                }}
+                                className="h-7 w-7 p-0 rounded-md border-border/60 hover:bg-muted/50"
+                              >
+                                <Copy size={12} className="text-muted-foreground" />
+                              </Button>
+                              <div className={cn(
+                                "h-7 w-7 rounded-md border border-border/60 flex items-center justify-center transition-transform duration-300",
+                                expandedContentSections.has(sIdx) ? "rotate-180 bg-muted/50" : ""
+                              )}>
+                                <ChevronDown size={14} className="text-muted-foreground" />
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        {expandedContentSections.has(sIdx) && (
+                          <CardContent className="pt-0 pb-5 px-6 animate-slide-up">
+                            <div className="relative">
+                              <div className="absolute -left-3 top-0 bottom-0 w-0.5 bg-primary/20 rounded-full" />
+                              <p className="text-sm font-medium text-foreground leading-relaxed whitespace-pre-wrap pl-2">
+                                {highlightPlaceholders(section.content)}
+                              </p>
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    ))}
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {carePlan.content && countPlaceholders(carePlan.content) > 0 && (
-                  <div className="mb-4 p-3 bg-warning/10 border border-warning/30 dark:border-warning/30 rounded-lg">
-                    <p className="text-xs text-warning font-medium flex items-center gap-2">
-                      <Edit3 size={14} />
-                      <span>
-                        <strong>Template Output:</strong> This plan contains {countPlaceholders(carePlan.content)} placeholder fields highlighted in yellow.
-                        Copy the template and replace each [placeholder] with actual data before saving to the care record.
-                      </span>
-                    </p>
-                  </div>
-                )}
-                <div className="prose prose-sm max-w-none">
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground bg-muted/20 p-6 rounded-xl border border-border/40">
-                    {carePlan.content ? highlightPlaceholders(carePlan.content) : carePlan.content}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </>
           )}
 
           {/* Legacy Sections Format Display */}

@@ -105,6 +105,8 @@ import {
   FileSpreadsheet,
   BookTemplate,
   GitCompare,
+  ListOrdered,
+  Target,
 } from "lucide-react";
 
 // Rostering Components
@@ -507,6 +509,7 @@ export default function RosteringStudioUnified({
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [showAllWorkers, setShowAllWorkers] = useState(true);
   const [showOnlyTemplated, setShowOnlyTemplated] = useState(false); // Show all calls by default
+  const [showRecommendationBadges, setShowRecommendationBadges] = useState(true);
   const [workerFilter, setWorkerFilter] = useState<"all" | "over" | "under">("all");
 
   const WORKLOAD_OVER_MINUTES = 8 * 60;
@@ -522,6 +525,9 @@ export default function RosteringStudioUnified({
   const [saveScheduleName, setSaveScheduleName] = useState("");
   const [saveScheduleDescription, setSaveScheduleDescription] = useState("");
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showRunsDialog, setShowRunsDialog] = useState(false);
+  const [runsSelectedUsers, setRunsSelectedUsers] = useState<Set<string>>(new Set());
+  const [runsCallType, setRunsCallType] = useState<string>("all");
 
   const buildScheduleSnapshot = useCallback((lanes: GanttLane[]): ScheduleSnapshot => {
     const workers = lanes.map((lane) => ({
@@ -1288,6 +1294,47 @@ export default function RosteringStudioUnified({
     });
   }, [toast]);
 
+  // --- RUNS: Compute optimal order for selected service users by call time ---
+  const runsOptimalOrder = useMemo(() => {
+    if (runsSelectedUsers.size === 0) return [];
+    // Gather all timeline entries matching selected service users + call type
+    const matchingEntries: Array<{
+      serviceUserKey: string;
+      serviceUserName: string;
+      callTypeLabel: string;
+      startMinutes: number;
+      durationMinutes: number;
+      workerName: string;
+    }> = [];
+    for (const lane of timelineLanes) {
+      for (const entry of lane.entries) {
+        if (!entry.serviceUserKey || !runsSelectedUsers.has(entry.serviceUserKey)) continue;
+        if (runsCallType !== "all" && entry.callTypeLabel?.toLowerCase() !== runsCallType.toLowerCase()) continue;
+        matchingEntries.push({
+          serviceUserKey: entry.serviceUserKey,
+          serviceUserName: entry.serviceUserName || entry.title || "Unknown",
+          callTypeLabel: entry.callTypeLabel || "Unknown",
+          startMinutes: entry.startMinutes,
+          durationMinutes: entry.durationMinutes,
+          workerName: lane.label,
+        });
+      }
+    }
+    // Also check recommended times and prefer those
+    const withRecommendedStart = matchingEntries.map((e) => {
+      const key = `${e.serviceUserKey}::${e.callTypeLabel.toLowerCase()}`;
+      const rec = callTimeLookup.get(key);
+      return {
+        ...e,
+        effectiveStart: rec ? rec.recommendedStartMinutes : e.startMinutes,
+        hasRecommendation: !!rec,
+      };
+    });
+    // Sort by effective start time (optimal ordering)
+    withRecommendedStart.sort((a, b) => a.effectiveStart - b.effectiveStart);
+    return withRecommendedStart;
+  }, [runsSelectedUsers, runsCallType, timelineLanes, callTimeLookup]);
+
   const handleTimelineZoomIn = useCallback(() => {
     setTimelineZoomIndex((prev) => Math.min(prev + 1, TIMELINE_ZOOM_LEVELS.length - 1));
   }, []);
@@ -1528,7 +1575,7 @@ export default function RosteringStudioUnified({
         {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
         <div className={`rostering-studio-redesign flex ${embedded ? "h-full min-h-0" : "min-h-[72vh] flex-1"} flex-col overflow-hidden`}>
         {/* TOP MENU BAR */}
-        <div className="rstd-topbar flex min-h-14 flex-wrap items-start gap-3 px-3 py-2 flex-shrink-0">
+        <div className="rstd-topbar flex min-h-12 flex-wrap items-center gap-3 px-3 py-2 flex-shrink-0">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <div className="rstd-brand">
               <span className="rstd-brand-mark">RS</span>
@@ -1551,11 +1598,11 @@ export default function RosteringStudioUnified({
             {/* File Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-3 text-sm font-medium hover:bg-primary/10 transition-colors">
+                <Button variant="ghost" size="sm" className="rstd-menu-trigger">
                   File
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start" className="w-60 rstd-menu-content">
                 <DropdownMenuLabel>Workbook</DropdownMenuLabel>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
@@ -1620,11 +1667,11 @@ export default function RosteringStudioUnified({
             {/* Edit Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-3 text-sm font-medium hover:bg-primary/10 transition-colors">
+                <Button variant="ghost" size="sm" className="rstd-menu-trigger">
                   Edit
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuContent align="start" className="w-52 rstd-menu-content">
                 <DropdownMenuItem onClick={handleUndo} disabled={!canUndo(rosterState)}>
                   <Undo2 className="mr-2 h-4 w-4" />
                   Undo
@@ -1650,11 +1697,11 @@ export default function RosteringStudioUnified({
             {/* View Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="rstd-menu-trigger">
                   View
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start" className="w-64 rstd-menu-content">
                 <DropdownMenuLabel>Panels</DropdownMenuLabel>
                 <DropdownMenuCheckboxItem
                   checked={panelVisibility.timeline}
@@ -1769,6 +1816,30 @@ export default function RosteringStudioUnified({
                   Clear Comparison
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuLabel className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                  <Target className="h-3.5 w-3.5" />
+                  Recommendations
+                </DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={showRecommendationBadges}
+                  onCheckedChange={() => setShowRecommendationBadges(!showRecommendationBadges)}
+                >
+                  <Target className="mr-2 h-4 w-4 text-emerald-600" />
+                  Show Adherence Badges
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuItem
+                  onClick={handleApplyRecommendedTimes}
+                  disabled={callTimesForEditor.length === 0}
+                >
+                  <Clock4 className="mr-2 h-4 w-4 text-amber-600" />
+                  Snap to Recommended Times
+                </DropdownMenuItem>
+                {callTimesForEditor.length > 0 && (
+                  <div className="px-3 py-1.5 text-[11px] text-muted-foreground">
+                    {callTimesForEditor.length} recommendation{callTimesForEditor.length !== 1 ? "s" : ""} loaded
+                  </div>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel>Timeline</DropdownMenuLabel>
                 <DropdownMenuItem onClick={handleTimelineZoomIn}>
                   <ZoomIn className="mr-2 h-4 w-4" />
@@ -1812,11 +1883,11 @@ export default function RosteringStudioUnified({
             {/* Optimize Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="rstd-menu-trigger">
                   Optimize
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start" className="w-60 rstd-menu-content">
                 <DropdownMenuItem onClick={handleRunOptimization} disabled={isOptimizing}>
                   <Zap className="mr-2 h-4 w-4" />
                   {isOptimizing ? "Optimizing..." : "Run Full Optimization"}
@@ -1833,6 +1904,10 @@ export default function RosteringStudioUnified({
                 <DropdownMenuItem onClick={handleOptimizeTravel}>
                   <Route className="mr-2 h-4 w-4" />
                   Optimize Travel Gaps
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowRunsDialog(true)}>
+                  <ListOrdered className="mr-2 h-4 w-4" />
+                  Runs
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Snap Interval</DropdownMenuLabel>
@@ -1851,11 +1926,11 @@ export default function RosteringStudioUnified({
             {/* Help Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-sm font-medium">
+                <Button variant="ghost" size="sm" className="rstd-menu-trigger">
                   Help
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuContent align="start" className="w-52 rstd-menu-content">
                 <DropdownMenuItem onClick={() => setShowKeyboardShortcuts(true)}>
                   <Keyboard className="mr-2 h-4 w-4" />
                   Keyboard Shortcuts
@@ -1905,7 +1980,7 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* STATS BAR */}
-        <div className="rstd-stats flex flex-wrap items-start justify-between gap-2 px-3 py-2 text-[11px] flex-shrink-0">
+        <div className="rstd-stats flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-[11px] flex-shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <div className="rstd-stat-chip">
               <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1957,7 +2032,7 @@ export default function RosteringStudioUnified({
         </div>
 
         {/* PANEL DOCK - quick toggles so every tool is reachable without hunting menus */}
-        <div className="rstd-dock flex min-h-10 flex-wrap items-start gap-1.5 px-2 py-1.5 text-[11px] flex-shrink-0">
+        <div className="rstd-dock flex min-h-9 flex-wrap items-center gap-1.5 px-2.5 py-1.5 text-[11px] flex-shrink-0">
           {(
             [
               { key: "workers", label: "Workers", icon: Users },
@@ -2275,7 +2350,7 @@ export default function RosteringStudioUnified({
                         focusedEntryId={rosterState.present.focusedEntryId}
                         onSelectEntry={handleSelectEntry}
                         onEntryMove={handleEntryMove}
-                        recommendedTimes={callTimesForEditor}
+                        recommendedTimes={showRecommendationBadges ? callTimesForEditor : []}
                         fitHeight
                         lockToContainer
                         showHeader={false}
@@ -2918,6 +2993,114 @@ export default function RosteringStudioUnified({
               >
                 <Save className="mr-2 h-4 w-4" />
                 Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* RUNS DIALOG - Optimal ordering of selected service users */}
+        <Dialog open={showRunsDialog} onOpenChange={(open) => {
+          setShowRunsDialog(open);
+          if (!open) {
+            setRunsSelectedUsers(new Set());
+            setRunsCallType("all");
+          }
+        }}>
+          <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ListOrdered className="h-5 w-5 text-primary" />
+                Runs — Optimal Call Order
+              </DialogTitle>
+              <DialogDescription>
+                Select service users to calculate the optimal visit sequence based on their scheduled call times.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 min-h-0 flex-1 overflow-hidden">
+              {/* Call type filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Call type:</span>
+                <Select value={runsCallType} onValueChange={setRunsCallType}>
+                  <SelectTrigger className="h-7 w-36 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {uniqueCallTypes.map((ct) => (
+                      <SelectItem key={ct} value={ct.toLowerCase()}>{ct}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {runsSelectedUsers.size} selected
+                </span>
+              </div>
+              {/* Service user selection */}
+              <div className="border rounded-md overflow-auto max-h-40 min-h-[100px]">
+                {uniqueServiceUsers.map((su) => (
+                  <label
+                    key={su.key}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted/50 cursor-pointer text-xs border-b last:border-b-0"
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded border-border"
+                      checked={runsSelectedUsers.has(su.key)}
+                      onChange={(e) => {
+                        setRunsSelectedUsers((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(su.key);
+                          else next.delete(su.key);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span className="font-medium">{su.name}</span>
+                  </label>
+                ))}
+              </div>
+              {/* Optimal order results */}
+              {runsOptimalOrder.length > 0 && (
+                <div className="border rounded-md overflow-auto max-h-52 flex-1">
+                  <div className="px-3 py-1.5 bg-muted/40 border-b text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+                    <ListOrdered className="h-3 w-3" />
+                    Optimal Sequence ({runsOptimalOrder.length} calls)
+                  </div>
+                  <div className="divide-y">
+                    {runsOptimalOrder.map((item, idx) => (
+                      <div key={`${item.serviceUserKey}-${item.callTypeLabel}-${idx}`} className="flex items-center gap-2 px-3 py-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate">{item.serviceUserName}</div>
+                          <div className="text-[10px] text-muted-foreground">{item.callTypeLabel} • {item.workerName}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-mono font-semibold">
+                            {formatTimeOfDay(item.effectiveStart)}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {item.durationMinutes}min
+                            {item.hasRecommendation && (
+                              <span className="ml-1 text-emerald-600">●</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {runsSelectedUsers.size > 0 && runsOptimalOrder.length === 0 && (
+                <div className="text-center py-4 text-xs text-muted-foreground">
+                  No calls found for the selected service users{runsCallType !== "all" ? ` with call type "${runsCallType}"` : ""} in the current schedule.
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setShowRunsDialog(false)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>

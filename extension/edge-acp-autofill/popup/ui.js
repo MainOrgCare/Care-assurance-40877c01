@@ -72,6 +72,7 @@ export function cacheDomElements() {
     // Autofill settings
     "autofill-user-search", "autofill-user-dropdown", "autofill-selected-user",
     "case-id", "service-data-group-id", "auto-detect-ids",
+    "display-name-override",
     "interaction-mode", "auto-submit", "dry-run",
     // Autofill controls
     "payload-status", "progress-status", "start-autofill", "stop-autofill", "clear-data",
@@ -1299,8 +1300,9 @@ export function renderCaseContextStrip(caseInfo = null) {
   const resolvedServiceGroup = String(
     caseInfo?.serviceDataGroupId || dom.serviceDataGroupId?.value || ""
   ).trim();
+  const displayNameOverride = String(dom.displayNameOverride?.value || "").trim();
   const resolvedServiceUser = String(
-    state.selectedAutofillUser?.name || state.selectedUser?.name || state.latestPayloadSnapshot?.payload?.serviceUserDisplayName || ""
+    displayNameOverride || state.selectedAutofillUser?.name || state.selectedUser?.name || state.latestPayloadSnapshot?.payload?.serviceUserDisplayName || ""
   ).trim();
   const resolvedOperator = String(state.connectedWorkspaceUser?.username || "").trim();
   const payload = state.latestPayloadSnapshot?.payload || null;
@@ -1524,6 +1526,11 @@ export function selectAutofillUser(user) {
   }
 
   if (dom.caseId) dom.caseId.value = user.acpId || "";
+
+  // Pre-fill display name override with user's name (if field is empty)
+  if (dom.displayNameOverride && !dom.displayNameOverride.value.trim()) {
+    dom.displayNameOverride.value = user.name || "";
+  }
 
   clearFieldInvalid(dom.caseId);
   clearFieldInvalid(dom.serviceDataGroupId);

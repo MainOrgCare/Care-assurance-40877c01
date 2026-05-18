@@ -2297,6 +2297,11 @@ const run = async () => {
     logAction("No initial assessment data found in payload");
     return;
   }
+
+  // Apply display name override if set in payload
+  if (caAcpPayload.serviceUserDisplayName && formData) {
+    formData.serviceUserName = caAcpPayload.serviceUserDisplayName;
+  }
   
   // DEBUG: Show extracted formData before mapping
   if (CA_DEBUG) {

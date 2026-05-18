@@ -5694,11 +5694,16 @@ export async function registerRoutes(
         }
 
         const eventType = res.statusCode >= 400 ? "admin_action_failed" : "admin_action";
+        const ipAddress = req.ip || req.socket?.remoteAddress || "unknown";
         const details: Record<string, unknown> = {
           method: req.method,
           path: requestPath,
           statusCode: res.statusCode,
           requestId: (req as any).requestId ?? null,
+          ipAddress,
+          status: res.statusCode < 400 ? "Authorized" : "Flagged",
+          action: `${req.method} ${requestPath.split("/").filter(Boolean).slice(1, 3).join("/")}`,
+          target: requestPath,
         };
 
         if (req.params && Object.keys(req.params).length > 0) {
@@ -5726,6 +5731,10 @@ export async function registerRoutes(
     }
     next();
   };
+
+  // Audit trail middleware for important user mutations
+  const { createAuditTrailMiddleware } = await import("./middleware/auditTrail");
+  app.use("/api/", createAuditTrailMiddleware(storage));
 
   // ===== AUTH ROUTES =====
   

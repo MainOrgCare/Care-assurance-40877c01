@@ -28,6 +28,7 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   serverUrl: "caAcpServerUrl",
   lastTab: "caAcpLastTab",
   lastAutofillUser: "caAcpLastAutofillUser",
+  displayNameOverride: "caAcpDisplayNameOverride",
   appTheme: "caAcpAppTheme",
   runtimeConfig: "caAcpRuntimeConfig",
 };

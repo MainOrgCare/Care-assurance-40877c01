@@ -769,6 +769,7 @@ export default function Settings() {
 
           <Separator />
 
+          {user?.role === "admin" && (
           <section className="space-y-4">
             <div className="flex items-center gap-2">
               <Download className="h-4 w-4 text-primary/70" />
@@ -858,6 +859,7 @@ export default function Settings() {
               </Button>
             </div>
           </section>
+          )}
 
           <Separator />
 

@@ -97,6 +97,7 @@ const POPUP_INITIAL_STORAGE_KEYS = [
   STORAGE_KEYS.serverUrl,
   STORAGE_KEYS.lastTab,
   STORAGE_KEYS.lastAutofillUser,
+  STORAGE_KEYS.displayNameOverride,
   STORAGE_KEYS.payload,
   STORAGE_KEYS.appTheme,
   STORAGE_KEYS.runtimeConfig,
@@ -7298,6 +7299,10 @@ function bindEvents() {
   dom.serviceUserSearch?.addEventListener("input", displayServiceUsers);
   dom.caseId?.addEventListener("input", () => { renderCaseContextStrip(); renderUploadHandoffSummary(); });
   dom.serviceDataGroupId?.addEventListener("input", () => renderCaseContextStrip());
+  dom.displayNameOverride?.addEventListener("input", () => {
+    const value = dom.displayNameOverride.value.trim();
+    setStorage({ [STORAGE_KEYS.displayNameOverride]: value || null });
+  });
 
   // Load care plan / risk assessment
   dom.loadCarePlanBtn?.addEventListener("click", async () => {
@@ -7625,11 +7630,19 @@ function bindEvents() {
     await setStorage({ [STORAGE_KEYS.verificationFields]: null });
     setButtonLoading(dom.startAutofill, true);
 
+    // Apply display name override to the stored payload if set
+    const displayNameOverride = String(dom.displayNameOverride?.value || "").trim();
+    if (displayNameOverride && payload) {
+      payload.serviceUserDisplayName = displayNameOverride;
+      await setStorage({ [STORAGE_KEYS.payload]: payload });
+    }
+
     await setStorage({
       [STORAGE_KEYS.caseInfo]: { caseId, serviceDataGroupId },
       [STORAGE_KEYS.autoSubmit]: dom.autoSubmit?.checked,
       [STORAGE_KEYS.dryRun]: dom.dryRun?.checked,
       [STORAGE_KEYS.interactionMode]: dom.interactionMode?.value,
+      [STORAGE_KEYS.displayNameOverride]: displayNameOverride || null,
     });
 
     chrome.runtime.sendMessage(
@@ -8117,6 +8130,12 @@ function bindStorageListener() {
   if (savedAutofillUser?.acpId) {
     selectAutofillUser(savedAutofillUser);
     renderUploadHandoffSummary();
+  }
+
+  // Restore display name override
+  const savedDisplayNameOverride = initialState?.[STORAGE_KEYS.displayNameOverride];
+  if (savedDisplayNameOverride && dom.displayNameOverride) {
+    dom.displayNameOverride.value = savedDisplayNameOverride;
   }
 
   if (initialState?.[STORAGE_KEYS.payload]) {
