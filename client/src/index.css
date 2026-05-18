@@ -8,6 +8,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Force font-display: swap for instant text rendering */
+@font-face { font-family: "Manrope"; font-display: swap; src: local("Manrope"); }
+@font-face { font-family: "JetBrains Mono"; font-display: swap; src: local("JetBrains Mono"); }
+
 /* Dark variant works with .dark class OR any dark theme */
 @custom-variant dark (&:is(.dark *, .theme-dark *, .theme-midnight *, .theme-ocean *, .theme-aurora *));
 
@@ -898,6 +902,12 @@ html.theme-sunrise body {
 /* Dark themes use flat backgrounds */
 
 @layer utilities {
+  /* Performance — skip rendering of off-screen content */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+  }
+
   /* Page layouts — premium corporate spacing */
   .page-shell {
     display: flex;

@@ -37,6 +37,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     target: 'es2020',
     cssMinify: true,
+    modulePreload: { polyfill: false },
     commonjsOptions: {
       include: [/pako/, /node_modules/],
     },

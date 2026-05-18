@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import type { TimelineEntry } from "@/lib/rostering/rosterModel";
 import { geocodeAddressClient, type GeocodeResult } from "@/lib/rostering/geocodeClient";
 import {

@@ -45,7 +45,6 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useLocation } from "wouter";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { canAccessAppPath } from "@shared/roles";
 
@@ -818,7 +817,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {availableQuickActions.map((action, index) => (
             <Link key={action.href} href={action.href}>
-              <motion.div whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }} className="h-full">
+              <div className="h-full transition-transform duration-200 ease-out hover:-translate-y-1 active:scale-[0.98]">
               <Card className=" group h-full cursor-pointer" data-testid={`card-quick-action-${index}`}>
                 <CardContent className={`relative overflow-hidden p-4 border ${action.panelTone} rounded-xl transition-all duration-200 group-hover:shadow-[var(--shadow-medium)]`}>
                   <div
@@ -852,7 +851,7 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
-              </motion.div>
+              </div>
             </Link>
           ))}
         </div>

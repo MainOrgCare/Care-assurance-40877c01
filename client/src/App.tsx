@@ -78,6 +78,7 @@ const preloadRoutes = () => {
   hasPreloaded = true;
 
   const preloadQueue: Array<() => Promise<unknown>> = [
+    () => import("@/pages/Dashboard"),
     () => import("@/pages/EmailAssistant"),
     () => import("@/pages/Settings"),
   ];

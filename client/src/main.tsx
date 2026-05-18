@@ -2,7 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import "leaflet/dist/leaflet.css";
 import { AUTH_EXPIRED_EVENT, REQUEST_ID_HEADER, randomRequestId } from "@/lib/queryClient";
 import { reportClientError } from "@/lib/clientErrorReporter";
 import { toast } from "@/hooks/use-toast";

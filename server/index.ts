@@ -133,10 +133,17 @@ app.disable('x-powered-by'); // Remove Express fingerprinting
 
 // Additional security headers for API responses
 app.use('/api/', (req, res, next) => {
-  // Prevent caching of sensitive data
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
+  // GET requests can use short-lived private caching (browser only, not shared CDN).
+  // TanStack Query handles application-level caching; this helps with browser bfcache
+  // and avoids redundant network roundtrips on rapid back/forward navigation.
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+  } else {
+    // Mutations must never be cached
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
   
   // Permissions Policy (formerly Feature Policy) - restrict browser features
   res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
@@ -380,7 +387,11 @@ if (process.env.NODE_ENV === 'production') {
 
 // Compression middleware - configured to allow flushing for SSE streams
 // The compression middleware adds res.flush() which is needed to push SSE events through proxies
+// Level 4 provides ~85% of level 6 compression at significantly less CPU time,
+// reducing TTFB for JSON API responses.
 app.use(compression({
+  level: 4,
+  threshold: 1024,
   filter: (req, res) => {
     // Check if this is an SSE response (Content-Type will be set later)
     // We still want compression middleware active for SSE so we get res.flush()
