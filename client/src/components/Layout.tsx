@@ -19,6 +19,7 @@ import {
   Upload,
   UserCog,
   ClipboardList,
+  ListOrdered,
   BarChart,
   Lock,
   Calculator,
@@ -433,6 +434,9 @@ const SidebarContent = memo(function SidebarContent({
               </Link>
               <Link href="/rostering/view" className={subNavLinkClass(location === "/rostering/view")}>
                 <ClipboardList size={14} /> View
+              </Link>
+              <Link href="/rostering/runs" className={subNavLinkClass(location === "/rostering/runs")}>
+                <ListOrdered size={14} /> Runs
               </Link>
             </CollapsibleContent>
           </Collapsible>

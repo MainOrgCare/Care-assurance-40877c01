@@ -3,7 +3,7 @@ import { toast } from "@/hooks/use-toast";
 
 export const REQUEST_ID_HEADER = "X-Request-ID";
 export const AUTH_EXPIRED_EVENT = "care-assurance:auth-expired";
-const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 const SENSITIVE_ENDPOINT_PATTERN = /\/api\/(ai|parse-pdf|gdpr|client-errors)\b/i;
 
 export const randomRequestId = (): string =>

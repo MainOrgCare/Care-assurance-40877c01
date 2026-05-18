@@ -40,6 +40,7 @@ const Compliance = React.lazy(() => import("@/pages/Compliance"));
 const ROICalculator = React.lazy(() => import("@/pages/ROICalculator"));
 const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
 const RosteringStudioUnified = React.lazy(() => import("@/pages/RosteringStudioUnified"));
+const RosteringRuns = React.lazy(() => import("@/pages/RosteringRuns"));
 const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
 const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
 const CQCSelfAssessment = React.lazy(() => import("@/pages/CQCSelfAssessment"));
@@ -151,6 +152,7 @@ function Router() {
           <Route path="/rostering">
             <Redirect to="/rostering/data" />
           </Route>
+          <ProtectedRoute path="/rostering/runs" component={RosteringRuns} />
           <ProtectedRoute path="/rostering/:tab" component={TestingFeatures} />
           <Route path="/testing-features">
             <Redirect to="/rostering/data" />
