@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/use-toast";
-import { getSharedRecommendations, type SharedCareCallRecommendation } from "@/pages/rosteringRunsStore";
+import { getSharedAllSlots, type SharedCallSlot } from "@/pages/rosteringRunsStore";
 import {
   Card,
   CardContent,
@@ -36,7 +36,7 @@ interface ServiceUser {
   key: string;
   name: string;
   area: string | null;
-  calls: SharedCareCallRecommendation[];
+  calls: SharedCallSlot[];
 }
 
 function formatMinutesToTime(minutes: number): string {
@@ -53,26 +53,26 @@ export default function RosteringRuns() {
   const [callTypeFilter, setCallTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Read recommendations from shared store (populated by Analyse)
-  const recommendations = getSharedRecommendations();
+  // Read ALL call slots from shared store (populated by Analyse)
+  const allSlots = getSharedAllSlots();
 
-  // Derive service users and call types from analyse recommendations
+  // Derive service users and call types from all analysed slots
   const { serviceUsers, callTypes } = useMemo(() => {
     const userMap = new Map<string, ServiceUser>();
     const typeSet = new Set<string>();
 
-    for (const rec of recommendations) {
-      typeSet.add(rec.callTypeLabel);
+    for (const slot of allSlots) {
+      typeSet.add(slot.callTypeLabel);
 
-      if (!userMap.has(rec.serviceUserKey)) {
-        userMap.set(rec.serviceUserKey, {
-          key: rec.serviceUserKey,
-          name: rec.serviceUserName,
-          area: rec.serviceUserArea,
-          calls: [rec],
+      if (!userMap.has(slot.serviceUserKey)) {
+        userMap.set(slot.serviceUserKey, {
+          key: slot.serviceUserKey,
+          name: slot.serviceUserName,
+          area: slot.serviceUserArea,
+          calls: [slot],
         });
       } else {
-        userMap.get(rec.serviceUserKey)!.calls.push(rec);
+        userMap.get(slot.serviceUserKey)!.calls.push(slot);
       }
     }
 
@@ -80,7 +80,7 @@ export default function RosteringRuns() {
       serviceUsers: Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
       callTypes: Array.from(typeSet).sort(),
     };
-  }, [recommendations]);
+  }, [allSlots]);
 
   // Filter service users by search
   const filteredServiceUsers = useMemo(() => {
@@ -93,7 +93,7 @@ export default function RosteringRuns() {
   const optimalRun = useMemo(() => {
     if (selectedUsers.size === 0) return [];
 
-    const calls: SharedCareCallRecommendation[] = [];
+    const calls: SharedCallSlot[] = [];
     for (const su of serviceUsers) {
       if (!selectedUsers.has(su.key)) continue;
       for (const call of su.calls) {
@@ -137,9 +137,10 @@ export default function RosteringRuns() {
 
   const handleCopyRun = useCallback(() => {
     if (!optimalRun.length) return;
-    const lines = optimalRun.map((call, idx) =>
-      `${idx + 1}. ${call.serviceUserName} — ${call.callTypeLabel} (${call.timeBandLabel}) @ ${call.suggestedPlannedTimeLabel}`
-    );
+    const lines = optimalRun.map((call, idx) => {
+      const time = call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0);
+      return `${idx + 1}. ${call.serviceUserName} — ${call.callTypeLabel} (${call.timeBandLabel}) @ ${time}`;
+    });
     const text = `Optimal Run (${optimalRun.length} calls)\n${"─".repeat(40)}\n${lines.join("\n")}`;
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard", description: `${optimalRun.length} calls in optimal order.` });
@@ -147,10 +148,11 @@ export default function RosteringRuns() {
 
   const handleExportCSV = useCallback(() => {
     if (!optimalRun.length) return;
-    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Duration (min),Area,Advice";
-    const rows = optimalRun.map((call, idx) =>
-      `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${call.suggestedPlannedTimeLabel}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${call.advice.join("; ").replace(/"/g, '""')}"`
-    );
+    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Duration (min),Area,Advice,Has Recommendation";
+    const rows = optimalRun.map((call, idx) => {
+      const time = call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0);
+      return `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${time}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${call.advice.join("; ").replace(/"/g, '""')}","${call.hasRecommendation ? "Yes" : "No"}"`;
+    });
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -162,7 +164,7 @@ export default function RosteringRuns() {
   }, [optimalRun]);
 
   // Empty state: no analysis data available
-  if (recommendations.length === 0) {
+  if (allSlots.length === 0) {
     return (
       <div className="page-shell max-w-5xl mx-auto space-y-6 pb-8">
         <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl md:p-8">
@@ -349,7 +351,7 @@ export default function RosteringRuns() {
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Time span</p>
                   <p className="text-lg font-bold text-foreground">
                     {optimalRun.length >= 2
-                      ? `${optimalRun[0].suggestedPlannedTimeLabel} – ${optimalRun[optimalRun.length - 1].suggestedPlannedTimeLabel}`
+                      ? `${formatMinutesToTime(optimalRun[0].averageActualStartMinutes ?? optimalRun[0].averagePlannedStartMinutes ?? 0)} – ${formatMinutesToTime(optimalRun[optimalRun.length - 1].averageActualStartMinutes ?? optimalRun[optimalRun.length - 1].averagePlannedStartMinutes ?? 0)}`
                       : "—"}
                   </p>
                 </div>
@@ -368,11 +370,20 @@ export default function RosteringRuns() {
                 <div className="divide-y">
                   {optimalRun.map((call, idx) => (
                     <div key={`${call.serviceUserKey}-${call.callTypeLabel}-${idx}`} className="flex items-center gap-3 px-3 py-3">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shrink-0 ${
+                        call.hasRecommendation ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                      }`}>
                         {idx + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{call.serviceUserName}</div>
+                        <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                          {call.serviceUserName}
+                          {call.hasRecommendation && (
+                            <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-primary/30 text-primary">
+                              Rec
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-[11px] text-muted-foreground truncate">
                           {call.callTypeLabel} · {call.timeBandLabel}
                           {call.suggestedPlannedDurationMinutes != null && (
@@ -381,8 +392,8 @@ export default function RosteringRuns() {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-sm font-mono font-semibold text-primary">
-                          {call.suggestedPlannedTimeLabel}
+                        <div className={`text-sm font-mono font-semibold ${call.hasRecommendation ? "text-primary" : "text-foreground"}`}>
+                          {call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0)}
                         </div>
                         {call.serviceUserArea && (
                           <div className="text-[10px] text-muted-foreground">

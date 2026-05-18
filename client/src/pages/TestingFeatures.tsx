@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as React from "react";
 import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
-import { setSharedRecommendations } from "@/pages/rosteringRunsStore";
+import { setSharedRecommendations, setSharedAllSlots } from "@/pages/rosteringRunsStore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Link, Redirect } from "wouter";
@@ -2883,6 +2883,35 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   useEffect(() => {
     setSharedRecommendations(careCallRecommendations);
   }, [careCallRecommendations]);
+
+  // Sync ALL call slots to shared store so Runs page can show every call
+  useEffect(() => {
+    const recommendationKeys = new Set(careCallRecommendations.map((r) => r.key));
+    const slots = allSlotTrends
+      .filter((t) => Boolean(t.serviceUserName))
+      .map((t) => ({
+        key: t.key,
+        serviceUserKey: t.serviceUserKey,
+        serviceUserName: t.serviceUserName || "Unknown service user",
+        serviceUserArea: t.serviceUserArea,
+        serviceUserAddress: t.serviceUserAddress,
+        timeBandLabel: t.timeBandLabel,
+        callTypeLabel: t.callTypeLabel,
+        totalCalls: t.totalCalls,
+        callsWithTimes: t.callsWithTimes,
+        callsWithDurations: t.callsWithDurations,
+        averageStartOffsetMinutes: t.averageStartOffsetMinutes,
+        averageActualStartMinutes: t.averageActualStartMinutes,
+        averagePlannedStartMinutes: t.averagePlannedStartMinutes,
+        averageDurationPercent: t.averageDurationPercent,
+        suggestedPlannedTimeLabel: t.suggestedPlannedTimeLabel,
+        suggestedPlannedDurationMinutes: t.suggestedPlannedDurationMinutes,
+        advice: t.advice,
+        offsetConsistency: t.offsetConsistency,
+        hasRecommendation: recommendationKeys.has(t.key),
+      }));
+    setSharedAllSlots(slots);
+  }, [allSlotTrends, careCallRecommendations]);
 
   const recommendationServiceUsers = useMemo(() => {
     const grouped = new Map<
