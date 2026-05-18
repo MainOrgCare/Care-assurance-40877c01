@@ -5820,14 +5820,22 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
             <AlertTitle className="flex items-center gap-2 text-base">
               <Shield className="h-4 w-4 text-warning" />
-              {careWorkerRosters.length > 0 ? (isAdmin ? "Ready to save" : "Ready to hand off") : "Volatile workspace"}
+              {careWorkerRosters.length > 0
+                ? (isAdmin ? "Ready to save" : "Ready to hand off")
+                : fileMeta && (processingState === "ready" || processingState === "analyzing")
+                  ? "Dataset loaded — run analysis"
+                  : "Volatile workspace"}
             </AlertTitle>
             <AlertDescription className="text-sm">
               {careWorkerRosters.length > 0
                 ? isAdmin
                   ? "Save the analyzed workspace to the shared library or download a progress file for handoff."
                   : "Download a progress file whenever you want to preserve the current analysis state."
-                : "Load or restore a dataset from Data first. Until then, the analysis workspace stays local to this browser session."}
+                : fileMeta && processingState === "ready"
+                  ? `${fileMeta.name} is loaded with ${fileMeta.totalRows.toLocaleString()} rows. Press Run Analysis below to begin processing.`
+                  : fileMeta && processingState === "analyzing"
+                    ? "Analysis is running. Results will appear shortly."
+                    : "Load or restore a dataset from Data first. Until then, the analysis workspace stays local to this browser session."}
             </AlertDescription>
             {isAdmin && careWorkerRosters.length > 0 && (
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -6751,9 +6759,25 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                       <Button size="sm" variant="outline" onClick={handleDownloadProgress}>
                         <Download className="h-4 w-4 mr-2" /> Download progress
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={handleReset}>
-                        Reset
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost">
+                            Reset
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset workspace?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will clear the current dataset, all analysis results, recommendations, and decisions. Download a progress file first if you want to continue later.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleReset}>Reset workspace</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </div>
