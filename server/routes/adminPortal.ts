@@ -11,6 +11,9 @@ import type { Express, RequestHandler } from "express";
 import { storage } from "../storage";
 import { safeErrorMessage } from "../utils/safeError";
 
+const getRouteParamValue = (param: string | string[] | undefined): string =>
+  Array.isArray(param) ? (param[0] ?? "") : (param ?? "");
+
 export interface AdminPortalRouteDeps {
   requireAuth: RequestHandler;
   requireAdmin: RequestHandler;
@@ -46,12 +49,13 @@ export function registerAdminPortalRoutes(
   app.post("/api/admin/users/:id/suspend", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const { durationMinutes, reason } = req.body;
+      const userId = getRouteParamValue(req.params.id);
 
       if (!durationMinutes || durationMinutes < 2 || durationMinutes > 1440) {
         return res.status(400).json({ message: "Duration must be between 2 and 1440 minutes" });
       }
 
-      const targetUser = await storage.getUser(req.params.id);
+      const targetUser = await storage.getUser(userId);
       if (!targetUser) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -63,7 +67,7 @@ export function registerAdminPortalRoutes(
       const now = new Date();
       const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
-      await storage.suspendUser(req.params.id, endsAt);
+      await storage.suspendUser(userId, endsAt);
 
       await storage.createSuspensionLog({
         userId: targetUser.id,
@@ -76,9 +80,9 @@ export function registerAdminPortalRoutes(
         endsAt,
       });
 
-      await storage.deleteActiveSessionByUserId(req.params.id);
+      await storage.deleteActiveSessionByUserId(userId);
 
-      sendToUser(req.params.id, {
+      sendToUser(userId, {
         type: "FORCE_LOGOUT",
         message: `You have been suspended for ${durationMinutes} minutes.${reason ? ` Reason: ${reason}` : ""}`,
       });
@@ -92,9 +96,11 @@ export function registerAdminPortalRoutes(
   // Reinstate a suspended user (admin only)
   app.post("/api/admin/users/:id/reinstate", requireAuth, requireAdmin, async (req, res) => {
     try {
-      await storage.suspendUser(req.params.id, null);
+      const userId = getRouteParamValue(req.params.id);
 
-      const logs = await storage.getSuspensionLogsByUser(req.params.id);
+      await storage.suspendUser(userId, null);
+
+      const logs = await storage.getSuspensionLogsByUser(userId);
       if (logs.length > 0 && logs[0].endsAt > new Date()) {
         await storage.reinstateSuspension(logs[0].id);
       }
@@ -108,7 +114,8 @@ export function registerAdminPortalRoutes(
   // Kick a user (force logout without suspension) (admin only)
   app.post("/api/admin/users/:id/kick", requireAuth, requireAdmin, async (req: any, res) => {
     try {
-      const targetUser = await storage.getUser(req.params.id);
+      const userId = getRouteParamValue(req.params.id);
+      const targetUser = await storage.getUser(userId);
       if (!targetUser) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -117,7 +124,7 @@ export function registerAdminPortalRoutes(
         return res.status(403).json({ message: "Cannot kick admin users" });
       }
 
-      const activeSession = await storage.getActiveSessionByUserId(req.params.id);
+      const activeSession = await storage.getActiveSessionByUserId(userId);
       if (activeSession) {
         await storage.updateSessionLogout(activeSession.sessionId, true);
         await storage.deleteActiveSession(activeSession.sessionId);
@@ -128,7 +135,7 @@ export function registerAdminPortalRoutes(
           });
         }
 
-        sendToUser(req.params.id, {
+        sendToUser(userId, {
           type: "FORCE_LOGOUT",
           message: "You have been logged out by an administrator.",
         });
@@ -144,7 +151,7 @@ export function registerAdminPortalRoutes(
   app.patch("/api/admin/users/:id/name", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { firstName, lastName } = req.body;
-      const user = await storage.updateUserName(req.params.id, firstName || null, lastName || null);
+      const user = await storage.updateUserName(getRouteParamValue(req.params.id), firstName || null, lastName || null);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -254,7 +261,7 @@ export function registerAdminPortalRoutes(
   // Unblock an IP address (admin only)
   app.delete("/api/admin/blocked-ips/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      await storage.unblockIp(req.params.id);
+      await storage.unblockIp(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: unknown) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to unblock IP") });

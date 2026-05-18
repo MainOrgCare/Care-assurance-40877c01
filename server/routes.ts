@@ -140,6 +140,9 @@ const formatZodErrors = (errors: z.ZodIssue[]): Array<{ field: string; message: 
     message: issue.message,
   }));
 
+const getRouteParamValue = (param: string | string[] | undefined): string =>
+  Array.isArray(param) ? (param[0] ?? "") : (param ?? "");
+
 const getStandardFontDataUrl = (): string => {
   const fontsPath = path.resolve(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts");
   return pathToFileURL(fontsPath + path.sep).toString();
@@ -6481,7 +6484,7 @@ export async function registerRoutes(
   // Approve user
   app.patch("/api/users/:id/approve", requireAuth, requireAdmin, async (req: any, res) => {
     try {
-      const user = await storage.updateUserStatus(req.params.id, "active");
+      const user = await storage.updateUserStatus(getRouteParamValue(req.params.id), "active");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -6512,8 +6515,8 @@ export async function registerRoutes(
   app.delete("/api/users/:id", requireAuth, requireAdmin, async (req: any, res) => {
     try {
       const users = await storage.getAllUsers();
-      const userToDelete = users.find(u => u.id === req.params.id);
-      await storage.deleteUser(req.params.id);
+      const userToDelete = users.find(u => u.id === getRouteParamValue(req.params.id));
+      await storage.deleteUser(getRouteParamValue(req.params.id));
       
       // Audit log: Admin deleted user
       await storage.createSystemLog({
@@ -6521,7 +6524,7 @@ export async function registerRoutes(
         userId: req.user.id,
         username: req.user.username,
         details: {
-          deleted_user_id: req.params.id,
+          deleted_user_id: getRouteParamValue(req.params.id),
           deleted_username: userToDelete?.username || 'unknown',
         },
       });
@@ -6544,7 +6547,7 @@ export async function registerRoutes(
       if (jobTitle === undefined) {
         return res.status(400).json({ message: "Job title required" });
       }
-      const user = await storage.updateUserJobTitle(req.params.id, jobTitle);
+      const user = await storage.updateUserJobTitle(getRouteParamValue(req.params.id), jobTitle);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -6567,7 +6570,7 @@ export async function registerRoutes(
       if (!isUserRole(role)) {
         return res.status(400).json({ message: "Valid role required (admin, staff, or pilot)" });
       }
-      const user = await storage.updateUserRole(req.params.id, role);
+      const user = await storage.updateUserRole(getRouteParamValue(req.params.id), role);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -6605,11 +6608,11 @@ export async function registerRoutes(
       }
       
       const existingUser = await storage.getUserByUsername(username.trim());
-      if (existingUser && existingUser.id !== req.params.id) {
+      if (existingUser && existingUser.id !== getRouteParamValue(req.params.id)) {
         return res.status(400).json({ message: "Username already exists" });
       }
       
-      const user = await storage.updateUsername(req.params.id, username.trim());
+      const user = await storage.updateUsername(getRouteParamValue(req.params.id), username.trim());
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -6960,7 +6963,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "New password required" });
       }
 
-      const user = await storage.getUser(req.params.id);
+      const user = await storage.getUser(getRouteParamValue(req.params.id));
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -6972,18 +6975,18 @@ export async function registerRoutes(
       
       const bcrypt = await import("bcrypt");
       const hashedPassword = await bcrypt.default.hash(newPassword, 10);
-      await storage.updateUserPassword(req.params.id, hashedPassword);
+      await storage.updateUserPassword(getRouteParamValue(req.params.id), hashedPassword);
       
       // Invalidate all active sessions for the user - forces re-login with new password
-      await storage.deleteActiveSessionByUserId(req.params.id);
+      await storage.deleteActiveSessionByUserId(getRouteParamValue(req.params.id));
       
       logSecurityEvent({
         eventType: 'PASSWORD_RESET',
-        endpoint: `/api/admin/users/${req.params.id}/reset-password`,
+        endpoint: `/api/admin/users/${getRouteParamValue(req.params.id)}/reset-password`,
         userId: (req as any).user.id,
         username: (req as any).user.username,
         details: {
-          targetUserId: req.params.id,
+          targetUserId: getRouteParamValue(req.params.id),
           targetUsername: user.username,
           changedBy: 'admin',
           sessionsInvalidated: true
@@ -7335,7 +7338,7 @@ export async function registerRoutes(
   // Mark alert as read
   app.patch("/api/admin-alerts/:id/read", requireAuth, requireAdmin, async (req, res) => {
     try {
-      await storage.markAlertAsRead(req.params.id);
+      await storage.markAlertAsRead(getRouteParamValue(req.params.id));
       return res.json({ message: "Alert marked as read" });
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to update alert") });
@@ -7575,7 +7578,7 @@ export async function registerRoutes(
   // Get a specific care worker rota (admin only)
   app.get("/api/admin/care-worker-rotas/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const rota = await storage.getCareWorkerRotaById(req.params.id);
+      const rota = await storage.getCareWorkerRotaById(getRouteParamValue(req.params.id));
       if (!rota) {
         return res.status(404).json({ message: "Rota not found" });
       }
@@ -7606,7 +7609,7 @@ export async function registerRoutes(
   // Update an existing care worker rota (admin only)
   app.put("/api/admin/care-worker-rotas/:id", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
-      const existing = await storage.getCareWorkerRotaById(req.params.id);
+      const existing = await storage.getCareWorkerRotaById(getRouteParamValue(req.params.id));
       if (!existing) {
         return res.status(404).json({ message: "Rota not found" });
       }
@@ -7625,7 +7628,7 @@ export async function registerRoutes(
         return res.json({ rota: existing, deduped: false, updated: false });
       }
 
-      const updated = await storage.updateCareWorkerRota(req.params.id, {
+      const updated = await storage.updateCareWorkerRota(getRouteParamValue(req.params.id), {
         workerName: payload.workerName,
         workerKey: payload.workerKey,
         templateWeek: payload.templateWeek,
@@ -18129,7 +18132,7 @@ Return ONLY valid JSON matching the schema.`,
       }
 
       // Fetch existing review for ownership check
-      const existing = await storage.getRefusalReview(req.params.id);
+      const existing = await storage.getRefusalReview(getRouteParamValue(req.params.id));
       if (!existing) {
         return res.status(404).json({ message: "Refusal review not found" });
       }
@@ -18140,7 +18143,7 @@ Return ONLY valid JSON matching the schema.`,
       }
       
       const review = await storage.updateRefusalReview(
-        req.params.id,
+        getRouteParamValue(req.params.id),
         reasonAcceptable,
         user.username,  // Always use session user, never client-supplied
         reviewerNotes
@@ -19500,7 +19503,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.get("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const upload = await storage.getWorkbookUpload(req.params.id);
+      const upload = await storage.getWorkbookUpload(getRouteParamValue(req.params.id));
       if (!upload) {
         return res.status(404).json({ message: "Workbook not found" });
       }
@@ -19514,12 +19517,12 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/testing-features/workbooks/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      const existing = await storage.getWorkbookUpload(req.params.id);
+      const existing = await storage.getWorkbookUpload(getRouteParamValue(req.params.id));
       if (!existing) {
         return res.status(404).json({ message: "Workbook not found" });
       }
 
-      await storage.deleteWorkbookUpload(req.params.id);
+      await storage.deleteWorkbookUpload(getRouteParamValue(req.params.id));
       console.log(`[TestingFeatures] Workbook deleted: ${existing.fileName}`);
       return res.json({ success: true });
     } catch (error: any) {
@@ -19545,7 +19548,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.get("/api/admin/rostering/service-orders/:serviceUserKey", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const orders = await storage.getServiceOrdersByServiceUser(req.params.serviceUserKey);
+      const orders = await storage.getServiceOrdersByServiceUser(getRouteParamValue(req.params.serviceUserKey));
       return res.json(orders);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch service orders:", error);
@@ -19555,7 +19558,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/service-orders/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteServiceOrder(req.params.id);
+      await storage.deleteServiceOrder(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete service order:", error);
@@ -19591,7 +19594,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/template-assignments/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteTemplateAssignment(req.params.id);
+      await storage.deleteTemplateAssignment(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete template assignment:", error);
@@ -19612,7 +19615,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.get("/api/admin/rostering/service-users/:key", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const serviceUser = await storage.getAnalyzedServiceUser(req.params.key);
+      const serviceUser = await storage.getAnalyzedServiceUser(getRouteParamValue(req.params.key));
       if (!serviceUser) {
         return res.status(404).json({ message: "Service user not found" });
       }
@@ -19625,7 +19628,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/service-users/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteAnalyzedServiceUser(req.params.id);
+      await storage.deleteAnalyzedServiceUser(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete service user:", error);
@@ -19646,7 +19649,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.get("/api/admin/rostering/care-workers-analyzed/:key", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const careWorker = await storage.getAnalyzedCareWorker(req.params.key);
+      const careWorker = await storage.getAnalyzedCareWorker(getRouteParamValue(req.params.key));
       if (!careWorker) {
         return res.status(404).json({ message: "Care worker not found" });
       }
@@ -19659,7 +19662,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/care-workers-analyzed/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteAnalyzedCareWorker(req.params.id);
+      await storage.deleteAnalyzedCareWorker(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete care worker:", error);
@@ -19692,7 +19695,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.post("/api/admin/rostering/recommendations/:id/apply", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
-      const recommendation = await storage.applyCallRecommendation(req.params.id, req.user?.id ?? '');
+      const recommendation = await storage.applyCallRecommendation(getRouteParamValue(req.params.id), req.user?.id ?? '');
       if (!recommendation) {
         return res.status(404).json({ message: "Recommendation not found" });
       }
@@ -19706,7 +19709,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/recommendations/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteCallRecommendation(req.params.id);
+      await storage.deleteCallRecommendation(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete recommendation:", error);
@@ -19727,7 +19730,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.get("/api/admin/rostering/workbook-uploads/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const upload = await storage.getWorkbookUpload(req.params.id);
+      const upload = await storage.getWorkbookUpload(getRouteParamValue(req.params.id));
       if (!upload) {
         return res.status(404).json({ message: "Workbook not found" });
       }
@@ -19741,7 +19744,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/workbook-uploads/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteWorkbookUpload(req.params.id);
+      await storage.deleteWorkbookUpload(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete workbook upload:", error);
@@ -19851,7 +19854,7 @@ Return ONLY valid JSON matching the schema.`,
   // --- Recommended Call Times ---
   app.get("/api/admin/rostering/workbooks/:id/call-times", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const callTimes = await storage.getRosteringRecommendedCallTimes(req.params.id);
+      const callTimes = await storage.getRosteringRecommendedCallTimes(getRouteParamValue(req.params.id));
       return res.json(callTimes);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch call times:", error);
@@ -19867,7 +19870,7 @@ Return ONLY valid JSON matching the schema.`,
       }
       const callTime = await storage.upsertRosteringRecommendedCallTime({
         ...parsed.data,
-        workbookId: req.params.id,
+        workbookId: getRouteParamValue(req.params.id),
         createdBy: (req as any).user?.id ?? null,
         createdByUsername: (req as any).user?.username ?? null,
       });
@@ -19881,7 +19884,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/call-times/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteRosteringRecommendedCallTime(req.params.id);
+      await storage.deleteRosteringRecommendedCallTime(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete call time:", error);
@@ -19892,7 +19895,7 @@ Return ONLY valid JSON matching the schema.`,
   // --- Worker Start Times ---
   app.get("/api/admin/rostering/workbooks/:id/worker-start-times", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const startTimes = await storage.getRosteringWorkerStartTimes(req.params.id);
+      const startTimes = await storage.getRosteringWorkerStartTimes(getRouteParamValue(req.params.id));
       return res.json(startTimes);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch worker start times:", error);
@@ -19908,7 +19911,7 @@ Return ONLY valid JSON matching the schema.`,
       }
       const startTime = await storage.upsertRosteringWorkerStartTime({
         ...parsed.data,
-        workbookId: req.params.id,
+        workbookId: getRouteParamValue(req.params.id),
         createdBy: (req as any).user?.id ?? null,
         createdByUsername: (req as any).user?.username ?? null,
       });
@@ -19922,7 +19925,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/worker-start-times/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteRosteringWorkerStartTime(req.params.id);
+      await storage.deleteRosteringWorkerStartTime(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker start time:", error);
@@ -19933,7 +19936,7 @@ Return ONLY valid JSON matching the schema.`,
   // --- Worker Templates (who visits whom) ---
   app.get("/api/admin/rostering/workbooks/:id/worker-templates", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const templates = await storage.getRosteringWorkerTemplates(req.params.id);
+      const templates = await storage.getRosteringWorkerTemplates(getRouteParamValue(req.params.id));
       return res.json(templates);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch worker templates:", error);
@@ -19949,7 +19952,7 @@ Return ONLY valid JSON matching the schema.`,
       }
       const template = await storage.upsertRosteringWorkerTemplate({
         ...parsed.data,
-        workbookId: req.params.id,
+        workbookId: getRouteParamValue(req.params.id),
         createdBy: (req as any).user?.id ?? null,
         createdByUsername: (req as any).user?.username ?? null,
       });
@@ -19963,7 +19966,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/worker-templates/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteRosteringWorkerTemplate(req.params.id);
+      await storage.deleteRosteringWorkerTemplate(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker template:", error);
@@ -19974,7 +19977,7 @@ Return ONLY valid JSON matching the schema.`,
   // --- Worker Constraints (max calls per day) ---
   app.get("/api/admin/rostering/workbooks/:id/worker-constraints", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const constraints = await storage.getRosteringWorkerConstraints(req.params.id);
+      const constraints = await storage.getRosteringWorkerConstraints(getRouteParamValue(req.params.id));
       return res.json(constraints);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch worker constraints:", error);
@@ -19990,7 +19993,7 @@ Return ONLY valid JSON matching the schema.`,
       }
       const constraint = await storage.upsertRosteringWorkerConstraint({
         ...parsed.data,
-        workbookId: req.params.id,
+        workbookId: getRouteParamValue(req.params.id),
         createdBy: (req as any).user?.id ?? null,
         createdByUsername: (req as any).user?.username ?? null,
       });
@@ -20004,7 +20007,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/worker-constraints/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteRosteringWorkerConstraint(req.params.id);
+      await storage.deleteRosteringWorkerConstraint(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete worker constraint:", error);
@@ -20016,7 +20019,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.get("/api/admin/rostering/workbooks/:id/template-library", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const templates = await storage.getScheduleTemplates(req.params.id);
+      const templates = await storage.getScheduleTemplates(getRouteParamValue(req.params.id));
       return res.json(templates);
     } catch (error: any) {
       console.error("[Rostering] Failed to fetch schedule templates:", error);
@@ -20028,7 +20031,7 @@ Return ONLY valid JSON matching the schema.`,
     try {
       const { name, description, category, weekDay, weekNumber, scheduleState, metadata } = req.body;
       const template = await storage.createScheduleTemplate({
-        workbookId: req.params.id,
+        workbookId: getRouteParamValue(req.params.id),
         name: name || `Template ${new Date().toLocaleDateString()}`,
         description,
         category: category || "custom",
@@ -20050,7 +20053,7 @@ Return ONLY valid JSON matching the schema.`,
 
   app.delete("/api/admin/rostering/workbooks/:id/template-library/:templateId", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteScheduleTemplate(req.params.templateId);
+      await storage.deleteScheduleTemplate(getRouteParamValue(req.params.templateId));
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete schedule template:", error);
@@ -20063,7 +20066,7 @@ Return ONLY valid JSON matching the schema.`,
   // Get all saved states for a workbook
   app.get("/api/admin/rostering/workbooks/:id/saved-states", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const states = await storage.getRosteringSavedStates(req.params.id);
+      const states = await storage.getRosteringSavedStates(getRouteParamValue(req.params.id));
       return res.json(states);
     } catch (error: any) {
       console.error("[Rostering] Failed to get saved states:", error);
@@ -20077,7 +20080,7 @@ Return ONLY valid JSON matching the schema.`,
       const { name, description, templateWeek, templateDay, timeOverrides, laneOverrides, metrics, isActive } = req.body;
 
       const state = await storage.createRosteringSavedState({
-        workbookId: req.params.id,
+        workbookId: getRouteParamValue(req.params.id),
         name: name || `Schedule ${new Date().toLocaleDateString()}`,
         description,
         templateWeek,
@@ -20103,7 +20106,7 @@ Return ONLY valid JSON matching the schema.`,
     try {
       const { name, description, timeOverrides, laneOverrides, metrics } = req.body;
 
-      const updated = await storage.updateRosteringSavedState(req.params.id, {
+      const updated = await storage.updateRosteringSavedState(getRouteParamValue(req.params.id), {
         name,
         description,
         timeOverrides,
@@ -20126,12 +20129,12 @@ Return ONLY valid JSON matching the schema.`,
   // Set a saved state as active
   app.post("/api/admin/rostering/saved-states/:id/activate", requireAuth, requireAdmin, blockDemoWrites, async (req: any, res) => {
     try {
-      const state = await storage.getRosteringSavedState(req.params.id);
+      const state = await storage.getRosteringSavedState(getRouteParamValue(req.params.id));
       if (!state) {
         return res.status(404).json({ message: "Saved state not found" });
       }
 
-      const activated = await storage.setActiveRosteringSavedState(req.params.id, state.workbookId);
+      const activated = await storage.setActiveRosteringSavedState(getRouteParamValue(req.params.id), state.workbookId);
       console.log(`[Rostering] Activated saved state: ${activated?.name}`);
       return res.json(activated);
     } catch (error: any) {
@@ -20143,8 +20146,8 @@ Return ONLY valid JSON matching the schema.`,
   // Delete a saved state
   app.delete("/api/admin/rostering/saved-states/:id", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
     try {
-      await storage.deleteRosteringSavedState(req.params.id);
-      console.log(`[Rostering] Deleted saved state: ${req.params.id}`);
+      await storage.deleteRosteringSavedState(getRouteParamValue(req.params.id));
+      console.log(`[Rostering] Deleted saved state: ${getRouteParamValue(req.params.id)}`);
       return res.json({ success: true });
     } catch (error: any) {
       console.error("[Rostering] Failed to delete saved state:", error);
@@ -20161,7 +20164,7 @@ Return ONLY valid JSON matching the schema.`,
       }
 
       const state = await storage.getActiveRosteringSavedState(
-        req.params.id,
+        getRouteParamValue(req.params.id),
         templateWeek as string,
         templateDay as string
       );
@@ -20181,7 +20184,7 @@ Return ONLY valid JSON matching the schema.`,
       const { analyzeScheduleWithAI } = await import("./services/scheduleAnalyzer");
       const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
       const analysis = await analyzeScheduleWithAI(req.body, aiUserContext);
-      console.log(`[Rostering] Schedule analysis completed for workbook: ${req.params.id}`);
+      console.log(`[Rostering] Schedule analysis completed for workbook: ${getRouteParamValue(req.params.id)}`);
       return res.json(analysis);
     } catch (error: any) {
       console.error("[Rostering] Schedule analysis failed:", error);
@@ -20198,7 +20201,7 @@ Return ONLY valid JSON matching the schema.`,
       const { compareSchedulesWithAI } = await import("./services/scheduleAnalyzer");
       const aiUserContext: AiUserContext = { userId: req.user?.id || null, username: req.user?.username || null };
       const comparison = await compareSchedulesWithAI(req.body, aiUserContext);
-      console.log(`[Rostering] Schedule comparison completed for workbook: ${req.params.id}`);
+      console.log(`[Rostering] Schedule comparison completed for workbook: ${getRouteParamValue(req.params.id)}`);
       return res.json(comparison);
     } catch (error: any) {
       console.error("[Rostering] Schedule comparison failed:", error);

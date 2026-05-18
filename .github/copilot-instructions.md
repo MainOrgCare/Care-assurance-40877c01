@@ -15,7 +15,7 @@ npm run dev:server       # Server only — AI_ENABLED defaults to true
 
 # Build & type-check
 npm run build            # Build client (Vite) + server (esbuild → dist/index.cjs)
-npm run check            # TypeScript type-check only (tsc — no lint step exists)
+npm run check            # TypeScript type-check only (tsgo via @typescript/native-preview — no lint step exists)
 npm run quality          # Full CI gate: test + check + build
 
 # Production

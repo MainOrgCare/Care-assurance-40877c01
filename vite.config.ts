@@ -3,6 +3,57 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
+type BuildOutputOptions = NonNullable<
+  NonNullable<NonNullable<import("vite").UserConfig["build"]>["rollupOptions"]>["output"]
+>;
+
+const manualChunkGroups = {
+  // Core vendor libraries
+  "vendor-react": ["react", "react-dom", "wouter"],
+  "vendor-query": ["@tanstack/react-query"],
+  // Heavy libraries split separately
+  "vendor-xlsx": ["xlsx"],
+  "vendor-pdf": ["jspdf", "html2canvas"],
+  "vendor-pdfjs": ["pdfjs-dist"],
+  "vendor-charts": ["recharts"],
+  // Utility libraries
+  "vendor-date": ["date-fns"],
+  "vendor-icons": ["lucide-react"],
+  // UI components
+  "vendor-ui": [
+    "@radix-ui/react-dialog",
+    "@radix-ui/react-dropdown-menu",
+    "@radix-ui/react-tabs",
+    "@radix-ui/react-accordion",
+    "@radix-ui/react-select",
+  ],
+  // Framer motion separate chunk
+  "vendor-motion": ["framer-motion"],
+} as const;
+
+const buildOutputOptions = {
+  manualChunks(id: string) {
+    const normalizedId = id.replace(/\\/g, "/");
+    if (!normalizedId.includes("/node_modules/")) {
+      return undefined;
+    }
+
+    for (const [chunkName, packages] of Object.entries(manualChunkGroups)) {
+      const matchesChunk = packages.some(
+        (pkg) =>
+          normalizedId.includes(`/node_modules/${pkg}/`) ||
+          normalizedId.endsWith(`/node_modules/${pkg}`)
+      );
+
+      if (matchesChunk) {
+        return chunkName;
+      }
+    }
+
+    return undefined;
+  },
+} satisfies BuildOutputOptions;
+
 export default defineConfig({
   plugins: [
     react(),
@@ -42,25 +93,7 @@ export default defineConfig({
       include: [/pako/, /node_modules/],
     },
     rollupOptions: {
-      output: {
-        manualChunks: {
-          // Core vendor libraries
-          'vendor-react': ['react', 'react-dom', 'wouter'],
-          'vendor-query': ['@tanstack/react-query'],
-          // Heavy libraries split separately
-          'vendor-xlsx': ['xlsx'],
-          'vendor-pdf': ['jspdf', 'html2canvas'],
-          'vendor-pdfjs': ['pdfjs-dist'],
-          'vendor-charts': ['recharts'],
-          // Utility libraries
-          'vendor-date': ['date-fns'],
-          'vendor-icons': ['lucide-react'],
-          // UI components
-          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-accordion', '@radix-ui/react-select'],
-          // Framer motion separate chunk
-          'vendor-motion': ['framer-motion'],
-        },
-      },
+      output: buildOutputOptions,
     },
   },
   server: {

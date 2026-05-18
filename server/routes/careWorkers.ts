@@ -23,6 +23,9 @@ import {
 
 const log = createLogger("care-workers");
 
+const getRouteParamValue = (param: string | string[] | undefined): string =>
+  Array.isArray(param) ? (param[0] ?? "") : (param ?? "");
+
 export interface CareWorkerRouteDeps {
   requireAuth: RequestHandler;
   requireAdmin: RequestHandler;
@@ -65,16 +68,17 @@ export function registerCareWorkerRoutes(
   // Get care worker with discrepancies
   app.get("/api/care-workers/:id", requireAuth, async (req, res) => {
     try {
-      const worker = await storage.getCareWorker(req.params.id);
+      const workerId = getRouteParamValue(req.params.id);
+      const worker = await storage.getCareWorker(workerId);
       if (!worker) {
         return apiNotFound(res, "Care worker not found");
       }
 
-      const discrepancies = await storage.getDiscrepanciesByCareWorker(req.params.id);
+      const discrepancies = await storage.getDiscrepanciesByCareWorker(workerId);
 
       return apiSuccess(res, { ...worker, discrepancies });
     } catch (error: unknown) {
-      log.error("Failed to load care worker", { workerId: req.params.id, error: safeErrorMessage(error) });
+      log.error("Failed to load care worker", { workerId: getRouteParamValue(req.params.id), error: safeErrorMessage(error) });
       return apiInternalError(res, safeErrorMessage(error, "Failed to load care worker"));
     }
   });

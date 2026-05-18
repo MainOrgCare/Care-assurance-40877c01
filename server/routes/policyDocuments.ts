@@ -15,6 +15,9 @@ import { safeErrorMessage } from "../utils/safeError";
 import { tryConvertOfficeToPdf } from "../utils/officeToPdf";
 import { insertPolicyDocumentSchema } from "@shared/schema";
 
+const getRouteParamValue = (param: string | string[] | undefined): string =>
+  Array.isArray(param) ? (param[0] ?? "") : (param ?? "");
+
 export interface PolicyDocumentRouteDeps {
   requireAuth: RequestHandler;
   requireAdmin: RequestHandler;
@@ -44,7 +47,7 @@ export function registerPolicyDocumentRoutes(
 
   app.get("/api/policy-documents/category/:category", requireAuth, async (req, res) => {
     try {
-      const docs = await storage.getPolicyDocumentsByCategory(req.params.category);
+      const docs = await storage.getPolicyDocumentsByCategory(getRouteParamValue(req.params.category));
       return res.json(docs);
     } catch (error: unknown) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to load policy documents") });
@@ -66,7 +69,7 @@ export function registerPolicyDocumentRoutes(
 
   app.put("/api/policy-documents/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const doc = await storage.updatePolicyDocument(req.params.id, req.body);
+      const doc = await storage.updatePolicyDocument(getRouteParamValue(req.params.id), req.body);
       if (!doc) {
         return res.status(404).json({ message: "Policy document not found" });
       }
@@ -78,7 +81,7 @@ export function registerPolicyDocumentRoutes(
 
   app.delete("/api/policy-documents/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      await storage.deletePolicyDocument(req.params.id);
+      await storage.deletePolicyDocument(getRouteParamValue(req.params.id));
       return res.json({ success: true });
     } catch (error: unknown) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete policy document") });

@@ -2108,7 +2108,6 @@ export default function RosteringStudioUnified({
               <>
                 <ResizablePanel
                   id="rstd-left-workers"
-                  order={1}
                   defaultSize={12}
                   minSize={8}
                   maxSize={18}
@@ -2202,13 +2201,12 @@ export default function RosteringStudioUnified({
             )}
 
             {/* MAIN CONTENT - Resizable Layout */}
-                <ResizablePanel id="rstd-main" order={2} defaultSize={mainPanelDefaultSize} className="min-h-0">
+                <ResizablePanel id="rstd-main" defaultSize={mainPanelDefaultSize} className="min-h-0">
               <ResizablePanelGroup direction="vertical" className="h-full">
                 {/* Top Row: Timeline */}
                 {panelVisibility.timeline && (
                   <ResizablePanel
                     id="rstd-main-timeline"
-                    order={1}
                     defaultSize={timelineDefaultSize}
                     minSize={30}
                     maxSize={80}
@@ -2368,7 +2366,6 @@ export default function RosteringStudioUnified({
                 {hasBottomPanels && (
                   <ResizablePanel
                     id="rstd-main-bottom"
-                    order={2}
                     defaultSize={bottomDefaultSize}
                     minSize={20}
                     maxSize={70}
@@ -2379,7 +2376,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.map && (
                     <ResizablePanel
                       id="rstd-bottom-map"
-                      order={1}
                       defaultSize={bottomPanelDefaultSizes.map}
                       minSize={12}
                       className="min-h-0"
@@ -2409,7 +2405,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.callTimes && (
                     <ResizablePanel
                       id="rstd-bottom-call-times"
-                      order={2}
                       defaultSize={bottomPanelDefaultSizes.callTimes}
                       minSize={8}
                       className="min-h-0"
@@ -2446,7 +2441,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.constraints && (
                     <ResizablePanel
                       id="rstd-bottom-constraints"
-                      order={3}
                       defaultSize={bottomPanelDefaultSizes.constraints}
                       minSize={8}
                       className="min-h-0"
@@ -2487,7 +2481,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.workload && (
                     <ResizablePanel
                       id="rstd-bottom-workload"
-                      order={4}
                       defaultSize={bottomPanelDefaultSizes.workload}
                       minSize={8}
                       className="min-h-0"
@@ -2521,7 +2514,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.optimization && (
                     <ResizablePanel
                       id="rstd-bottom-optimization"
-                      order={5}
                       defaultSize={bottomPanelDefaultSizes.optimization}
                       minSize={8}
                       className="min-h-0"
@@ -2555,7 +2547,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.database && (
                     <ResizablePanel
                       id="rstd-bottom-database"
-                      order={6}
                       defaultSize={bottomPanelDefaultSizes.database}
                       minSize={8}
                       className="min-h-0"
@@ -2584,7 +2575,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.aiAnalysis && (
                     <ResizablePanel
                       id="rstd-bottom-ai-analysis"
-                      order={7}
                       defaultSize={bottomPanelDefaultSizes.aiAnalysis}
                       minSize={8}
                       className="min-h-0"
@@ -2635,7 +2625,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.comparison && savedComparisonData && (
                     <ResizablePanel
                       id="rstd-bottom-comparison"
-                      order={8}
                       defaultSize={bottomPanelDefaultSizes.comparison}
                       minSize={8}
                       className="min-h-0"
@@ -2671,7 +2660,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.costs && (
                     <ResizablePanel
                       id="rstd-bottom-costs"
-                      order={9}
                       defaultSize={bottomPanelDefaultSizes.costs}
                       minSize={8}
                       className="min-h-0"
@@ -2706,7 +2694,6 @@ export default function RosteringStudioUnified({
                   {panelVisibility.templates && (
                     <ResizablePanel
                       id="rstd-bottom-templates"
-                      order={10}
                       defaultSize={bottomPanelDefaultSizes.templates}
                       minSize={8}
                       className="min-h-0"
@@ -2751,7 +2738,7 @@ export default function RosteringStudioUnified({
                   {!panelVisibility.map && !panelVisibility.callTimes && !panelVisibility.constraints && 
                    !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database &&
                    !panelVisibility.aiAnalysis && !hasComparisonPanel && !panelVisibility.costs && !panelVisibility.templates && (
-                    <ResizablePanel id="rstd-bottom-empty" order={11} defaultSize={100} className="min-h-0">
+                    <ResizablePanel id="rstd-bottom-empty" defaultSize={100} className="min-h-0">
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
                       <Layers className="h-12 w-12 text-muted-foreground/50" />
                       <div className="text-center space-y-1">
@@ -2773,7 +2760,6 @@ export default function RosteringStudioUnified({
                 <ResizableHandle withHandle />
                 <ResizablePanel
                   id="rstd-right-details"
-                  order={3}
                   defaultSize={25}
                   minSize={15}
                   maxSize={35}
