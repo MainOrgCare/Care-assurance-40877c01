@@ -259,6 +259,12 @@ export interface IStorage {
     templateDay: string;
     groupKeys: string[];
   }): Promise<number>;
+  deleteRosteringTemplateRecommendationsBatch(entries: {
+    workerKey: string;
+    templateWeek: string;
+    templateDay: string;
+    groupKeys: string[];
+  }[]): Promise<number>;
 
   // Admin Alert operations
   createAdminAlert(alert: InsertAdminAlert): Promise<AdminAlert>;
@@ -906,6 +912,30 @@ export class DatabaseStorage implements IStorage {
           inArray(rosteringTemplateRecommendations.groupKey, options.groupKeys)
         )
       )
+      .returning({ id: rosteringTemplateRecommendations.id });
+    return deleted.length;
+  }
+
+  async deleteRosteringTemplateRecommendationsBatch(entries: {
+    workerKey: string;
+    templateWeek: string;
+    templateDay: string;
+    groupKeys: string[];
+  }[]): Promise<number> {
+    const validEntries = entries.filter((e) => e.groupKeys.length > 0);
+    if (!validEntries.length) return 0;
+    // Build a single OR query: (worker=A AND week=W AND day=D AND groupKey IN [...]) OR ...
+    const conditions = validEntries.map((entry) =>
+      and(
+        eq(rosteringTemplateRecommendations.workerKey, entry.workerKey),
+        eq(rosteringTemplateRecommendations.templateWeek, entry.templateWeek),
+        eq(rosteringTemplateRecommendations.templateDay, entry.templateDay),
+        inArray(rosteringTemplateRecommendations.groupKey, entry.groupKeys)
+      )
+    );
+    const deleted = await this.db
+      .delete(rosteringTemplateRecommendations)
+      .where(or(...conditions))
       .returning({ id: rosteringTemplateRecommendations.id });
     return deleted.length;
   }

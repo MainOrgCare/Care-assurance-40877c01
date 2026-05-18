@@ -3503,54 +3503,6 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     };
   }, [careWorkerRosters, deferredCareWorkerSearch, rosteringFullscreen]);
 
-  const clearTemplateRecommendations = useCallback(
-    async (workerKey: string, week: TemplateWeekKey, day: WeekdayLabel, groupKeys: string[]): Promise<{ rateLimited: boolean }> => {
-      if (!groupKeys.length) return { rateLimited: false };
-      try {
-        const response = await fetch("/api/admin/rostering-recommendations", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            workerKey,
-            templateWeek: week,
-            templateDay: day,
-            groupKeys,
-          }),
-        });
-        if (response.status === 429) {
-          return { rateLimited: true };
-        }
-        const result = await response.json();
-        if (!response.ok) {
-          throw new Error(result.message || "Unable to clear template recommendations.");
-        }
-        const storeKey = buildTemplateRecommendationKey(workerKey, week, day);
-        setRecommendedTemplates((prev) => {
-          const existing = prev[storeKey];
-          if (!existing) return prev;
-          const updated = existing.filter((value) => !groupKeys.includes(value));
-          if (!updated.length) {
-            const next = { ...prev };
-            delete next[storeKey];
-            return next;
-          }
-          return {
-            ...prev,
-            [storeKey]: updated,
-          };
-        });
-        return { rateLimited: false };
-      } catch (error) {
-        console.warn("Unable to clear template recommendations.", error);
-        return { rateLimited: false };
-      }
-    },
-    []
-  );
-
   const clearedRosterFingerprintRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -3583,30 +3535,65 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
     if (removals.size === 0) return;
 
-    // Fingerprint = sorted store keys; skip if we already cleared this exact set.
-    const fingerprint = Array.from(removals.keys()).sort().join("|");
+    // Fingerprint includes store keys AND group keys to detect new assignments.
+    const fingerprint = Array.from(removals.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${key}:${Array.from(entry.groupKeys).sort().join(",")}`)
+      .join("|");
     if (clearedRosterFingerprintRef.current === fingerprint) return;
 
     let cancelled = false;
 
     const clearAll = async () => {
-      for (const entry of removals.values()) {
-        if (cancelled) return;
-        const { rateLimited } = await clearTemplateRecommendations(
-          entry.workerKey,
-          entry.week,
-          entry.day,
-          Array.from(entry.groupKeys)
-        );
-        // Stop immediately if the server is rate-limiting us.
-        if (rateLimited) {
-          console.warn("Rate-limited while clearing rostering recommendations — aborting remaining.");
+      // Batch all removals into a single request to avoid flooding the server
+      const entries = Array.from(removals.values()).map((entry) => ({
+        workerKey: entry.workerKey,
+        templateWeek: entry.week,
+        templateDay: entry.day,
+        groupKeys: Array.from(entry.groupKeys),
+      }));
+
+      if (cancelled) return;
+
+      try {
+        const response = await fetch("/api/admin/rostering-recommendations/batch", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(entries),
+        });
+
+        if (response.status === 429) {
+          console.warn("Rate-limited while clearing rostering recommendations — will retry on next render.");
           return;
         }
-      }
-      // Mark this fingerprint as completed so subsequent renders skip it.
-      if (!cancelled) {
-        clearedRosterFingerprintRef.current = fingerprint;
+
+        if (!response.ok) {
+          console.warn("Failed to batch-clear rostering recommendations:", response.status);
+          return;
+        }
+
+        // Update local state to remove cleared recommendations
+        if (!cancelled) {
+          setRecommendedTemplates((prev) => {
+            const next = { ...prev };
+            for (const entry of removals.values()) {
+              const storeKey = buildTemplateRecommendationKey(entry.workerKey, entry.week, entry.day);
+              const existing = next[storeKey];
+              if (!existing) continue;
+              const updated = existing.filter((value) => !entry.groupKeys.has(value));
+              if (!updated.length) {
+                delete next[storeKey];
+              } else {
+                next[storeKey] = updated;
+              }
+            }
+            return next;
+          });
+          clearedRosterFingerprintRef.current = fingerprint;
+        }
+      } catch (error) {
+        console.warn("Unable to batch-clear template recommendations.", error);
       }
     };
 
@@ -3615,7 +3602,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [careWorkerRosters, clearTemplateRecommendations]);
+  }, [careWorkerRosters]);
 
   const handleResetRosteringStudio = useCallback(() => {
     setCareWorkerSearch("");

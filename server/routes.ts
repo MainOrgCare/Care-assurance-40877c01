@@ -5517,6 +5517,18 @@ export async function registerRoutes(
   // (with polling-endpoint exemptions and proper key generators).
   // Only add route-specific limiters here that are NOT covered by index.ts.
 
+  // Tight rate limit for individual recommendation deletes: 20 per minute per user.
+  // Prevents client-side loops from flooding the server (batch endpoint exists for bulk ops).
+  // Inlined in the DELETE route chain (after requireAuth) so req.user.id is available.
+  const recommendationDeleteLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many recommendation delete requests — use the batch endpoint." },
+    keyGenerator: (req: any) => req.user?.id || req.ip || "unknown",
+  });
+
   // Moderate rate limit for AI endpoints: 15 requests per minute per IP
   const aiLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -5527,6 +5539,29 @@ export async function registerRoutes(
     skip: () => process.env.NODE_ENV !== 'production',
   });
   app.use('/api/ai', aiLimiter);
+
+  // ── Mutation Flood Detection ───────────────────────────────────────────────────
+  // Logs a warning when any single user fires >50 mutations in 30s.
+  // Does not block — rate limiters handle enforcement. This is observability only.
+  const mutationCounts = new Map<string, { count: number; windowStart: number }>();
+  const FLOOD_WINDOW_MS = 30_000;
+  const FLOOD_THRESHOLD = 50;
+  app.use('/api', (req: Request, _res: Response, next: NextFunction) => {
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+    const userId = (req as any).session?.userId;
+    if (!userId) return next();
+    const now = Date.now();
+    const entry = mutationCounts.get(userId);
+    if (!entry || now - entry.windowStart > FLOOD_WINDOW_MS) {
+      mutationCounts.set(userId, { count: 1, windowStart: now });
+    } else {
+      entry.count++;
+      if (entry.count === FLOOD_THRESHOLD) {
+        console.warn(`[FLOOD] User ${userId} sent ${FLOOD_THRESHOLD}+ mutations in ${FLOOD_WINDOW_MS / 1000}s — path: ${req.method} ${req.path}`);
+      }
+    }
+    next();
+  });
 
   // Auth middleware — short-lived session cache to reduce DB round-trips.
   // Each authenticated request previously cost 3 DB queries. This cache reduces
@@ -7476,7 +7511,7 @@ export async function registerRoutes(
   });
 
   const templateRecommendationDeleteSchema = templateRecommendationQuerySchema.extend({
-    groupKeys: z.array(z.string()).default([]),
+    groupKeys: z.array(z.string()).max(200).default([]),
   });
 
   // Save care worker rota (admin only)
@@ -7627,7 +7662,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/rostering-recommendations", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+  app.delete("/api/admin/rostering-recommendations", requireAuth, requireAdmin, recommendationDeleteLimiter, blockDemoWrites, async (req, res) => {
     try {
       const payload = templateRecommendationDeleteSchema.parse(req.body);
       const deletedCount = await storage.deleteRosteringTemplateRecommendations(payload);
@@ -7637,6 +7672,24 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Validation error", errors: error.errors });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete recommendations") });
+    }
+  });
+
+  app.delete("/api/admin/rostering-recommendations/batch", requireAuth, requireAdmin, blockDemoWrites, async (req, res) => {
+    try {
+      const entries = z.array(templateRecommendationDeleteSchema).min(1).max(500).parse(req.body);
+      // Guard against payloads with excessively large groupKeys arrays
+      const totalKeys = entries.reduce((sum, e) => sum + e.groupKeys.length, 0);
+      if (totalKeys > 5000) {
+        return res.status(400).json({ message: "Payload too large: total groupKeys exceeds 5000." });
+      }
+      const deletedCount = await storage.deleteRosteringTemplateRecommendationsBatch(entries);
+      return res.json({ deletedCount });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to batch delete recommendations") });
     }
   });
 
@@ -18961,10 +19014,16 @@ Return ONLY valid JSON matching the schema.`,
 
       const extracted = extractFromRawCalls(rawCalls);
 
+      // Batch helper: limits concurrent DB operations to avoid pool exhaustion
+      const batchAll = async <T>(items: T[], fn: (item: T) => Promise<unknown>, concurrency = 25) => {
+        for (let i = 0; i < items.length; i += concurrency) {
+          await Promise.all(items.slice(i, i + concurrency).map(fn));
+        }
+      };
+
       // Save analyzed service users
-      await Promise.all(
-        extracted.serviceUsers.map((su) =>
-          storage.upsertAnalyzedServiceUser({
+      await batchAll(extracted.serviceUsers, (su) =>
+        storage.upsertAnalyzedServiceUser({
             serviceUserKey: su.serviceUserKey,
             serviceUserName: su.serviceUserName,
             serviceUserArea: su.serviceUserArea,
@@ -18976,13 +19035,11 @@ Return ONLY valid JSON matching the schema.`,
             latestDataDate: su.latestDataDate,
             expiresAt: expiry,
           })
-        )
       );
 
       // Save analyzed care workers
-      await Promise.all(
-        extracted.careWorkers.map((cw) =>
-          storage.upsertAnalyzedCareWorker({
+      await batchAll(extracted.careWorkers, (cw) =>
+        storage.upsertAnalyzedCareWorker({
             workerKey: cw.workerKey,
             workerName: cw.workerName,
             workerNameNormalized: cw.workerNameNormalized,
@@ -18995,13 +19052,11 @@ Return ONLY valid JSON matching the schema.`,
             latestDataDate: cw.latestDataDate,
             expiresAt: expiry,
           })
-        )
       );
 
       // Save service orders
-      await Promise.all(
-        extracted.serviceOrders.map((order) =>
-          storage.upsertServiceOrder({
+      await batchAll(extracted.serviceOrders, (order) =>
+        storage.upsertServiceOrder({
             serviceUserKey: order.serviceUserKey,
             serviceUserName: order.serviceUserName,
             callTypeLabel: order.callTypeLabel,
@@ -19026,13 +19081,11 @@ Return ONLY valid JSON matching the schema.`,
             sourceDataCount: order.sourceDataCount,
             expiresAt: expiry,
           })
-        )
       );
 
       // Save template assignments
-      await Promise.all(
-        extracted.templateAssignments.map((assignment) =>
-          storage.upsertTemplateAssignment({
+      await batchAll(extracted.templateAssignments, (assignment) =>
+        storage.upsertTemplateAssignment({
             workerKey: assignment.workerKey,
             workerName: assignment.workerName,
             serviceUserKey: assignment.serviceUserKey,
@@ -19048,7 +19101,6 @@ Return ONLY valid JSON matching the schema.`,
             sourceRowHash: assignment.sourceRowHash,
             expiresAt: expiry,
           })
-        )
       );
 
       // Remove stale template assignments (slots with no template in latest data window)
@@ -19059,18 +19111,15 @@ Return ONLY valid JSON matching the schema.`,
             (slot) => `${slot.serviceUserKey}|${slot.callTypeLabel}|${slot.templateWeek}|${slot.templateDay}`
           )
         );
-        await Promise.all(
-          Array.from(uniqueKeys).map((key) => {
-            const [serviceUserKey, callTypeLabel, templateWeek, templateDay] = key.split("|");
-            return storage.deleteTemplateAssignmentsForSlot(serviceUserKey, callTypeLabel, templateWeek, templateDay);
-          })
-        );
+        await batchAll(Array.from(uniqueKeys), (key) => {
+          const [serviceUserKey, callTypeLabel, templateWeek, templateDay] = key.split("|");
+          return storage.deleteTemplateAssignmentsForSlot(serviceUserKey, callTypeLabel, templateWeek, templateDay);
+        });
       }
 
       // Save recommendations
-      await Promise.all(
-        extracted.recommendations.map((rec) =>
-          storage.upsertCallRecommendation({
+      await batchAll(extracted.recommendations, (rec) =>
+        storage.upsertCallRecommendation({
             serviceUserKey: rec.serviceUserKey,
             serviceUserName: rec.serviceUserName,
             callTypeLabel: rec.callTypeLabel,
@@ -19083,7 +19132,6 @@ Return ONLY valid JSON matching the schema.`,
             dataPoints: rec.dataPoints,
             expiresAt: expiry,
           })
-        )
       );
 
       // Save analyzed calls (deduped)
