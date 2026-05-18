@@ -6268,7 +6268,7 @@ export async function registerRoutes(
       return apiCreated(res, { id: user.id }, "Account created. Awaiting admin approval.");
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return apiBadRequest(res, "Validation error", { errors: formatZodErrors(error.errors) });
+        return apiBadRequest(res, "Validation error", { errors: formatZodErrors(error.issues) });
       }
       return apiInternalError(res, safeErrorMessage(error, "Registration failed"));
     }
@@ -6472,7 +6472,7 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to create user") });
     }
@@ -7039,7 +7039,7 @@ export async function registerRoutes(
       return res.status(201).json(audit);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to create audit") });
     }
@@ -7555,7 +7555,7 @@ export async function registerRoutes(
       return res.status(201).json({ rota, deduped });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to create rota") });
     }
@@ -7640,7 +7640,7 @@ export async function registerRoutes(
       return res.json({ rota: updated, deduped: false, updated: true });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to update rota") });
     }
@@ -7660,7 +7660,7 @@ export async function registerRoutes(
       return res.json({ groupKeys: recommendations.map((rec) => rec.groupKey) });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues});
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to load recommendations") });
     }
@@ -7677,7 +7677,7 @@ export async function registerRoutes(
       return res.status(201).json({ recommendation, deduped: !recommendation });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to create recommendation") });
     }
@@ -7690,7 +7690,7 @@ export async function registerRoutes(
       return res.json({ deletedCount });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete recommendations") });
     }
@@ -7708,7 +7708,7 @@ export async function registerRoutes(
       return res.json({ deletedCount });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to batch delete recommendations") });
     }
@@ -19186,7 +19186,7 @@ Return ONLY valid JSON matching the schema.`,
       return res.status(201).json({ upload, deduped: false, stats: extracted.stats });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       const errorMessage = String(error?.message || error || "");
       if (errorMessage.includes("arrayParser.create is not a function")) {
