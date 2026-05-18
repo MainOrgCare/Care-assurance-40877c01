@@ -55,7 +55,7 @@ export function registerCareWorkerRoutes(
       return apiCreated(res, worker);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
-        return apiBadRequest(res, "Validation error", { errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message })) });
+        return apiBadRequest(res, "Validation error", { errors: error.issues.map(e => ({ field: e.path.join('.'), message: e.message })) });
       }
       log.error("Failed to create care worker", { error: safeErrorMessage(error) });
       return apiInternalError(res, safeErrorMessage(error, "Failed to create care worker"));
@@ -122,7 +122,7 @@ export function registerCareWorkerRoutes(
       return apiCreated(res, discrepancy);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
-        return apiBadRequest(res, "Validation error", { errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message })) });
+        return apiBadRequest(res, "Validation error", { errors: error.issues.map(e => ({ field: e.path.join('.'), message: e.message })) });
       }
       log.error("Failed to create discrepancy", { error: safeErrorMessage(error) });
       return apiInternalError(res, safeErrorMessage(error, "Failed to create discrepancy"));

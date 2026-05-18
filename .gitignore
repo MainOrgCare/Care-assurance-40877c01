@@ -33,3 +33,8 @@ npm-debug.log*
 # Coverage reports
 coverage/
 .nyc_output/
+
+# Upgrade/test artifacts
+.tsupgrader/
+testResults_*.json
+test_output*.txt
