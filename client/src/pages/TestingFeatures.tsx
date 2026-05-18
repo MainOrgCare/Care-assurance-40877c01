@@ -3,7 +3,7 @@ import * as React from "react";
 import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Link, Redirect, useLocation } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/use-toast";
@@ -579,11 +579,11 @@ const ROSTERING_TAB_META: Record<
       "Run analysis on uploaded data, review flagged rows, and build the full rostering picture.",
   },
   view: {
-    badge: "Presentation Workspace",
+    badge: "Recommendations",
     title: "Rostering View",
     pageTitle: "Rostering View",
     description:
-      "Keep room for presentation-focused roster views while the main analysis stays in Analyse.",
+      "Review data-driven recommendations for each service user's care calls and mark them as implemented or rejected.",
   },
 };
 
@@ -718,10 +718,12 @@ interface CareWorkerRotaPayload {
 }
 
 export default function TestingFeatures({ tab }: { tab?: string }) {
-  const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const activeTab = isRosteringWorkspaceTab(tab) ? tab : DEFAULT_ROSTERING_TAB;
+  // Manage active tab locally so switching tabs never remounts the component.
+  // The URL is updated via replaceState for bookmarking without triggering navigation.
+  const initialTab = isRosteringWorkspaceTab(tab) ? tab : DEFAULT_ROSTERING_TAB;
+  const [activeTab, setActiveTab] = useState<RosteringWorkspaceTab>(initialTab);
   const shouldRedirectToDefaultTab = Boolean(tab) && !isRosteringWorkspaceTab(tab);
   const activeTabMeta = ROSTERING_TAB_META[activeTab];
   usePageTitle(activeTabMeta.pageTitle);
@@ -866,14 +868,22 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const handleWorkspaceTabChange = useCallback(
     (nextTab: string) => {
       if (!isRosteringWorkspaceTab(nextTab)) return;
-      setLocation(`/rostering/${nextTab}`);
+      setActiveTab(nextTab);
+      // Update URL for bookmarking without triggering Wouter navigation/remount
+      window.history.replaceState(null, "", `/rostering/${nextTab}`);
     },
-    [setLocation]
+    []
   );
 
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_ROWS);
   }, [filterStatus, searchTerm, fileMeta?.name]);
+
+  // Sync active tab when navigating via sidebar links (external navigation)
+  useEffect(() => {
+    const incoming = isRosteringWorkspaceTab(tab) ? tab : DEFAULT_ROSTERING_TAB;
+    setActiveTab((prev) => (prev !== incoming ? incoming : prev));
+  }, [tab]);
 
   useEffect(() => {
     const node = tableRef.current;
@@ -4653,7 +4663,22 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       title: decision === "implemented" ? "Recommendation implemented" : "Recommendation rejected",
       description: `${selectedRecommendation.serviceUserName} • ${selectedRecommendation.timeBandLabel}`,
     });
-  }, [selectedRecommendation, toast]);
+
+    // Auto-advance to next pending recommendation
+    const currentIndex = careCallRecommendations.findIndex((r) => r.key === selectedRecommendation.key);
+    const nextPending = careCallRecommendations.find(
+      (r, i) => i > currentIndex && !recommendationDecisions[r.key],
+    );
+    if (nextPending) {
+      setSelectedRecommendationKey(nextPending.key);
+      if (nextPending.serviceUserName !== selectedRecommendation.serviceUserName) {
+        const nextSuKey = recommendationServiceUsers.find(
+          (su) => careCallRecommendations.some((r) => r.key === nextPending.key && r.serviceUserName === su.label),
+        )?.key;
+        if (nextSuKey) setSelectedRecommendationServiceUser(nextSuKey);
+      }
+    }
+  }, [selectedRecommendation, toast, careCallRecommendations, recommendationDecisions, recommendationServiceUsers]);
 
   const handleDownloadRecommendations = useCallback(() => {
     if (!careCallRecommendations.length) {
@@ -5407,8 +5432,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     }
 
     return [
-      `Current dataset: ${fileMeta.name} with ${fileMeta.totalRows.toLocaleString()} rows ready for review.`,
-      "Open Analyse to access the former Testing Features workspace without the upload controls.",
+      `Current dataset: ${fileMeta.name} with ${fileMeta.totalRows.toLocaleString()} rows fully analyzed.`,
+      analysisResults.length > 0 && summary.attention > 0
+        ? `${summary.attention.toLocaleString()} rows need attention — open Analyse to review flagged rows.`
+        : "Open Analyse to review the full analysis workspace or View for recommendations.",
       "Download a progress file whenever you want to save this exact working state and continue later.",
     ];
   }, [fileMeta, processingState]);
@@ -5457,7 +5484,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
                 <span
                   className={`h-2 w-2 rounded-full ${
-                    processingState === "analyzing" ? "bg-success/10 animate-pulse" : "bg-primary"
+                    processingState === "analyzing"
+                      ? "bg-emerald-500 animate-pulse"
+                      : processingState === "ready"
+                      ? "bg-amber-500 animate-pulse"
+                      : processingState === "complete"
+                      ? "bg-emerald-500"
+                      : "bg-primary"
                   }`}
                 />
                 {activeTabMeta.badge}
@@ -5472,18 +5505,32 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 <p className="text-muted-foreground max-w-2xl mt-2">{activeTabMeta.description}</p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                  <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
-                  {summary.totalPrimary.toLocaleString()} unique slots
-                </Badge>
-                <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                  <AlertCircle className="mr-2 h-3.5 w-3.5 text-warning" />
-                  {summary.attention.toLocaleString()} flagged rows
-                </Badge>
-                <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                  <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
-                  {summary.clean.toLocaleString()} clean rows
-                </Badge>
+                {processingState !== "idle" ? (
+                  <>
+                    <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                      <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                      {summary.totalPrimary.toLocaleString()} unique slots
+                    </Badge>
+                    <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                      <AlertCircle className="mr-2 h-3.5 w-3.5 text-warning" />
+                      {summary.attention.toLocaleString()} flagged rows
+                    </Badge>
+                    <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-success" />
+                      {summary.clean.toLocaleString()} clean rows
+                    </Badge>
+                    {careCallRecommendations.length > 0 && (
+                      <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
+                        <TrendingUp className="mr-2 h-3.5 w-3.5 text-primary" />
+                        {careCallRecommendations.length} recommendation{careCallRecommendations.length === 1 ? "" : "s"}
+                      </Badge>
+                    )}
+                  </>
+                ) : (
+                  <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs text-muted-foreground">
+                    Upload an ECM export in Data to begin
+                  </Badge>
+                )}
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
@@ -5497,19 +5544,39 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 </p>
               </div>
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4 shadow-soft hover-elevate shimmer">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Pipeline status</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-sm font-semibold capitalize">{processingState}</span>
-                  <Badge variant={processingState === "complete" ? "default" : processingState === "ready" ? "outline" : "secondary"} className="text-[10px] uppercase">
-                    {processingState === "complete" ? "Done" : processingState === "ready" ? "Awaiting analysis" : "Running"}
-                  </Badge>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Pipeline</p>
+                <div className="mt-3 flex items-center gap-1">
+                  {(["idle", "parsing", "ready", "analyzing", "complete"] as const).map((step, index, steps) => {
+                    const stepIndex = steps.indexOf(processingState);
+                    const isComplete = index < stepIndex;
+                    const isCurrent = index === stepIndex;
+                    return (
+                      <React.Fragment key={step}>
+                        <div
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-bold transition-colors ${
+                            isComplete
+                              ? "bg-emerald-500 text-white"
+                              : isCurrent
+                              ? "bg-primary text-primary-foreground ring-2 ring-primary/30"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                          title={step}
+                        >
+                          {isComplete ? "\u2713" : index + 1}
+                        </div>
+                        {index < steps.length - 1 && (
+                          <div className={`h-0.5 flex-1 rounded-full transition-colors ${isComplete ? "bg-emerald-500" : "bg-border"}`} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-2">
                   {processingState === "idle" && "Waiting for ECM upload or progress restore"}
-                  {processingState === "parsing" && "Parsing workbook structure"}
-                  {processingState === "ready" && "File loaded — open Analyse to run analysis"}
-                  {processingState === "analyzing" && "Scanning rows in batches"}
-                  {processingState === "complete" && "Dataset fully analyzed and ready to review"}
+                  {processingState === "parsing" && "Parsing workbook structure…"}
+                  {processingState === "ready" && "File loaded — open Analyse to run"}
+                  {processingState === "analyzing" && `Analysing… ${progress}%`}
+                  {processingState === "complete" && "Fully analysed"}
                 </p>
               </div>
             </div>
@@ -5517,9 +5584,35 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
           <Tabs value={activeTab} onValueChange={handleWorkspaceTabChange} className="space-y-4">
             <TabsList className="grid w-full max-w-xl grid-cols-3 rounded-2xl bg-background/70 p-1">
-              <TabsTrigger value="data">Data</TabsTrigger>
-              <TabsTrigger value="analyse">Analyse</TabsTrigger>
-              <TabsTrigger value="view">View</TabsTrigger>
+              <TabsTrigger value="data" className="gap-1.5">
+                Data
+                {fileMeta && processingState === "ready" && (
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="analyse" className="gap-1.5">
+                Analyse
+                {processingState === "ready" && (
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                )}
+                {processingState === "analyzing" && (
+                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                )}
+                {processingState === "complete" && (
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="view" className="gap-1.5">
+                View
+                {careCallRecommendations.length > 0 && remainingRecommendationCount > 0 && (
+                  <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[9px] font-bold leading-none">
+                    {remainingRecommendationCount}
+                  </Badge>
+                )}
+                {careCallRecommendations.length > 0 && remainingRecommendationCount === 0 && (
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                )}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -5578,6 +5671,46 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   <p className="mt-2 text-xs text-muted-foreground">
                     {fileMeta.totalRows.toLocaleString()} rows • {formatBytes(fileMeta.size)} • {fileMeta.type}
                   </p>
+                </div>
+              )}
+
+              {processingState === "ready" && fileMeta && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    <FlaskConical className="h-4 w-4" />
+                    Ready to analyse
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {fileMeta.totalRows.toLocaleString()} rows loaded. Switch to Analyse and press Run Analysis to start processing.
+                  </p>
+                  <Button size="sm" variant="default" onClick={() => handleWorkspaceTabChange("analyse")}>
+                    <FlaskConical className="h-4 w-4 mr-2" /> Go to Analyse
+                  </Button>
+                </div>
+              )}
+
+              {processingState === "complete" && fileMeta && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Analysis complete
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {summary.totalPrimary.toLocaleString()} unique slots analyzed — {summary.attention.toLocaleString()} flagged.
+                    {careCallRecommendations.length > 0
+                      ? ` ${careCallRecommendations.length} recommendation${careCallRecommendations.length === 1 ? "" : "s"} generated.`
+                      : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => handleWorkspaceTabChange("analyse")}>
+                      Open Analyse
+                    </Button>
+                    {careCallRecommendations.length > 0 && (
+                      <Button size="sm" variant="outline" onClick={() => handleWorkspaceTabChange("view")}>
+                        View Recommendations ({remainingRecommendationCount} left)
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -5845,7 +5978,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               </div>
               <Separator />
               <p className="text-xs text-muted-foreground">
-                Analyse now carries the full former Testing Features workspace. Upload and restore live in Data.
+                {careCallRecommendations.length > 0
+                  ? `${careCallRecommendations.length} recommendation${careCallRecommendations.length === 1 ? "" : "s"} generated — open View to action them.`
+                  : "Upload and restore live in Data. Recommendations appear in View once analysis detects consistent drift."}
               </p>
             </CardContent>
           </Card>
@@ -6007,24 +6142,71 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               <CardHeader>
                 <CardTitle>Care Call Recommendations</CardTitle>
                 <CardDescription>
-                  Analyse will surface recommendations here once consistent service-user call drift has been detected.
+                  Recommendations are generated from the uploaded ECM data when consistent planned-vs-actual timing patterns are found.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>No recommendations generated yet</AlertTitle>
-                  <AlertDescription>
-                    The recommendation engine needs consistent planned-versus-actual timing patterns before it suggests moving a call.
-                  </AlertDescription>
-                </Alert>
+              <CardContent className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${fileMeta ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>1</div>
+                      <span className="text-sm font-semibold">Upload</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Load an ECM CSV or Excel export in the Data tab.</p>
+                  </div>
+                  <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${processingState === "complete" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>2</div>
+                      <span className="text-sm font-semibold">Analyse</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Run analysis to detect schedule drift and duration patterns.</p>
+                  </div>
+                  <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground text-xs font-bold">3</div>
+                      <span className="text-sm font-semibold">Review</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Recommendations appear here when consistent drift exceeds {TREND_MIN_AVG_OFFSET_MINUTES} minutes.</p>
+                  </div>
+                </div>
+                {processingState === "complete" && (
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertTitle>Analysis complete — no recommendations generated</AlertTitle>
+                    <AlertDescription>
+                      The current dataset does not contain enough consistent planned-vs-actual timing drift to generate recommendations.
+                      Thresholds: at least {TREND_MIN_CALLS} calls per slot, {TREND_MIN_AVG_OFFSET_MINUTES}+ minute average drift, {Math.round(TREND_CONSISTENCY * 100)}% directional consistency.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {processingState !== "complete" && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{processingState === "idle" ? "No dataset loaded" : processingState === "ready" ? "Analysis not started" : "Analysis in progress"}</AlertTitle>
+                    <AlertDescription>
+                      {processingState === "idle" && "Upload an ECM export in the Data tab to get started."}
+                      {processingState === "ready" && "Open the Analyse tab and press Run Analysis to process the uploaded data."}
+                      {processingState === "parsing" && "The workbook is being prepared. Recommendations will appear after analysis."}
+                      {processingState === "analyzing" && `Analysis is ${progress}% complete. Recommendations will appear once drift patterns are detected.`}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" onClick={() => handleWorkspaceTabChange("analyse")}>
-                    Open Analyse
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => handleWorkspaceTabChange("data")}>
-                    Open Data
-                  </Button>
+                  {processingState === "idle" && (
+                    <Button type="button" variant="default" onClick={() => handleWorkspaceTabChange("data")}>
+                      Open Data
+                    </Button>
+                  )}
+                  {processingState === "ready" && (
+                    <Button type="button" variant="default" onClick={() => handleWorkspaceTabChange("analyse")}>
+                      Go to Analyse
+                    </Button>
+                  )}
+                  {processingState === "complete" && (
+                    <Button type="button" variant="secondary" onClick={() => handleWorkspaceTabChange("analyse")}>
+                      Open Analyse
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -6279,25 +6461,30 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button
                             type="button"
                             variant={recommendationDecisions[selectedRecommendation.key] === "implemented" ? "default" : "secondary"}
                             onClick={() => handleRecommendationDecision("implemented")}
+                            className="gap-2"
                           >
+                            <CheckCircle2 className="h-4 w-4" />
                             Implemented
                           </Button>
                           <Button
                             type="button"
                             variant={recommendationDecisions[selectedRecommendation.key] === "rejected" ? "destructive" : "outline"}
                             onClick={() => handleRecommendationDecision("rejected")}
+                            className="gap-2"
                           >
+                            <AlertCircle className="h-4 w-4" />
                             Rejected
                           </Button>
                           {recommendationDecisions[selectedRecommendation.key] && (
                             <Button
                               type="button"
                               variant="ghost"
+                              size="sm"
                               onClick={() =>
                                 setRecommendationDecisions((prev) => {
                                   const next = { ...prev };
@@ -6306,9 +6493,12 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                                 })
                               }
                             >
-                              Reset decision
+                              Reset
                             </Button>
                           )}
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {remainingRecommendationCount} of {careCallRecommendations.length} remaining
+                          </span>
                         </div>
                       </>
                     )}
@@ -6330,7 +6520,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             </div>
             <h2 className="text-2xl font-heading font-bold text-foreground">Analyse workspace</h2>
             <p className="text-sm text-muted-foreground">
-              The former Testing Features workspace now runs here. Upload and restore live under Data.
+              Run analysis, review flagged rows, and manage the full rostering dataset. Upload and restore live under Data.
             </p>
           </div>
           {fileMeta && (
@@ -6430,27 +6620,45 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-semibold">{progress}%</span>
-                <Badge variant={processingState === "complete" ? "default" : "secondary"} className="capitalize">
+                <Badge variant={processingState === "complete" ? "default" : processingState === "analyzing" ? "secondary" : "outline"} className="capitalize gap-1.5">
+                  {processingState === "analyzing" && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {processingState === "complete" && <CheckCircle2 className="h-3 w-3" />}
                   {processingState}
                 </Badge>
               </div>
               <Progress value={progress} className="h-2" />
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Rows analyzed: {analysisResults.length.toLocaleString()}</p>
-                <p>Unique slots: {summary.totalPrimary.toLocaleString()}</p>
-                {summary.duplicateCount > 0 && (
-                  <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
-                )}
-                {excludedCounts.total > 0 && (
-                  <p>
-                    Excluded rows: {excludedCounts.total.toLocaleString()} (cancelled{" "}
-                    {excludedCounts.cancelled.toLocaleString()}, mismatched{" "}
-                    {excludedCounts.mismatched.toLocaleString()})
-                  </p>
-                )}
-                <p>Flagged rows: {summary.attention.toLocaleString()}</p>
-                <p>Empty fields: {summary.totalEmpty.toLocaleString()}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rows</p>
+                  <p className="text-sm font-semibold">{analysisResults.length.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Unique slots</p>
+                  <p className="text-sm font-semibold">{summary.totalPrimary.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Flagged</p>
+                  <p className={`text-sm font-semibold ${summary.attention > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>{summary.attention.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Empty fields</p>
+                  <p className="text-sm font-semibold">{summary.totalEmpty.toLocaleString()}</p>
+                </div>
               </div>
+              {(summary.duplicateCount > 0 || excludedCounts.total > 0) && (
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  {summary.duplicateCount > 0 && (
+                    <p>Duplicates ignored: {summary.duplicateCount.toLocaleString()}</p>
+                  )}
+                  {excludedCounts.total > 0 && (
+                    <p>
+                      Excluded: {excludedCounts.total.toLocaleString()} (cancelled{" "}
+                      {excludedCounts.cancelled.toLocaleString()}, mismatched{" "}
+                      {excludedCounts.mismatched.toLocaleString()})
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
