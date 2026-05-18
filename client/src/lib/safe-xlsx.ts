@@ -39,7 +39,7 @@ function sanitize<T>(value: T): T {
 
 // ── Size guard (browser-safe) ───────────────────────────────────────────────
 
-const DEFAULT_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+const DEFAULT_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
 function assertSize(data: unknown, maxBytes: number): void {
   let size: number | undefined;

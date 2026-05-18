@@ -45,8 +45,8 @@ function sanitize<T>(value: T): T {
 
 // ── Size guard ──────────────────────────────────────────────────────────────
 
-/** Default maximum input size: 50 MB */
-const DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
+/** Default maximum input size: 100 MB */
+const DEFAULT_MAX_BYTES = 100 * 1024 * 1024;
 
 function assertSize(
   data: string | ArrayBuffer | Buffer | Uint8Array | number[],
