@@ -58,7 +58,7 @@ export function registerPolicyDocumentRoutes(
       return res.status(201).json(doc);
     } catch (error: unknown) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
+        return res.status(400).json({ message: "Validation error", errors: error.issues });
       }
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to create policy document") });
     }
