@@ -22,12 +22,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertCircle,
   CheckCircle2,
+  Clock,
   Copy,
   Download,
   ListOrdered,
+  MapPin,
+  Route,
   Search,
   Users,
 } from "lucide-react";
@@ -39,10 +43,108 @@ interface ServiceUser {
   calls: SharedCallSlot[];
 }
 
+type RouteMode = "location" | "time";
+
 function formatMinutesToTime(minutes: number): string {
   const hrs = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+}
+
+function callStartMinutes(call: SharedCallSlot): number {
+  return call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 9999;
+}
+
+// Extract a UK-style postcode outward code (e.g. "SW1A", "M14", "L4") from a free-text field.
+function extractPostcodeOutward(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const match = text.toUpperCase().match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?)\s*\d[A-Z]{2}\b/);
+  if (match) return match[1];
+  const loose = text.toUpperCase().match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b(?=[\s,]|$)/);
+  return loose ? loose[1] : null;
+}
+
+// Stable location key per call (postcode > area > first street token).
+function locationKeyForCall(call: SharedCallSlot): string {
+  const pc =
+    extractPostcodeOutward(call.serviceUserAddress) ?? extractPostcodeOutward(call.serviceUserArea);
+  if (pc) return `pc:${pc}`;
+  const area = (call.serviceUserArea ?? "").trim().toLowerCase();
+  if (area) return `area:${area}`;
+  const addr = (call.serviceUserAddress ?? "").trim().toLowerCase();
+  if (addr) {
+    const street = addr.split(",")[0].trim().replace(/^\d+\s*/, "");
+    return `street:${street.slice(0, 32)}`;
+  }
+  return `su:${call.serviceUserKey}`;
+}
+
+// 0 = same locality, higher = further apart. No real geocoding, so we score
+// using postcode district, then address-token Jaccard overlap.
+function locationDistance(a: SharedCallSlot, b: SharedCallSlot): number {
+  const ka = locationKeyForCall(a);
+  const kb = locationKeyForCall(b);
+  if (ka === kb) return 0;
+  if (ka.startsWith("pc:") && kb.startsWith("pc:")) {
+    const districtA = ka.slice(3).match(/^[A-Z]+/)?.[0] ?? "";
+    const districtB = kb.slice(3).match(/^[A-Z]+/)?.[0] ?? "";
+    if (districtA && districtA === districtB) return 1;
+    return 3;
+  }
+  const tokenize = (text: string | null) =>
+    new Set(
+      (text ?? "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length > 2),
+    );
+  const ta = tokenize(a.serviceUserAddress);
+  const tb = tokenize(b.serviceUserAddress);
+  if (ta.size && tb.size) {
+    let common = 0;
+    for (const t of ta) if (tb.has(t)) common += 1;
+    const union = new Set([...ta, ...tb]).size;
+    const jaccard = union === 0 ? 0 : common / union;
+    if (jaccard >= 0.5) return 1;
+    if (jaccard >= 0.25) return 2;
+  }
+  return 3;
+}
+
+// Greedy nearest-neighbour route that respects a soft time window so we don't
+// jump backwards in time. Anchors on the earliest call, then at each step picks
+// the next call that minimises a weighted combination of travel distance and
+// time gap from the last chosen call.
+function optimiseRouteByLocation(calls: SharedCallSlot[]): SharedCallSlot[] {
+  if (calls.length <= 2) {
+    return [...calls].sort((a, b) => callStartMinutes(a) - callStartMinutes(b));
+  }
+  const timeSorted = [...calls].sort((a, b) => callStartMinutes(a) - callStartMinutes(b));
+  const remaining = new Set<SharedCallSlot>(timeSorted.slice(1));
+  const ordered: SharedCallSlot[] = [timeSorted[0]];
+  const TIME_WINDOW = 60; // minutes — calls within this window of the last pick are clustered by location
+  while (remaining.size > 0) {
+    const last = ordered[ordered.length - 1];
+    const lastTime = callStartMinutes(last);
+    let best: SharedCallSlot | null = null;
+    let bestScore = Infinity;
+    for (const candidate of remaining) {
+      const candidateTime = callStartMinutes(candidate);
+      const dt = Math.abs(candidateTime - lastTime);
+      const distance = locationDistance(last, candidate);
+      // Inside the window: travel cost dominates. Outside: chronological order dominates,
+      // but we still prefer closer locations as a tiebreaker.
+      const score = dt <= TIME_WINDOW ? distance * 60 + dt * 0.5 : dt + distance * 20;
+      if (score < bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    if (!best) break;
+    ordered.push(best);
+    remaining.delete(best);
+  }
+  return ordered;
 }
 
 export default function RosteringRuns() {
@@ -52,6 +154,7 @@ export default function RosteringRuns() {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [callTypeFilter, setCallTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [routeMode, setRouteMode] = useState<RouteMode>("location");
 
   // Read ALL call slots from shared store (populated by Analyse)
   const allSlots = getSharedAllSlots();
@@ -102,13 +205,24 @@ export default function RosteringRuns() {
       }
     }
 
-    // Sort by recommended start time (optimal order)
-    return calls.sort((a, b) => {
-      const aTime = a.averageActualStartMinutes ?? a.averagePlannedStartMinutes ?? 9999;
-      const bTime = b.averageActualStartMinutes ?? b.averagePlannedStartMinutes ?? 9999;
-      return aTime - bTime;
-    });
-  }, [selectedUsers, callTypeFilter, serviceUsers]);
+    if (routeMode === "location") {
+      return optimiseRouteByLocation(calls);
+    }
+    return calls.sort((a, b) => callStartMinutes(a) - callStartMinutes(b));
+  }, [selectedUsers, callTypeFilter, serviceUsers, routeMode]);
+
+  // Count location transitions ("hops") between consecutive calls — lower is a tighter route.
+  const routeStats = useMemo(() => {
+    if (optimalRun.length < 2) return { hops: 0, distinctLocations: optimalRun.length };
+    let hops = 0;
+    const distinct = new Set<string>();
+    for (let i = 0; i < optimalRun.length; i += 1) {
+      const key = locationKeyForCall(optimalRun[i]);
+      distinct.add(key);
+      if (i > 0 && locationKeyForCall(optimalRun[i - 1]) !== key) hops += 1;
+    }
+    return { hops, distinctLocations: distinct.size };
+  }, [optimalRun]);
 
   // Total time span estimation
   const totalGapMinutes = useMemo(() => {
@@ -148,10 +262,10 @@ export default function RosteringRuns() {
 
   const handleExportCSV = useCallback(() => {
     if (!optimalRun.length) return;
-    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Duration (min),Area,Advice,Has Recommendation";
+    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Duration (min),Area,Address,Advice,Has Recommendation";
     const rows = optimalRun.map((call, idx) => {
       const time = call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0);
-      return `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${time}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${call.advice.join("; ").replace(/"/g, '""')}","${call.hasRecommendation ? "Yes" : "No"}"`;
+      return `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${time}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${(call.serviceUserAddress ?? "").replace(/"/g, '""')}","${call.advice.join("; ").replace(/"/g, '""')}","${call.hasRecommendation ? "Yes" : "No"}"`;
     });
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -233,6 +347,7 @@ export default function RosteringRuns() {
         </div>
       </div>
 
+      <TooltipProvider delayDuration={300}>
       <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
         {/* Left: Service user selection */}
         <Card className="border-border/60 bg-background/75 shadow-medium">
@@ -291,7 +406,27 @@ export default function RosteringRuns() {
                       onChange={() => handleToggleUser(su.key)}
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{su.name}</div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="text-sm font-medium truncate cursor-default">{su.name}</div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[240px] space-y-1.5">
+                          <p className="font-semibold text-xs">{su.name}</p>
+                          {su.calls.map((call, i) => (
+                            <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-x-2 text-[11px]">
+                              <span className="text-muted-foreground truncate">{call.callTypeLabel}</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-primary/70" />
+                                {call.averagePlannedStartMinutes != null ? formatMinutesToTime(call.averagePlannedStartMinutes) : "—"}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {call.averageActualStartMinutes != null ? formatMinutesToTime(call.averageActualStartMinutes) : "—"}
+                              </span>
+                            </div>
+                          ))}
+                          <p className="text-[10px] text-muted-foreground pt-0.5 border-t border-border/50">Planned · Actual avg</p>
+                        </TooltipContent>
+                      </Tooltip>
                       <div className="text-[11px] text-muted-foreground">
                         {su.area && <span>{su.area} · </span>}
                         {su.calls.length} call{su.calls.length === 1 ? "" : "s"}
@@ -315,43 +450,77 @@ export default function RosteringRuns() {
         {/* Right: Optimal run result */}
         <Card className="border-border/60 bg-background/75 shadow-medium">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ListOrdered className="h-4 w-4 text-primary" />
                   Optimal Run
                 </CardTitle>
                 <CardDescription>
                   {optimalRun.length > 0
-                    ? `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} ordered by recommended time`
+                    ? routeMode === "location"
+                      ? `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} routed by location & time`
+                      : `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} ordered by recommended time`
                     : "Select service users to generate an optimal run"}
                 </CardDescription>
               </div>
-              {optimalRun.length > 0 && (
-                <div className="flex gap-1.5">
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleCopyRun}>
-                    <Copy className="h-3 w-3" /> Copy
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleExportCSV}>
-                    <Download className="h-3 w-3" /> CSV
-                  </Button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div
+                  role="group"
+                  aria-label="Route ordering mode"
+                  className="inline-flex items-center rounded-lg border border-border/60 bg-background/80 p-0.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setRouteMode("location")}
+                    className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition ${
+                      routeMode === "location"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-pressed={routeMode === "location"}
+                  >
+                    <Route className="h-3 w-3" /> Route
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRouteMode("time")}
+                    className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition ${
+                      routeMode === "time"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-pressed={routeMode === "time"}
+                  >
+                    <Clock className="h-3 w-3" /> Time
+                  </button>
                 </div>
-              )}
+                {optimalRun.length > 0 && (
+                  <>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleCopyRun}>
+                      <Copy className="h-3 w-3" /> Copy
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleExportCSV}>
+                      <Download className="h-3 w-3" /> CSV
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Summary stats */}
             {optimalRun.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Calls</p>
                   <p className="text-lg font-bold text-foreground">{optimalRun.length}</p>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Time span</p>
-                  <p className="text-lg font-bold text-foreground">
+                  <p className="text-sm font-bold text-foreground leading-tight">
                     {optimalRun.length >= 2
-                      ? `${formatMinutesToTime(optimalRun[0].averageActualStartMinutes ?? optimalRun[0].averagePlannedStartMinutes ?? 0)} – ${formatMinutesToTime(optimalRun[optimalRun.length - 1].averageActualStartMinutes ?? optimalRun[optimalRun.length - 1].averagePlannedStartMinutes ?? 0)}`
+                      ? `${formatMinutesToTime(callStartMinutes(optimalRun[0]))}–${formatMinutesToTime(callStartMinutes(optimalRun[optimalRun.length - 1]))}`
                       : "—"}
                   </p>
                 </div>
@@ -359,6 +528,13 @@ export default function RosteringRuns() {
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total span</p>
                   <p className="text-lg font-bold text-foreground">
                     {totalGapMinutes > 0 ? `${Math.floor(totalGapMinutes / 60)}h ${totalGapMinutes % 60}m` : "—"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Area hops</p>
+                  <p className="text-lg font-bold text-foreground">
+                    {routeStats.hops}
+                    <span className="text-[10px] font-normal text-muted-foreground"> / {routeStats.distinctLocations}</span>
                   </p>
                 </div>
               </div>
@@ -377,7 +553,30 @@ export default function RosteringRuns() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate flex items-center gap-1.5">
-                          {call.serviceUserName}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="truncate cursor-default">{call.serviceUserName}</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="space-y-1.5">
+                              <p className="font-semibold text-xs">{call.serviceUserName}</p>
+                              <div className="flex items-center gap-2 text-[11px]">
+                                <Clock className="h-3 w-3 text-primary/70" />
+                                <span className="text-muted-foreground">Planned:</span>
+                                <span className="font-mono font-medium">{call.averagePlannedStartMinutes != null ? formatMinutesToTime(call.averagePlannedStartMinutes) : "—"}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px]">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-muted-foreground">Actual:</span>
+                                <span className="font-mono font-medium">{call.averageActualStartMinutes != null ? formatMinutesToTime(call.averageActualStartMinutes) : "—"}</span>
+                              </div>
+                              {call.serviceUserAddress && (
+                                <div className="flex items-start gap-2 text-[11px] max-w-[260px]">
+                                  <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+                                  <span className="text-muted-foreground break-words">{call.serviceUserAddress}</span>
+                                </div>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
                           {call.hasRecommendation && (
                             <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-primary/30 text-primary">
                               Rec
@@ -391,13 +590,18 @@ export default function RosteringRuns() {
                           )}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="text-right shrink-0 max-w-[150px]">
                         <div className={`text-sm font-mono font-semibold ${call.hasRecommendation ? "text-primary" : "text-foreground"}`}>
                           {call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0)}
                         </div>
                         {call.serviceUserArea && (
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-[10px] text-muted-foreground truncate">
                             {call.serviceUserArea}
+                          </div>
+                        )}
+                        {call.serviceUserAddress && (
+                          <div className="text-[10px] text-muted-foreground/80 truncate" title={call.serviceUserAddress}>
+                            {call.serviceUserAddress}
                           </div>
                         )}
                       </div>
@@ -419,6 +623,7 @@ export default function RosteringRuns() {
           </CardContent>
         </Card>
       </div>
+      </TooltipProvider>
     </div>
   );
 }

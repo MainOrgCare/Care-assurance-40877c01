@@ -48,6 +48,7 @@ npm run package:extension  # Package the Edge browser extension as ZIP/CRX
 ## Architecture
 
 ### Stack
+
 - **Client**: React 19, Vite, Tailwind CSS v4, Radix UI, TanStack Query, Wouter (routing), React Hook Form + Zod
 - **Server**: Express on Node ≥20, TypeScript compiled with esbuild for production
 - **Database**: PostgreSQL via **Drizzle ORM** — schema defined in `shared/schema.ts`
@@ -69,6 +70,7 @@ migrations/       Drizzle migration SQL files
 ```
 
 ### Request Lifecycle
+
 1. Client calls `/api/...` via TanStack Query (`client/src/lib/queryClient.ts`)
 2. `server/routes.ts` registers monolithic routes; modular routes are registered via `server/routes/index.ts`
 3. Storage layer (`server/storage.ts`) executes all DB queries through Drizzle
@@ -76,6 +78,7 @@ migrations/       Drizzle migration SQL files
 
 ### Browser Extension
 The `extension/edge-acp-autofill/` directory is a **plain MV3 extension** (no build step, no bundler). It autofills the Mobizio ACP system (`clece.mobizio.com`) using data pulled from the Care Assurance app. Content scripts:
+
 - `content-app.js` — injected into Care Assurance pages, pushes data to background
 - `content-acp.js` — injected into Mobizio, fills ACP risk/care-plan forms
 - `content-initial-assessment.js` — fills Initial Assessment forms
@@ -85,6 +88,7 @@ The `extension/edge-acp-autofill/` directory is a **plain MV3 extension** (no bu
 ## Key Conventions
 
 ### Schema & Types
+
 - **All table definitions live in `shared/schema.ts`**. Insert schemas are generated with `createInsertSchema` (drizzle-zod), then `omit({ id, createdAt })`. Always export both `Insert*` and inferred select types.
 - IDs use `varchar` with `gen_random_uuid()` default (not serial integers).
 - Dates stored as `text` in `DD/MMM/YYYY` format where human-readable audit trails matter.
@@ -98,6 +102,7 @@ All AI calls that involve care plan or service user text **must** go through `se
 AI features are gated by the `AI_ENABLED` env var. The env var takes precedence; it cannot be overridden by admin settings. Use `getAIDisabledMessage()` / `getAiErrorStatusCode()` from `server/services/aiClient.ts` for consistent error responses.
 
 ### Path Aliases
+
 - `@/` → `client/src/`
 - `@shared/` → `shared/`
 
@@ -120,6 +125,7 @@ Before sending risk rows to the extension or to ACP autofill, call `normalizeGen
 
 ### EMAR Compliance System
 The EMAR (Electronic Medication Administration Record) audit pipeline works as follows:
+
 1. A scanned EMAR PDF is uploaded and parsed to text.
 2. `server/services/emarComplianceAgent.ts` calls `runComplianceAgent()` which uses `secureAiPipeline` with **strict JSON schema output** (structured outputs, `temperature: 0`).
 3. The JSON schema and system prompt are loaded at startup from two root-level artifact files: `EMAR Structured Output.schema.json` and `EMAR Strict JSON Test.preset.json`. Do not hardcode these — `loadEmarComplianceArtifacts()` in `server/utils/emarComplianceArtifacts.ts` owns that loading with a fallback schema.
@@ -128,6 +134,7 @@ The EMAR (Electronic Medication Administration Record) audit pipeline works as f
 
 ### Extension Popup State Model
 The popup (`extension/edge-acp-autofill/popup/`) is split into four modules:
+
 - `state.js` — storage key constants (`STORAGE_KEYS`), message type constants (`MESSAGE_TYPES`), form config constants, and `buildWorkflowSafetyState()` which is the **single source of truth** for readiness/guard decisions (stale page, version drift, case target mismatch).
 - `ui.js` — all DOM rendering; consumes state from `state.js`. Tab badges go in `updateTabBadges()`, target readiness in `renderCaseContextStrip()`, command center in `renderCommandCenter()`.
 - `api.js` — all fetch calls to the Care Assurance server (payload load, extension package endpoints, etc.).
@@ -141,6 +148,7 @@ The popup (`extension/edge-acp-autofill/popup/`) is split into four modules:
 ## Environment Variables
 
 Copy `.env.example` to `.env`. Required for local dev:
+
 - `DATABASE_URL` — PostgreSQL connection string
 - `SESSION_SECRET` — session cookie signing secret
 - `AI_ENABLED=true` — `dev:server` defaults this to `true`; set explicitly in `.env` for `dev:full`
