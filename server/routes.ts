@@ -375,7 +375,7 @@ async function extractRowsFromBillingImage(
   throw new Error("Model response did not return any rows");
 }
 
-const connectedClients: Map<string, WebSocket> = new Map();
+const connectedClients: Map<string, Set<WebSocket>> = new Map();
 let sessionStore: any = null;
 
 /**
@@ -5211,22 +5211,34 @@ export async function registerRoutes(
         return;
       }
 
-      connectedClients.set(userId, ws);
+      // Support multiple tabs per user
+      let clients = connectedClients.get(userId);
+      if (!clients) {
+        clients = new Set();
+        connectedClients.set(userId, clients);
+      }
+      clients.add(ws);
 
       ws.on("close", () => {
-        connectedClients.delete(userId);
+        clients!.delete(ws);
+        if (clients!.size === 0) connectedClients.delete(userId!);
       });
 
       ws.on("error", () => {
-        connectedClients.delete(userId);
+        clients!.delete(ws);
+        if (clients!.size === 0) connectedClients.delete(userId!);
       });
     });
   });
 
   const sendToUser = (userId: string, message: any) => {
-    const client = connectedClients.get(userId);
-    if (client && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(message));
+    const clients = connectedClients.get(userId);
+    if (!clients) return;
+    const payload = JSON.stringify(message);
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
     }
   };
 
@@ -5546,6 +5558,15 @@ export async function registerRoutes(
   const mutationCounts = new Map<string, { count: number; windowStart: number }>();
   const FLOOD_WINDOW_MS = 30_000;
   const FLOOD_THRESHOLD = 50;
+
+  // Prune stale entries every 5 minutes to prevent unbounded memory growth
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of mutationCounts) {
+      if (now - entry.windowStart > FLOOD_WINDOW_MS * 2) mutationCounts.delete(key);
+    }
+  }, 5 * 60_000).unref();
+
   app.use('/api', (req: Request, _res: Response, next: NextFunction) => {
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
     const userId = (req as any).session?.userId;

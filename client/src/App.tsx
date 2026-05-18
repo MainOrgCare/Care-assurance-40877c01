@@ -149,32 +149,27 @@ function Router() {
           <ProtectedRoute path="/cqc-assessment" component={CQCSelfAssessment} />
           <ProtectedRoute path="/policy-acknowledgement" component={PolicyAcknowledgement} />
           <AdminRoute path="/roi-calculator" component={ROICalculator} />
-          <Route path="/rostering">
-            <Redirect to="/rostering/data" />
-          </Route>
           <ProtectedRoute path="/rostering/runs" component={RosteringRuns} />
           <ProtectedRoute path="/rostering/:tab" component={TestingFeatures} />
-          <Route path="/testing-features">
-            <Redirect to="/rostering/data" />
-          </Route>
-          <Route path="/rostering-tool">
-            <Redirect to="/rostering/data" />
-          </Route>
           <AdminRoute path="/system-logs" component={SystemLogs} />
           <AdminRoute path="/rostering-unified" component={RosteringStudioUnified} />
-          <Route path="/rostering-studio">
-            <Redirect to="/rostering-unified" />
-          </Route>
-          <Route path="/rostering-hub">
-            <Redirect to="/rostering-unified" />
-          </Route>
           <AdminRoute path="/billing-tool" component={BillingTool} />
-          <Route path="/admin/care-worker-rotas">
-            <Redirect to="/rostering-unified" />
-          </Route>
-          <Route path="/care-worker-rotas">
-            <Redirect to="/rostering-unified" />
-          </Route>
+
+          {/* Legacy path redirects */}
+          {([
+            ["/rostering", "/rostering/data"],
+            ["/testing-features", "/rostering/data"],
+            ["/rostering-tool", "/rostering/data"],
+            ["/rostering-studio", "/rostering-unified"],
+            ["/rostering-hub", "/rostering-unified"],
+            ["/admin/care-worker-rotas", "/rostering-unified"],
+            ["/care-worker-rotas", "/rostering-unified"],
+          ] as const).map(([from, to]) => (
+            <Route key={from} path={from}>
+              <Redirect to={to} />
+            </Route>
+          ))}
+
           <ProtectedRoute path="/settings" component={Settings} />
           <ProtectedRoute path="/messages" component={Messages} />
 

@@ -3543,6 +3543,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     if (clearedRosterFingerprintRef.current === fingerprint) return;
 
     let cancelled = false;
+    const controller = new AbortController();
 
     const clearAll = async () => {
       // Batch all removals into a single request to avoid flooding the server
@@ -3555,13 +3556,18 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       if (cancelled) return;
 
+      const timeout = setTimeout(() => controller.abort(), 30_000);
+
       try {
         const response = await fetch("/api/admin/rostering-recommendations/batch", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(entries),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeout);
 
         if (response.status === 429) {
           console.warn("Rate-limited while clearing rostering recommendations — will retry on next render.");
@@ -3593,7 +3599,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
           clearedRosterFingerprintRef.current = fingerprint;
         }
       } catch (error) {
-        console.warn("Unable to batch-clear template recommendations.", error);
+        clearTimeout(timeout);
+        if (!controller.signal.aborted) {
+          console.warn("Unable to batch-clear template recommendations.", error);
+        }
       }
     };
 
@@ -3601,6 +3610,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [careWorkerRosters]);
 

@@ -267,10 +267,14 @@ app.get("/readyz", async (_req, res) => {
 app.get("/status", async (_req, res) => {
   try {
     const startTime = Date.now();
+    const isProduction = process.env.NODE_ENV === "production";
     const dbHealth = await Promise.race([
       storage.getAppSetting("platform_controls"),
       new Promise((_, reject) => setTimeout(() => reject(new Error("DB timeout")), 2000)),
-    ]).then(() => ({ status: "ok", latencyMs: Date.now() - startTime })).catch((err) => ({ status: "degraded", error: err.message }));
+    ]).then(() => ({ status: "ok" as const, latencyMs: Date.now() - startTime })).catch((err) => ({
+      status: "degraded" as const,
+      error: isProduction ? "Database unavailable" : err.message,
+    }));
 
     const uptime = process.uptime();
     const memUsage = process.memoryUsage();
@@ -296,13 +300,16 @@ app.get("/status", async (_req, res) => {
     };
 
     const statusCode = dbHealth.status === "ok" ? 200 : 503;
+    res.set("Cache-Control", "no-store");
     res.status(statusCode).json(status);
   } catch (error) {
+    const isProduction = process.env.NODE_ENV === "production";
+    res.set("Cache-Control", "no-store");
     res.status(503).json({
       service: "care-assurance-api",
       timestamp: new Date().toISOString(),
       status: "error",
-      error: error instanceof Error ? error.message : String(error),
+      error: isProduction ? "Service unavailable" : (error instanceof Error ? error.message : String(error)),
     });
   }
 });

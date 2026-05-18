@@ -229,6 +229,22 @@ export function getQueryFn<T>(
   };
 }
 
+// ── Per-route stale time constants ──────────────────────────────────────────────
+// Use these in individual useQuery calls: { staleTime: STALE_TIMES.frequent }
+// The global default (1h) applies to any query that doesn't specify one.
+export const STALE_TIMES = {
+  /** Real-time data: messages, alerts, presence (2 min) */
+  frequent: 2 * 60_000,
+  /** Dashboard & compliance summaries (5 min) */
+  dashboard: 5 * 60_000,
+  /** Service users, care workers, audits (15 min) */
+  standard: 15 * 60_000,
+  /** Settings, policies, terms (30 min) */
+  config: 30 * 60_000,
+  /** Static reference data (1 hour — same as global default) */
+  rare: 60 * 60_000,
+} as const;
+
 export const queryClient = new QueryClient({
   // Global fallback for mutations that don't supply their own onError handler.
   // This prevents silent failures — any unhandled mutation error surfaces as a toast.
