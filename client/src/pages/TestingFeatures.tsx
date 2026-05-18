@@ -35,6 +35,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -802,6 +819,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const restoreWorkerSelectionFromProgressRef = useRef(false);
   const pendingSourceRowsRef = useRef<Record<string, any>[] | null>(null);
   const [hasPendingSourceRows, setHasPendingSourceRows] = useState(false);
+  const analysisStartTimeRef = useRef<number>(0);
+  const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
   const queryClient = useQueryClient();
 
@@ -894,6 +913,17 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  // Elapsed time counter during analysis
+  useEffect(() => {
+    if (processingState !== "analyzing") return;
+    const interval = setInterval(() => {
+      if (analysisStartTimeRef.current > 0) {
+        setAnalysisElapsedSeconds(Math.floor((Date.now() - analysisStartTimeRef.current) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [processingState]);
 
   useEffect(() => {
     setSelectedRow(null);
@@ -1691,6 +1721,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     if (!rows || !rows.length) return;
     const jobId = Date.now();
     analysisJobRef.current = jobId;
+    analysisStartTimeRef.current = Date.now();
+    setAnalysisElapsedSeconds(0);
     setProcessingState("analyzing");
     setProgress(0);
     pendingSourceRowsRef.current = null;
@@ -5619,7 +5651,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       </div>
 
       {showDataTab && (
-        <div className="grid gap-4 lg:grid-cols-3 motion-safe:animate-slide-up stagger-2">
+        <div className="space-y-4 motion-safe:animate-slide-up stagger-2">
+          <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
           <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
             <CardHeader>
               <CardTitle>ECM Upload</CardTitle>
@@ -5718,25 +5751,6 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
           <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
             <CardHeader>
-              <CardTitle>Recommendations</CardTitle>
-              <CardDescription>Follow the next best step for the current workspace state.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {workspaceRecommendations.map((recommendation, index) => (
-                <div key={`${recommendation}-${index}`} className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                  <div className="flex items-start gap-3">
-                    <Badge variant="secondary" className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                      {index + 1}
-                    </Badge>
-                    <p className="text-sm text-muted-foreground">{recommendation}</p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
-            <CardHeader>
               <CardTitle>Progress Transfer</CardTitle>
               <CardDescription>Upload a saved progress file or download the current state to continue later.</CardDescription>
             </CardHeader>
@@ -5749,7 +5763,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 aria-hidden="true"
                 onChange={handleProgressFileChange}
               />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => document.getElementById("rostering-progress-upload")?.click()}
@@ -5773,6 +5787,28 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               <p className="text-xs text-muted-foreground">
                 Progress files are local JSON snapshots of the current rostering workspace.
               </p>
+            </CardContent>
+          </Card>
+          </div>
+
+          <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
+            <CardHeader>
+              <CardTitle>Next Steps</CardTitle>
+              <CardDescription>Follow the next best step for the current workspace state.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {workspaceRecommendations.map((recommendation, index) => (
+                  <div key={`${recommendation}-${index}`} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                    <div className="flex items-start gap-3">
+                      <Badge variant="secondary" className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide flex-shrink-0">
+                        {index + 1}
+                      </Badge>
+                      <p className="text-sm text-muted-foreground">{recommendation}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -5960,6 +5996,12 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2">
+                {(hasPendingSourceRows || pendingSourceRowsRef.current) && processingState === "ready" && (
+                  <Button type="button" variant="default" size="sm" onClick={handleRunAnalysis} className="gap-2">
+                    <FlaskConical className="h-3.5 w-3.5" />
+                    Run Analysis
+                  </Button>
+                )}
                 <Button type="button" variant="outline" size="sm" onClick={() => handleWorkspaceTabChange("data")} className="gap-2">
                   <UploadCloud className="h-3.5 w-3.5" />
                   Data
@@ -5972,9 +6014,25 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   <Library className="h-3.5 w-3.5" />
                   View
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={handleReset} disabled={!fileMeta && !analysisResults.length}>
-                  Reset
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" disabled={!fileMeta && !analysisResults.length}>
+                      Reset
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset workspace?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will clear the current dataset, all analysis results, recommendations, and decisions. Download a progress file first if you want to continue later.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleReset}>Reset workspace</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
               <Separator />
               <p className="text-xs text-muted-foreground">
@@ -6000,7 +6058,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 <CardDescription>
                   {comparisonSnapshot 
                     ? `Comparing against: ${comparisonSnapshot.fileMeta.name}`
-                    : "Take a snapshot to compare against future uploads."}
+                    : "Save a snapshot of the current analysis, then upload a new workbook to see what changed."}
                 </CardDescription>
               </div>
             </div>
@@ -6053,6 +6111,15 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               )}
             </div>
           </CardHeader>
+          {!comparisonSnapshot && fileMeta && processingState === "complete" && (
+            <CardContent>
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4 text-center space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Save a snapshot of the current quality score and metrics. Then upload a different ECM export — the comparison grid will show exactly what improved or regressed.
+                </p>
+              </div>
+            </CardContent>
+          )}
           {comparisonSnapshot && fileMeta && processingState === "complete" && healthSummary && (
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -6131,7 +6198,16 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               style={{ width: `${Math.min(Math.max(progress, 5), 100)}%` }}
             />
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Processing roster workbook… {progress}%</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Processing roster workbook… {progress}%
+            {processingState === "analyzing" && analysisElapsedSeconds > 0 && (
+              <span className="ml-2">
+                ({analysisElapsedSeconds}s elapsed{progress > 5 && progress < 100
+                  ? ` — ~${Math.max(1, Math.round((analysisElapsedSeconds / progress) * (100 - progress)))}s remaining`
+                  : ""})
+              </span>
+            )}
+          </p>
         </div>
       )}
 
@@ -6212,7 +6288,45 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between text-sm mb-1.5">
+                      <span className="text-muted-foreground">Recommendation progress</span>
+                      <span className="font-semibold">
+                        {careCallRecommendations.length - remainingRecommendationCount}/{careCallRecommendations.length} actioned
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-border/50 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-500"
+                        style={{ width: `${careCallRecommendations.length > 0 ? Math.round(((careCallRecommendations.length - remainingRecommendationCount) / careCallRecommendations.length) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {remainingRecommendationCount === 0 && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20 p-5">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                        <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-emerald-700 dark:text-emerald-400">All recommendations actioned</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {implementedRecommendationCount} implemented, {rejectedRecommendationCount} rejected. Download the final pack to share.
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={handleDownloadRecommendations} className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Download final recommendation pack
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid gap-4 md:grid-cols-4">
                 <GroupMetric
                   label="Total Recommendations"
                   value={`${careCallRecommendations.length}`}
@@ -6236,6 +6350,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   tone={rejectedRecommendationCount > 0 ? "warning" : "default"}
                 />
               </div>
+              </div>
 
               <div className="grid gap-4 xl:grid-cols-[320px,1fr]">
                 <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
@@ -6258,7 +6373,19 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         <SelectContent>
                           {recommendationServiceUsers.map((serviceUser) => (
                             <SelectItem key={serviceUser.key} value={serviceUser.key}>
-                              {serviceUser.label} ({serviceUser.remaining}/{serviceUser.total} left)
+                              <div className="flex items-center gap-2 w-full">
+                                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                  serviceUser.remaining === 0
+                                    ? "bg-emerald-500"
+                                    : serviceUser.remaining === serviceUser.total
+                                    ? "bg-amber-500"
+                                    : "bg-primary"
+                                }`} />
+                                <span>{serviceUser.label}</span>
+                                <span className="text-muted-foreground ml-auto">
+                                  {serviceUser.remaining}/{serviceUser.total}
+                                </span>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -6278,11 +6405,24 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         <SelectContent>
                           {recommendationsForSelectedServiceUser.map((recommendation) => (
                             <SelectItem key={recommendation.key} value={recommendation.key}>
-                              {recommendation.timeBandLabel}
-                              {recommendation.callTypeLabel && recommendation.callTypeLabel !== recommendation.timeBandLabel
-                                ? ` • ${recommendation.callTypeLabel}`
-                                : ""}
-                              {` (${recommendationDecisions[recommendation.key] ?? "pending"})`}
+                              <div className="flex items-center gap-2 w-full">
+                                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                  recommendationDecisions[recommendation.key] === "implemented"
+                                    ? "bg-emerald-500"
+                                    : recommendationDecisions[recommendation.key] === "rejected"
+                                    ? "bg-red-500"
+                                    : "bg-amber-500"
+                                }`} />
+                                <span>
+                                  {recommendation.timeBandLabel}
+                                  {recommendation.callTypeLabel && recommendation.callTypeLabel !== recommendation.timeBandLabel
+                                    ? ` • ${recommendation.callTypeLabel}`
+                                    : ""}
+                                </span>
+                                <Badge variant="secondary" className="ml-auto text-[9px] capitalize">
+                                  {recommendationDecisions[recommendation.key] ?? "pending"}
+                                </Badge>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -6422,13 +6562,28 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
                         <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
                           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data evidence</p>
+                          <TooltipProvider delayDuration={300}>
                           <div className="grid gap-2 sm:grid-cols-3 text-sm">
                             <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
-                              <span className="text-xs text-muted-foreground">Total calls</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground cursor-help border-b border-dashed border-muted-foreground/40">Total calls</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <p>Total number of ECM call records for this service user's care call slot, before any filtering.</p>
+                                </TooltipContent>
+                              </Tooltip>
                               <p className="font-semibold">{selectedRecommendation.totalCalls}</p>
                             </div>
                             <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
-                              <span className="text-xs text-muted-foreground">Timing samples</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground cursor-help border-b border-dashed border-muted-foreground/40">Timing samples</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <p>Calls with both planned and actual start times recorded. IQR outlier trimming removes extreme values before averaging.</p>
+                                </TooltipContent>
+                              </Tooltip>
                               <p className="font-semibold">{selectedRecommendation.callsWithTimes}
                                 <span className="text-xs font-normal text-muted-foreground ml-1">
                                   ({selectedRecommendation.totalCalls > 0
@@ -6438,7 +6593,14 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                               </p>
                             </div>
                             <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
-                              <span className="text-xs text-muted-foreground">Consistency</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground cursor-help border-b border-dashed border-muted-foreground/40">Consistency</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <p>Directional consistency — the percentage of timing samples that drift in the same direction (early or late). Higher means the pattern is reliable, not random.</p>
+                                </TooltipContent>
+                              </Tooltip>
                               <p className="font-semibold">
                                 {typeof selectedRecommendation.offsetConsistency === "number"
                                   ? `${Math.round(selectedRecommendation.offsetConsistency * 100)}%`
@@ -6447,6 +6609,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                               </p>
                             </div>
                           </div>
+                          </TooltipProvider>
                         </div>
 
                         <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-3">
@@ -6570,7 +6733,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   <div className="rounded-2xl border border-border bg-background/60 p-4 space-y-3 shadow-soft">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Actions</p>
                     <div className="flex flex-wrap gap-2">
-                      {hasPendingSourceRows && processingState === "ready" && (
+                      {(hasPendingSourceRows || pendingSourceRowsRef.current) && processingState === "ready" && (
                         <Button size="sm" variant="default" onClick={handleRunAnalysis}>
                           <FlaskConical className="h-4 w-4 mr-2" /> Run Analysis
                         </Button>
@@ -6627,6 +6790,14 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 </Badge>
               </div>
               <Progress value={progress} className="h-2" />
+              {processingState === "analyzing" && analysisElapsedSeconds > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {analysisElapsedSeconds}s elapsed
+                  {progress > 5 && progress < 100
+                    ? ` — ~${Math.max(1, Math.round((analysisElapsedSeconds / progress) * (100 - progress)))}s remaining`
+                    : ""}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rows</p>
