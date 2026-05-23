@@ -24,7 +24,7 @@
     "test:server:emar:artifacts": "node --import tsx --test --test-force-exit server/__tests__/emarComplianceArtifacts.test.ts",
     "test:client": "npx vitest run client/src",
     "test:client:watch": "npx vitest client/src",
-    "check": "tsgo",
+    "check": "node scripts/check-types.cjs",
     "quality": "npm run test && npm run check && npm run build",
     "audit:prod": "npm audit --omit=dev",
     "db:push": "drizzle-kit push",

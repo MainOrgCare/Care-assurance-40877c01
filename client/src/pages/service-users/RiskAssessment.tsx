@@ -28,6 +28,7 @@ import {
   sanitizeServiceUserName,
   sanitizeStringList,
 } from "./riskAssessmentUtils";
+import { hasUsableSourceData, summarizeSourceDocuments } from "./sourceDocumentUtils";
 
 /**
  * Count placeholders in text
@@ -367,17 +368,9 @@ export default function RiskAssessment() {
   ]);
 
   const hasAdditionalNotes = Boolean(serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0);
-  const sourceStatusSummary = useMemo(() => ({
-    total: sourceDocuments.length,
-    ready: sourceDocuments.filter((document) => document.contentLength > 0 && !document.parseError && !document.isParsing).length,
-    parsing: sourceDocuments.filter((document) => document.isParsing).length,
-    failed: sourceDocuments.filter((document) => Boolean(document.parseError)).length,
-  }), [sourceDocuments]);
+  const sourceStatusSummary = useMemo(() => summarizeSourceDocuments(sourceDocuments), [sourceDocuments]);
 
-  const hasData = Boolean(
-    sourceDocuments.length > 0 ||
-    hasAdditionalNotes
-  );
+  const hasData = hasUsableSourceData(sourceDocuments, hasAdditionalNotes);
   const hasAllParsed = hasData && !isAnyParsing();
   const parseErrors = useMemo(
     () => sourceDocuments
