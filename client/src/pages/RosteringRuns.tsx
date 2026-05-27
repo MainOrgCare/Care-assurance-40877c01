@@ -262,10 +262,12 @@ export default function RosteringRuns() {
 
   const handleExportCSV = useCallback(() => {
     if (!optimalRun.length) return;
-    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Duration (min),Area,Address,Advice,Has Recommendation";
+    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Planned Length (min),Actual Length (min),Suggested Length (min),Area,Address,Advice,Has Recommendation";
     const rows = optimalRun.map((call, idx) => {
       const time = call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0);
-      return `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${time}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${(call.serviceUserAddress ?? "").replace(/"/g, '""')}","${call.advice.join("; ").replace(/"/g, '""')}","${call.hasRecommendation ? "Yes" : "No"}"`;
+      const plannedLen = call.averagePlannedDurationMinutes != null ? Math.round(call.averagePlannedDurationMinutes) : "";
+      const actualLen = call.averageActualDurationMinutes != null ? Math.round(call.averageActualDurationMinutes) : "";
+      return `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${time}","${plannedLen}","${actualLen}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${(call.serviceUserAddress ?? "").replace(/"/g, '""')}","${call.advice.join("; ").replace(/"/g, '""')}","${call.hasRecommendation ? "Yes" : "No"}"`;
     });
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -569,6 +571,16 @@ export default function RosteringRuns() {
                                 <span className="text-muted-foreground">Actual:</span>
                                 <span className="font-mono font-medium">{call.averageActualStartMinutes != null ? formatMinutesToTime(call.averageActualStartMinutes) : "—"}</span>
                               </div>
+                              {(call.averagePlannedDurationMinutes != null || call.averageActualDurationMinutes != null) && (
+                                <div className="flex items-center gap-2 text-[11px]">
+                                  <span className="text-muted-foreground">Length:</span>
+                                  <span className="font-mono font-medium">
+                                    {call.averagePlannedDurationMinutes != null ? `${Math.round(call.averagePlannedDurationMinutes)}m` : "—"} planned
+                                    {" / "}
+                                    {call.averageActualDurationMinutes != null ? `${Math.round(call.averageActualDurationMinutes)}m` : "—"} actual
+                                  </span>
+                                </div>
+                              )}
                               {call.serviceUserAddress && (
                                 <div className="flex items-start gap-2 text-[11px] max-w-[260px]">
                                   <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
@@ -585,9 +597,16 @@ export default function RosteringRuns() {
                         </div>
                         <div className="text-[11px] text-muted-foreground truncate">
                           {call.callTypeLabel} · {call.timeBandLabel}
-                          {call.suggestedPlannedDurationMinutes != null && (
-                            <span> · {call.suggestedPlannedDurationMinutes} min</span>
-                          )}
+                          {(() => {
+                            const planned = call.averagePlannedDurationMinutes;
+                            const actual = call.averageActualDurationMinutes;
+                            if (planned == null && actual == null) return null;
+                            const fmt = (m: number | null) =>
+                              m == null ? "—" : `${Math.round(m)} min`;
+                            return (
+                              <span> · Length {fmt(planned)} planned / {fmt(actual)} actual</span>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="text-right shrink-0 max-w-[150px]">

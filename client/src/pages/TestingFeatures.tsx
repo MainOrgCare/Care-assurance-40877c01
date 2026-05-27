@@ -486,6 +486,8 @@ interface SlotTrendSummary {
   suggestedPlannedTimeLabel: string | null;
   callsWithDurations: number;
   averageDurationPercent: number | null;
+  averagePlannedDurationMinutes: number | null;
+  averageActualDurationMinutes: number | null;
   suggestedPlannedDurationMinutes: number | null;
   advice: string[];
   tone: InsightTone;
@@ -2811,6 +2813,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         suggestedPlannedTimeLabel,
         callsWithDurations: acc.callsWithDurations,
         averageDurationPercent,
+        averagePlannedDurationMinutes:
+          acc.callsWithDurations > 0 ? acc.plannedDurationSum / acc.callsWithDurations : null,
+        averageActualDurationMinutes:
+          acc.callsWithDurations > 0 ? acc.actualDurationSum / acc.callsWithDurations : null,
         suggestedPlannedDurationMinutes,
         advice,
         tone,
@@ -2904,6 +2910,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         averageActualStartMinutes: t.averageActualStartMinutes,
         averagePlannedStartMinutes: t.averagePlannedStartMinutes,
         averageDurationPercent: t.averageDurationPercent,
+        averagePlannedDurationMinutes: t.averagePlannedDurationMinutes,
+        averageActualDurationMinutes: t.averageActualDurationMinutes,
         suggestedPlannedTimeLabel: t.suggestedPlannedTimeLabel,
         suggestedPlannedDurationMinutes: t.suggestedPlannedDurationMinutes,
         advice: t.advice,

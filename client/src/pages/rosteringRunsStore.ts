@@ -39,6 +39,10 @@ export interface SharedCallSlot {
   averageActualStartMinutes: number | null;
   averagePlannedStartMinutes: number | null;
   averageDurationPercent: number | null;
+  /** Current average planned call length (minutes) across analysed calls in this slot. */
+  averagePlannedDurationMinutes: number | null;
+  /** Current average actual call length (minutes) across analysed calls in this slot. */
+  averageActualDurationMinutes: number | null;
   suggestedPlannedTimeLabel: string | null;
   suggestedPlannedDurationMinutes: number | null;
   advice: string[];
