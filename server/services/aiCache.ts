@@ -7,7 +7,7 @@
 import crypto from "crypto";
 
 export interface CachedAIResponse {
-  result: any;
+  result: unknown;
   timestamp: number;
   promptHash: string;
   feature: string;
@@ -102,7 +102,7 @@ function evictLRU(): void {
  */
 export function setCachedResponse(
   cacheKey: string,
-  result: any,
+  result: unknown,
   feature: string,
   tokensSaved: number,
   ttlMs: number = DEFAULT_TTL_MS

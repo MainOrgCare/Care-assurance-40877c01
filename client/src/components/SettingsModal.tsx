@@ -69,15 +69,19 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
               <Palette size={16} className="text-primary" />
               Appearance
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Theme selection">
               {THEME_CATALOG.map((themeOption) => (
-                <motion.div
+                <motion.button
                   key={themeOption.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === themeOption.value}
+                  aria-label={`${themeOption.label}: ${themeOption.description}`}
                   whileHover={{ y: -2, scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setTheme(themeOption.value)}
                   className={cn(
-                    "relative cursor-pointer flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200",
+                    "relative flex flex-col items-center gap-3 p-4 rounded-xl border-2 text-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     theme === themeOption.value 
                       ? "border-primary bg-primary/5 shadow-md" 
                       : "border-border bg-muted/30 hover:bg-muted/60 hover:border-primary/40"
@@ -111,7 +115,7 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
                   )}>
                     {themeOption.label}
                   </span>
-                </motion.div>
+                </motion.button>
               ))}
             </div>
           </div>

@@ -24,6 +24,7 @@ import {
   hasActiveCarePlanFilters,
   summarizeCarePlanSections,
 } from "./carePlanningUtils";
+import { hasUsableSourceData, summarizeSourceDocuments } from "./sourceDocumentUtils";
 
 /**
  * Split a care plan content block into logical sections by paragraph.
@@ -269,17 +270,9 @@ export default function CarePlanning() {
   ]);
 
   const hasAdditionalNotes = Boolean(serviceUserData.additionalNotes && serviceUserData.additionalNotes.trim().length > 0);
-  const sourceStatusSummary = useMemo(() => ({
-    total: sourceDocuments.length,
-    ready: sourceDocuments.filter((document) => document.contentLength > 0 && !document.parseError && !document.isParsing).length,
-    parsing: sourceDocuments.filter((document) => document.isParsing).length,
-    failed: sourceDocuments.filter((document) => Boolean(document.parseError)).length,
-  }), [sourceDocuments]);
+  const sourceStatusSummary = useMemo(() => summarizeSourceDocuments(sourceDocuments), [sourceDocuments]);
 
-  const hasData = Boolean(
-    sourceDocuments.length > 0 ||
-    hasAdditionalNotes
-  );
+  const hasData = hasUsableSourceData(sourceDocuments, hasAdditionalNotes);
   
   // Handle both new simplified format (content field) and legacy format (sections array)
   const isSimplifiedFormat = !!(carePlan?.content && !carePlan?.sections);

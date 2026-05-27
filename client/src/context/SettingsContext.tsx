@@ -17,6 +17,14 @@ const HIGH_CONTRAST_CLASS = "high-contrast";
 const DYSLEXIA_FRIENDLY_CLASS = "dyslexia-friendly";
 const APP_THEME_SYNC_MESSAGE = "CA_EXTENSION_SYNC_THEME";
 const DARK_THEMES: readonly AppTheme[] = ["dark", "midnight", "ocean", "aurora"];
+const THEME_META_COLORS: Record<AppTheme, string> = {
+  light: "#f3f6fa",
+  sunrise: "#fbf4f1",
+  dark: "#101216",
+  midnight: "#0e1020",
+  ocean: "#0d1b20",
+  aurora: "#0f1f1a",
+};
 
 const FONT_SIZES: readonly FontSize[] = ["small", "medium", "large"];
 
@@ -47,14 +55,27 @@ function applyThemeToDom(theme: AppTheme): void {
   root.classList.add(themeClass);
   if (isDarkTheme) root.classList.add("dark");
   root.setAttribute("data-theme", theme);
-  root.removeAttribute("data-theme-dark");
+  if (isDarkTheme) {
+    root.setAttribute("data-theme-dark", "true");
+  } else {
+    root.removeAttribute("data-theme-dark");
+  }
   root.style.colorScheme = isDarkTheme ? "dark" : "light";
+
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute("content", THEME_META_COLORS[theme]);
 
   if (body) {
     body.classList.remove(...THEME_CLASSES, "dark");
     body.classList.add(themeClass);
     if (isDarkTheme) body.classList.add("dark");
     body.setAttribute("data-theme", theme);
+    if (isDarkTheme) {
+      body.setAttribute("data-theme-dark", "true");
+    } else {
+      body.removeAttribute("data-theme-dark");
+    }
     body.style.colorScheme = isDarkTheme ? "dark" : "light";
   }
 }
