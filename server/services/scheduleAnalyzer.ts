@@ -86,6 +86,7 @@ export interface ScheduleAnalysisInput {
 
 export interface ScheduleAnalysisResult {
   overallScore: number; // 0-100
+  scoreRationale?: string; // One-line justification grounded in input metrics
   insights: Array<{
     type: "positive" | "warning" | "critical";
     category: "workload" | "efficiency" | "quality" | "compliance";
@@ -127,48 +128,92 @@ export async function analyzeScheduleWithAI(
   }
   // Anonymize worker names before sending to AI
   const vault = new ScheduleNameVault();
-  
-  const systemPrompt = `You are an expert care scheduling analyst with deep knowledge of UK care facility operations, workforce management, and compliance requirements. Your role is to analyze care worker schedules and provide actionable insights to improve efficiency, reduce burnout, and ensure quality care delivery.
 
-ANALYSIS FRAMEWORK:
-1. Workload Distribution - Identify imbalances, overloaded workers, underutilization
-2. Operational Efficiency - Travel time, schedule gaps, call sequencing
-3. Care Quality - Time-critical calls, service user continuity, double-up coverage
-4. Compliance - Working time regulations, constraint violations, break requirements
+  const totalWorkers = input.workers.length;
+  const totalCalls = input.workers.reduce((sum, w) => sum + (w.calls || 0), 0);
+  const totalHours = Math.round(input.workers.reduce((sum, w) => sum + (w.minutes || 0), 0) / 60 * 10) / 10;
+  const sortedByCalls = [...input.workers].sort((a, b) => b.calls - a.calls);
+  const heaviestWorker = sortedByCalls[0];
+  const lightestWorker = sortedByCalls[sortedByCalls.length - 1];
+  const callsSpread = heaviestWorker && lightestWorker
+    ? heaviestWorker.calls - lightestWorker.calls
+    : 0;
 
-SCORING CRITERIA (0-100):
-- 90-100: Excellent - Highly optimized, minimal issues
-- 75-89: Good - Well-structured with minor improvements possible
-- 60-74: Fair - Functional but significant optimization opportunities
-- 40-59: Poor - Major issues requiring immediate attention
-- 0-39: Critical - Severe problems affecting care delivery
+  const systemPrompt = `You are a senior care scheduling analyst for UK domiciliary care providers. You apply CQC quality standards, Working Time Regulations 1998 (max 48h/week, 11h daily rest, 20-min break after 6h), and operational realities of community-based visits (travel time between calls, double-up coverage, time-critical medication windows).
 
-OUTPUT REQUIREMENTS:
-1. Overall Score (0-100) with clear justification
-2. Insights - Categorized observations (positive, warning, critical)
-3. Recommendations - Prioritized actions ranked 1-10 by impact
-4. Predictive Analysis - Burnout risks, bottlenecks, optimization potential
+YOUR JOB
+Produce a *rigorous, evidence-based* schedule assessment. Every insight, recommendation, and predicted risk MUST be grounded in the numeric inputs provided — never invent workers, calls, or violations. If the data is insufficient to support a claim, omit the claim.
 
-FORMAT: JSON only. Be concise but specific. Include worker names and quantifiable metrics.`;
+ANALYSIS DIMENSIONS (weight in scoring)
+1. Workload balance (30%) — call/hour spread across workers, over-limit and under-utilised counts.
+2. Compliance (30%) — explicit constraint violations, WTR risks, double-up gaps.
+3. Operational efficiency (25%) — travel gaps, schedule conflicts, sequencing.
+4. Care quality & continuity (15%) — service-user concentration, predictability for clients.
 
-  const userPrompt = `Analyze this care worker schedule for ${input.weekDay}, ${input.weekNumber}:
+SCORING DISCIPLINE (0–100, integer)
+- 90–100 Excellent: 0 violations, 0 conflicts, balanced workload (spread ≤25%), no burnout flags.
+- 75–89 Good: ≤1 violation OR ≤2 conflicts, minor imbalance.
+- 60–74 Fair: multiple minor issues or 1 medium imbalance.
+- 40–59 Poor: any high-severity constraint breach, or workload spread >50%.
+- 0–39 Critical: WTR breach, unresolved conflicts, or systemic over-allocation.
+Justify the score with at least one specific metric.
 
-WORKFORCE SUMMARY:
-${input.workers.map((w, i) => `${i + 1}. ${vault.anonymize(w.name)}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h, ${w.serviceUsers} service users`).join('\n')}
+INSIGHT RULES
+- 3 to 7 insights total. Each must reference a concrete number from the input.
+- type ∈ {"positive","warning","critical"}; category ∈ {"workload","efficiency","quality","compliance"}.
+- impact ∈ {"high","medium","low"} reflecting operational consequence, not severity of feeling.
 
-UTILIZATION STATS:
-- Average: ${input.utilizationStats.avgCalls} calls/worker, ${input.utilizationStats.avgHours}h/worker
-- Under-utilized workers: ${input.utilizationStats.workersUnderUtilized}
-- Over-limit workers: ${input.utilizationStats.workersOverLimit}
+RECOMMENDATION RULES
+- 3 to 6 recommendations, sorted by priority DESC. priority is 1–10 (10 = act today).
+- Each "action" MUST be a single imperative sentence (e.g. "Reassign 2 evening calls from Worker A to Worker D on Tuesday").
+- "expectedBenefit" MUST quantify (e.g. "Cuts conflicts from 3 to 1; reduces Worker A workload by 14%").
+- "affectedWorkers" lists only worker names that appear in the input.
 
-ISSUES:
-- Schedule conflicts: ${input.conflicts}
-- Travel gaps detected: ${input.travelGaps}
-- Constraint violations: ${input.constraintViolations.length}
+PREDICTIVE RULES
+- burnoutRisk: include any worker whose calls or hours are >120% of the team average, OR who appears in constraint violations. riskScore 0–100. factors must cite the numeric trigger.
+- bottlenecks: only include if travelGaps>0 or conflicts>0. Otherwise return [].
+- optimizationPotential numbers must be conservative best-estimates (never fabricated).
 
-${input.constraintViolations.length > 0 ? `CONSTRAINT VIOLATIONS:\n${input.constraintViolations.map(v => `- ${vault.anonymize(v.workerName)}: ${v.violationType} - ${v.actual} exceeds limit of ${v.limit}`).join('\n')}` : ''}
+OUTPUT
+Return ONLY a JSON object matching this exact shape (no markdown, no prose):
+{
+  "overallScore": number,
+  "scoreRationale": string,
+  "insights": [{ "type": string, "category": string, "title": string, "description": string, "impact": string }],
+  "recommendations": [{ "priority": number, "action": string, "expectedBenefit": string, "affectedWorkers": string[] }],
+  "predictive": {
+    "burnoutRisk": [{ "workerName": string, "riskScore": number, "factors": string[] }],
+    "bottlenecks": [{ "timeWindow": string, "description": string, "affectedCalls": number }],
+    "optimizationPotential": { "travelTimeReduction": number, "workloadBalanceImprovement": number, "conflictElimination": number }
+  }
+}`;
 
-Provide comprehensive analysis with actionable recommendations to optimize this schedule.`;
+  const userPrompt = `Analyse this domiciliary care schedule for ${input.weekDay}, ${input.weekNumber}.
+
+TEAM TOTALS
+- Workers on shift: ${totalWorkers}
+- Total calls: ${totalCalls}
+- Total scheduled hours: ${totalHours}h
+- Workload spread (highest − lowest calls): ${callsSpread}
+
+WORKER LOAD (sorted by calls desc)
+${sortedByCalls.map((w, i) => `${i + 1}. ${vault.anonymize(w.name)} — ${w.calls} calls / ${Math.round(w.minutes / 60 * 10) / 10}h / ${w.serviceUsers} service users`).join('\n')}
+
+UTILISATION STATS
+- Average per worker: ${input.utilizationStats.avgCalls} calls, ${input.utilizationStats.avgHours}h
+- Workers above target ceiling: ${input.utilizationStats.workersOverLimit}
+- Workers below target floor: ${input.utilizationStats.workersUnderUtilized}
+
+OPERATIONAL ISSUES
+- Schedule conflicts (overlapping calls): ${input.conflicts}
+- Travel gaps flagged (insufficient time between calls): ${input.travelGaps}
+- Constraint violations recorded: ${input.constraintViolations.length}
+
+${input.constraintViolations.length > 0
+  ? `CONSTRAINT VIOLATIONS\n${input.constraintViolations.map(v => `- ${vault.anonymize(v.workerName)}: ${v.violationType} — actual ${v.actual} vs limit ${v.limit} (over by ${Math.max(0, v.actual - v.limit)})`).join('\n')}`
+  : 'CONSTRAINT VIOLATIONS\n- None recorded.'}
+
+Produce the strict JSON described in the system prompt. Reference workers by the names listed above (do not paraphrase).`;
 
   const response = await executeSecureTextCompletion({
     endpoint: "/api/schedule/analyze",
@@ -177,7 +222,7 @@ Provide comprehensive analysis with actionable recommendations to optimize this 
     userContext: aiUserContext || { userId: null, username: null },
     systemPrompt,
     inputText: userPrompt,
-    temperature: 0.7,
+    temperature: 0.2,
     maxCompletionTokens: 3000,
     responseFormat: { type: "json_object" },
     useCache: false,
@@ -244,38 +289,60 @@ export async function compareSchedulesWithAI(
   // Anonymize worker names before sending to AI
   const vault = new ScheduleNameVault();
 
-  const systemPrompt = `You are an expert at evaluating schedule optimizations for care facilities. Compare before/after schedules and determine if the changes improved the schedule quality.
+  const beforeTotal = input.beforeSchedule.workers.reduce((s, w) => s + w.calls, 0);
+  const afterTotal = input.afterSchedule.workers.reduce((s, w) => s + w.calls, 0);
+  const beforeHours = Math.round(input.beforeSchedule.workers.reduce((s, w) => s + w.minutes, 0) / 60 * 10) / 10;
+  const afterHours = Math.round(input.afterSchedule.workers.reduce((s, w) => s + w.minutes, 0) / 60 * 10) / 10;
 
-EVALUATION CRITERIA:
-1. Conflict reduction (high priority)
-2. Workload balance improvement
-3. Travel efficiency gains
-4. Minimal disruption to workers
+  const systemPrompt = `You are evaluating whether a schedule edit improved a UK domiciliary care roster. Be ruthlessly objective — improvements must be backed by the numbers; do not reward churn for its own sake.
 
-IMPROVEMENT SCORE (-100 to 100):
-- 80-100: Excellent improvements
-- 40-79: Good improvements
-- 10-39: Minor improvements
-- -9 to 9: Neutral (no meaningful change)
-- -10 to -39: Minor degradation
-- -40 to -79: Significant degradation
-- -80 to -100: Severe degradation
+EVALUATION CRITERIA (in order)
+1. Conflict reduction — fewer overlapping calls is the single biggest win.
+2. Compliance — fewer over-limit workers / WTR breaches.
+3. Workload balance — narrower call/hour spread across the team.
+4. Travel efficiency — fewer flagged travel gaps.
+5. Worker disruption — large reassignments without measurable benefit are negative.
 
-FORMAT: JSON only with quantifiable metrics.`;
+SCORE (-100 to 100, integer)
+- 80–100 transformational improvement.
+- 40–79 clear, measurable improvement.
+- 10–39 minor improvement.
+- −9 to 9 neutral / cosmetic only.
+- −10 to −39 mild regression.
+- −40 to −79 significant regression.
+- −80 to −100 severe regression (e.g. introduced conflicts, broke compliance).
 
-  const userPrompt = `Compare these schedule versions:
+OUTPUT
+Return ONLY this JSON shape (no markdown):
+{
+  "improvementScore": number,
+  "summary": string,                 // 1–2 sentences, must cite at least one before→after metric
+  "metrics": {
+    "conflictChange": number,        // afterConflicts − beforeConflicts (negative = better)
+    "travelGapChange": number,       // afterGaps − beforeGaps (negative = better)
+    "workloadBalance": { "before": number, "after": number, "improvement": number }
+  },
+  "workerImpact": [{ "workerName": string, "callsDelta": number, "minutesDelta": number, "impact": "positive"|"neutral"|"negative", "note": string }],
+  "recommendation": string           // "Accept", "Accept with caveat: …", or "Reject because …"
+}
 
-BEFORE:
+WORKER IMPACT
+- Only include workers whose calls OR minutes changed by 5%+ or whose impact materially changed. Skip unchanged workers.`;
+
+  const userPrompt = `Compare these two schedule versions.
+
+BEFORE (totals: ${beforeTotal} calls, ${beforeHours}h, ${input.beforeSchedule.conflicts} conflicts, ${input.beforeSchedule.travelGaps} travel gaps)
 ${input.beforeSchedule.workers.map(w => `- ${vault.anonymize(w.name)}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h`).join('\n')}
-Conflicts: ${input.beforeSchedule.conflicts}, Travel gaps: ${input.beforeSchedule.travelGaps}
 
-AFTER:
+AFTER (totals: ${afterTotal} calls, ${afterHours}h, ${input.afterSchedule.conflicts} conflicts, ${input.afterSchedule.travelGaps} travel gaps)
 ${input.afterSchedule.workers.map(w => `- ${vault.anonymize(w.name)}: ${w.calls} calls, ${Math.round(w.minutes / 60 * 10) / 10}h`).join('\n')}
-Conflicts: ${input.afterSchedule.conflicts}, Travel gaps: ${input.afterSchedule.travelGaps}
 
-CHANGES: ${input.changes.timeShifts} time shifts, ${input.changes.reassignments} reassignments, ${input.changes.deletions} deletions
+EDIT VOLUME
+- Time shifts: ${input.changes.timeShifts}
+- Reassignments: ${input.changes.reassignments}
+- Deletions: ${input.changes.deletions}
 
-Evaluate if this optimization improved the schedule.`;
+Produce the strict JSON described in the system prompt. Compute conflictChange and travelGapChange exactly from the totals above.`;
 
   const response = await executeSecureTextCompletion({
     endpoint: "/api/schedule/compare",
@@ -284,7 +351,7 @@ Evaluate if this optimization improved the schedule.`;
     userContext: aiUserContext || { userId: null, username: null },
     systemPrompt,
     inputText: userPrompt,
-    temperature: 0.5,
+    temperature: 0.2,
     maxCompletionTokens: 2000,
     responseFormat: { type: "json_object" },
     useCache: false,

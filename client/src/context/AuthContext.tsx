@@ -10,8 +10,9 @@ interface User {
   firstName?: string;
   lastName?: string;
   role: UserRole;
-  status: "active" | "pending";
+  status: "active" | "pending" | "archived" | "suspended";
   jobTitle?: string;
+  lastOnlineAt?: string | null;
   termsAcceptedAt?: string;
   termsVersion?: string;
   termsSignatureName?: string;

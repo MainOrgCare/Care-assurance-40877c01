@@ -3,7 +3,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, Send } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronsUpDown, Send } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -227,6 +227,22 @@ function formatBytes(bytes: number | null | undefined): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatRelativeTime(value: string | null | undefined): { label: string; full: string } {
+  if (!value) return { label: "Never", full: "Has not signed in" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { label: "—", full: "Unknown" };
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const full = date.toLocaleString();
+  if (minutes < 1) return { label: "Just now", full };
+  if (minutes < 60) return { label: `${minutes}m ago`, full };
+  if (hours < 24) return { label: `${hours}h ago`, full };
+  if (days < 30) return { label: `${days}d ago`, full };
+  return { label: date.toLocaleDateString(), full };
 }
 
 const PASSWORD_RULES_TEXT = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include an uppercase letter, lowercase letter, number, and special character.`;
@@ -4261,6 +4277,18 @@ export default function SecretAdminPortal() {
   const [userSearch, setUserSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState<string>("all");
   const [userStatusFilter, setUserStatusFilter] = useState<string>("all");
+  type UserSortKey = "username" | "jobTitle" | "role" | "status" | "lastOnlineAt";
+  const [userSortKey, setUserSortKey] = useState<UserSortKey>("lastOnlineAt");
+  const [userSortDir, setUserSortDir] = useState<"asc" | "desc">("desc");
+  const toggleUserSort = (key: UserSortKey) => {
+    if (userSortKey === key) {
+      setUserSortDir(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setUserSortKey(key);
+      // Sensible defaults: time newest-first, text A→Z
+      setUserSortDir(key === "lastOnlineAt" ? "desc" : "asc");
+    }
+  };
   const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<string | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; username: string } | null>(null);
@@ -4881,6 +4909,62 @@ export default function SecretAdminPortal() {
     }
   };
 
+  const handleArchiveUserAccount = async (userId: string, username: string) => {
+    setUserActionLoading(true);
+    try {
+      const response = await fetch(`/api/users/${userId}/archive`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (response.ok) {
+        await fetchUsers();
+        toast({
+          title: "User Archived",
+          description: `${username} can no longer log in. Use the Archived filter to restore them.`,
+        });
+      } else {
+        const data = await response.json().catch(() => ({}));
+        toast({
+          title: "Failed to Archive User",
+          description: data.message || `Server returned ${response.status}`,
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to archive user.", variant: "destructive" });
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  const handleUnarchiveUserAccount = async (userId: string, username: string) => {
+    setUserActionLoading(true);
+    try {
+      const response = await fetch(`/api/users/${userId}/unarchive`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (response.ok) {
+        await fetchUsers();
+        toast({
+          title: "User Restored",
+          description: `${username} has been restored to an active account.`,
+        });
+      } else {
+        const data = await response.json().catch(() => ({}));
+        toast({
+          title: "Failed to Restore User",
+          description: data.message || `Server returned ${response.status}`,
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to restore user.", variant: "destructive" });
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     setUserActionLoading(true);
     try {
@@ -4947,16 +5031,39 @@ export default function SecretAdminPortal() {
   }), [systemLogs, logSearch, logStatusFilter]);
 
   // Filter users
-  const filteredUsers = useMemo(() => users.filter(u => {
-    const matchesSearch = userSearch === "" ||
-      u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
-      (u.jobTitle && u.jobTitle.toLowerCase().includes(userSearch.toLowerCase()));
-    
-    const matchesRole = userRoleFilter === "all" || u.role === userRoleFilter;
-    const matchesStatus = userStatusFilter === "all" || u.status === userStatusFilter;
-    
-    return matchesSearch && matchesRole && matchesStatus;
-  }), [users, userSearch, userRoleFilter, userStatusFilter]);
+  const filteredUsers = useMemo(() => {
+    const filtered = users.filter(u => {
+      const matchesSearch = userSearch === "" ||
+        u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+        (u.jobTitle && u.jobTitle.toLowerCase().includes(userSearch.toLowerCase()));
+
+      const matchesRole = userRoleFilter === "all" || u.role === userRoleFilter;
+      // "All Status" hides archived users; they only appear when explicitly filtered to "archived".
+      const matchesStatus = userStatusFilter === "all"
+        ? u.status !== "archived"
+        : u.status === userStatusFilter;
+
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+
+    const dir = userSortDir === "asc" ? 1 : -1;
+    const getSortValue = (u: typeof users[number]): string | number => {
+      switch (userSortKey) {
+        case "username": return (u.username || "").toLowerCase();
+        case "jobTitle": return (u.jobTitle || "").toLowerCase();
+        case "role": return (u.role || "").toLowerCase();
+        case "status": return (u.status || "").toLowerCase();
+        case "lastOnlineAt": return u.lastOnlineAt ? new Date(u.lastOnlineAt).getTime() : 0;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const av = getSortValue(a);
+      const bv = getSortValue(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [users, userSearch, userRoleFilter, userStatusFilter, userSortKey, userSortDir]);
 
   const pendingUsers = useMemo(() => users.filter(u => u.status === "pending"), [users]);
   const activeUsers = useMemo(() => users.filter(u => u.status === "active"), [users]);
@@ -5829,6 +5936,7 @@ export default function SecretAdminPortal() {
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
                           <SelectItem value="suspended">Suspended</SelectItem>
+                          <SelectItem value="archived">Archived</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -5838,10 +5946,37 @@ export default function SecretAdminPortal() {
                   <Table>
                     <TableHeader className="bg-muted sticky top-0 backdrop-blur-sm z-10">
                       <TableRow className="border-border/30 hover:bg-transparent">
-                        <TableHead className="text-muted-foreground">Username</TableHead>
-                        <TableHead className="text-muted-foreground hidden sm:table-cell">Job Title</TableHead>
-                        <TableHead className="text-muted-foreground hidden sm:table-cell">Role</TableHead>
-                        <TableHead className="text-muted-foreground hidden sm:table-cell">Status</TableHead>
+                        {(() => {
+                          const SortIcon = ({ k }: { k: UserSortKey }) =>
+                            userSortKey !== k
+                              ? <ChevronsUpDown size={12} className="opacity-40" />
+                              : userSortDir === "asc"
+                                ? <ChevronUp size={12} />
+                                : <ChevronDown size={12} />;
+                          const SortBtn = ({ k, label, className }: { k: UserSortKey; label: string; className?: string }) => (
+                            <TableHead className={`text-muted-foreground ${className || ""}`}>
+                              <button
+                                type="button"
+                                onClick={() => toggleUserSort(k)}
+                                className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                                data-testid={`sort-users-${k}`}
+                                aria-label={`Sort by ${label}`}
+                              >
+                                <span>{label}</span>
+                                <SortIcon k={k} />
+                              </button>
+                            </TableHead>
+                          );
+                          return (
+                            <>
+                              <SortBtn k="username" label="Username" />
+                              <SortBtn k="jobTitle" label="Job Title" className="hidden sm:table-cell" />
+                              <SortBtn k="role" label="Role" className="hidden sm:table-cell" />
+                              <SortBtn k="status" label="Status" className="hidden sm:table-cell" />
+                              <SortBtn k="lastOnlineAt" label="Last Login" className="hidden lg:table-cell" />
+                            </>
+                          );
+                        })()}
                         <TableHead className="text-muted-foreground hidden md:table-cell">Terms</TableHead>
                         <TableHead className="text-muted-foreground text-right">Actions</TableHead>
                       </TableRow>
@@ -5862,9 +5997,32 @@ export default function SecretAdminPortal() {
                             </Badge>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline" className={u.status === "active" ? "border-success/30 text-success" : "border-warning/30 text-warning"} data-testid={`badge-status-${u.id}`}>
+                            <Badge
+                              variant="outline"
+                              className={
+                                u.status === "active"
+                                  ? "border-success/30 text-success"
+                                  : u.status === "archived"
+                                    ? "border-muted-foreground/40 text-muted-foreground"
+                                    : "border-warning/30 text-warning"
+                              }
+                              data-testid={`badge-status-${u.id}`}
+                            >
                               {u.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell" data-testid={`text-last-login-${u.id}`}>
+                            {(() => {
+                              const rel = formatRelativeTime(u.lastOnlineAt);
+                              return (
+                                <span
+                                  className={`text-xs ${u.lastOnlineAt ? "text-muted-foreground" : "text-muted-foreground/60 italic"}`}
+                                  title={rel.full}
+                                >
+                                  {rel.label}
+                                </span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="hidden md:table-cell" data-testid={`text-terms-${u.id}`}>
                             {u.termsVersion ? (
@@ -5940,6 +6098,33 @@ export default function SecretAdminPortal() {
                               >
                                 <FileKey size={14} />
                               </Button>
+                              {u.status === "archived" ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-success hover:text-success/80 hover:bg-success/10"
+                                  onClick={() => handleUnarchiveUserAccount(u.id, u.username)}
+                                  title="Restore archived user"
+                                  aria-label="Restore archived user"
+                                  data-testid={`button-unarchive-${u.id}`}
+                                  disabled={userActionLoading}
+                                >
+                                  <RefreshCcw size={14} />
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                  onClick={() => handleArchiveUserAccount(u.id, u.username)}
+                                  title="Archive user (hide from list, keep data)"
+                                  aria-label="Archive user"
+                                  data-testid={`button-archive-${u.id}`}
+                                  disabled={userActionLoading}
+                                >
+                                  <Archive size={14} />
+                                </Button>
+                              )}
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
@@ -5957,7 +6142,7 @@ export default function SecretAdminPortal() {
                       ))}
                       {filteredUsers.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                             No users found matching your filters.
                           </TableCell>
                         </TableRow>

@@ -38,6 +38,7 @@ interface ScheduleAnalysisProps {
 
 interface AnalysisResult {
   overallScore: number;
+  scoreRationale: string;
   insights: Array<{
     type: "positive" | "warning" | "critical";
     category: "workload" | "efficiency" | "quality" | "compliance";
@@ -167,8 +168,11 @@ const normalizeAnalysisResult = (payload: unknown): AnalysisResult => {
   const rawOptimizationPotential =
     (rawPredictive.optimizationPotential as Record<string, unknown> | undefined) ?? {};
 
+  const rationaleRaw = typeof raw?.scoreRationale === "string" ? raw.scoreRationale.trim() : "";
+
   return {
     overallScore: Math.max(0, Math.min(100, toFiniteNumber(raw?.overallScore, 0))),
+    scoreRationale: rationaleRaw,
     insights,
     recommendations,
     predictive: {
@@ -306,6 +310,11 @@ export default function ScheduleAnalysisDashboard(props: ScheduleAnalysisProps) 
                         {getScoreLabel(analysis.overallScore)}
                       </p>
                       <Progress value={analysis.overallScore} className="mt-2" />
+                      {analysis.scoreRationale && (
+                        <p className="text-xs text-muted-foreground mt-3 leading-snug" data-testid="text-score-rationale">
+                          {analysis.scoreRationale}
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
 

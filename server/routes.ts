@@ -5935,6 +5935,9 @@ export async function registerRoutes(
             status: user.status 
           }
         });
+        if (user.status === "archived") {
+          return apiForbidden(res, "This account has been archived. Contact your administrator if you need access restored.");
+        }
         return apiForbidden(res, "Account pending approval");
       }
 
@@ -6415,6 +6418,7 @@ export async function registerRoutes(
         role: u.role,
         status: u.status,
         jobTitle: u.jobTitle,
+        lastOnlineAt: u.lastOnlineAt,
         termsAcceptedAt: u.termsAcceptedAt,
         termsVersion: u.termsVersion,
         termsSignatureName: u.termsSignatureName,
@@ -6508,6 +6512,90 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to approve user") });
+    }
+  });
+
+  // Archive user (soft-delete - hide from list, keep data, can restore)
+  app.patch("/api/users/:id/archive", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const targetId = getRouteParamValue(req.params.id);
+      if (targetId === req.user.id) {
+        return res.status(400).json({ message: "You cannot archive your own account." });
+      }
+      const user = await storage.updateUserStatus(targetId, "archived");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Force the archived user off any active session so they cannot continue using the platform.
+      try {
+        const activeSession = await storage.getActiveSessionByUserId(targetId);
+        if (activeSession) {
+          sendToUser(targetId, {
+            type: "FORCE_LOGOUT",
+            message: "Your account has been archived by an administrator.",
+          });
+        }
+      } catch (sessionError) {
+        console.error("[Users] Failed to disconnect archived user session:", sessionError);
+      }
+
+      await storage.createSystemLog({
+        eventType: 'user_archived',
+        userId: req.user.id,
+        username: req.user.username,
+        details: {
+          archived_user_id: user.id,
+          archived_username: user.username,
+        },
+      });
+
+      return res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        status: user.status,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to archive user") });
+    }
+  });
+
+  // Unarchive user (restore to active)
+  app.patch("/api/users/:id/unarchive", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const targetId = getRouteParamValue(req.params.id);
+      const existing = await storage.getUser(targetId);
+      if (!existing) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (existing.status !== "archived") {
+        return res.status(400).json({ message: "User is not archived." });
+      }
+
+      const user = await storage.updateUserStatus(targetId, "active");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      await storage.createSystemLog({
+        eventType: 'user_unarchived',
+        userId: req.user.id,
+        username: req.user.username,
+        details: {
+          restored_user_id: user.id,
+          restored_username: user.username,
+        },
+      });
+
+      return res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        status: user.status,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to unarchive user") });
     }
   });
 

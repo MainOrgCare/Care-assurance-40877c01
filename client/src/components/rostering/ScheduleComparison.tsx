@@ -297,7 +297,23 @@ export default function ScheduleComparison(props: ScheduleComparisonProps) {
                 <Alert className={comparison.improvementScore >= 10 ? "border-success" : comparison.improvementScore < -9 ? "border-destructive" : ""}>
                   <AlertDescription>
                     <p className="font-semibold mb-2">{comparison.summary}</p>
-                    <p className="text-sm text-muted-foreground">{comparison.recommendation}</p>
+                    {(() => {
+                      const rec = comparison.recommendation || "";
+                      const lower = rec.toLowerCase();
+                      const verdict = lower.startsWith("accept")
+                        ? { label: "Accept", className: "border-success/40 text-success bg-success/10" }
+                        : lower.startsWith("reject")
+                          ? { label: "Reject", className: "border-destructive/40 text-destructive bg-destructive/10" }
+                          : { label: "Review", className: "border-warning/40 text-warning bg-warning/10" };
+                      return (
+                        <div className="flex items-start gap-2">
+                          <Badge variant="outline" className={`shrink-0 ${verdict.className}`} data-testid="badge-comparison-verdict">
+                            {verdict.label}
+                          </Badge>
+                          <p className="text-sm text-muted-foreground">{rec}</p>
+                        </div>
+                      );
+                    })()}
                   </AlertDescription>
                 </Alert>
               </TabsContent>
