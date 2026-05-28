@@ -62,6 +62,32 @@ const logAction = (message) => {
   }
 };
 
+/**
+ * Surface a skipped EMAR row to the popup + server diagnostics.
+ *
+ * Replaces silent `if (!row) continue;` no-ops so the operator can see why
+ * a row was dropped (typically: the DOM hasn't rendered the freshly-added
+ * table row yet, or the AI gave us more rows than the form supports).
+ */
+const reportSkippedRow = (info) => {
+  const payload = {
+    table: String(info?.table || "unknown"),
+    rowIndex: Number(info?.rowIndex ?? -1),
+    reason: String(info?.reason || "row missing"),
+    code: info?.code || null,
+    ts: Date.now(),
+  };
+  try {
+    chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES?.emarSkipped || "CA_EXTENSION_EMAR_SKIPPED",
+      payload,
+    });
+  } catch {
+    // Extension context may be invalid after an extension reload.
+  }
+  logAction(`EMAR row skipped — ${payload.table} row ${payload.rowIndex + 1}: ${payload.reason}`);
+};
+
 let DRY_RUN = false;
 let INTERACTION_MODE = "auto";
 let overlayInitialized = false;
@@ -843,7 +869,15 @@ const fillNonConformanceRows = async (rows) => {
   const updatedRows = Array.from(table.querySelectorAll("tbody tr"));
   for (let i = 0; i < rows.length; i += 1) {
     const row = updatedRows[i];
-    if (!row) continue;
+    if (!row) {
+      reportSkippedRow({
+        table: "Table_26_10",
+        rowIndex: i,
+        reason: `Form rendered ${updatedRows.length} of ${rows.length} expected rows`,
+        code: rows[i]?.code ?? null,
+      });
+      continue;
+    }
     const data = rows[i];
     const careWorkerField = row.querySelector('input[name^="form_component_27"]');
     const datesField = row.querySelector('input[name^="form_component_40"]');
@@ -878,7 +912,15 @@ const fillStaffIdentifiedRows = async (rows) => {
   const updatedRows = Array.from(table.querySelectorAll("tbody tr"));
   for (let i = 0; i < rows.length; i += 1) {
     const row = updatedRows[i];
-    if (!row) continue;
+    if (!row) {
+      reportSkippedRow({
+        table: "Table_48_21",
+        rowIndex: i,
+        reason: `Form rendered ${updatedRows.length} of ${rows.length} expected rows`,
+        code: null,
+      });
+      continue;
+    }
     const data = rows[i];
     const nameField = row.querySelector('input[name^="form_component_49"]');
     const commentsField = row.querySelector('textarea[name^="form_component_50"]');

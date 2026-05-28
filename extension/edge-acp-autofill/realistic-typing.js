@@ -202,6 +202,51 @@
     return true;
   };
 
+  /**
+   * withFieldRetry — execute an async field operation with bounded retries.
+   *
+   * Retries on rejection or on a falsy resolved value (so it can wrap both
+   * throwing helpers and boolean "did it stick?" probes). Uses fixed
+   * backoffs: 250ms, 500ms, 1000ms (capped at `attempts`).
+   *
+   * @param {() => Promise<any>} fn
+   * @param {{ attempts?: number, backoffsMs?: number[], onRetry?: (info: { attempt: number, error?: unknown, value?: unknown }) => void }} [options]
+   * @returns {Promise<any>} The resolved value from the final successful call.
+   */
+  const withFieldRetry = async (fn, options = {}) => {
+    const attempts = Math.max(1, Number(options.attempts) || 3);
+    const backoffsMs =
+      Array.isArray(options.backoffsMs) && options.backoffsMs.length > 0
+        ? options.backoffsMs.map((n) => Math.max(0, Number(n) || 0))
+        : [250, 500, 1000];
+    const onRetry = typeof options.onRetry === "function" ? options.onRetry : null;
+
+    let lastError = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const value = await fn();
+        if (value !== false && value !== null && value !== undefined) {
+          return value;
+        }
+        lastError = new Error("field operation returned falsy");
+      } catch (err) {
+        lastError = err;
+      }
+      if (attempt < attempts) {
+        if (onRetry) {
+          try {
+            onRetry({ attempt, error: lastError });
+          } catch {
+            /* noop */
+          }
+        }
+        const delay = backoffsMs[Math.min(attempt - 1, backoffsMs.length - 1)];
+        await wait(delay);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  };
+
   window.__CA_RealisticTyping = Object.freeze({
     setNativeFieldValue,
     dispatchInputEvent,
@@ -209,6 +254,7 @@
     typeLikeHuman,
     isContentEditableTarget,
     isFieldFillable,
+    withFieldRetry,
     TIMING,
   });
 })();

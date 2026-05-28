@@ -1245,6 +1245,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === MESSAGE_TYPES.emarSkipped) {
+    const incoming = message?.payload;
+    if (!incoming || typeof incoming !== "object") {
+      sendResponse({ ok: false, error: "Missing payload" });
+      return false;
+    }
+    const entry = {
+      table: String(incoming.table || "unknown"),
+      rowIndex: Number.isFinite(Number(incoming.rowIndex)) ? Number(incoming.rowIndex) : -1,
+      reason: String(incoming.reason || "row missing"),
+      code: incoming.code ?? null,
+      ts: Number(incoming.ts) || Date.now(),
+    };
+    getStored([STORAGE_KEYS.emarSkippedRows]).then(({ caAcpEmarSkippedRows }) => {
+      const rows = Array.isArray(caAcpEmarSkippedRows) ? caAcpEmarSkippedRows : [];
+      rows.push(entry);
+      // Cap at 100 entries per batch to keep storage bounded.
+      const capped = rows.slice(-100);
+      setStored({ [STORAGE_KEYS.emarSkippedRows]: capped }).then(() =>
+        safeSendResponse({ ok: true })
+      );
+    });
+    return true;
+  }
+
   if (message?.type === MESSAGE_TYPES.stopAutofill) {
     stopAutofill().then(() => safeSendResponse({ ok: true }));
     return true;

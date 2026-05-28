@@ -764,6 +764,73 @@ export function registerExtensionRoutes(
     }
   });
 
+  // Diagnostics intake — extension reports caught errors and notable events here so
+  // they show up in the Audit Trail with eventType `extension_diagnostic`.
+  // Fire-and-forget; the extension never blocks on this.
+  app.post("/api/extension/diagnostics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as AuthenticatedRequest).user;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+
+      const severityRaw = typeof body.severity === "string" ? body.severity.toLowerCase() : "info";
+      const severity: "info" | "warning" | "error" =
+        severityRaw === "error" || severityRaw === "warning" ? severityRaw : "info";
+      const code = typeof body.code === "string" && body.code.trim() ? body.code.trim().slice(0, 80) : "unknown";
+      const message =
+        typeof body.message === "string" && body.message.trim()
+          ? body.message.trim().slice(0, 500)
+          : "(no message)";
+      const surface =
+        typeof body.surface === "string" && body.surface.trim() ? body.surface.trim().slice(0, 80) : null;
+      const extensionVersion =
+        typeof body.extensionVersion === "string" && body.extensionVersion.trim()
+          ? body.extensionVersion.trim().slice(0, 32)
+          : null;
+      const url = typeof body.url === "string" && body.url.trim() ? body.url.trim().slice(0, 500) : null;
+
+      // Cap context payload at ~4KB to protect the audit table from noisy extensions.
+      let context: unknown = null;
+      if (body.context !== undefined && body.context !== null) {
+        try {
+          const serialized = JSON.stringify(body.context);
+          context = serialized.length > 4096 ? `${serialized.slice(0, 4096)}…[truncated]` : body.context;
+        } catch {
+          context = "[unserialisable context]";
+        }
+      }
+
+      storage
+        .createSystemLog({
+          eventType: "extension_diagnostic",
+          userId: (user?.id as string | undefined) ?? null,
+          username: (user?.username as string | undefined) ?? null,
+          serviceUserInitials: null,
+          details: {
+            severity,
+            code,
+            message,
+            surface,
+            extensionVersion,
+            url,
+            context,
+            status: severity === "error" ? "Flagged" : severity === "warning" ? "Flagged" : "System",
+            action: `Extension ${severity}: ${code}`,
+            target: surface ?? "extension",
+          },
+        })
+        .catch((err) => {
+          console.warn("[extension/diagnostics] Failed to persist diagnostic:", (err as Error).message);
+        });
+
+      return res.json({ accepted: true });
+    } catch (error: unknown) {
+      console.error("Extension diagnostics intake error:", error);
+      return res
+        .status(500)
+        .json({ message: safeErrorMessage(error, "Failed to record extension diagnostic") });
+    }
+  });
+
   // Admin-only metadata endpoint to verify extension package freshness
   app.get("/api/admin/extension/info", requireAuth, requireAdmin, async (req: any, res) => {
     try {

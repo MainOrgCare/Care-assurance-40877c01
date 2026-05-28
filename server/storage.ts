@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, or, ilike, lte } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, ilike, lte, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
@@ -332,6 +332,9 @@ export interface IStorage {
     limit: number;
     search?: string;
     status?: string;
+    includeAll?: boolean;
+    /** Only return logs newer than this timestamp. */
+    since?: Date;
   }): Promise<{ logs: SystemLog[]; total: number; page: number; totalPages: number }>;
 
   // Blocked IP operations
@@ -1348,8 +1351,10 @@ export class DatabaseStorage implements IStorage {
     status?: string;
     /** When true, include high-volume api_request rows that are normally hidden. */
     includeAll?: boolean;
+    /** Only return logs newer than this timestamp. */
+    since?: Date;
   }): Promise<{ logs: SystemLog[]; total: number; page: number; totalPages: number }> {
-    const { page, limit, search, status, includeAll } = options;
+    const { page, limit, search, status, includeAll, since } = options;
     const offset = (page - 1) * limit;
 
     // Build conditions array
@@ -1358,6 +1363,11 @@ export class DatabaseStorage implements IStorage {
     // Hide noisy request logs from the activity feed unless the caller opts in
     if (!includeAll) {
       conditions.push(sql`${systemLogs.eventType} != 'api_request'`);
+    }
+
+    // Time-range filter — used by the audit trail "Last hour / 24h / 7d" presets
+    if (since instanceof Date && !Number.isNaN(since.getTime())) {
+      conditions.push(gte(systemLogs.createdAt, since));
     }
 
     // Search filter - searches across username, eventType, and details (as text)

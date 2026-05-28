@@ -267,3 +267,51 @@ export async function sendMessageToPageCompanion(message) {
     });
   });
 }
+
+/**
+ * reportExtensionError — fire-and-forget diagnostics reporter.
+ *
+ * Best-effort; never throws. The server endpoint (POST /api/extension/diagnostics)
+ * persists this as a `extension_diagnostic` row in the system_logs table so it
+ * shows up in the in-app Audit Trail.
+ *
+ * @param {{
+ *   severity?: 'info'|'warning'|'error',
+ *   code: string,
+ *   message: string,
+ *   surface?: string,
+ *   context?: unknown,
+ *   url?: string,
+ * }} payload
+ */
+export async function reportExtensionError(payload) {
+  if (!payload || typeof payload !== "object") return;
+  try {
+    let extensionVersion = null;
+    try {
+      extensionVersion = chrome?.runtime?.getManifest?.()?.version ?? null;
+    } catch {
+      extensionVersion = null;
+    }
+    const body = {
+      severity: payload.severity || "error",
+      code: String(payload.code || "unknown").slice(0, 80),
+      message: String(payload.message || "(no message)").slice(0, 500),
+      surface: payload.surface ? String(payload.surface).slice(0, 80) : null,
+      context: payload.context ?? null,
+      url: payload.url ? String(payload.url).slice(0, 500) : null,
+      extensionVersion,
+    };
+    await apiProxy("/api/extension/diagnostics", "POST", body, {
+      timeoutMs: 8000,
+      maxRetries: 0,
+    });
+  } catch (err) {
+    // Swallow — diagnostics is best-effort.
+    try {
+      console.warn("[reportExtensionError] suppressed:", err?.message || err);
+    } catch {
+      /* noop */
+    }
+  }
+}

@@ -37,6 +37,7 @@ import {
   fetchExtensionRuntimeConfig,
   findConnectedWorkspaceTab,
   sendMessageToPageCompanion,
+  reportExtensionError,
 } from "./api.js";
 
 import {
@@ -8103,6 +8104,41 @@ function bindStorageListener() {
   updateAutoCollectInfoSnapshot(createAutoCollectInfoSnapshot());
   refreshExtensionVersionDisplay();
   renderExtensionHealth(null);
+
+  // Surface uncaught popup errors to the server audit trail (best-effort).
+  // Throttled per-message to avoid flooding the system_logs table.
+  const __reportedPopupErrors = new Map();
+  const reportPopupError = (severity, code, message, context) => {
+    try {
+      const key = `${code}::${message}`;
+      const now = Date.now();
+      const last = __reportedPopupErrors.get(key) || 0;
+      if (now - last < 15000) return;
+      __reportedPopupErrors.set(key, now);
+      reportExtensionError({
+        severity,
+        code,
+        message,
+        surface: "popup",
+        context,
+        url: location?.href || null,
+      });
+    } catch {
+      /* noop */
+    }
+  };
+  window.addEventListener("error", (event) => {
+    reportPopupError("error", "popup_window_error", event?.message || "window error", {
+      filename: event?.filename,
+      lineno: event?.lineno,
+      colno: event?.colno,
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const msg = reason instanceof Error ? reason.message : String(reason ?? "unhandled rejection");
+    reportPopupError("error", "popup_unhandled_rejection", msg);
+  });
 
   // Keep first popup render fast by deferring non-critical startup work.
   runPopupIdleTask(() => initMainMenuDragging(), { timeout: 1200, fallbackDelay: 120 });

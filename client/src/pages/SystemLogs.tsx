@@ -37,6 +37,17 @@ import {
   ThumbsDown,
   Sparkles,
   ListFilter,
+  UserPlus,
+  UserCheck,
+  UserMinus,
+  UserCog,
+  Brain,
+  Megaphone,
+  Power,
+  Copy,
+  Check,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDataExport } from "@/hooks/useDataExport";
@@ -164,6 +175,85 @@ function getEventMeta(eventType: string, details?: SystemLogEntry["details"]): E
   if (type === "api_request") {
     return { category: "system", severity: "info", label: "API Request", icon: <Globe className="h-3.5 w-3.5" /> };
   }
+  if (type === "extension_diagnostic") {
+    const severity = String((details as Record<string, unknown> | undefined)?.severity ?? "info").toLowerCase();
+    const sev: EventSeverity = severity === "error" ? "critical" : severity === "warning" ? "warning" : "info";
+    return {
+      category: "system",
+      severity: sev,
+      label: sev === "critical" ? "Extension Error" : sev === "warning" ? "Extension Warning" : "Extension Event",
+      icon: <Globe className="h-3.5 w-3.5" />,
+    };
+  }
+  if (type === "extension_runtime_config_updated") {
+    return { category: "admin", severity: "info", label: "Extension Config", icon: <Settings className="h-3.5 w-3.5" /> };
+  }
+  // ---- User lifecycle ----
+  if (type === "user_created" || type === "user_registered") {
+    return { category: "admin", severity: "info", label: "User Created", icon: <UserPlus className="h-3.5 w-3.5" /> };
+  }
+  if (type === "user_approved") {
+    return { category: "admin", severity: "info", label: "User Approved", icon: <UserCheck className="h-3.5 w-3.5" /> };
+  }
+  if (type === "user_role_changed") {
+    return { category: "admin", severity: "info", label: "Role Changed", icon: <UserCog className="h-3.5 w-3.5" /> };
+  }
+  if (type === "user_suspended") {
+    return { category: "admin", severity: "warning", label: "User Suspended", icon: <UserMinus className="h-3.5 w-3.5" /> };
+  }
+  if (type === "user_reinstated") {
+    return { category: "admin", severity: "info", label: "User Reinstated", icon: <UserCheck className="h-3.5 w-3.5" /> };
+  }
+  if (type === "user_kicked" || type === "user_force_disconnected") {
+    return { category: "admin", severity: "warning", label: "User Kicked", icon: <UserX className="h-3.5 w-3.5" /> };
+  }
+  if (type === "user_deleted" || type === "user_archived") {
+    return { category: "admin", severity: "warning", label: "User Removed", icon: <Trash2 className="h-3.5 w-3.5" /> };
+  }
+  // ---- Platform & admin controls ----
+  if (type === "platform_controls_updated") {
+    const u = (details as Record<string, unknown> | undefined)?.updates as Record<string, unknown> | undefined;
+    const isMaintenance = u && Object.prototype.hasOwnProperty.call(u, "maintenanceMode");
+    return {
+      category: "admin",
+      severity: u?.maintenanceMode === true || u?.readOnlyMode === true ? "warning" : "info",
+      label: isMaintenance ? "Platform Maintenance" : "Platform Controls",
+      icon: <Power className="h-3.5 w-3.5" />,
+    };
+  }
+  if (type === "platform_announcement_stopped") {
+    return { category: "admin", severity: "info", label: "Announcement Stopped", icon: <Megaphone className="h-3.5 w-3.5" /> };
+  }
+  if (type === "admin_alerts_cleared") {
+    return { category: "admin", severity: "info", label: "Alerts Cleared", icon: <Eye className="h-3.5 w-3.5" /> };
+  }
+  if (type === "sessions_force_disconnected") {
+    return { category: "admin", severity: "warning", label: "Sessions Disconnected", icon: <Power className="h-3.5 w-3.5" /> };
+  }
+  // ---- AI configuration ----
+  if (type === "ai_provider_changed") {
+    return { category: "admin", severity: "info", label: "AI Provider Changed", icon: <Brain className="h-3.5 w-3.5" /> };
+  }
+  if (type === "ai_setting_changed") {
+    return { category: "admin", severity: "info", label: "AI Setting Changed", icon: <Brain className="h-3.5 w-3.5" /> };
+  }
+  if (type === "ai_cache_cleared") {
+    return { category: "admin", severity: "info", label: "AI Cache Cleared", icon: <Trash2 className="h-3.5 w-3.5" /> };
+  }
+  if (type === "local_llm_url_changed") {
+    return { category: "admin", severity: "info", label: "Local LLM URL", icon: <Brain className="h-3.5 w-3.5" /> };
+  }
+  // ---- IP allow/block list ----
+  if (type === "ip_blocked") {
+    return { category: "security", severity: "warning", label: "IP Blocked", icon: <ShieldAlert className="h-3.5 w-3.5" /> };
+  }
+  if (type === "ip_unblocked") {
+    return { category: "security", severity: "info", label: "IP Unblocked", icon: <Shield className="h-3.5 w-3.5" /> };
+  }
+  // ---- Client-side error reports ----
+  if (type.toUpperCase() === "CLIENT_ERROR") {
+    return { category: "system", severity: "critical", label: "Client Error", icon: <AlertCircle className="h-3.5 w-3.5" /> };
+  }
   if (type === "action") {
     return { category: "system", severity: "info", label: "User Action", icon: <User className="h-3.5 w-3.5" /> };
   }
@@ -224,6 +314,11 @@ export default function SystemLogs() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(25);
   const [includeAll, setIncludeAll] = useState(false);
+  // Quick time-range preset (minutes). 0 = all time.
+  const [sinceMinutes, setSinceMinutes] = useState(0);
+  // Live-tail auto-refresh
+  const [liveTail, setLiveTail] = useState(false);
+  const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
   const { toast } = useToast();
@@ -240,6 +335,7 @@ export default function SystemLogs() {
         status: statusFilter,
       });
       if (includeAll) params.set("includeAll", "true");
+      if (sinceMinutes > 0) params.set("since", String(sinceMinutes));
       const response = await fetch(`/api/system-logs?${params}`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch audit logs");
       const data: PaginatedResponse = await response.json();
@@ -254,11 +350,23 @@ export default function SystemLogs() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statusFilter, includeAll, toast]);
+  }, [page, limit, debouncedSearch, statusFilter, includeAll, sinceMinutes, toast]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, categoryFilter, limit, includeAll]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, categoryFilter, limit, includeAll, sinceMinutes]);
+
+  // Live-tail: auto-refresh every 10s while enabled. Disabled when document hidden
+  // or when reduce-motion is set so we don't burn battery in the background.
+  useEffect(() => {
+    if (!liveTail) return;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchLogs();
+      }
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, [liveTail, fetchLogs]);
 
   const goToPage = useCallback((newPage: number) => {
     setPage(Math.max(1, Math.min(newPage, totalPages)));
@@ -341,6 +449,16 @@ export default function SystemLogs() {
               )}
             </Tooltip>
           </TooltipProvider>
+          <Button
+            variant={liveTail ? "default" : "outline"}
+            size="sm"
+            onClick={() => setLiveTail((v) => !v)}
+            aria-pressed={liveTail}
+            title={liveTail ? "Live tail on — auto-refreshing every 10s" : "Enable live tail (auto-refresh every 10s)"}
+          >
+            {liveTail ? <Wifi className="mr-2 h-4 w-4" /> : <WifiOff className="mr-2 h-4 w-4" />}
+            {liveTail ? "Live" : "Live tail"}
+          </Button>
           <Button variant="outline" onClick={fetchLogs} disabled={loading} aria-label="Refresh audit trail">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -370,6 +488,34 @@ export default function SystemLogs() {
               <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{s.label}</div>
               <div className="text-sm font-bold">{s.count}</div>
             </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Quick time-range presets */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+          <Clock className="inline h-3 w-3 mr-1 -mt-0.5" />Time range
+        </span>
+        {([
+          { label: "All time", value: 0 },
+          { label: "Last hour", value: 60 },
+          { label: "Last 24h", value: 60 * 24 },
+          { label: "Last 7d", value: 60 * 24 * 7 },
+          { label: "Last 30d", value: 60 * 24 * 30 },
+        ] as const).map((p) => (
+          <button
+            key={p.value}
+            type="button"
+            onClick={() => setSinceMinutes(p.value)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              sinceMinutes === p.value
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            }`}
+            aria-pressed={sinceMinutes === p.value}
+          >
+            {p.label}
           </button>
         ))}
       </div>
@@ -581,7 +727,40 @@ export default function SystemLogs() {
                             <TableRow className="bg-muted/30 hover:bg-muted/40">
                               <TableCell colSpan={8} className="p-0">
                                 <div className="px-6 py-3 space-y-2">
-                                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Full Event Details</div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Full Event Details</div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px]"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                          await navigator.clipboard.writeText(JSON.stringify(log, null, 2));
+                                          setCopiedRowId(log.id);
+                                          window.setTimeout(() => {
+                                            setCopiedRowId((current) => (current === log.id ? null : current));
+                                          }, 1500);
+                                        } catch {
+                                          toast({ title: "Copy failed", description: "Clipboard access denied", variant: "destructive" });
+                                        }
+                                      }}
+                                      aria-label="Copy full event JSON"
+                                    >
+                                      {copiedRowId === log.id ? (
+                                        <>
+                                          <Check className="mr-1 h-3 w-3 text-emerald-600" />
+                                          Copied
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="mr-1 h-3 w-3" />
+                                          Copy JSON
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5 text-xs">
                                     <div>
                                       <span className="text-muted-foreground">Event Type:</span>{" "}

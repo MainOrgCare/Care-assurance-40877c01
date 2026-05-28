@@ -172,8 +172,9 @@
     background: color-mix(in oklab, var(--color-primary) 38%, var(--color-border));
   }
   ::selection {
-    background-color: color-mix(in oklab, var(--color-primary) 20%, transparent);
-    color: var(--color-foreground);
+    background-color: color-mix(in oklab, var(--color-primary) 32%, transparent);
+    color: var(--selection-foreground, var(--color-foreground));
+    text-shadow: none;
   }
   body {
     @apply font-sans antialiased text-foreground;
@@ -190,12 +191,33 @@
     line-height: 1.65;
     letter-spacing: 0;
   }
+  /* Ambient atmospheric layer — themed orbs composited behind the app.
+     Each theme sets --surface-orb-a/b/c (or leaves them as `none`) so
+     light themes stay flat while dark themes get premium depth. */
   body::before {
-    content: none;
+    content: "";
+    position: fixed;
+    inset: -8%;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      var(--surface-orb-a, none),
+      var(--surface-orb-b, none),
+      var(--surface-orb-c, none);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    opacity: var(--surface-orbs-opacity, 1);
+    will-change: transform, opacity;
+    animation: var(--surface-orbs-animation, none);
+    transition: opacity 360ms ease;
   }
   body::after {
     content: none;
   }
+  @media (prefers-reduced-motion: reduce) {
+    body::before { transition: none; animation: none; }
+  }
+  .reduce-motion body::before { transition: none; animation: none; }
   #root {
     min-height: 100vh;
     position: relative;
@@ -1708,12 +1730,20 @@ html.theme-aurora,
   --surface-shell-border: rgba(148, 163, 184, 0.18);
   --surface-shell-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: linear-gradient(180deg, hsl(224 14% 7%) 0%, hsl(224 12% 6%) 100%);
+  --surface-bg-gradient:
+    radial-gradient(ellipse 90% 60% at 50% 0%, hsl(214 24% 11%) 0%, transparent 70%),
+    linear-gradient(180deg, hsl(224 14% 7%) 0%, hsl(224 12% 5%) 100%);
   --surface-grid: none;
   --surface-grid-size: 180px 180px;
-  --surface-orb-a: none;
-  --surface-orb-b: none;
-  --surface-orb-c: none;
+  --surface-orbs-opacity: 0.55;
+  --surface-orbs-animation: surface-orb-drift 48s ease-in-out infinite alternate;
+  --selection-foreground: hsl(220 30% 10%);
+  --surface-orb-a:
+    radial-gradient(ellipse 720px 460px at 8% -4%, hsl(204 96% 50% / 0.16), transparent 60%);
+  --surface-orb-b:
+    radial-gradient(ellipse 680px 420px at 100% 12%, hsl(166 70% 44% / 0.10), transparent 65%);
+  --surface-orb-c:
+    radial-gradient(ellipse 640px 380px at 70% 100%, hsl(204 96% 50% / 0.08), transparent 65%);
 }
 
 html.theme-light {
@@ -1736,12 +1766,20 @@ html.theme-midnight {
   --surface-shell-border: rgba(148, 163, 255, 0.20);
   --surface-shell-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: linear-gradient(180deg, hsl(232 22% 7%) 0%, hsl(226 28% 6%) 100%);
+  --surface-bg-gradient:
+    radial-gradient(ellipse 90% 60% at 50% 0%, hsl(232 26% 11%) 0%, transparent 70%),
+    linear-gradient(180deg, hsl(232 22% 7%) 0%, hsl(226 28% 5%) 100%);
   --surface-grid: none;
   --surface-grid-size: 180px 180px;
-  --surface-orb-a: none;
-  --surface-orb-b: none;
-  --surface-orb-c: none;
+  --surface-orbs-opacity: 0.6;
+  --surface-orbs-animation: surface-orb-drift 54s ease-in-out infinite alternate;
+  --selection-foreground: hsl(228 36% 10%);
+  --surface-orb-a:
+    radial-gradient(ellipse 760px 500px at 6% -2%, hsl(220 92% 56% / 0.18), transparent 60%);
+  --surface-orb-b:
+    radial-gradient(ellipse 700px 460px at 100% 18%, hsl(266 64% 56% / 0.12), transparent 65%);
+  --surface-orb-c:
+    radial-gradient(ellipse 640px 380px at 80% 110%, hsl(35 84% 56% / 0.07), transparent 65%);
 }
 
 html.theme-ocean {
@@ -1752,21 +1790,29 @@ html.theme-ocean {
   --surface-shell-border: rgba(94, 234, 212, 0.18);
   --surface-shell-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: linear-gradient(180deg, hsl(196 34% 8%) 0%, hsl(200 38% 7%) 100%);
+  --surface-bg-gradient:
+    radial-gradient(ellipse 90% 60% at 50% 0%, hsl(196 32% 12%) 0%, transparent 70%),
+    linear-gradient(180deg, hsl(196 34% 8%) 0%, hsl(200 38% 6%) 100%);
   --surface-grid: none;
   --surface-grid-size: 180px 180px;
-  --surface-orb-a: none;
-  --surface-orb-b: none;
-  --surface-orb-c: none;
+  --surface-orbs-opacity: 0.6;
+  --surface-orbs-animation: surface-orb-drift 52s ease-in-out infinite alternate;
+  --selection-foreground: hsl(196 38% 8%);
+  --surface-orb-a:
+    radial-gradient(ellipse 740px 480px at 6% -2%, hsl(170 78% 46% / 0.16), transparent 60%);
+  --surface-orb-b:
+    radial-gradient(ellipse 700px 440px at 100% 16%, hsl(204 92% 56% / 0.12), transparent 65%);
+  --surface-orb-c:
+    radial-gradient(ellipse 620px 360px at 72% 108%, hsl(188 84% 50% / 0.08), transparent 65%);
 }
 
 /* Default Dark Theme — Premium app-grade dark surface */
 .dark, .theme-dark, .theme-aurora {
   --color-background: hsl(224 14% 7%);
   --color-foreground: hsl(215 18% 96%);
-  --color-card: hsl(224 12% 11%);
+  --color-card: hsl(224 12% 13%);
   --color-card-foreground: hsl(215 18% 96%);
-  --color-popover: hsl(224 12% 12%);
+  --color-popover: hsl(224 12% 14%);
   --color-popover-foreground: hsl(215 18% 96%);
   --color-primary: hsl(204 96% 64%);
   --color-primary-foreground: hsl(220 38% 8%);
@@ -1825,9 +1871,9 @@ html.theme-midnight {
   --color-secondary-foreground: hsl(34 70% 9%);
   --color-background: hsl(232 22% 7%);
   --color-foreground: hsl(216 20% 97%);
-  --color-card: hsl(232 18% 11%);
+  --color-card: hsl(232 18% 13%);
   --color-card-foreground: hsl(216 20% 97%);
-  --color-popover: hsl(232 18% 12%);
+  --color-popover: hsl(232 18% 14%);
   --color-popover-foreground: hsl(216 20% 97%);
   --color-muted: hsl(232 14% 17%);
   --color-muted-foreground: hsl(218 15% 78%);
@@ -1862,7 +1908,7 @@ html.theme-ocean {
   --color-secondary-foreground: hsl(201 72% 10%);
   --color-background: hsl(196 34% 8%);
   --color-foreground: hsl(200 20% 98%);
-  --color-card: hsl(196 26% 12%);
+  --color-card: hsl(196 26% 14%);
   --color-card-foreground: hsl(200 20% 98%);
   --color-popover: hsl(196 26% 13%);
   --color-popover-foreground: hsl(200 20% 98%);
@@ -1946,7 +1992,9 @@ html.theme-light {
   --surface-shell-border: hsl(216 16% 88%);
   --surface-shell-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
   --surface-noise-opacity: 0;
-  --surface-bg-gradient: linear-gradient(180deg, hsl(216 24% 97%) 0%, hsl(214 22% 95%) 100%);
+  --surface-bg-gradient:
+    radial-gradient(ellipse 80% 50% at 50% -10%, hsl(210 60% 96%) 0%, transparent 70%),
+    linear-gradient(180deg, hsl(216 24% 97%) 0%, hsl(214 22% 95%) 100%);
   --surface-grid: none;
   --surface-grid-size: 160px 160px;
   --surface-orb-a: none;
@@ -1990,7 +2038,9 @@ html.theme-sunrise {
   --color-sidebar-ring: hsl(12 72% 42%);
   --surface-shell-border: hsl(18 20% 82% / 0.78);
   --surface-shell-shadow: 0 1px 2px 0 rgba(73, 27, 20, 0.06);
-  --surface-bg-gradient: linear-gradient(180deg, hsl(18 44% 97%) 0%, hsl(192 28% 95%) 100%);
+  --surface-bg-gradient:
+    radial-gradient(ellipse 80% 50% at 50% -10%, hsl(20 60% 96%) 0%, transparent 70%),
+    linear-gradient(180deg, hsl(18 44% 97%) 0%, hsl(192 28% 95%) 100%);
   --surface-grid: none;
   --surface-grid-size: 180px 180px;
   --surface-orb-a: none;
@@ -2007,7 +2057,7 @@ html.theme-aurora {
   --color-secondary-foreground: hsl(270 48% 10%);
   --color-background: hsl(164 24% 8%);
   --color-foreground: hsl(156 22% 95%);
-  --color-card: hsl(166 22% 12%);
+  --color-card: hsl(166 22% 14%);
   --color-card-foreground: hsl(156 22% 95%);
   --color-popover: hsl(166 22% 13%);
   --color-popover-foreground: hsl(156 22% 95%);
@@ -2032,12 +2082,20 @@ html.theme-aurora {
   --color-sidebar-ring: hsl(148 62% 48%);
   --surface-shell-border: rgba(110, 231, 183, 0.18);
   --surface-shell-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --surface-bg-gradient: linear-gradient(180deg, hsl(164 28% 8%) 0%, hsl(166 26% 7%) 100%);
+  --surface-bg-gradient:
+    radial-gradient(ellipse 90% 60% at 50% 0%, hsl(164 28% 12%) 0%, transparent 70%),
+    linear-gradient(180deg, hsl(164 28% 8%) 0%, hsl(166 26% 6%) 100%);
   --surface-grid: none;
   --surface-grid-size: 180px 180px;
-  --surface-orb-a: none;
-  --surface-orb-b: none;
-  --surface-orb-c: none;
+  --surface-orbs-opacity: 0.6;
+  --surface-orbs-animation: surface-orb-drift 50s ease-in-out infinite alternate;
+  --selection-foreground: hsl(150 42% 8%);
+  --surface-orb-a:
+    radial-gradient(ellipse 740px 480px at 6% -2%, hsl(148 78% 50% / 0.18), transparent 60%);
+  --surface-orb-b:
+    radial-gradient(ellipse 700px 440px at 100% 16%, hsl(270 60% 64% / 0.10), transparent 65%);
+  --surface-orb-c:
+    radial-gradient(ellipse 620px 360px at 70% 108%, hsl(180 70% 50% / 0.08), transparent 65%);
 }
 
 /* ========================================

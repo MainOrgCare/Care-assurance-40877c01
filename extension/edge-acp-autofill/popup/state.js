@@ -31,12 +31,15 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   displayNameOverride: "caAcpDisplayNameOverride",
   appTheme: "caAcpAppTheme",
   runtimeConfig: "caAcpRuntimeConfig",
+  emarSkippedRows: "caAcpEmarSkippedRows",
 };
 
 export const MESSAGE_TYPES = _g.MESSAGE_TYPES || {
   storePayload: "CA_EXTENSION_STORE_PAYLOAD",
   startAutofill: "CA_EXTENSION_START_AUTOFILL",
   stepComplete: "CA_EXTENSION_STEP_COMPLETE",
+  stepRetry: "CA_EXTENSION_STEP_RETRY",
+  emarSkipped: "CA_EXTENSION_EMAR_SKIPPED",
   log: "CA_EXTENSION_LOG",
   uploadSignature: "CA_EXTENSION_UPLOAD_SIGNATURE",
   stopAutofill: "CA_EXTENSION_STOP_AUTOFILL",

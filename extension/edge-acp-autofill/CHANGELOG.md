@@ -1,5 +1,37 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.44 - Diagnostics Pipeline & Field Retry
+
+### New: Server-Side Extension Diagnostics
+
+- The popup now reports uncaught errors and unhandled promise rejections to the Care Assurance server via a new fire-and-forget endpoint: `POST /api/extension/diagnostics` (requires authentication; payload context capped at ~4KB).
+- Reports are persisted as `extension_diagnostic` rows in the `system_logs` table and surface in the in-app **Audit Trail** with a dedicated *Extension Error / Warning / Event* badge and Globe icon.
+- A new exported helper `reportExtensionError(payload)` is available in `popup/api.js` for any component to raise a structured diagnostic. Best-effort: it never throws and is throttled to one report per 15 s per `(code, message)` pair to protect the audit table from noisy extensions.
+
+### New: `withFieldRetry` Helper
+
+- Added `withFieldRetry(fn, options)` to `realistic-typing.js`, exposed on `window.__CA_RealisticTyping.withFieldRetry`. Wraps any async field operation with bounded retries (default: 3 attempts with 250/500/1000 ms backoff). Treats both rejections and falsy resolved values as retryable so it can wrap throwing helpers and boolean "did it stick?" probes uniformly. Calls an optional `onRetry` callback between attempts for telemetry/UI updates.
+- Content scripts can now opt-in per field without duplicating retry plumbing; future Phase A wiring will move per-field fill calls inside this wrapper.
+
+### New Message Types
+
+- `MESSAGE_TYPES.stepRetry` (`CA_EXTENSION_STEP_RETRY`) and `MESSAGE_TYPES.emarSkipped` (`CA_EXTENSION_EMAR_SKIPPED`) declared in both `popup/state.js` and the shared `constants.js` namespace so background, content scripts, and popup all agree on the wire protocol for upcoming retry-progress and EMAR row-skip surfacing work.
+
+### EMAR Row-Skip Surfacing (no more silent drops)
+
+- `content-emar.js` now exports a `reportSkippedRow({ table, rowIndex, reason, code })` helper. The two `if (!row) continue;` no-ops inside `fillNonConformanceRows` (Table_26_10) and `fillStaffIdentifiedRows` (Table_48_21) now emit a structured `CA_EXTENSION_EMAR_SKIPPED` message and log a human-readable "EMAR row skipped — Table_X row N: reason" line. Previously the auditor had no way to tell the AI proposed more rows than the form rendered.
+- `background.js` relays `CA_EXTENSION_EMAR_SKIPPED` into a new `caAcpEmarSkippedRows` storage bucket (capped at 100 entries per batch), so the popup and any future banner UI can subscribe via the standard `chrome.storage.onChanged` path.
+- New `STORAGE_KEYS.emarSkippedRows` constant in both `constants.js` and `popup/state.js`.
+
+### Visual Polish
+
+- **Premium tab bar.** Tab navigation now sits on a subtle two-stop background with a primary-colour accent rule, and the active tab is a gradient pill with a soft halo, inset highlight, and a 28 px underline glow. Hover and active transitions match the in-app TabsList language without changing any structure or markup.
+- **Command Center card** received a deeper visual upgrade: dual radial highlights (top-left primary, bottom-right success), a layered shadow (inset highlight + primary glow + tight ambient), and a primary-tinted border. All colour values use `color-mix()` against the theme tokens — no white/`#fff` hard-codes — so dark and high-contrast themes inherit the polish automatically.
+
+### Versioning
+
+- Bumped extension version to `0.6.44` and synchronized manifest.
+
 ## Version 0.6.43 - Realistic Typing Fidelity & Shared Helper
 
 ### Improvements

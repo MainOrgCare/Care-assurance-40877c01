@@ -29,7 +29,22 @@ export function registerSystemLogRoutes(
       const status = typeof req.query.status === "string" ? req.query.status : "all";
       const includeAll = String(req.query.includeAll || "").toLowerCase() === "true";
 
-      const result = await storage.getSystemLogsPaginated({ page, limit, search, status, includeAll });
+      // `since` accepts either an ISO timestamp or a number of minutes ago.
+      let since: Date | undefined;
+      const rawSince = typeof req.query.since === "string" ? req.query.since.trim() : "";
+      if (rawSince) {
+        const minutesAgo = Number(rawSince);
+        if (Number.isFinite(minutesAgo) && minutesAgo > 0 && minutesAgo <= 60 * 24 * 365) {
+          since = new Date(Date.now() - minutesAgo * 60_000);
+        } else {
+          const parsed = new Date(rawSince);
+          if (!Number.isNaN(parsed.getTime())) {
+            since = parsed;
+          }
+        }
+      }
+
+      const result = await storage.getSystemLogsPaginated({ page, limit, search, status, includeAll, since });
       return res.json(result);
     } catch (error: unknown) {
       console.error("Failed to fetch system logs:", error);

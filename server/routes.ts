@@ -18382,10 +18382,29 @@ Return ONLY valid JSON matching the schema.`,
         }
       }
       
+      const previousProvider = getPreferredProvider();
       setPreferredProvider(provider as AiProvider, true);
-      
+
       console.log(`[Admin] AI provider changed to ${provider} by ${req.user?.username || 'unknown'}`);
-      
+
+      if (previousProvider !== provider) {
+        storage
+          .createSystemLog({
+            eventType: "ai_provider_changed",
+            userId: req.user?.id,
+            username: req.user?.username,
+            serviceUserInitials: null,
+            details: {
+              action: "Changed AI provider",
+              target: "ai_provider",
+              status: "Success",
+              from: previousProvider,
+              to: provider,
+            },
+          })
+          .catch(() => {});
+      }
+
       return res.json({ success: true, provider });
     } catch (error: any) {
       console.error("AI provider update error:", error);
@@ -18413,10 +18432,30 @@ Return ONLY valid JSON matching the schema.`,
         return res.status(400).json({ message: "URL must start with http:// or https://" });
       }
 
+      const previousUrl = getLocalLLMUrl();
       setLocalLLMUrl(normalizedUrl, true);
       const hasLocalLLM = await isLocalLLMAvailable();
 
       console.log(`[Admin] Local LLM URL updated to ${normalizedUrl} by ${req.user?.username || 'unknown'}`);
+
+      if (previousUrl !== normalizedUrl) {
+        storage
+          .createSystemLog({
+            eventType: "local_llm_url_changed",
+            userId: req.user?.id,
+            username: req.user?.username,
+            serviceUserInitials: null,
+            details: {
+              action: "Updated Local LLM URL",
+              target: "local_llm_url",
+              status: "Success",
+              from: previousUrl,
+              to: normalizedUrl,
+              reachable: hasLocalLLM,
+            },
+          })
+          .catch(() => {});
+      }
 
       return res.json({
         success: true,
@@ -18437,8 +18476,28 @@ Return ONLY valid JSON matching the schema.`,
         return res.status(400).json({ message: "requireLiveWebForLocal must be a boolean value" });
       }
 
+      const previous = getRequireLiveWebForLocal();
       setRequireLiveWebForLocal(requireLiveWebForLocal, true);
       console.log(`[Admin] Local live web requirement ${requireLiveWebForLocal ? "enabled" : "disabled"} by ${req.user?.username || "unknown"}`);
+
+      if (previous !== requireLiveWebForLocal) {
+        storage
+          .createSystemLog({
+            eventType: "ai_setting_changed",
+            userId: req.user?.id,
+            username: req.user?.username,
+            serviceUserInitials: null,
+            details: {
+              action: "Changed local-provider web requirement",
+              target: "requireLiveWebForLocal",
+              status: "Success",
+              setting: "requireLiveWebForLocal",
+              from: previous,
+              to: requireLiveWebForLocal,
+            },
+          })
+          .catch(() => {});
+      }
 
       return res.json({
         success: true,
@@ -18472,10 +18531,30 @@ Return ONLY valid JSON matching the schema.`,
         return res.status(503).json({ message: getAIDisabledMessage() });
       }
       
+      const previous = getUseEmarAgent();
       setUseEmarAgent(useEmarAgent, true);
-      
+
       console.log(`[Admin] EMAR agent ${useEmarAgent ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
-      
+
+      if (previous !== useEmarAgent) {
+        storage
+          .createSystemLog({
+            eventType: "ai_setting_changed",
+            userId: req.user?.id,
+            username: req.user?.username,
+            serviceUserInitials: null,
+            details: {
+              action: `${useEmarAgent ? "Enabled" : "Disabled"} EMAR agent`,
+              target: "emar_agent",
+              status: "Success",
+              setting: "useEmarAgent",
+              from: previous,
+              to: useEmarAgent,
+            },
+          })
+          .catch(() => {});
+      }
+
       return res.json({ success: true, useEmarAgent });
     } catch (error: any) {
       console.error("EMAR agent update error:", error);
@@ -18509,7 +18588,30 @@ Return ONLY valid JSON matching the schema.`,
     try {
       const { aiEnabled, useCache, useRulesFirst, liteMode, clearCacheNow } = req.body;
 
+      const audited: Array<{ setting: string; from: unknown; to: unknown }> = [];
+      const auditUser = { userId: req.user?.id, username: req.user?.username } as const;
+      const logSettingChange = (setting: string, from: unknown, to: unknown) => {
+        if (from === to) return;
+        audited.push({ setting, from, to });
+        storage
+          .createSystemLog({
+            eventType: "ai_setting_changed",
+            ...auditUser,
+            serviceUserInitials: null,
+            details: {
+              action: `Changed AI setting ${setting}`,
+              target: setting,
+              status: "Success",
+              setting,
+              from,
+              to,
+            },
+          })
+          .catch(() => {});
+      };
+
       if (typeof aiEnabled === "boolean") {
+        const prev = isAIEnabled();
         try {
           setAIEnabled(aiEnabled, true);
         } catch (error: any) {
@@ -18519,26 +18621,47 @@ Return ONLY valid JSON matching the schema.`,
           setUseEmarAgent(false, true);
         }
         console.log(`[Admin] AI ${aiEnabled ? "enabled" : "disabled"} by ${req.user?.username || 'unknown'}`);
+        logSettingChange("aiEnabled", prev, aiEnabled);
       }
-      
+
       if (typeof useCache === "boolean") {
+        const prev = getUseAICache();
         setUseAICache(useCache, true);
         console.log(`[Admin] AI Cache ${useCache ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+        logSettingChange("useCache", prev, useCache);
       }
-      
+
       if (typeof useRulesFirst === "boolean") {
+        const prev = getUseRulesFirst();
         setUseRulesFirst(useRulesFirst, true);
         console.log(`[Admin] Rules-First ${useRulesFirst ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+        logSettingChange("useRulesFirst", prev, useRulesFirst);
       }
-      
+
       if (typeof liteMode === "boolean") {
+        const prev = getAILiteMode();
         setAILiteMode(liteMode, true);
         console.log(`[Admin] Lite Mode ${liteMode ? 'enabled' : 'disabled'} by ${req.user?.username || 'unknown'}`);
+        logSettingChange("liteMode", prev, liteMode);
       }
-      
+
       if (clearCacheNow === true) {
+        const statsBefore = getCacheStats();
         clearCache();
         console.log(`[Admin] AI Cache cleared by ${req.user?.username || 'unknown'}`);
+        storage
+          .createSystemLog({
+            eventType: "ai_cache_cleared",
+            ...auditUser,
+            serviceUserInitials: null,
+            details: {
+              action: "Cleared AI cache",
+              target: "ai_cache",
+              status: "Success",
+              entriesBefore: (statsBefore as { entries?: number } | undefined)?.entries,
+            },
+          })
+          .catch(() => {});
       }
       
       const cacheStats = getCacheStats();
