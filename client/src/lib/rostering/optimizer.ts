@@ -568,23 +568,40 @@ export const optimizeForContinuity = (
     return { time: {}, lane: laneOverrides };
   }
 
-  // For each entry, check if it should be moved back to preferred worker
+  // Collect every entry that could be moved back to its preferred (continuity) worker.
+  // Gathering first lets us make a deterministic, reproducible decision below instead of
+  // a per-entry random roll — the optimiser must produce identical output for identical input.
+  const candidates: Array<{ entryId: string; serviceUserKey: string; preferredLane: string }> = [];
   for (const workload of workloads) {
     for (const entry of workload.entries) {
       if (!entry.serviceUserKey) continue;
       if (constraints.lockTemplatedCalls && entry.isTemplated) continue;
-      
+
       const preferredLane = originalAssignments.get(entry.serviceUserKey);
       if (!preferredLane || preferredLane === workload.laneId) continue;
 
-      // Only move if continuity weight justifies it
-      if (Math.random() > continuityWeight) continue;
-
-      // Check if time-critical constraint prevents move
+      // Time-critical calls cannot be reassigned when the constraint is enforced.
       if (entry.isTimeCritical && constraints.respectTimeCritical) continue;
 
-      laneOverrides[entry.id] = preferredLane;
+      candidates.push({ entryId: entry.id, serviceUserKey: entry.serviceUserKey, preferredLane });
     }
+  }
+
+  if (candidates.length === 0) return { time: {}, lane: laneOverrides };
+
+  // Higher continuity weight restores more relationships. Decide deterministically:
+  // sort candidates by a stable key, then restore the top fraction implied by the weight.
+  // weight >= 1 restores all; weight <= 0 restores none.
+  const clampedWeight = Math.max(0, Math.min(1, continuityWeight));
+  const restoreCount = Math.round(clampedWeight * candidates.length);
+  if (restoreCount <= 0) return { time: {}, lane: laneOverrides };
+
+  candidates.sort((a, b) =>
+    a.serviceUserKey.localeCompare(b.serviceUserKey) || a.entryId.localeCompare(b.entryId)
+  );
+
+  for (let i = 0; i < restoreCount && i < candidates.length; i += 1) {
+    laneOverrides[candidates[i].entryId] = candidates[i].preferredLane;
   }
 
   return { time: {}, lane: laneOverrides };
