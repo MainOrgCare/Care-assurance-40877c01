@@ -1,7 +1,8 @@
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
-import type { TooltipProps } from "recharts/types/component/Tooltip"
-import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent"
+import type { TooltipContentProps } from "recharts"
+import type { LegendPayload } from "recharts/types/component/DefaultLegendContent"
+import type { NameType, Payload, ValueType } from "recharts/types/component/DefaultTooltipContent"
 
 import { cn } from "@/lib/utils"
 
@@ -104,7 +105,7 @@ const ChartTooltip = RechartsPrimitive.Tooltip
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  TooltipProps<ValueType, NameType> &
+  TooltipContentProps<ValueType, NameType> &
     React.ComponentProps<"div"> & {
       hideLabel?: boolean
       hideIndicator?: boolean
@@ -132,7 +133,7 @@ const ChartTooltipContent = React.forwardRef<
     ref
   ) => {
     const { config } = useChart()
-    const tooltipItems = payload ?? []
+    const tooltipItems: ReadonlyArray<Payload<ValueType, NameType>> = payload ?? []
 
     const tooltipLabel = React.useMemo(() => {
       if (hideLabel || tooltipItems.length === 0) {
@@ -277,7 +278,7 @@ const ChartLegendContent = React.forwardRef<
     ref
   ) => {
     const { config } = useChart()
-    const legendItems = payload ?? []
+    const legendItems: ReadonlyArray<LegendPayload> = payload ?? []
 
     if (!legendItems.length) {
       return null
@@ -293,8 +294,8 @@ const ChartLegendContent = React.forwardRef<
         )}
       >
         {legendItems
-          .filter((item) => item.type !== "none")
-          .map((item) => {
+          .filter((item: LegendPayload) => item.type !== "none")
+          .map((item: LegendPayload) => {
             const key = `${nameKey || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
 

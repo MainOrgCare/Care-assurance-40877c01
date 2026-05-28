@@ -28,11 +28,16 @@ export interface OptimizationResult {
 }
 
 export interface OptimizationResultMetrics {
-  totalTravelReduction: number;  // Minutes saved
-  workloadVariance: number;      // Standard deviation of workload across workers
-  continuityScore: number;       // 0-100% of service users keeping same worker
-  constraintViolations: number;  // Number of constraint violations
-  recommendedTimeScore: number;  // 0-100% of calls at recommended times
+  totalTravelReduction: number;         // Minutes saved
+  workloadVariance: number;             // Standard deviation of workload across workers
+  continuityScore: number;              // 0-100% of service users keeping same worker
+  constraintViolations: number;         // Number of hard-constraint violations
+  recommendedTimeScore: number;         // 0-100% of calls at recommended times
+  breakViolations: number;              // Workers with 5+ hours continuous work and no adequate break
+  travelFeasibilityViolations: number;  // Consecutive call pairs where gap < estimated travel time
+  avgWorkloadMinutes: number;           // Average care minutes per worker
+  overloadedWorkers: number;            // Workers exceeding 8 hours of care
+  underutilisedWorkers: number;         // Workers with fewer than 4 hours of care (but > 0)
 }
 
 /** Recommended call time from database */
@@ -1155,7 +1160,97 @@ const calculateResultMetrics = (
     continuityScore,
     constraintViolations,
     recommendedTimeScore,
+    breakViolations: countBreakViolations(workloads, overrides.time),
+    travelFeasibilityViolations: countTravelFeasibilityViolations(workloads, overrides.time),
+    avgWorkloadMinutes: workloadMinutes.length > 0
+      ? Math.round(workloadMinutes.reduce((a, b) => a + b, 0) / workloadMinutes.length)
+      : 0,
+    overloadedWorkers: workloadMinutes.filter((m) => m > 8 * 60).length,
+    underutilisedWorkers: workloadMinutes.filter((m) => m > 0 && m < 4 * 60).length,
   };
+};
+
+/**
+ * Count workers who have a continuous stretch of ≥ 5 hours without a ≥ 20-minute break.
+ * Each worker counts at most once even if they have multiple such stretches.
+ */
+const countBreakViolations = (
+  workloads: LaneWorkload[],
+  timeOverrides: Record<string, number>
+): number => {
+  let violations = 0;
+  for (const workload of workloads) {
+    const entries = [...workload.entries]
+      .map((e) => ({
+        start: timeOverrides[e.id] ?? e.startMinutes,
+        end: (timeOverrides[e.id] ?? e.startMinutes) + e.durationMinutes,
+      }))
+      .sort((a, b) => a.start - b.start);
+
+    if (entries.length === 0) continue;
+
+    let stretchStart = entries[0].start;
+    let stretchEnd = entries[0].end;
+    let workerHasViolation = false;
+
+    for (let i = 1; i < entries.length; i++) {
+      const gap = entries[i].start - stretchEnd;
+      if (gap >= 20) {
+        // A real break — reset stretch
+        stretchStart = entries[i].start;
+        stretchEnd = entries[i].end;
+      } else {
+        // Extend stretch
+        stretchEnd = Math.max(stretchEnd, entries[i].end);
+        if (stretchEnd - stretchStart > 5 * 60) {
+          workerHasViolation = true;
+          break;
+        }
+      }
+    }
+
+    if (workerHasViolation) violations++;
+  }
+  return violations;
+};
+
+/**
+ * Count consecutive call pairs where the gap between them is shorter than the minimum
+ * travel buffer (5 minutes when no location data, Haversine estimate when available).
+ */
+const countTravelFeasibilityViolations = (
+  workloads: LaneWorkload[],
+  timeOverrides: Record<string, number>
+): number => {
+  let violations = 0;
+  const MIN_BUFFER = 5;
+
+  for (const workload of workloads) {
+    const entries = [...workload.entries]
+      .map((e) => ({
+        start: timeOverrides[e.id] ?? e.startMinutes,
+        end: (timeOverrides[e.id] ?? e.startMinutes) + e.durationMinutes,
+        lat: e.lat,
+        lon: e.lon,
+      }))
+      .sort((a, b) => a.start - b.start);
+
+    for (let i = 1; i < entries.length; i++) {
+      const prev = entries[i - 1];
+      const curr = entries[i];
+      const gap = Math.max(0, curr.start - prev.end);
+
+      let requiredMinutes = MIN_BUFFER;
+      if (prev.lat != null && prev.lon != null && curr.lat != null && curr.lon != null) {
+        const distKm = haversineDistance(prev.lat, prev.lon, curr.lat, curr.lon);
+        requiredMinutes = estimateTravelMinutes(distKm);
+      }
+
+      if (gap < requiredMinutes) violations++;
+    }
+  }
+
+  return violations;
 };
 
 /**

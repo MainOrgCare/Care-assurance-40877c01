@@ -65,8 +65,10 @@ import {
 
 // Icons
 import {
+  ActivitySquare,
   ArrowLeft,
   BarChart3,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -107,6 +109,7 @@ import {
   GitCompare,
   ListOrdered,
   Target,
+  Flame,
 } from "lucide-react";
 
 // Rostering Components
@@ -125,6 +128,11 @@ import {
   canUndo,
   canRedo,
 } from "@/lib/rostering/rosterReducer";
+import {
+  detectTravelFeasibilityViolations,
+  computeAllWorkerFatigue,
+  type WorkerFatigueResult,
+} from "@/lib/rostering/travelUtils";
 import {
   OptimizationSettings,
   type OptimizationWeights,
@@ -405,6 +413,8 @@ interface PanelVisibility {
   comparison: boolean;
   costs: boolean;
   templates: boolean;
+  staffingGaps: boolean;
+  visitPattern: boolean;
 }
 
 const defaultPanelVisibility: PanelVisibility = {
@@ -421,6 +431,8 @@ const defaultPanelVisibility: PanelVisibility = {
   comparison: false,
   costs: false,
   templates: false,
+  staffingGaps: false,
+  visitPattern: false,
 };
 
 const BOTTOM_PANEL_KEYS = [
@@ -434,6 +446,8 @@ const BOTTOM_PANEL_KEYS = [
   "comparison",
   "costs",
   "templates",
+  "staffingGaps",
+  "visitPattern",
 ] as const;
 type BottomPanelKey = (typeof BOTTOM_PANEL_KEYS)[number];
 
@@ -446,6 +460,8 @@ const ScheduleAnalysisDashboardLazy = lazy(() => import("@/components/rostering/
 const ScheduleComparisonLazy = lazy(() => import("@/components/rostering/ScheduleComparison"));
 const CostAnalysisDashboardLazy = lazy(() => import("@/components/rostering/CostAnalysisDashboard"));
 const ScheduleTemplateLibraryLazy = lazy(() => import("@/components/rostering/ScheduleTemplateLibrary"));
+const StaffingGapsPanelLazy = lazy(() => import("@/components/rostering/StaffingGapsPanel"));
+const VisitPatternPanelLazy = lazy(() => import("@/components/rostering/VisitPatternPanel"));
 
 function PanelLoading({ label }: { label: string }) {
   return (
@@ -484,6 +500,8 @@ export default function RosteringStudioUnified({
       void import("@/components/rostering/ScheduleComparison");
       void import("@/components/rostering/CostAnalysisDashboard");
       void import("@/components/rostering/ScheduleTemplateLibrary");
+      void import("@/components/rostering/StaffingGapsPanel");
+      void import("@/components/rostering/VisitPatternPanel");
       void import("@/lib/rostering/excelExport");
     };
 
@@ -762,7 +780,6 @@ export default function RosteringStudioUnified({
     return counts;
   }, [careWorkerRosters, workerSummaryByKey]);
 
-  // Build timeline lanes
   const baseTimelineLanes = useMemo(() => {
     if (!careWorkerRosters.length) return [];
     // Only filter by template key if showOnlyTemplated is enabled
@@ -953,6 +970,30 @@ export default function RosteringStudioUnified({
   const conflictsCount = timelineStats.conflictsCount;
 
   const doubleUpsCount = doubleUpSlots.size;
+
+  // ===== FATIGUE & TRAVEL FEASIBILITY ANALYSIS =====
+  const workerFatigueResults = useMemo<WorkerFatigueResult[]>(() => {
+    if (!timelineLanes.length) return [];
+    return computeAllWorkerFatigue(timelineLanes);
+  }, [timelineLanes]);
+
+  const workerFatigueByKey = useMemo(() => {
+    const map = new Map<string, WorkerFatigueResult>();
+    for (const f of workerFatigueResults) {
+      map.set(f.workerId, f);
+    }
+    return map;
+  }, [workerFatigueResults]);
+
+  const travelViolationsCount = useMemo(
+    () => detectTravelFeasibilityViolations(timelineLanes).length,
+    [timelineLanes],
+  );
+
+  const highFatigueCount = useMemo(
+    () => workerFatigueResults.filter((f) => f.level === "high").length,
+    [workerFatigueResults],
+  );
 
   // Heatmap data
   const heatmapSummaries = useMemo(() => {
@@ -1276,6 +1317,8 @@ export default function RosteringStudioUnified({
       comparison: true,
       costs: true,
       templates: true,
+      staffingGaps: true,
+      visitPattern: true,
     });
     setShowSecondaryBars(true);
   }, []);
@@ -1308,6 +1351,8 @@ export default function RosteringStudioUnified({
             comparison: false,
             costs: false,
             templates: false,
+            staffingGaps: true,
+            visitPattern: false,
           });
           toast({ title: "Tools preset: Operations" });
           break;
@@ -1326,6 +1371,8 @@ export default function RosteringStudioUnified({
             comparison: Boolean(savedComparisonData),
             costs: true,
             templates: false,
+            staffingGaps: true,
+            visitPattern: true,
           });
           toast({ title: "Tools preset: Analysis" });
           break;
@@ -1344,6 +1391,8 @@ export default function RosteringStudioUnified({
             comparison: false,
             costs: false,
             templates: true,
+            staffingGaps: false,
+            visitPattern: false,
           });
           toast({ title: "Tools preset: Admin" });
           break;
@@ -1440,6 +1489,9 @@ export default function RosteringStudioUnified({
           { label: "Continuity", value: `${result.metrics.continuityScore}%`, tone: result.metrics.continuityScore >= 70 ? "good" : "default" },
           { label: "Recommended", value: `${result.metrics.recommendedTimeScore}%`, tone: result.metrics.recommendedTimeScore >= 70 ? "good" : "default" },
           { label: "Violations", value: String(result.metrics.constraintViolations), tone: result.metrics.constraintViolations > 0 ? "warn" : "good" },
+          { label: "Break viol.", value: String(result.metrics.breakViolations ?? 0), tone: (result.metrics.breakViolations ?? 0) > 0 ? "warn" : "good" },
+          { label: "Travel risks", value: String(result.metrics.travelFeasibilityViolations ?? 0), tone: (result.metrics.travelFeasibilityViolations ?? 0) > 0 ? "warn" : "good" },
+          { label: "Overloaded", value: String(result.metrics.overloadedWorkers ?? 0), tone: (result.metrics.overloadedWorkers ?? 0) > 0 ? "warn" : "good" },
         ],
       });
       toast({
@@ -1725,7 +1777,9 @@ export default function RosteringStudioUnified({
     panelVisibility.aiAnalysis ||
     hasComparisonPanel ||
     panelVisibility.costs ||
-    panelVisibility.templates;
+    panelVisibility.templates ||
+    panelVisibility.staffingGaps ||
+    panelVisibility.visitPattern;
   const hasBottomPanels = Boolean(
     panelVisibility.map ||
       panelVisibility.callTimes ||
@@ -1736,7 +1790,9 @@ export default function RosteringStudioUnified({
       panelVisibility.aiAnalysis ||
       hasComparisonPanel ||
       panelVisibility.costs ||
-      panelVisibility.templates
+      panelVisibility.templates ||
+      panelVisibility.staffingGaps ||
+      panelVisibility.visitPattern
   );
   const timelineDefaultSize = hasBottomPanels ? 55 : 100;
   const bottomDefaultSize = panelVisibility.timeline ? 45 : 100;
@@ -1751,6 +1807,8 @@ export default function RosteringStudioUnified({
     comparison: 20,
     costs: 18,
     templates: 20,
+    staffingGaps: 24,
+    visitPattern: 22,
   };
   const bottomVisiblePanelKeys = useMemo(
     () =>
@@ -2047,6 +2105,20 @@ export default function RosteringStudioUnified({
                   <BookTemplate className="mr-2 h-4 w-4" />
                   Template Library
                 </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={panelVisibility.staffingGaps}
+                  onCheckedChange={() => togglePanel("staffingGaps")}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  Staffing Gaps
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={panelVisibility.visitPattern}
+                  onCheckedChange={() => togglePanel("visitPattern")}
+                >
+                  <ActivitySquare className="mr-2 h-4 w-4" />
+                  Visit Patterns
+                </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCaptureBaseline}>
                   <GitCompare className="mr-2 h-4 w-4" />
@@ -2311,6 +2383,20 @@ export default function RosteringStudioUnified({
               <span className="font-semibold">{doubleUpsCount}</span>
               <span className="text-muted-foreground">2-ups</span>
             </div>
+            {travelViolationsCount > 0 && (
+              <div className="rstd-stat-chip">
+                <Route className="h-3 w-3 text-warning" />
+                <span className="font-semibold text-warning">{travelViolationsCount}</span>
+                <span className="text-muted-foreground">Travel risks</span>
+              </div>
+            )}
+            {highFatigueCount > 0 && (
+              <div className="rstd-stat-chip">
+                <Flame className="h-3 w-3 text-destructive" />
+                <span className="font-semibold text-destructive">{highFatigueCount}</span>
+                <span className="text-muted-foreground">High fatigue</span>
+              </div>
+            )}
             <div className="rstd-stat-chip">
               {dataQuality.totalIssues > 0 ? (
                 <AlertTriangle className="h-3 w-3 text-warning" />
@@ -2370,6 +2456,8 @@ export default function RosteringStudioUnified({
               { key: "comparison", label: "Compare", icon: GitCompare },
               { key: "costs", label: "Costs", icon: Calculator },
               { key: "templates", label: "Templates", icon: BookTemplate },
+              { key: "staffingGaps", label: "Gaps", icon: CalendarDays },
+              { key: "visitPattern", label: "Patterns", icon: ActivitySquare },
             ] as Array<{
               key: keyof PanelVisibility;
               label: string;
@@ -2540,6 +2628,20 @@ export default function RosteringStudioUnified({
                                       : "—"}
                                   </p>
                                 </div>
+                                {(() => {
+                                  const fatigue = workerFatigueByKey.get(worker.key);
+                                  if (!fatigue || fatigue.level === "low") return null;
+                                  return (
+                                    <span
+                                      title={`Fatigue: ${fatigue.level} (score ${fatigue.score})`}
+                                      className={`h-2 w-2 flex-shrink-0 rounded-full ${
+                                        fatigue.level === "high"
+                                          ? "bg-destructive"
+                                          : "bg-warning"
+                                      }`}
+                                    />
+                                  );
+                                })()}
                               </div>
                             </button>
                           );
@@ -2950,8 +3052,8 @@ export default function RosteringStudioUnified({
                                   minutes: ws.totalDurationMinutes,
                                   serviceUsers: ws.uniqueServiceUsers,
                                 }))}
-                                conflicts={0}
-                                travelGaps={0}
+                                conflicts={conflictsCount}
+                                travelGaps={travelViolationsCount}
                                 utilizationStats={{
                                   avgCalls: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalCalls, 0) / workerSummaries.length : 0,
                                   avgHours: workerSummaries.length > 0 ? workerSummaries.reduce((sum, w) => sum + w.totalDurationMinutes, 0) / workerSummaries.length / 60 : 0,
@@ -3087,10 +3189,70 @@ export default function RosteringStudioUnified({
                     </ResizablePanel>
                   )}
 
+                  {panelVisibility.templates && (panelVisibility.staffingGaps || panelVisibility.visitPattern) && (
+                    <ResizableHandle withHandle />
+                  )}
+
+                  {/* Staffing Gaps Panel */}
+                  {panelVisibility.staffingGaps && (
+                    <ResizablePanel
+                      id="rstd-bottom-staffing-gaps"
+                      defaultSize={bottomPanelDefaultSizes.staffingGaps}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head flex items-center gap-2 px-3 py-2">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Staffing Gaps</span>
+                      </div>
+                      <div className="rstd-scroll-native flex-1 min-h-0 p-0.5">
+                        <Suspense fallback={<PanelLoading label="staffing gaps" />}>
+                          <StaffingGapsPanelLazy
+                            careWorkerRosters={careWorkerRosters}
+                            selectedTemplateWeek={selectedTemplateWeek}
+                          />
+                        </Suspense>
+                      </div>
+                    </div>
+                    </ResizablePanel>
+                  )}
+
+                  {panelVisibility.staffingGaps && panelVisibility.visitPattern && (
+                    <ResizableHandle withHandle />
+                  )}
+
+                  {/* Visit Pattern Panel */}
+                  {panelVisibility.visitPattern && (
+                    <ResizablePanel
+                      id="rstd-bottom-visit-pattern"
+                      defaultSize={bottomPanelDefaultSizes.visitPattern}
+                      minSize={8}
+                      className="min-h-0"
+                    >
+                    <div className="h-full min-w-0 min-h-0 flex flex-col">
+                      <div className="rstd-panel-head flex items-center gap-2 px-3 py-2">
+                        <ActivitySquare className="h-4 w-4 text-secondary" />
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Visit Patterns</span>
+                      </div>
+                      <div className="rstd-scroll-native flex-1 min-h-0 p-0.5">
+                        <Suspense fallback={<PanelLoading label="visit patterns" />}>
+                          <VisitPatternPanelLazy
+                            careWorkerRosters={careWorkerRosters}
+                            timelineLanes={timelineLanes}
+                            selectedTemplateWeek={selectedTemplateWeek}
+                          />
+                        </Suspense>
+                      </div>
+                    </div>
+                    </ResizablePanel>
+                  )}
+
                   {/* Placeholder when no bottom panels visible */}
                   {!panelVisibility.map && !panelVisibility.callTimes && !panelVisibility.constraints && 
                    !panelVisibility.workload && !panelVisibility.optimization && !panelVisibility.database &&
-                   !panelVisibility.aiAnalysis && !hasComparisonPanel && !panelVisibility.costs && !panelVisibility.templates && (
+                   !panelVisibility.aiAnalysis && !hasComparisonPanel && !panelVisibility.costs && !panelVisibility.templates &&
+                   !panelVisibility.staffingGaps && !panelVisibility.visitPattern && (
                     <ResizablePanel id="rstd-bottom-empty" defaultSize={100} className="min-h-0">
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-3">
                       <Layers className="h-12 w-12 text-muted-foreground/50" />

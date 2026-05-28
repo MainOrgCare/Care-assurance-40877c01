@@ -276,3 +276,202 @@ export const calculateOptimizationMetrics = (
     grade,
   };
 };
+
+// ============================================================================
+// Travel Feasibility Violation Detection
+// ============================================================================
+
+/**
+ * A pair of consecutive visits where the gap between them is less than the
+ * estimated travel time — meaning the worker cannot realistically reach the
+ * next visit in time.
+ */
+export interface TravelFeasibilityViolation {
+  workerId: string;
+  workerLabel: string;
+  fromEntryId: string;
+  toEntryId: string;
+  fromTitle: string;
+  toTitle: string;
+  gapMinutes: number;
+  estimatedTravelMinutes: number;
+  shortfallMinutes: number;
+}
+
+interface LaneForFeasibility {
+  id: string;
+  label: string;
+  entries: Array<{
+    id: string;
+    title: string;
+    startMinutes: number;
+    durationMinutes: number;
+    latitude?: number | null;
+    longitude?: number | null;
+  }>;
+}
+
+/**
+ * Detect travel feasibility violations across all worker lanes.
+ * A violation occurs when the gap between consecutive calls is smaller than
+ * the estimated driving time between their locations.
+ *
+ * Workers without location data default to a minimum buffer of 5 minutes
+ * as a conservative lower bound.
+ */
+export const detectTravelFeasibilityViolations = (
+  lanes: LaneForFeasibility[],
+  minBufferMinutes: number = 5
+): TravelFeasibilityViolation[] => {
+  const violations: TravelFeasibilityViolation[] = [];
+
+  for (const lane of lanes) {
+    if (lane.entries.length < 2) continue;
+
+    const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const from = sorted[i];
+      const to = sorted[i + 1];
+
+      const fromEnd = from.startMinutes + from.durationMinutes;
+      const gapMinutes = Math.max(0, to.startMinutes - fromEnd);
+
+      let estimatedTravelMinutes: number;
+
+      if (
+        from.latitude != null &&
+        from.longitude != null &&
+        to.latitude != null &&
+        to.longitude != null
+      ) {
+        const distKm = haversineDistance(from.latitude, from.longitude, to.latitude, to.longitude);
+        estimatedTravelMinutes = estimateTravelMinutes(distKm);
+      } else {
+        // No location data: use minimum buffer as the travel requirement
+        estimatedTravelMinutes = minBufferMinutes;
+      }
+
+      if (gapMinutes < estimatedTravelMinutes) {
+        violations.push({
+          workerId: lane.id,
+          workerLabel: lane.label,
+          fromEntryId: from.id,
+          toEntryId: to.id,
+          fromTitle: from.title,
+          toTitle: to.title,
+          gapMinutes,
+          estimatedTravelMinutes,
+          shortfallMinutes: estimatedTravelMinutes - gapMinutes,
+        });
+      }
+    }
+  }
+
+  return violations;
+};
+
+/**
+ * Compute worker fatigue risk from a single lane.
+ *
+ * Fatigue scoring:
+ * - Base: 0 (no fatigue)
+ * - +10 per back-to-back pair (gap < 10 min)
+ * - +20 per continuous stretch > 5 hours without a 20-min break
+ * - +5 per total working hour beyond 7 hours
+ *
+ * Returns a 0–100 clamped score. 0–33 = low (green), 34–66 = moderate (amber), 67–100 = high (red).
+ */
+export interface WorkerFatigueResult {
+  workerId: string;
+  workerLabel: string;
+  score: number;
+  level: "low" | "moderate" | "high";
+  backToBackCount: number;
+  totalWorkMinutes: number;
+  longestStretchMinutes: number;
+  breakViolations: number;
+  totalCalls: number;
+}
+
+export const computeWorkerFatigue = (lane: LaneForFeasibility): WorkerFatigueResult => {
+  const entries = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
+  const totalCalls = entries.length;
+
+  if (totalCalls === 0) {
+    return {
+      workerId: lane.id,
+      workerLabel: lane.label,
+      score: 0,
+      level: "low",
+      backToBackCount: 0,
+      totalWorkMinutes: 0,
+      longestStretchMinutes: 0,
+      breakViolations: 0,
+      totalCalls: 0,
+    };
+  }
+
+  const totalWorkMinutes = entries.reduce((sum, e) => sum + e.durationMinutes, 0);
+
+  // Count back-to-back pairs (gap < 10 min)
+  let backToBackCount = 0;
+  for (let i = 0; i < entries.length - 1; i++) {
+    const gap = entries[i + 1].startMinutes - (entries[i].startMinutes + entries[i].durationMinutes);
+    if (gap < 10) backToBackCount++;
+  }
+
+  // Compute longest stretch without a 20-min break and count break violations
+  let longestStretchMinutes = 0;
+  let breakViolations = 0;
+  let stretchStart = entries[0].startMinutes;
+  let stretchEnd = entries[0].startMinutes + entries[0].durationMinutes;
+
+  for (let i = 1; i < entries.length; i++) {
+    const gap = entries[i].startMinutes - stretchEnd;
+    if (gap >= 20) {
+      // Break found — end of current stretch
+      const stretchLen = stretchEnd - stretchStart;
+      longestStretchMinutes = Math.max(longestStretchMinutes, stretchLen);
+      if (stretchLen > 5 * 60) breakViolations++;
+      stretchStart = entries[i].startMinutes;
+    }
+    stretchEnd = entries[i].startMinutes + entries[i].durationMinutes;
+  }
+  // Final stretch
+  const finalStretch = stretchEnd - stretchStart;
+  longestStretchMinutes = Math.max(longestStretchMinutes, finalStretch);
+  if (finalStretch > 5 * 60) breakViolations++;
+
+  // Calculate score
+  let score = 0;
+  score += backToBackCount * 10;
+  score += breakViolations * 20;
+  const overtimeHours = Math.max(0, totalWorkMinutes / 60 - 7);
+  score += Math.round(overtimeHours * 5);
+  score = Math.min(100, score);
+
+  const level: WorkerFatigueResult["level"] =
+    score >= 67 ? "high" : score >= 34 ? "moderate" : "low";
+
+  return {
+    workerId: lane.id,
+    workerLabel: lane.label,
+    score,
+    level,
+    backToBackCount,
+    totalWorkMinutes,
+    longestStretchMinutes,
+    breakViolations,
+    totalCalls,
+  };
+};
+
+/**
+ * Compute fatigue results for all lanes.
+ */
+export const computeAllWorkerFatigue = (
+  lanes: LaneForFeasibility[]
+): WorkerFatigueResult[] => {
+  return lanes.map(computeWorkerFatigue);
+};
