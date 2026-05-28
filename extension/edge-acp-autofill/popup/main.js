@@ -6872,26 +6872,48 @@ async function refreshSignatureStatus() {
     if (signatureData?.dataUrl) {
       if (dom.signaturePreview) {
         dom.signaturePreview.hidden = false;
-        dom.signaturePreview.innerHTML = `<img src="${signatureData.dataUrl}" alt="Signature preview" />`;
+        dom.signaturePreview.replaceChildren();
+        const img = document.createElement("img");
+        // Setting via property (not innerHTML) avoids HTML injection if dataUrl is malformed.
+        img.src = signatureData.dataUrl;
+        img.alt = "Signature preview";
+        dom.signaturePreview.appendChild(img);
       }
 
       dom.signatureStatus.className = "status-box success";
       const uploadDate = signatureData.uploadedAt ? new Date(signatureData.uploadedAt).toLocaleString() : "";
-      dom.signatureStatus.innerHTML = `
-        <span>\u2713 ${escapeHtml(signatureData.fileName || "Signature uploaded")}</span>
-        ${uploadDate ? `<small style="display: block; opacity: 0.7; font-size: 10px;">${uploadDate}</small>` : ""}
-        <button id="clear-signature-btn" class="btn btn-ghost btn-sm" style="margin-top: 4px;">Clear Signature</button>
-      `;
+      dom.signatureStatus.replaceChildren();
 
-      document.getElementById("clear-signature-btn")?.addEventListener("click", async () => {
+      const checkSpan = document.createElement("span");
+      checkSpan.textContent = `\u2713 ${signatureData.fileName || "Signature uploaded"}`;
+      dom.signatureStatus.appendChild(checkSpan);
+
+      if (uploadDate) {
+        const dateSmall = document.createElement("small");
+        dateSmall.style.cssText = "display: block; opacity: 0.7; font-size: 10px;";
+        dateSmall.textContent = uploadDate;
+        dom.signatureStatus.appendChild(dateSmall);
+      }
+
+      const clearBtn = document.createElement("button");
+      clearBtn.id = "clear-signature-btn";
+      clearBtn.className = "btn btn-ghost btn-sm";
+      clearBtn.style.marginTop = "4px";
+      clearBtn.textContent = "Clear Signature";
+      dom.signatureStatus.appendChild(clearBtn);
+
+      clearBtn.addEventListener("click", async () => {
         await setStorage({ [STORAGE_KEYS.signatureData]: null, [STORAGE_KEYS.signatureBatchId]: null });
         await refreshSignatureStatus();
         showSuccess("Signature cleared");
       });
     } else {
-      if (dom.signaturePreview) { dom.signaturePreview.hidden = true; dom.signaturePreview.innerHTML = ""; }
+      if (dom.signaturePreview) { dom.signaturePreview.hidden = true; dom.signaturePreview.replaceChildren(); }
       dom.signatureStatus.className = "status-box";
-      dom.signatureStatus.innerHTML = "<span>No signature uploaded</span>";
+      dom.signatureStatus.replaceChildren();
+      const emptySpan = document.createElement("span");
+      emptySpan.textContent = "No signature uploaded";
+      dom.signatureStatus.appendChild(emptySpan);
     }
   }
 }
@@ -8282,8 +8304,18 @@ function bindStorageListener() {
     }
   }, { timeout: 1800, fallbackDelay: 140 });
 
-  // Quick connection check
-  if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Checking connection...</span>';
+  // Quick connection check. We use textContent (not innerHTML) since these are
+  // static strings — keeps the popup's CSP surface minimal.
+  const setConnectStatusText = (text) => {
+    if (!dom.connectStatus) return;
+    dom.connectStatus.replaceChildren();
+    const span = document.createElement("span");
+    span.style.fontSize = "11px";
+    span.textContent = text;
+    dom.connectStatus.appendChild(span);
+  };
+
+  if (dom.connectStatus) setConnectStatusText("Checking connection to Care Assurance…");
 
   try {
     const res = await apiProxy("/api/extension/status");
@@ -8310,20 +8342,20 @@ function bindStorageListener() {
     } else if (res.error === "Not logged in") {
       setExtensionStatusSnapshot(null);
       updateConnectionUI(false);
-      if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Please log in to Care Assurance first, then click Connect</span>';
+      setConnectStatusText("Not signed in to Care Assurance — open the site, log in, then click Connect.");
     } else if (res.needsTab) {
       setExtensionStatusSnapshot(null);
       updateConnectionUI(false);
-      if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Open Care Assurance in a tab, then click Connect</span>';
+      setConnectStatusText("No Care Assurance tab open — open careassurance.uk in a tab, then click Connect.");
     } else {
       setExtensionStatusSnapshot(null);
       updateConnectionUI(false);
-      if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Click "Connect" to find server</span>';
+      setConnectStatusText("Couldn't reach Care Assurance — click Connect to retry locating the server.");
     }
   } catch {
     setExtensionStatusSnapshot(null);
     updateConnectionUI(false);
-    if (dom.connectStatus) dom.connectStatus.innerHTML = '<span style="font-size: 11px;">Click "Connect" to find server</span>';
+    setConnectStatusText("Connection check failed — click Connect to retry.");
   }
 
   // Periodic refresh (throttled)

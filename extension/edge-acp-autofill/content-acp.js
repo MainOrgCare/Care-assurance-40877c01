@@ -2,41 +2,14 @@
 if (window.__CA_ACP_INITIALIZED) return;
 window.__CA_ACP_INITIALIZED = true;
 
-const FALLBACK_STORAGE_KEYS = {
-  payload: "caAcpPayload",
-  caseInfo: "caAcpCaseInfo",
-  queueState: "caAcpQueueState",
-  autoSubmit: "caAcpAutoSubmit",
-  dryRun: "caAcpDryRun",
-  interactionMode: "caAcpInteractionMode",
-  signatureData: "caAcpSignatureData",
-  signatureBatchId: "caAcpSignatureBatchId",
-  overlayPinned: "caAcpOverlayPinned",
-};
 const MINIMIZE_BUTTON_LABEL = "\u2013"; // en dash
-const FALLBACK_FORM_CONFIGS = {
-  acp: { formId: "1048191" },
-  emar: { formId: "1044009" },
-};
-const FALLBACK_MESSAGE_TYPES = {
-  log: "CA_EXTENSION_LOG",
-  stepComplete: "CA_EXTENSION_STEP_COMPLETE",
-  uploadSignature: "CA_EXTENSION_UPLOAD_SIGNATURE",
-};
 
-const FALLBACK_STORAGE_HELPERS = {
-  get: (keys) =>
-    new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items || {}))),
-  set: (items) =>
-    new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
-};
-
-const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CONSTANTS || {
-  STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
-  FORM_CONFIGS: FALLBACK_FORM_CONFIGS,
-  MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
-  STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
-};
+const __caBootstrap = (window.CA_CONTENT_BOOTSTRAP && window.CA_CONTENT_BOOTSTRAP.resolve())
+  || { STORAGE_KEYS: {}, FORM_CONFIGS: {}, MESSAGE_TYPES: {}, STORAGE_HELPERS: {
+    get: (keys) => new Promise((r) => chrome.storage.local.get(keys, (i) => r(i || {}))),
+    set: (items) => new Promise((r) => chrome.storage.local.set(items, () => r())),
+  } };
+const { STORAGE_KEYS, FORM_CONFIGS, MESSAGE_TYPES, STORAGE_HELPERS } = __caBootstrap;
 
 const FORM_FIELD_NAMES = {
   serviceUser: "form_component_4_3",
@@ -941,12 +914,10 @@ const setOverlayCollapsed = (collapsed) => {
   }
 };
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "CA_EXTENSION_REQUEST_STATUS") {
-    sendResponse({ detected: true, refreshRequired: false, workflow: "acp" });
-    return false;
-  }
-  if (message?.type !== (MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY")) return false;
+// NOTE: This is the single chrome.runtime.onMessage dispatcher for content-acp.js.
+// Do not register additional addListener calls in this file — add new handlers
+// to the switch below so async-response semantics stay correct.
+const handleOverlayToggle = (message, sendResponse) => {
   initOverlay();
 
   if (typeof message?.payload?.pin === "boolean") {
@@ -974,7 +945,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
   }
   sendResponse?.({ ok: true });
-  return true;
+};
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  const type = message?.type;
+  const toggleOverlayType = MESSAGE_TYPES?.toggleOverlay || "CA_EXTENSION_TOGGLE_OVERLAY";
+  const uploadSignatureType = MESSAGE_TYPES?.uploadSignature || "CA_EXTENSION_UPLOAD_SIGNATURE";
+
+  if (type === "CA_EXTENSION_REQUEST_STATUS") {
+    sendResponse({ detected: true, refreshRequired: false, workflow: "acp" });
+    return false;
+  }
+
+  if (type === toggleOverlayType) {
+    handleOverlayToggle(message, sendResponse);
+    return true;
+  }
+
+  if (type === uploadSignatureType) {
+    const payload = message.payload || {};
+    uploadSignatureFromDataUrl(payload.dataUrl, payload.fileName, payload.mimeType)
+      .then((ok) => sendResponse({ ok }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true; // async response
+  }
+
+  return false;
 });
 
 const getLabelTextForInput = (input) => {
@@ -1842,14 +1838,7 @@ const uploadSignatureFromDataUrl = async (dataUrl, fileName, mimeType) => {
   }
 };
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== (MESSAGE_TYPES?.uploadSignature || "CA_EXTENSION_UPLOAD_SIGNATURE")) return false;
-  const payload = message.payload || {};
-  uploadSignatureFromDataUrl(payload.dataUrl, payload.fileName, payload.mimeType)
-    .then((ok) => sendResponse({ ok }))
-    .catch((error) => sendResponse({ ok: false, error: error.message }));
-  return true;
-});
+// Signature-upload handling is now routed through the single dispatcher above.
 
 const isAutofillTargetPage = () => {
   if (!window.location.pathname.includes("new_case_form")) return false;

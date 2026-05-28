@@ -2,31 +2,12 @@
 if (window.__CA_GENERIC_INITIALIZED) return;
 window.__CA_GENERIC_INITIALIZED = true;
 
-const FALLBACK_STORAGE_KEYS = {
-  payload: "caAcpPayload",
-  caseInfo: "caAcpCaseInfo",
-  queueState: "caAcpQueueState",
-  autoSubmit: "caAcpAutoSubmit",
-  dryRun: "caAcpDryRun",
-  interactionMode: "caAcpInteractionMode",
-};
-
-const FALLBACK_MESSAGE_TYPES = {
-  log: "CA_EXTENSION_LOG",
-};
-
-const FALLBACK_STORAGE_HELPERS = {
-  get: (keys) =>
-    new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items || {}))),
-  set: (items) =>
-    new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
-};
-
-const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS } = window.CA_EXTENSION_CONSTANTS || {
-  STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
-  MESSAGE_TYPES: FALLBACK_MESSAGE_TYPES,
-  STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
-};
+const __caBootstrap = (window.CA_CONTENT_BOOTSTRAP && window.CA_CONTENT_BOOTSTRAP.resolve())
+  || { STORAGE_KEYS: {}, MESSAGE_TYPES: {}, STORAGE_HELPERS: {
+    get: (keys) => new Promise((r) => chrome.storage.local.get(keys, (i) => r(i || {}))),
+    set: (items) => new Promise((r) => chrome.storage.local.set(items, () => r())),
+  } };
+const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS } = __caBootstrap;
 
 const loadStorage = (keys) => STORAGE_HELPERS.get(keys);
 const saveStorage = (items) => STORAGE_HELPERS.set(items);

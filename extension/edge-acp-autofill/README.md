@@ -52,6 +52,15 @@ Alternatively, use Care Assurance website's "Send to ACP Extension" button to se
 8. Click Start Autofill.
 9. Use Stop Autofill to cancel and click the error banner to clear errors if needed.
 
+## Code Layout
+
+- `manifest.json` — MV3 manifest. Content scripts load `constants.js` and `content-bootstrap.js` first to make shared constants and fallback storage helpers available to every per-workflow script.
+- `background.js` — service worker. Message dispatch is a single `chrome.runtime.onMessage` listener that delegates to handlers registered in `MESSAGE_HANDLERS`.
+- `content-bootstrap.js` — shared shim consumed by all `content-*.js` files. Exposes `window.CA_CONTENT_BOOTSTRAP.resolve()` to return the merged constants object (real or fallback).
+- `content-acp.js` / `content-emar.js` / `content-initial-assessment.js` / `content-generic.js` — per-form autofill scripts on `clece.mobizio.com`.
+- `content-app.js` — bridge script on `careassurance.uk` that receives payload pushes and forwards them to the background.
+- `popup/` — modular popup: `state.js` (storage, constants, `buildWorkflowSafetyState` — the single source of truth for readiness), `ui.js` (DOM rendering), `api.js` (fetch helpers), `main.js` (event wiring). Both UI summaries and action handlers MUST consume `buildWorkflowSafetyState()` — never add parallel readiness checks.
+
 ## Notes
 
 - The extension opens [https://clece.mobizio.com/new_case_form](https://clece.mobizio.com/new_case_form) with a fixed formId and queues each assessment. It will reuse an existing ACP tab when possible.

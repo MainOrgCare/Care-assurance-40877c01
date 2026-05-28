@@ -1138,201 +1138,241 @@ const forwardProxyRequest = async (request, sendResponse) => {
   }
 };
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+// ============================================================================
+// MESSAGE DISPATCH
+// Each handler returns either:
+//   - false / undefined  → synchronous response already sent (or no response)
+//   - true               → async response will be sent via safeSendResponse
+// Keep handlers small and named; do not add ad-hoc logic inside the
+// onMessage callback. Register new message types in MESSAGE_HANDLERS.
+// ============================================================================
+
+// Maximum payload size (in bytes of JSON) we will accept into chrome.storage.
+// chrome.storage.local quota is ~5MB total; we cap a single payload well below
+// that to leave room for logs, queue state, metrics, etc.
+const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024; // 2 MB
+
+const estimatePayloadBytes = (payload) => {
   try {
-  // Keep-alive ping — just acknowledge
-  if (message?.type === "CA_KEEP_ALIVE_PING") {
-    sendResponse({ ok: true });
+    return new Blob([JSON.stringify(payload || {})]).size;
+  } catch {
+    return 0;
+  }
+};
+
+const handleStorePayload = (message, safeSendResponse) => {
+  Promise.resolve()
+    .then(async () => {
+      const payload = normalizeStoredPayload(message?.payload);
+      if (payload?.formType === "acp" && (!Array.isArray(payload.assessments) || payload.assessments.length === 0)) {
+        throw new Error("ACP payload has no usable assessments to store.");
+      }
+      const payloadBytes = estimatePayloadBytes(payload);
+      if (payloadBytes > MAX_PAYLOAD_BYTES) {
+        throw new Error(
+          `Payload too large to store (${Math.round(payloadBytes / 1024)}KB > ${Math.round(
+            MAX_PAYLOAD_BYTES / 1024
+          )}KB). Reduce attachment/assessment volume and retry.`
+        );
+      }
+      const storedValues = await getStored([STORAGE_KEYS.caseInfo]);
+      const nextCaseInfo = buildCaseInfoFromPayload(payload, storedValues?.[STORAGE_KEYS.caseInfo] || null);
+
+      const nextItems = {
+        [STORAGE_KEYS.payload]: payload,
+        [STORAGE_KEYS.dataTimestamp]: Date.now(),
+      };
+
+      if (nextCaseInfo) {
+        nextItems[STORAGE_KEYS.caseInfo] = nextCaseInfo;
+      }
+
+      await setStored(nextItems);
+    })
+    .then(clearLastError)
+    .then(() => safeSendResponse({ ok: true }))
+    .catch((error) => {
+      setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));
+    });
+  return true;
+};
+
+const handleStorageGet = (message, safeSendResponse) => {
+  getStored(message?.payload?.keys || [])
+    .then((items) => safeSendResponse({ ok: true, items }))
+    .catch((error) => safeSendResponse({ ok: false, error: error?.message || "Storage read failed" }));
+  return true;
+};
+
+const handleStorageSet = (message, safeSendResponse) => {
+  setStored(message?.payload?.items || {})
+    .then(() => safeSendResponse({ ok: true }))
+    .catch((error) => safeSendResponse({ ok: false, error: error?.message || "Storage write failed" }));
+  return true;
+};
+
+const handleStartAutofill = (message, safeSendResponse) => {
+  startAutofill(message.caseId, message.serviceDataGroupId)
+    .then(async () => {
+      const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
+      const formType = caAcpPayload?.formType || "acp";
+      const url = buildFormUrl(formType, message.caseId, message.serviceDataGroupId, caAcpPayload);
+      await reuseOrCreateTab(url);
+      safeSendResponse({ ok: true });
+    })
+    .catch(async (error) => {
+      await setLastError(error);
+      safeSendResponse({ ok: false, error: error.message });
+    });
+  return true;
+};
+
+const handleStepComplete = (message, safeSendResponse) => {
+  clearPendingFormCompletionFallback();
+  const expectedIndex = Number.isInteger(message?.currentIndex) ? Number(message.currentIndex) : null;
+  const expectedBatchId = message?.batchId ? String(message.batchId) : null;
+  openNextForm({ source: "step-complete", expectedIndex, expectedBatchId })
+    .then(() => safeSendResponse({ ok: true }))
+    .catch((error) => {
+      setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));
+    });
+  return true;
+};
+
+const handleLog = (message, safeSendResponse) => {
+  const entry = message.entry;
+  getStored([STORAGE_KEYS.logs]).then(({ caAcpLogs }) => {
+    const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
+    logs.push(entry);
+    const capped = logs.slice(-200);
+    setStored({ [STORAGE_KEYS.logs]: capped }).then(() => safeSendResponse({ ok: true }));
+  });
+  return true;
+};
+
+const handleEmarSkipped = (message, safeSendResponse, sendResponseRaw) => {
+  const incoming = message?.payload;
+  if (!incoming || typeof incoming !== "object") {
+    sendResponseRaw({ ok: false, error: "Missing payload" });
     return false;
   }
+  const entry = {
+    table: String(incoming.table || "unknown"),
+    rowIndex: Number.isFinite(Number(incoming.rowIndex)) ? Number(incoming.rowIndex) : -1,
+    reason: String(incoming.reason || "row missing"),
+    code: incoming.code ?? null,
+    ts: Number(incoming.ts) || Date.now(),
+  };
+  getStored([STORAGE_KEYS.emarSkippedRows]).then(({ caAcpEmarSkippedRows }) => {
+    const rows = Array.isArray(caAcpEmarSkippedRows) ? caAcpEmarSkippedRows : [];
+    rows.push(entry);
+    const capped = rows.slice(-100);
+    setStored({ [STORAGE_KEYS.emarSkippedRows]: capped }).then(() => safeSendResponse({ ok: true }));
+  });
+  return true;
+};
 
-  markRuntimeActivity(message?.type || "message").catch(() => {});
-  // Wrap sendResponse so a disconnected port (MV3 service-worker lifecycle) is silently caught
+const handleStopAutofill = (_message, safeSendResponse) => {
+  stopAutofill().then(() => safeSendResponse({ ok: true }));
+  return true;
+};
+
+const handleClearError = (_message, safeSendResponse) => {
+  clearLastError().then(() => safeSendResponse({ ok: true }));
+  return true;
+};
+
+const handleAnalyzeRisks = (message, safeSendResponse, sendResponseRaw) => {
+  const { documentContent, targetOrigin } = message;
+  if (!documentContent || typeof documentContent !== "string" || !documentContent.trim()) {
+    sendResponseRaw({ ok: false, error: "Missing document content" });
+    return false;
+  }
+  forwardProxyRequest(
+    {
+      endpoint: "/api/ai/analyze-risks",
+      method: "POST",
+      body: { documentContent, allowSensitive: false },
+      targetOrigin: targetOrigin || getDefaultWorkspaceOriginHost(),
+    },
+    (response) => {
+      if (!response?.ok) {
+        const proxyError = new Error(response?.error || "Analysis failed");
+        setLastError(proxyError).then(() => safeSendResponse(response));
+        return;
+      }
+      safeSendResponse({ ...response, result: response.data || response.result });
+    }
+  );
+  return true;
+};
+
+const handleContentScriptReady = (message, _safeSendResponse, _sendResponseRaw, sender) => {
+  const host = normalizeOriginHost(message.origin || sender?.tab?.url);
+  const tabId = sender?.tab?.id;
+  if (host && tabId) {
+    contentScriptReadyTabs.set(host, tabId);
+    updateRuntimeMetrics((metrics) => ({
+      ...metrics,
+      contentReadySignals: (metrics.contentReadySignals || 0) + 1,
+      lastTargetOrigin: host,
+    })).catch((error) => {
+      console.warn("[CA Extension] Failed to update runtime metrics:", error);
+    });
+    console.log(`[CA Extension] Content script ready on: ${host} (tab ${tabId})`);
+  }
+  return false;
+};
+
+const handleApiProxy = (message, safeSendResponse) => {
+  forwardProxyRequest(message, safeSendResponse);
+  return true;
+};
+
+const handleKeepAlivePing = (_message, _safeSendResponse, sendResponseRaw) => {
+  sendResponseRaw({ ok: true });
+  return false;
+};
+
+const MESSAGE_HANDLERS = {
+  CA_KEEP_ALIVE_PING: handleKeepAlivePing,
+  [MESSAGE_TYPES.storePayload]: handleStorePayload,
+  [MESSAGE_TYPES.storageGet]: handleStorageGet,
+  [MESSAGE_TYPES.storageSet]: handleStorageSet,
+  [MESSAGE_TYPES.startAutofill]: handleStartAutofill,
+  [MESSAGE_TYPES.stepComplete]: handleStepComplete,
+  [MESSAGE_TYPES.log]: handleLog,
+  [MESSAGE_TYPES.emarSkipped]: handleEmarSkipped,
+  [MESSAGE_TYPES.stopAutofill]: handleStopAutofill,
+  [MESSAGE_TYPES.clearError]: handleClearError,
+  [MESSAGE_TYPES.analyzeRisks]: handleAnalyzeRisks,
+  CA_EXTENSION_ANALYZE_RISKS: handleAnalyzeRisks,
+  CA_CONTENT_SCRIPT_READY: handleContentScriptReady,
+  [API_PROXY_TYPE]: handleApiProxy,
+};
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const type = message?.type;
+  if (!type) return false;
+
+  // Wrap sendResponse so a disconnected port (MV3 service-worker lifecycle) is silently caught.
   const safeSendResponse = (data) => {
     try {
       sendResponse(data);
     } catch (e) {
-      // Port closed — content script / popup is no longer listening
       console.warn("[CA Extension] sendResponse failed (port disconnected):", e?.message);
     }
   };
 
-  if (message?.type === MESSAGE_TYPES.storePayload) {
-    Promise.resolve()
-      .then(async () => {
-        const payload = normalizeStoredPayload(message?.payload);
-        if (payload?.formType === "acp" && (!Array.isArray(payload.assessments) || payload.assessments.length === 0)) {
-          throw new Error("ACP payload has no usable assessments to store.");
-        }
-        const storedValues = await getStored([STORAGE_KEYS.caseInfo]);
-        const nextCaseInfo = buildCaseInfoFromPayload(payload, storedValues?.[STORAGE_KEYS.caseInfo] || null);
-
-        const nextItems = {
-          [STORAGE_KEYS.payload]: payload,
-          [STORAGE_KEYS.dataTimestamp]: Date.now(),
-        };
-
-        if (nextCaseInfo) {
-          nextItems[STORAGE_KEYS.caseInfo] = nextCaseInfo;
-        }
-
-        await setStored(nextItems);
-      })
-      .then(clearLastError)
-      .then(() => safeSendResponse({ ok: true }))
-      .catch((error) => {
-        setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));
-      });
-    return true;
+  if (type !== "CA_KEEP_ALIVE_PING") {
+    markRuntimeActivity(type).catch(() => {});
   }
 
-  if (message?.type === MESSAGE_TYPES.storageGet) {
-    getStored(message?.payload?.keys || [])
-      .then((items) => safeSendResponse({ ok: true, items }))
-      .catch((error) => safeSendResponse({ ok: false, error: error?.message || "Storage read failed" }));
-    return true;
-  }
+  const handler = MESSAGE_HANDLERS[type];
+  if (!handler) return false;
 
-  if (message?.type === MESSAGE_TYPES.storageSet) {
-    setStored(message?.payload?.items || {})
-      .then(() => safeSendResponse({ ok: true }))
-      .catch((error) => safeSendResponse({ ok: false, error: error?.message || "Storage write failed" }));
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.startAutofill) {
-    startAutofill(message.caseId, message.serviceDataGroupId)
-      .then(async () => {
-        const { caAcpPayload } = await getStored([STORAGE_KEYS.payload]);
-        const formType = caAcpPayload?.formType || "acp";
-        const url = buildFormUrl(formType, message.caseId, message.serviceDataGroupId, caAcpPayload);
-        await reuseOrCreateTab(url);
-        safeSendResponse({ ok: true });
-      })
-      .catch(async (error) => {
-        await setLastError(error);
-        safeSendResponse({ ok: false, error: error.message });
-      });
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.stepComplete) {
-    clearPendingFormCompletionFallback();
-
-    const expectedIndex = Number.isInteger(message?.currentIndex) ? Number(message.currentIndex) : null;
-    const expectedBatchId = message?.batchId ? String(message.batchId) : null;
-
-    openNextForm({
-      source: "step-complete",
-      expectedIndex,
-      expectedBatchId,
-    })
-      .then(() => safeSendResponse({ ok: true }))
-      .catch((error) => {
-        setLastError(error).then(() => safeSendResponse({ ok: false, error: error.message }));
-      });
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.log) {
-    const entry = message.entry;
-    getStored([STORAGE_KEYS.logs]).then(({ caAcpLogs }) => {
-      const logs = Array.isArray(caAcpLogs) ? caAcpLogs : [];
-      logs.push(entry);
-      const capped = logs.slice(-200);
-      setStored({ [STORAGE_KEYS.logs]: capped }).then(() => safeSendResponse({ ok: true }));
-    });
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.emarSkipped) {
-    const incoming = message?.payload;
-    if (!incoming || typeof incoming !== "object") {
-      sendResponse({ ok: false, error: "Missing payload" });
-      return false;
-    }
-    const entry = {
-      table: String(incoming.table || "unknown"),
-      rowIndex: Number.isFinite(Number(incoming.rowIndex)) ? Number(incoming.rowIndex) : -1,
-      reason: String(incoming.reason || "row missing"),
-      code: incoming.code ?? null,
-      ts: Number(incoming.ts) || Date.now(),
-    };
-    getStored([STORAGE_KEYS.emarSkippedRows]).then(({ caAcpEmarSkippedRows }) => {
-      const rows = Array.isArray(caAcpEmarSkippedRows) ? caAcpEmarSkippedRows : [];
-      rows.push(entry);
-      // Cap at 100 entries per batch to keep storage bounded.
-      const capped = rows.slice(-100);
-      setStored({ [STORAGE_KEYS.emarSkippedRows]: capped }).then(() =>
-        safeSendResponse({ ok: true })
-      );
-    });
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.stopAutofill) {
-    stopAutofill().then(() => safeSendResponse({ ok: true }));
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.clearError) {
-    clearLastError().then(() => safeSendResponse({ ok: true }));
-    return true;
-  }
-
-  if (message?.type === MESSAGE_TYPES.analyzeRisks || message?.type === "CA_EXTENSION_ANALYZE_RISKS") {
-    const { documentContent, targetOrigin } = message;
-    if (!documentContent || typeof documentContent !== "string" || !documentContent.trim()) {
-      sendResponse({ ok: false, error: "Missing document content" });
-      return false;
-    }
-    forwardProxyRequest(
-      {
-        endpoint: "/api/ai/analyze-risks",
-        method: "POST",
-        body: {
-          documentContent,
-          allowSensitive: false,
-        },
-        targetOrigin: targetOrigin || getDefaultWorkspaceOriginHost(),
-      },
-      (response) => {
-        if (!response?.ok) {
-          const proxyError = new Error(response?.error || "Analysis failed");
-          setLastError(proxyError).then(() => safeSendResponse(response));
-          return;
-        }
-        safeSendResponse({ ...response, result: response.data || response.result });
-      }
-    );
-    return true; // Keep message channel open for async response
-  }
-  
-  // Handle content script ready notification
-  if (message?.type === "CA_CONTENT_SCRIPT_READY") {
-    const host = normalizeOriginHost(message.origin || _sender.tab?.url);
-    const tabId = _sender.tab?.id;
-    if (host && tabId) {
-      contentScriptReadyTabs.set(host, tabId);
-      updateRuntimeMetrics((metrics) => ({
-        ...metrics,
-        contentReadySignals: (metrics.contentReadySignals || 0) + 1,
-        lastTargetOrigin: host,
-      })).catch((error) => {
-        console.warn("[CA Extension] Failed to update runtime metrics:", error);
-      });
-      console.log(`[CA Extension] Content script ready on: ${host} (tab ${tabId})`);
-    }
-    return false;
-  }
-  
-  // Handle API proxy requests from popup
-  if (message?.type === API_PROXY_TYPE) {
-    forwardProxyRequest(message, safeSendResponse);
-    return true; // Keep message channel open
-  }
-
-  return false;
+  try {
+    return handler(message, safeSendResponse, sendResponse, sender) === true;
   } catch (err) {
     console.error("[CA Extension] Unhandled error in onMessage:", err);
     try { sendResponse({ ok: false, error: err?.message || "Internal extension error" }); } catch (_) { /* port closed */ }

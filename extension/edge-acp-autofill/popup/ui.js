@@ -498,6 +498,8 @@ export function showAutofillPreviewDialog(summary) {
     confirmBtn.focus();
   });
 }
+
+function buildHelpGuideText({ version = "", isConnected = false, isAdmin = false } = {}) {
   const versionLabel = String(version || "").trim();
   const formattedVersion = versionLabel
     ? versionLabel.startsWith("v")

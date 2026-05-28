@@ -7,35 +7,12 @@ window.__CA_IA_INITIALIZED = true;
  * Form ID: 1040788
  */
 
-const FALLBACK_STORAGE_KEYS = {
-  payload: "caAcpPayload",
-  caseInfo: "caAcpCaseInfo",
-  queueState: "caAcpQueueState",
-  autoSubmit: "caAcpAutoSubmit",
-  dryRun: "caAcpDryRun",
-  interactionMode: "caAcpInteractionMode",
-  overlayPinned: "caAcpOverlayPinned",
-  signatureData: "caAcpSignatureData",
-  signatureBatchId: "caAcpSignatureBatchId",
-  verificationFields: "caAcpVerificationFields",
-};
-
-const FALLBACK_STORAGE_HELPERS = {
-  get: (keys) =>
-    new Promise((resolve) => chrome.storage.local.get(keys, (items) => resolve(items || {}))),
-  set: (items) =>
-    new Promise((resolve) => chrome.storage.local.set(items, () => resolve())),
-};
-
-const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS, DEBUG: CA_DEBUG } = window.CA_EXTENSION_CONSTANTS || {
-  STORAGE_KEYS: FALLBACK_STORAGE_KEYS,
-  MESSAGE_TYPES: {
-    log: "CA_EXTENSION_LOG",
-    stepComplete: "CA_EXTENSION_STEP_COMPLETE",
-    toggleOverlay: "CA_EXTENSION_TOGGLE_OVERLAY",
-  },
-  STORAGE_HELPERS: FALLBACK_STORAGE_HELPERS,
-};
+const __caBootstrap = (window.CA_CONTENT_BOOTSTRAP && window.CA_CONTENT_BOOTSTRAP.resolve())
+  || { STORAGE_KEYS: {}, MESSAGE_TYPES: {}, STORAGE_HELPERS: {
+    get: (keys) => new Promise((r) => chrome.storage.local.get(keys, (i) => r(i || {}))),
+    set: (items) => new Promise((r) => chrome.storage.local.set(items, () => r())),
+  }, DEBUG: false };
+const { STORAGE_KEYS, MESSAGE_TYPES, STORAGE_HELPERS, DEBUG: CA_DEBUG } = __caBootstrap;
 
 // Initial Assessment form field mappings based on the HTML structure
 const IA_FIELD_MAPPINGS = {

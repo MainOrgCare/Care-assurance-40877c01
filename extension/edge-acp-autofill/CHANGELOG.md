@@ -1,5 +1,29 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.47 — Maintenance & Hardening Pass
+
+### Removed
+
+- Deleted the legacy root-level `popup.js` (~2,821 lines). The popup has been served exclusively by `popup/main.js` for several versions; the orphan file was a divergence trap.
+
+### Refactor
+
+- **Single shared content-script bootstrap** (`content-bootstrap.js`). The duplicated `FALLBACK_STORAGE_KEYS` / `FALLBACK_MESSAGE_TYPES` / `FALLBACK_STORAGE_HELPERS` preludes in `content-acp.js`, `content-emar.js`, `content-initial-assessment.js`, and `content-generic.js` now resolve through a single shim loaded immediately after `constants.js`. Behavior is unchanged; future fallback edits land in one place.
+- **Background `onMessage` dispatch** rewritten as a named handler map (`MESSAGE_HANDLERS`). Each per-message handler is now a small named function returning `true` only on async paths. `safeSendResponse` wrapping is retained.
+- **ACP content script listeners merged.** `content-acp.js` previously registered two `chrome.runtime.onMessage.addListener` calls; they are now a single dispatcher routing `CA_EXTENSION_REQUEST_STATUS`, `CA_EXTENSION_TOGGLE_OVERLAY`, and `CA_EXTENSION_UPLOAD_SIGNATURE`.
+
+### Reliability / Security
+
+- **Payload size guard.** `handleStorePayload` now rejects payloads larger than 2 MB before writing to `chrome.storage.local`, preventing silent quota errors and partial writes.
+- **`refreshSignatureStatus()` no longer uses `innerHTML`.** The signature preview is now built with `document.createElement`, eliminating the path where a malformed `signatureData.dataUrl` could break out of the surrounding HTML string.
+- **Permission hygiene.** `activeTab` removed from `manifest.json`; explicit `host_permissions` already cover all `chrome.tabs.*` call sites.
+- **`buildWorkflowSafetyState` documented** in `popup/state.js` as the single source of truth for readiness/guard state. Adding parallel `isConnected`/`caseId`/page-staleness checks elsewhere is forbidden by convention.
+- **Storage cache hygiene.** `popup/state.js` now exports `POPUP_CACHE_VERSION` and logs a warning when `loadStorage` recovers a value from `chrome.storage.local` after a `chrome.storage.session` miss, making stale-cache fallbacks visible during diagnostics.
+
+### Notes
+
+- `all_frames: true` on `clece.mobizio.com` content scripts is retained intentionally; verifying that no Mobizio form renders in an iframe requires live testing. Flip to `false` only after confirming forms always render at the top level.
+
 ## Version 0.6.46 — Preview-Before-Fill Dialog
 
 ### New: Preview-Before-Fill Confirmation

@@ -198,6 +198,13 @@ function splitStorageKeys(keys) {
   return { sessionKeys, localKeys };
 }
 
+/**
+ * Cache schema version. Bump when the *shape* of a value stored in
+ * chrome.storage.{session,local} changes in a backwards-incompatible way so
+ * older cached blobs are ignored (see loadStorage stale-fallback guard).
+ */
+export const POPUP_CACHE_VERSION = 1;
+
 export async function loadStorage(keys) {
   const allKeys = keys || FALLBACK_STORAGE_KEYS;
   const { sessionKeys, localKeys } = splitStorageKeys(allKeys);
@@ -218,14 +225,23 @@ export async function loadStorage(keys) {
   } catch { /* local storage unavailable */ }
 
   // Fallback: if session keys were missed, pull them from local in one request.
+  // We log this so unexpected stale-cache reads are visible in the console.
   const missingSessionKeys = sessionKeys.filter((key) => results[key] === undefined);
   if (missingSessionKeys.length > 0) {
     try {
       const fallback = await chrome.storage.local.get(missingSessionKeys);
+      const recovered = [];
       for (const key of missingSessionKeys) {
         if (fallback[key] !== undefined) {
           results[key] = fallback[key];
+          recovered.push(key);
         }
+      }
+      if (recovered.length > 0) {
+        console.warn(
+          "[CA Extension] loadStorage: session miss, falling back to local for keys:",
+          recovered.join(", ")
+        );
       }
     } catch { /* ignore */ }
   }
@@ -605,6 +621,17 @@ export function compareExtensionVersions(left, right) {
   return 0;
 }
 
+/**
+ * Single source of truth for workflow readiness / guard state.
+ *
+ * IMPORTANT (codebase convention): Both UI summaries (ui.js) and real action
+ * handlers (main.js) MUST consume this function. Do NOT add parallel
+ * `isConnected` / `caseId` / page-staleness checks elsewhere — that creates
+ * silent divergence between what the UI shows and what handlers enforce.
+ *
+ * If you need a new readiness rule, add it here and have all callers re-render
+ * from the returned object (severity / code / shouldBlockStart / shouldBlockUploadSync).
+ */
 export function buildWorkflowSafetyState(options = {}) {
   const extensionStatus = options.extensionStatus && typeof options.extensionStatus === "object"
     ? options.extensionStatus
