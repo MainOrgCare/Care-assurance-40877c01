@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.6.40
+ * CareAssurance Extension v0.8.0
  */
 
 import {
@@ -26,6 +26,8 @@ import {
   writeToClipboard,
   buildCommandCenterState,
   buildRuntimeDiagnosticsState,
+  buildPayloadHealthScore,
+  getLatencyStats,
 } from "./state.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -110,6 +112,14 @@ export function cacheDomElements() {
     "ops-refresh", "ops-copy-snapshot", "ops-copy-incident", "ops-clear-incident",
     "ops-health", "ops-reliability", "ops-queue", "ops-mode", "ops-timeline", "ops-recommendations", "ops-flags",
     "command-center-section", "command-center-summary", "ops-quickbar", "ops-quick-health", "ops-quick-queue", "ops-quick-mode", "ops-quick-note",
+    // Payload health & quick copy (new)
+    "payload-health-strip", "quick-field-copy",
+    // Latency badge (new)
+    "latency-badge",
+    // Live progress ETA (new)
+    "live-progress-eta",
+    // Preflight warnings (new)
+    "preflight-warnings",
   ];
 
   for (const id of ids) {
@@ -2270,12 +2280,13 @@ export function renderLogs(logs) {
   dom.logList.scrollTop = dom.logList.scrollHeight;
 }
 
-export function updateLiveProgress(queueState) {
+export function updateLiveProgress(queueState, { batchStartedAt = null, etaResult = null } = {}) {
   const panel = dom.autofillLiveProgress;
   const fill = dom.liveProgressFill;
   const label = dom.liveProgressLabel;
   const field = dom.liveProgressField;
   const queue = dom.liveProgressQueue;
+  const etaEl = dom.liveProgressEta;
   if (!panel) return;
 
   if (!queueState || typeof queueState.total !== "number") {
@@ -2290,6 +2301,16 @@ export function updateLiveProgress(queueState) {
   if (fill) fill.style.width = `${pct}%`;
   if (label) label.textContent = `${currentIndex} / ${total} (${pct}%)`;
   if (field) field.textContent = currentField ? `Filling: ${currentField}` : "Preparing\u2026";
+
+  // ETA display
+  if (etaEl) {
+    if (etaResult?.formattedEta) {
+      etaEl.textContent = `ETA: ${etaResult.formattedEta} (${etaResult.remainingItems} remaining)`;
+      etaEl.hidden = false;
+    } else {
+      etaEl.hidden = true;
+    }
+  }
 
   if (queue && Array.isArray(fieldStates)) {
     queue.innerHTML = fieldStates
@@ -2516,4 +2537,211 @@ export function showSkeleton(container, count = 3) {
 export function hideSkeleton(container) {
   if (!container) return;
   container.querySelectorAll(".skeleton").forEach((el) => el.remove());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAYLOAD HEALTH SCORE STRIP
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Render the payload health score strip (shows 0–100 score + colour bar + issues).
+ * The strip element (`#payload-health-strip`) is created lazily if not found.
+ */
+export function renderPayloadHealthScore(scoreResult) {
+  let el = dom.payloadHealthStrip || document.getElementById("payload-health-strip");
+  if (!el) return;
+
+  if (!scoreResult) {
+    el.hidden = true;
+    return;
+  }
+
+  const { score, level, issues } = scoreResult;
+  el.hidden = false;
+  el.dataset.level = level || "poor";
+
+  const levelLabel = { poor: "Poor", fair: "Fair", good: "Good", excellent: "Excellent" }[level] || level;
+  const issueHtml = Array.isArray(issues) && issues.length
+    ? `<ul class="health-issues">${issues.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`
+    : "";
+
+  el.innerHTML =
+    `<div class="health-score-header">` +
+    `<span class="health-score-label">Payload health</span>` +
+    `<span class="health-score-badge" data-level="${escapeAttr(level)}">${escapeHtml(levelLabel)} — ${score}/100</span>` +
+    `</div>` +
+    `<div class="health-score-track"><div class="health-score-fill" style="width:${score}%"></div></div>` +
+    issueHtml;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUICK FIELD COPY PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Render a panel of one-click copy buttons for key payload fields.
+ * Skips the panel entirely when the payload is empty or has no copyable fields.
+ */
+export function renderQuickFieldCopy(payload) {
+  const el = dom.quickFieldCopy || document.getElementById("quick-field-copy");
+  if (!el) return;
+
+  if (!payload || typeof payload !== "object") {
+    el.hidden = true;
+    return;
+  }
+
+  const formType = String(payload.formType || "acp");
+  const items = [];
+
+  if (formType === "acp") {
+    const assessments = Array.isArray(payload.assessments) ? payload.assessments : [];
+    if (payload.serviceUserName || payload.displayName) {
+      items.push({ label: "Service user name", value: String(payload.serviceUserName || payload.displayName) });
+    }
+    for (const a of assessments.slice(0, 8)) {
+      const name = String(a?.name || a?.title || "(untitled)").slice(0, 60);
+      const riskCount = Array.isArray(a?.riskRows) ? a.riskRows.length : 0;
+      const body = String(a?.body || a?.content || "").slice(0, 2000);
+      if (body) items.push({ label: name + (riskCount ? ` (${riskCount} risks)` : ""), value: body });
+    }
+  } else if (formType === "initialAssessment") {
+    const data = payload.initialAssessmentData || payload.data || {};
+    for (const [key, value] of Object.entries(data).slice(0, 10)) {
+      const strVal = String(value ?? "").trim();
+      if (strVal) items.push({ label: key.replace(/([A-Z])/g, " $1").trim(), value: strVal });
+    }
+  }
+
+  if (items.length === 0) {
+    el.hidden = true;
+    return;
+  }
+
+  el.hidden = false;
+  el.innerHTML =
+    `<div class="quick-copy-header"><span class="quick-copy-title">Quick Field Copy</span><span class="quick-copy-hint">Click to copy to clipboard</span></div>` +
+    `<div class="quick-copy-list">${items.map((item, i) =>
+      `<div class="quick-copy-item">` +
+      `<span class="quick-copy-label">${escapeHtml(item.label)}</span>` +
+      `<button class="quick-copy-btn btn btn-ghost btn-sm" data-copy-index="${i}" title="Copy to clipboard" aria-label="Copy ${escapeAttr(item.label)}">` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>` +
+      `Copy</button>` +
+      `</div>`
+    ).join("")}</div>`;
+
+  // Wire copy buttons (capture items in closure)
+  el.querySelectorAll(".quick-copy-btn[data-copy-index]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const idx = Number(e.currentTarget.dataset.copyIndex);
+      const item = items[idx];
+      if (!item) return;
+      try {
+        await writeToClipboard(item.value);
+        const original = btn.textContent;
+        btn.textContent = "✓ Copied!";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 1800);
+      } catch {
+        btn.textContent = "Failed";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LATENCY BADGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Update the latency badge in the header (created lazily if not yet in DOM).
+ * Levels: green < 200ms, amber < 1000ms, red ≥ 1000ms.
+ */
+export function updateLatencyBadge(latencyMs) {
+  let badge = dom.latencyBadge || document.getElementById("latency-badge");
+  if (!badge) {
+    // Create it next to the connection badge
+    const headerActions = document.querySelector(".header-actions");
+    if (!headerActions) return;
+    badge = document.createElement("span");
+    badge.id = "latency-badge";
+    badge.className = "latency-badge";
+    badge.setAttribute("title", "Extension background latency");
+    badge.setAttribute("aria-label", "Background ping latency");
+    const connBadge = document.getElementById("connection-badge");
+    if (connBadge) headerActions.insertBefore(badge, connBadge);
+    else headerActions.prepend(badge);
+    dom.latencyBadge = badge;
+  }
+
+  if (latencyMs == null) {
+    badge.hidden = true;
+    return;
+  }
+
+  const ms = Math.round(latencyMs);
+  let level = "fast";
+  if (ms >= 1000) level = "slow";
+  else if (ms >= 200) level = "medium";
+
+  badge.hidden = false;
+  badge.dataset.level = level;
+  badge.textContent = ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PREFLIGHT WARNINGS PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Render the pre-flight warnings/blockers panel above the Start Autofill button.
+ */
+export function renderPreflightWarnings(result) {
+  const el = dom.preflightWarnings || document.getElementById("preflight-warnings");
+  if (!el) return;
+
+  if (!result || (result.blockers.length === 0 && result.warnings.length === 0)) {
+    el.hidden = true;
+    return;
+  }
+
+  el.hidden = false;
+  const blockerHtml = result.blockers.map(
+    (b) => `<div class="preflight-item preflight-blocker">` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>` +
+      `${escapeHtml(b)}</div>`
+  ).join("");
+  const warnHtml = result.warnings.map(
+    (w) => `<div class="preflight-item preflight-warning">` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>` +
+      `${escapeHtml(w)}</div>`
+  ).join("");
+
+  el.innerHTML = blockerHtml + warnHtml;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUT HINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Inject a small keyboard-shortcut legend into the footer if not already present.
+ */
+export function renderKeyboardShortcutHints() {
+  if (document.getElementById("keyboard-hints")) return;
+  const footer = document.querySelector(".popup-footer .footer-content");
+  if (!footer) return;
+
+  const hints = document.createElement("div");
+  hints.id = "keyboard-hints";
+  hints.className = "keyboard-hints";
+  hints.setAttribute("aria-label", "Keyboard shortcuts");
+  hints.innerHTML =
+    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>A</kbd> Start</span>` +
+    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>X</kbd> Stop</span>` +
+    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>R</kbd> Refresh</span>` +
+    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>C</kbd> Copy payload</span>`;
+
+  footer.appendChild(hints);
 }

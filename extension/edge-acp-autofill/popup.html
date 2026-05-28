@@ -720,6 +720,8 @@
               <div id="payload-status" class="status-box">
                 <span>No data loaded</span>
               </div>
+              <!-- Payload health score strip (populated by renderPayloadHealthScore) -->
+              <div id="payload-health-strip" class="payload-health-strip" hidden></div>
             </div>
           </section>
 
@@ -770,6 +772,18 @@
               <div class="runtime-actions">
                 <button id="copy-payload" class="btn btn-secondary btn-sm">Copy Payload</button>
               </div>
+            </div>
+          </details>
+
+          <!-- Quick Field Copy: one-click copy of individual payload field values -->
+          <details id="quick-field-copy-section" class="card collapsible" hidden>
+            <summary class="collapsible-header">
+              <span>Quick Field Copy</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="card-content">
+              <p class="card-description" style="margin-bottom:8px;">Copy individual assessment values without running autofill.</p>
+              <div id="quick-field-copy"></div>
             </div>
           </details>
 
@@ -847,6 +861,8 @@
 
           <section class="card">
             <div class="card-content">
+              <!-- Pre-flight warnings (blockers and cautions shown before Start Autofill) -->
+              <div id="preflight-warnings" class="preflight-warnings" hidden></div>
               <div id="progress-status" class="status-text"></div>
               <div class="action-row">
                 <button id="start-autofill" class="btn btn-primary btn-lg">
@@ -873,6 +889,7 @@
                 <span id="live-progress-label" class="live-progress-label">Waiting…</span>
               </div>
               <div id="live-progress-field" class="live-progress-field">No field active</div>
+              <div id="live-progress-eta" class="live-progress-eta" hidden></div>
               <div id="live-progress-queue" class="live-progress-queue"></div>
             </div>
           </details>
@@ -929,7 +946,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.6.40</span></span>
+            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.8.0</span></span>
         </div>
       </footer>
     </main>

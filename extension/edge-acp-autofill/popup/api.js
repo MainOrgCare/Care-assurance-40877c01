@@ -1,6 +1,6 @@
 /**
  * api.js — API proxy and network communication layer
- * CareAssurance Extension v0.6.40
+ * CareAssurance Extension v0.8.0
  */
 
 import {
@@ -10,6 +10,7 @@ import {
   normalizeCareAssuranceBaseUrl,
   resolveCareAssuranceApiOrigin,
   setRuntimeConfigStorage,
+  recordLatencySample,
   state,
 } from "./state.js";
 
@@ -313,5 +314,51 @@ export async function reportExtensionError(payload) {
     } catch {
       /* noop */
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PING — background.js round-trip latency measurement
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Send a lightweight CA_PING to the background service worker and return the
+ * measured round-trip latency in ms.  Records the sample in the rolling
+ * latency buffer so getLatencyStats() can return a moving average.
+ *
+ * Resolves with { ok: true, latencyMs } on success, or { ok: false, error } on failure.
+ * Never rejects — designed to be fire-and-read in refresh loops.
+ */
+export async function pingBackground(options = {}) {
+  const timeoutMs = typeof options.timeoutMs === "number" ? options.timeoutMs : 5000;
+  const start = Date.now();
+  try {
+    const response = await new Promise((resolve) => {
+      let settled = false;
+      const t = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve({ ok: false, error: "Ping timed out" });
+      }, timeoutMs);
+      chrome.runtime.sendMessage({ type: "CA_PING" }, (res) => {
+        clearTimeout(t);
+        if (settled) return;
+        settled = true;
+        if (chrome.runtime.lastError) {
+          resolve({ ok: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(res || { ok: false, error: "No response" });
+        }
+      });
+    });
+
+    const latencyMs = Date.now() - start;
+    if (response?.ok) {
+      recordLatencySample(latencyMs);
+      return { ok: true, latencyMs };
+    }
+    return { ok: false, latencyMs, error: response?.error || "Ping failed" };
+  } catch (err) {
+    return { ok: false, latencyMs: Date.now() - start, error: err?.message || "Ping exception" };
   }
 }

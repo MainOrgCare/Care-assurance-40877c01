@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.6.40
+ * CareAssurance Extension v0.8.0
  */
 
 import {
@@ -33,6 +33,10 @@ import {
   recordActivity,
   loadActivityLog,
   clearActivityLog,
+  buildPayloadHealthScore,
+  validatePayloadPreflight,
+  buildBatchEtaEstimate,
+  getLatencyStats,
 } from "./state.js";
 
 import {
@@ -42,6 +46,7 @@ import {
   findConnectedWorkspaceTab,
   sendMessageToPageCompanion,
   reportExtensionError,
+  pingBackground,
 } from "./api.js";
 
 import {
@@ -85,6 +90,11 @@ import {
   checkPayloadSize,
   showSkeleton,
   hideSkeleton,
+  renderPayloadHealthScore,
+  renderQuickFieldCopy,
+  updateLatencyBadge,
+  renderPreflightWarnings,
+  renderKeyboardShortcutHints,
 } from "./ui.js";
 
 const POPUP_REFRESH_DEBOUNCE_MS = 180;
@@ -6909,6 +6919,28 @@ async function refreshPayloadStatus() {
     lastError,
     pageContext: state.pageCompanionContext,
   });
+
+  // ── New: health score, quick-copy, and pre-flight ────────────────────────
+  try {
+    const healthScore = payload ? buildPayloadHealthScore(payload) : null;
+    renderPayloadHealthScore(healthScore);
+
+    renderQuickFieldCopy(payload);
+    // Show Quick Field Copy section when payload is present
+    const quickCopySection = document.getElementById("quick-field-copy-section");
+    if (quickCopySection) quickCopySection.hidden = !payload;
+
+    const caseId = String(data[STORAGE_KEYS.caseInfo]?.caseId || "").trim();
+    const serviceDataGroupId = String(data[STORAGE_KEYS.caseInfo]?.serviceDataGroupId || "").trim();
+    const preflightResult = payload
+      ? validatePayloadPreflight(payload, { caseId, serviceDataGroupId })
+      : null;
+    renderPreflightWarnings(preflightResult);
+  } catch (newFeatureErr) {
+    console.warn("[CA Extension] New feature render failed:", newFeatureErr);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (!document.hidden) {
     const refreshedPageContext = await refreshPageCompanion({
       payload,
@@ -8218,7 +8250,11 @@ function bindStorageListener() {
       if (changes[STORAGE_KEYS.queueState]) {
         try {
           const newState = changes[STORAGE_KEYS.queueState].newValue;
-          updateLiveProgress(newState);
+          // Track when the batch started so we can compute ETA
+          if (newState && !state._batchStartedAt) state._batchStartedAt = Date.now();
+          if (!newState) state._batchStartedAt = null;
+          const etaResult = newState ? buildBatchEtaEstimate(newState, state._batchStartedAt) : null;
+          updateLiveProgress(newState, { batchStartedAt: state._batchStartedAt, etaResult });
           if (!newState) {
             if (dom.progressStatus) dom.progressStatus.textContent = "\u2713 Autofill complete!";
             showSuccess("Autofill batch complete! All forms have been filled.");
@@ -8496,4 +8532,63 @@ function bindStorageListener() {
 
   // GDPR periodic cleanup
   setInterval(autoCleanupStaleData, POPUP_GDPR_CLEANUP_MS);
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+  // Alt+A = Start autofill, Alt+X = Stop, Alt+R = Refresh connection,
+  // Alt+C = Copy current payload JSON
+  document.addEventListener("keydown", (e) => {
+    if (!e.altKey) return;
+    switch (e.key.toLowerCase()) {
+      case "a": {
+        e.preventDefault();
+        const btn = dom.startAutofill;
+        if (btn && !btn.disabled) btn.click();
+        break;
+      }
+      case "x": {
+        e.preventDefault();
+        const btn = dom.stopAutofill;
+        if (btn && !btn.disabled) btn.click();
+        break;
+      }
+      case "r": {
+        e.preventDefault();
+        const btn = dom.connectBtn;
+        if (btn && !btn.disabled) btn.click();
+        else schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
+        break;
+      }
+      case "c": {
+        e.preventDefault();
+        const btn = dom.copyPayload;
+        if (btn) btn.click();
+        break;
+      }
+    }
+  });
+
+  // ── Background latency ping (runs after init, non-blocking) ─────────────
+  runPopupIdleTask(async () => {
+    try {
+      const pingResult = await pingBackground({ timeoutMs: 4000 });
+      if (pingResult.ok) {
+        updateLatencyBadge(pingResult.latencyMs);
+      }
+      // Schedule periodic pings every 30s while popup is open
+      setInterval(async () => {
+        if (document.hidden) return;
+        try {
+          const r = await pingBackground({ timeoutMs: 3000 });
+          if (r.ok) updateLatencyBadge(r.latencyMs);
+        } catch { /* noop */ }
+      }, 30000);
+    } catch {
+      // Latency badge stays hidden — non-critical
+    }
+  }, { timeout: 3000, fallbackDelay: 800 });
+
+  // ── Keyboard shortcut hints in footer ────────────────────────────────────
+  runPopupIdleTask(() => {
+    try { renderKeyboardShortcutHints(); } catch { /* noop */ }
+  }, { timeout: 2000, fallbackDelay: 300 });
 })();

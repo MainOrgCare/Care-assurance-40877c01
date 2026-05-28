@@ -1149,3 +1149,194 @@ export async function writeToClipboard(value) {
   document.execCommand("copy");
   document.body.removeChild(helper);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAYLOAD HEALTH SCORE
+// Evaluates the completeness and quality of a staged payload (0–100).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build a completeness/quality score for a staged ACP or Initial Assessment payload.
+ * Returns { score: 0-100, level: 'poor'|'fair'|'good'|'excellent', issues: string[] }.
+ */
+export function buildPayloadHealthScore(payload) {
+  if (!payload || typeof payload !== "object") {
+    return { score: 0, level: "poor", issues: ["No payload staged"] };
+  }
+
+  const issues = [];
+  let deductions = 0;
+
+  const formType = String(payload.formType || "acp");
+
+  // ── ACP payload scoring ──────────────────────────────────────────────────
+  if (formType === "acp") {
+    const assessments = Array.isArray(payload.assessments) ? payload.assessments : [];
+    if (assessments.length === 0) {
+      issues.push("No assessments found in payload");
+      deductions += 50;
+    } else {
+      let emptyTitleCount = 0;
+      let emptyBodyCount = 0;
+      let promptArtifactCount = 0;
+      let emptyRiskRowCount = 0;
+      const ARTIFACT_PATTERNS = [/respond only with valid json/i, /^json$/i, /\bai assistant\b/i, /^output:/i];
+
+      for (const a of assessments) {
+        if (!String(a?.name || "").trim()) emptyTitleCount++;
+        const body = String(a?.body || a?.content || "").trim();
+        if (!body) {
+          emptyBodyCount++;
+        } else {
+          for (const p of ARTIFACT_PATTERNS) {
+            if (p.test(body)) { promptArtifactCount++; break; }
+          }
+        }
+        const rows = Array.isArray(a?.riskRows) ? a.riskRows : [];
+        const blankRows = rows.filter((r) => !String(r?.risk || r?.hazard || "").trim());
+        emptyRiskRowCount += blankRows.length;
+      }
+
+      if (emptyTitleCount > 0) { issues.push(`${emptyTitleCount} assessment(s) missing title`); deductions += emptyTitleCount * 5; }
+      if (emptyBodyCount > 0) { issues.push(`${emptyBodyCount} assessment(s) have empty body`); deductions += emptyBodyCount * 8; }
+      if (promptArtifactCount > 0) { issues.push(`${promptArtifactCount} assessment(s) contain AI artefacts`); deductions += promptArtifactCount * 10; }
+      if (emptyRiskRowCount > 0) { issues.push(`${emptyRiskRowCount} blank risk row(s) detected`); deductions += Math.min(20, emptyRiskRowCount * 2); }
+    }
+
+    if (!payload.serviceUserName && !payload.displayName) {
+      issues.push("Service user name not set");
+      deductions += 10;
+    }
+  }
+
+  // ── Initial Assessment scoring ───────────────────────────────────────────
+  if (formType === "initialAssessment") {
+    const data = payload.initialAssessmentData || payload.data || {};
+    if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+      issues.push("Initial assessment data is empty");
+      deductions += 40;
+    } else {
+      const totalFields = Object.keys(data).length;
+      const emptyFields = Object.values(data).filter((v) => v === null || v === undefined || String(v).trim() === "").length;
+      const pct = Math.round((emptyFields / totalFields) * 100);
+      if (pct > 50) { issues.push(`${pct}% of fields are empty`); deductions += 30; }
+      else if (pct > 20) { issues.push(`${pct}% of fields are empty`); deductions += 12; }
+    }
+  }
+
+  // ── Universal checks ─────────────────────────────────────────────────────
+  const payloadAge = payload.timestamp ? Date.now() - new Date(payload.timestamp).getTime() : 0;
+  if (payloadAge > 24 * 60 * 60 * 1000) { // older than 24h
+    issues.push("Payload is more than 24 hours old");
+    deductions += 8;
+  } else if (payloadAge > 4 * 60 * 60 * 1000) { // older than 4h
+    issues.push("Payload is more than 4 hours old — consider refreshing");
+    deductions += 3;
+  }
+
+  const score = Math.max(0, Math.min(100, 100 - deductions));
+  let level = "excellent";
+  if (score < 40) level = "poor";
+  else if (score < 65) level = "fair";
+  else if (score < 85) level = "good";
+
+  return { score, level, issues };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRE-FLIGHT PAYLOAD VALIDATOR
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Run pre-flight checks on the payload before starting autofill.
+ * Returns { ok: boolean, blockers: string[], warnings: string[] }.
+ */
+export function validatePayloadPreflight(payload, { caseId = "", serviceDataGroupId = "" } = {}) {
+  const blockers = [];
+  const warnings = [];
+
+  if (!payload || typeof payload !== "object") {
+    blockers.push("No payload staged — load a payload before starting.");
+    return { ok: false, blockers, warnings };
+  }
+
+  const formType = String(payload.formType || "acp");
+
+  if (!String(caseId || "").trim()) blockers.push("Case ID is required but not set.");
+  if (!String(serviceDataGroupId || "").trim()) warnings.push("Service Data Group ID is not set (defaults to 1017650).");
+
+  if (formType === "acp") {
+    if (!Array.isArray(payload.assessments) || payload.assessments.length === 0) {
+      blockers.push("Payload contains no assessments to fill.");
+    } else {
+      const emptyBodies = payload.assessments.filter((a) => !String(a?.body || a?.content || "").trim());
+      if (emptyBodies.length > 0) warnings.push(`${emptyBodies.length} assessment(s) have no content body.`);
+    }
+  }
+
+  if (formType === "initialAssessment") {
+    const data = payload.initialAssessmentData || payload.data;
+    if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+      blockers.push("Initial assessment data is missing or empty.");
+    }
+  }
+
+  // Age check
+  const payloadAge = payload.timestamp ? Date.now() - new Date(payload.timestamp).getTime() : 0;
+  if (payloadAge > 48 * 60 * 60 * 1000) {
+    warnings.push("Payload is over 48 hours old — it may be stale.");
+  }
+
+  return { ok: blockers.length === 0, blockers, warnings };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATCH ETA ESTIMATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Estimate time remaining for an active batch.
+ * `startedAt` is the ms timestamp when the batch began.
+ * Returns null when no meaningful estimate is possible.
+ */
+export function buildBatchEtaEstimate(queueState, startedAt) {
+  if (!queueState || typeof queueState.total !== "number" || typeof queueState.currentIndex !== "number") return null;
+  const { currentIndex, total } = queueState;
+  if (total <= 1 || currentIndex <= 0) return null;
+
+  const elapsedMs = startedAt ? Date.now() - startedAt : 0;
+  if (elapsedMs < 2000) return null; // too early to estimate
+
+  const msPerStep = elapsedMs / currentIndex;
+  const remaining = total - currentIndex;
+  const estimatedMs = msPerStep * remaining;
+
+  const secs = Math.ceil(estimatedMs / 1000);
+  let formattedEta;
+  if (secs < 60) formattedEta = `~${secs}s`;
+  else if (secs < 3600) formattedEta = `~${Math.ceil(secs / 60)}m`;
+  else formattedEta = `~${Math.round(secs / 3600)}h ${Math.ceil((secs % 3600) / 60)}m`;
+
+  return { remainingItems: remaining, estimatedSecondsRemaining: secs, formattedEta };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LATENCY TRACKING (rolling 5-sample average)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MAX_LATENCY_SAMPLES = 5;
+const latencySamples = [];
+
+export function recordLatencySample(ms) {
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value < 0) return;
+  latencySamples.push(value);
+  if (latencySamples.length > MAX_LATENCY_SAMPLES) latencySamples.shift();
+}
+
+export function getLatencyStats() {
+  if (latencySamples.length === 0) return { latest: null, average: null, samples: [] };
+  const latest = latencySamples[latencySamples.length - 1];
+  const average = Math.round(latencySamples.reduce((s, v) => s + v, 0) / latencySamples.length);
+  return { latest, average, samples: [...latencySamples] };
+}

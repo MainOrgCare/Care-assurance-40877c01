@@ -75,6 +75,42 @@ chrome.runtime.onSuspend?.addListener(() => {
 });
 
 // ============================================================================
+// MV3 ALARM-BASED KEEP-ALIVE (supplements setInterval — survives SW kill cycles)
+// chrome.alarms fire even when the service worker has been terminated and respawned,
+// making them the authoritative keep-alive mechanism for long-running batch jobs.
+// ============================================================================
+
+const CA_ALARM_NAME = "CA_WORKER_KEEPALIVE";
+
+function ensureAlarmKeepAlive() {
+  if (!chrome?.alarms?.create) return; // guard for environments without alarms
+  chrome.alarms.get(CA_ALARM_NAME, (existing) => {
+    if (chrome.runtime.lastError) { /* ignore */ }
+    if (!existing) {
+      // 0.4 min = 24 s period — fast enough to prevent the 30 s SW timeout
+      chrome.alarms.create(CA_ALARM_NAME, { periodInMinutes: 0.4 });
+    }
+  });
+}
+
+if (chrome?.alarms?.onAlarm) {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm?.name !== CA_ALARM_NAME) return;
+    recordHeartbeat().catch(() => {});
+    // Re-hydrate runtime config in case the SW was restarted since last alarm
+    hydrateRuntimeConfigCache().catch(() => {});
+  });
+}
+
+// Arm alarm on fresh install and on every SW startup (SW may restart mid-batch)
+if (chrome?.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener(() => {
+    ensureAlarmKeepAlive();
+  });
+}
+ensureAlarmKeepAlive();
+
+// ============================================================================
 
 // Track tabs with content-app.js ready
 const contentScriptReadyTabs = new Map(); // normalized host -> tabId
@@ -1334,8 +1370,15 @@ const handleKeepAlivePing = (_message, _safeSendResponse, sendResponseRaw) => {
   return false;
 };
 
+// Lightweight ping — returns a timestamped pong so the popup can measure round-trip latency
+const handlePing = (_message, safeSendResponse) => {
+  safeSendResponse({ ok: true, pong: true, ts: Date.now() });
+  return false;
+};
+
 const MESSAGE_HANDLERS = {
   CA_KEEP_ALIVE_PING: handleKeepAlivePing,
+  CA_PING: handlePing,
   [MESSAGE_TYPES.storePayload]: handleStorePayload,
   [MESSAGE_TYPES.storageGet]: handleStorageGet,
   [MESSAGE_TYPES.storageSet]: handleStorageSet,
