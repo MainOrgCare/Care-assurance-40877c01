@@ -247,8 +247,9 @@ body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 200px 100px at 0% 100%, hsla(172, 60%, 50%, 0.12), transparent 70%),
-    radial-gradient(ellipse 150px 80px at 100% 0%, hsla(215, 80%, 60%, 0.10), transparent 60%);
+    radial-gradient(ellipse 260px 130px at 0% 100%, hsla(172, 70%, 55%, 0.22), transparent 70%),
+    radial-gradient(ellipse 200px 110px at 100% 0%, hsla(215, 85%, 65%, 0.18), transparent 60%),
+    radial-gradient(ellipse 320px 80px at 50% -20%, hsla(0, 0%, 100%, 0.08), transparent 70%);
   pointer-events: none;
 }
 
@@ -259,7 +260,8 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent 5%, hsla(0, 0%, 100%, 0.12) 50%, transparent 95%);
+  background: linear-gradient(90deg, transparent 5%, hsla(0, 0%, 100%, 0.22) 50%, transparent 95%);
+  box-shadow: 0 -1px 0 hsla(0, 0%, 100%, 0.04) inset;
 }
 
 .header-content {
@@ -904,6 +906,137 @@ body {
   border-radius: 4px;
 }
 .alert-error .error-dismiss-btn:hover { opacity: 1; }
+
+/* Warning alert — used by EMAR skipped-rows banner */
+.alert-warning {
+  background: color-mix(in oklab, hsl(38, 92%, 50%) 14%, var(--color-card));
+  color: color-mix(in oklab, hsl(28, 80%, 32%) 88%, var(--color-fg));
+  border: 1px solid color-mix(in oklab, hsl(38, 92%, 50%) 38%, transparent);
+  align-items: stretch;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 0 hsla(38, 92%, 50%, 0.06) inset, 0 6px 18px -12px hsla(38, 92%, 50%, 0.25);
+}
+
+.emar-skipped-banner .emar-skipped-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.emar-skipped-banner .emar-skipped-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.emar-skipped-banner .emar-skipped-title {
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.emar-skipped-banner .emar-skipped-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: hsl(38, 92%, 50%);
+  color: white;
+  line-height: 1;
+}
+.emar-skipped-banner .emar-skipped-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.emar-skipped-banner .btn-sm {
+  padding: 4px 9px;
+  font-size: 11px;
+  height: 24px;
+  border-radius: 6px;
+}
+.emar-skipped-banner .emar-skipped-toggle {
+  background: transparent;
+  border: 1px solid color-mix(in oklab, hsl(38, 92%, 50%) 35%, transparent);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+.emar-skipped-banner .emar-skipped-toggle:hover {
+  background: color-mix(in oklab, hsl(38, 92%, 50%) 12%, transparent);
+  border-color: color-mix(in oklab, hsl(38, 92%, 50%) 55%, transparent);
+}
+.emar-skipped-banner .emar-skipped-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: 6px;
+  background: color-mix(in oklab, hsl(38, 92%, 50%) 6%, var(--color-card));
+  border: 1px solid color-mix(in oklab, hsl(38, 92%, 50%) 22%, transparent);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.emar-skipped-banner .emar-skipped-row {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed color-mix(in oklab, hsl(38, 92%, 50%) 18%, transparent);
+}
+.emar-skipped-banner .emar-skipped-row:last-child { border-bottom: 0; }
+.emar-skipped-banner .emar-skipped-row code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  color: color-mix(in oklab, hsl(28, 80%, 28%) 90%, var(--color-fg));
+}
+.emar-skipped-banner .emar-skipped-row-loc {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.emar-skipped-banner .emar-skipped-code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  background: hsla(38, 92%, 50%, 0.18);
+  color: hsl(28, 80%, 28%);
+}
+.emar-skipped-banner .emar-skipped-row-reason {
+  color: var(--color-fg);
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.emar-skipped-banner .emar-skipped-row-when {
+  color: var(--color-muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
 
 /* ===== BUTTONS ===== */
 .btn {
@@ -3816,6 +3949,143 @@ body {
   display: flex;
   gap: 8px;
   padding: 0 20px 18px;
+}
+
+/* ===== AUTOFILL PREVIEW DIALOG ===== */
+.autofill-preview-dialog {
+  max-width: 440px;
+  width: 100%;
+}
+.autofill-preview-dialog .autofill-preview-icon {
+  background: color-mix(in oklab, var(--color-primary) 18%, var(--color-card));
+  color: var(--color-primary);
+}
+.autofill-preview-body {
+  padding: 6px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.autofill-preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--color-primary) 6%, var(--color-card));
+  border: 1px solid color-mix(in oklab, var(--color-primary) 20%, transparent);
+  font-size: 12px;
+  color: var(--color-foreground);
+}
+.autofill-preview-meta .autofill-preview-su {
+  color: var(--color-muted-foreground);
+  font-size: 11.5px;
+}
+.autofill-preview-meta .autofill-preview-total {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.autofill-preview-scroll {
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 10%, transparent);
+  background: var(--color-card);
+  padding: 4px 4px 4px 0;
+}
+.autofill-preview-section {
+  padding: 6px 10px 8px 12px;
+}
+.autofill-preview-section + .autofill-preview-section {
+  border-top: 1px dashed color-mix(in oklab, var(--color-foreground) 12%, transparent);
+}
+.autofill-preview-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 6px;
+}
+.autofill-preview-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+.autofill-preview-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-primary) 16%, var(--color-card));
+  color: var(--color-primary);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 28%, transparent);
+  line-height: 1;
+}
+.autofill-preview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.autofill-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: color-mix(in oklab, var(--color-foreground) 3%, transparent);
+}
+.autofill-preview-item-title {
+  font-weight: 600;
+  color: var(--color-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.autofill-preview-item-detail {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.autofill-preview-more {
+  list-style: none;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-muted-foreground);
+  padding: 3px 8px;
+}
+.autofill-preview-empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+.autofill-preview-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  user-select: none;
+}
+.autofill-preview-skip input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--color-primary);
 }
 
 .help-guide-dialog {

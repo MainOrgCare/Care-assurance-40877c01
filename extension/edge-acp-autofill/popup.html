@@ -65,6 +65,23 @@
           <button id="error-dismiss" class="error-dismiss-btn" title="Dismiss" aria-label="Dismiss error">✕</button>
         </div>
 
+        <!-- EMAR Skipped Rows Banner — populated from caAcpEmarSkippedRows storage bucket -->
+        <div id="emar-skipped-banner" class="alert alert-warning emar-skipped-banner" role="status" aria-live="polite" hidden>
+          <div class="emar-skipped-head">
+            <div class="emar-skipped-title-row">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <strong id="emar-skipped-title" class="emar-skipped-title">EMAR rows skipped</strong>
+              <span id="emar-skipped-count" class="emar-skipped-count" aria-hidden="true">0</span>
+            </div>
+            <div class="emar-skipped-actions">
+              <button id="emar-skipped-copy" class="btn btn-ghost btn-sm" title="Copy skipped rows as CSV" aria-label="Copy skipped EMAR rows as CSV">Copy CSV</button>
+              <button id="emar-skipped-clear" class="btn btn-ghost btn-sm" title="Dismiss and clear skipped rows" aria-label="Clear skipped EMAR rows">Clear</button>
+              <button id="emar-skipped-toggle" class="emar-skipped-toggle" aria-expanded="false" aria-controls="emar-skipped-list" title="Show details">Details ▾</button>
+            </div>
+          </div>
+          <ul id="emar-skipped-list" class="emar-skipped-list" hidden></ul>
+        </div>
+
         <section id="case-context-strip" class="case-context-strip" aria-live="polite">
           <div class="case-context-head">
             <span class="case-context-eyebrow">Current context</span>

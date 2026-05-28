@@ -308,6 +308,7 @@ export const state = {
   connectionEstablishedAt: null,
   connectionUptimeTimer: null,
   serviceUserShowCount: 10,
+  skipAutofillPreviewThisSession: false,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -459,6 +460,108 @@ export function getPayloadWorkflowLabel(payload) {
   if (!payload) return "No payload";
   const desc = FORM_WORKFLOW_DESCRIPTORS.find(d => d.key === payload.formType);
   return desc ? desc.label : payload.formType || "Unknown";
+}
+
+/**
+ * Build a flat, dialog-ready preview of what the autofill engine is about to type.
+ * Pure function — never touches DOM/storage. Mirrors the shape consumed by
+ * `showAutofillPreviewDialog()` in ui.js.
+ *
+ * Returns: { workflowLabel, serviceUserDisplayName, sections: [{ label, count, items: [{ title, detail }] }], totalItems }
+ */
+export function buildAutofillPreviewSummary(payload) {
+  const workflowLabel = getPayloadWorkflowLabel(payload);
+  const serviceUserDisplayName = pickFirstNonEmptyString(
+    payload?.serviceUserDisplayName,
+    payload?.serviceUserName,
+    payload?.serviceUser?.name,
+    payload?.serviceUser?.fullName,
+    payload?.metadata?.serviceUserName
+  ) || "(no display name)";
+
+  const sections = [];
+
+  // ACP: list each assessment with field count + a sample of the first 2 fields.
+  if (payload?.formType === "acp" && Array.isArray(payload?.assessments)) {
+    const items = payload.assessments.map((a, i) => {
+      const fields = a?.fields && typeof a.fields === "object" ? a.fields : {};
+      const fieldCount = Object.keys(fields).length;
+      const sample = Object.entries(fields)
+        .slice(0, 2)
+        .map(([k, v]) => `${k}: ${String(v ?? "").slice(0, 40)}`)
+        .join(" · ");
+      return {
+        title: String(a?.title || `Assessment ${i + 1}`),
+        detail: fieldCount > 0 ? `${fieldCount} field${fieldCount === 1 ? "" : "s"}${sample ? ` — ${sample}` : ""}` : "(no fields)",
+      };
+    });
+    sections.push({ label: "Assessments", count: items.length, items });
+  }
+
+  // Initial Assessment: enumerate sections with per-section field counts.
+  if (payload?.formType === "initialAssessment" && Array.isArray(payload?.sections)) {
+    const items = payload.sections.map((s, i) => {
+      const fields = s?.fields && typeof s.fields === "object" ? s.fields : {};
+      const fieldCount = Object.keys(fields).length;
+      return {
+        title: String(s?.title || `Section ${i + 1}`),
+        detail: `${fieldCount} field${fieldCount === 1 ? "" : "s"}`,
+      };
+    });
+    sections.push({ label: "Sections", count: items.length, items });
+  }
+
+  // EMAR: summarise the grid rows the engine will fill.
+  if (payload?.formType === "emar") {
+    const meds = Array.isArray(payload?.medications) ? payload.medications : [];
+    if (meds.length > 0) {
+      sections.push({
+        label: "Medications",
+        count: meds.length,
+        items: meds.slice(0, 50).map((m, i) => ({
+          title: String(m?.name || m?.medicationName || `Medication ${i + 1}`),
+          detail: m?.dose ? `Dose: ${String(m.dose).slice(0, 60)}` : "",
+        })),
+      });
+    }
+    const nonConformances = Array.isArray(payload?.nonConformances) ? payload.nonConformances : [];
+    if (nonConformances.length > 0) {
+      sections.push({
+        label: "Non-conformance rows",
+        count: nonConformances.length,
+        items: nonConformances.slice(0, 50).map((row, i) => ({
+          title: String(row?.medication || `Row ${i + 1}`),
+          detail: row?.code ? `Code ${row.code}` : "",
+        })),
+      });
+    }
+    const staffIdentified = Array.isArray(payload?.staffIdentified) ? payload.staffIdentified : [];
+    if (staffIdentified.length > 0) {
+      sections.push({
+        label: "Staff-identified rows",
+        count: staffIdentified.length,
+        items: staffIdentified.slice(0, 50).map((row, i) => ({
+          title: String(row?.medication || `Row ${i + 1}`),
+          detail: row?.reason ? String(row.reason).slice(0, 60) : "",
+        })),
+      });
+    }
+    if (sections.length === 0) {
+      sections.push({ label: "EMAR audit", count: 1, items: [{ title: "EMAR payload", detail: "Loaded and ready" }] });
+    }
+  }
+
+  // Generic fallback when no recognised structure is present.
+  if (sections.length === 0 && payload?.formType) {
+    sections.push({
+      label: String(payload.formType),
+      count: 1,
+      items: [{ title: "Payload", detail: "Loaded and ready for autofill" }],
+    });
+  }
+
+  const totalItems = sections.reduce((sum, s) => sum + (Number.isFinite(s.count) ? s.count : 0), 0);
+  return { workflowLabel, serviceUserDisplayName, sections, totalItems };
 }
 
 function pickFirstNonEmptyString(...values) {

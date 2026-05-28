@@ -29,6 +29,7 @@ import {
   buildWorkflowSafetyState,
   buildCommandCenterState,
   buildRuntimeDiagnosticsState,
+  buildAutofillPreviewSummary,
 } from "./state.js";
 
 import {
@@ -52,6 +53,7 @@ import {
   clearFieldInvalid,
   showConfirmDialog,
   showHelpGuideDialog,
+  showAutofillPreviewDialog,
   updateConnectionUI,
   renderExtensionHealth,
   renderWorkspaceContext,
@@ -65,6 +67,8 @@ import {
   renderRuntimeDiagnostics,
   renderLogs,
   updateLiveProgress,
+  renderEmarSkippedBanner,
+  buildEmarSkippedRowsCsv,
   renderPageCompanion,
   renderAutofillSessionSummary,
   renderCaseContextStrip,
@@ -102,6 +106,7 @@ const POPUP_INITIAL_STORAGE_KEYS = [
   STORAGE_KEYS.payload,
   STORAGE_KEYS.appTheme,
   STORAGE_KEYS.runtimeConfig,
+  STORAGE_KEYS.emarSkippedRows,
 ];
 
 const getPopupAutoCollectConfig = () => getRuntimeConfig()?.popup?.autoCollect || {};
@@ -7628,6 +7633,25 @@ function bindEvents() {
       return;
     }
 
+    // Preview-before-fill — give the operator a last chance to inspect and abort.
+    // Skipped for dry-run (already a no-op) and when the user opted out for this popup session.
+    if (!state.skipAutofillPreviewThisSession && !dom.dryRun?.checked) {
+      try {
+        const summary = buildAutofillPreviewSummary(payload);
+        const result = await showAutofillPreviewDialog(summary);
+        if (!result?.confirmed) {
+          if (dom.progressStatus) dom.progressStatus.textContent = "Autofill cancelled";
+          return;
+        }
+        if (result.skipNextTime) {
+          state.skipAutofillPreviewThisSession = true;
+        }
+      } catch (err) {
+        // If the preview itself crashes, log it but don't block the run — better to fall through.
+        console.warn("[CA Extension] autofill preview dialog failed:", err);
+      }
+    }
+
     await setStorage({ [STORAGE_KEYS.verificationFields]: null });
     setButtonLoading(dom.startAutofill, true);
 
@@ -7975,6 +7999,38 @@ function bindEvents() {
     if (dom.errorBanner) { dom.errorBanner.hidden = true; clearTimeout(dom.errorBanner._dismissTimer); }
   });
 
+  // EMAR skipped rows banner — toggle / copy / clear
+  dom.emarSkippedToggle?.addEventListener("click", () => {
+    if (!dom.emarSkippedList || !dom.emarSkippedToggle) return;
+    const expanded = dom.emarSkippedToggle.getAttribute("aria-expanded") === "true";
+    const next = !expanded;
+    dom.emarSkippedToggle.setAttribute("aria-expanded", next ? "true" : "false");
+    dom.emarSkippedToggle.textContent = next ? "Details ▴" : "Details ▾";
+    dom.emarSkippedList.hidden = !next;
+  });
+
+  dom.emarSkippedCopy?.addEventListener("click", async () => {
+    try {
+      const { [STORAGE_KEYS.emarSkippedRows]: rows } = await loadStorage([STORAGE_KEYS.emarSkippedRows]);
+      const csv = buildEmarSkippedRowsCsv(rows);
+      await writeToClipboard(csv);
+      showSuccess("Skipped EMAR rows copied as CSV");
+    } catch (err) {
+      console.warn("[CA Extension] emar skipped copy failed:", err);
+      showError("Could not copy skipped rows to clipboard");
+    }
+  });
+
+  dom.emarSkippedClear?.addEventListener("click", async () => {
+    try {
+      await setStorage({ [STORAGE_KEYS.emarSkippedRows]: [] });
+      renderEmarSkippedBanner([]);
+    } catch (err) {
+      console.warn("[CA Extension] emar skipped clear failed:", err);
+      showError("Could not clear skipped rows");
+    }
+  });
+
   // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); dom.startAutofill?.click(); return; }
@@ -8080,6 +8136,13 @@ function bindStorageListener() {
         } catch (e) { console.warn("[CA Extension] overlay pin handler error:", e); }
       }
 
+      if (changes[STORAGE_KEYS.emarSkippedRows]) {
+        try {
+          const rows = changes[STORAGE_KEYS.emarSkippedRows].newValue;
+          renderEmarSkippedBanner(Array.isArray(rows) ? rows : []);
+        } catch (e) { console.warn("[CA Extension] emar skipped handler error:", e); }
+      }
+
       if (changes[STORAGE_KEYS.appTheme]) {
         try {
           applyPopupAppTheme(changes[STORAGE_KEYS.appTheme].newValue);
@@ -8176,6 +8239,13 @@ function bindStorageListener() {
 
   if (initialState?.[STORAGE_KEYS.payload]) {
     switchTab("autofill", { persist: false });
+  }
+
+  // Restore EMAR skipped-rows banner from previous session (banner stays hidden if list is empty).
+  try {
+    renderEmarSkippedBanner(initialState?.[STORAGE_KEYS.emarSkippedRows] || []);
+  } catch (e) {
+    console.warn("[CA Extension] initial emar skipped render failed:", e);
   }
 
   // Render state-dependent sections without blocking connection checks.

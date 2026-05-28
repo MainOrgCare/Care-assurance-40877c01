@@ -95,6 +95,10 @@ export function cacheDomElements() {
     "footer-extension-version", "footer-status", "footer-status-dot",
     // Error
     "error-banner", "error-message", "error-dismiss",
+    // EMAR skipped rows banner (consumes caAcpEmarSkippedRows storage bucket)
+    "emar-skipped-banner", "emar-skipped-title", "emar-skipped-count",
+    "emar-skipped-list", "emar-skipped-toggle",
+    "emar-skipped-copy", "emar-skipped-clear",
     // Live progress
     "autofill-live-progress", "live-progress-fill", "live-progress-label",
     "live-progress-field", "live-progress-queue",
@@ -189,6 +193,97 @@ export function showSuccess(message) {
 
 export function showInfo(message) {
   _showToast(message, "info");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMAR SKIPPED ROWS BANNER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Render the EMAR skipped-rows banner from a list of {table, rowIndex, reason, code, ts}
+ * entries persisted in chrome.storage under STORAGE_KEYS.emarSkippedRows.
+ *
+ * Hidden when the list is empty. Caller is responsible for clearing the storage
+ * bucket via the "Clear" handler in main.js.
+ */
+export function renderEmarSkippedBanner(rows) {
+  const banner = dom.emarSkippedBanner;
+  if (!banner) return;
+
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) {
+    banner.hidden = true;
+    if (dom.emarSkippedList) {
+      dom.emarSkippedList.hidden = true;
+      dom.emarSkippedList.innerHTML = "";
+    }
+    if (dom.emarSkippedToggle) {
+      dom.emarSkippedToggle.setAttribute("aria-expanded", "false");
+      dom.emarSkippedToggle.textContent = "Details ▾";
+    }
+    return;
+  }
+
+  banner.hidden = false;
+
+  // Title + count
+  if (dom.emarSkippedTitle) {
+    dom.emarSkippedTitle.textContent = list.length === 1
+      ? "1 EMAR row was skipped"
+      : `${list.length} EMAR rows were skipped`;
+  }
+  if (dom.emarSkippedCount) {
+    dom.emarSkippedCount.textContent = String(list.length);
+  }
+
+  // Detail list (rendered but kept hidden until toggle is opened)
+  if (dom.emarSkippedList) {
+    const rowsHtml = list
+      .slice()
+      .reverse() // newest first
+      .map((row) => {
+        const table = escapeHtml(row?.table || "unknown");
+        const rowIndex = Number(row?.rowIndex);
+        const rowLabel = Number.isFinite(rowIndex) && rowIndex >= 0 ? `row ${rowIndex + 1}` : "row ?";
+        const reason = escapeHtml(row?.reason || "row missing");
+        const code = row?.code ? `<span class="emar-skipped-code">${escapeHtml(String(row.code))}</span>` : "";
+        const when = formatRuntimeTime(row?.ts);
+        return `<li class="emar-skipped-row">
+          <span class="emar-skipped-row-loc"><code>${table}</code> · ${rowLabel}</span>
+          ${code}
+          <span class="emar-skipped-row-reason">${reason}</span>
+          <span class="emar-skipped-row-when">${escapeHtml(when)}</span>
+        </li>`;
+      })
+      .join("");
+    dom.emarSkippedList.innerHTML = rowsHtml;
+  }
+}
+
+/**
+ * Convert skipped-row entries to a CSV string suitable for the clipboard or
+ * an audit attachment. Header row always present, even when list is empty.
+ */
+export function buildEmarSkippedRowsCsv(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const escapeCsv = (value) => {
+    const s = String(value ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = ["table,rowIndex,code,reason,timestamp"];
+  for (const row of list) {
+    const ts = row?.ts ? new Date(row.ts).toISOString() : "";
+    lines.push(
+      [
+        escapeCsv(row?.table || "unknown"),
+        escapeCsv(Number.isFinite(Number(row?.rowIndex)) ? Number(row.rowIndex) + 1 : ""),
+        escapeCsv(row?.code ?? ""),
+        escapeCsv(row?.reason || "row missing"),
+        escapeCsv(ts),
+      ].join(",")
+    );
+  }
+  return lines.join("\n");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -289,7 +384,120 @@ export function showConfirmDialog(title, message, onConfirm, { details = [] } = 
   confirmBtn.focus();
 }
 
-function buildHelpGuideText({ version = "", isConnected = false, isAdmin = false } = {}) {
+/**
+ * Preview-before-fill dialog. Shows the operator exactly what the engine is
+ * about to type before they commit to the run.
+ *
+ * `summary` is the structure returned by `buildAutofillPreviewSummary()`.
+ * Resolves with `{ confirmed: boolean, skipNextTime: boolean }`.
+ */
+export function showAutofillPreviewDialog(summary) {
+  return new Promise((resolve) => {
+    document.querySelector(".dialog-overlay")?.remove();
+
+    const dialogId = `dialog-preview-title-${Date.now()}`;
+    const skipId = `dialog-preview-skip-${Date.now()}`;
+
+    const sectionsHtml = (summary?.sections || [])
+      .map((section) => {
+        const itemsHtml = (section.items || [])
+          .slice(0, 12) // visual cap per section; count badge shows the true total
+          .map(
+            (item) => `
+              <li class="autofill-preview-item">
+                <span class="autofill-preview-item-title">${escapeHtml(item?.title || "(untitled)")}</span>
+                ${item?.detail ? `<span class="autofill-preview-item-detail">${escapeHtml(item.detail)}</span>` : ""}
+              </li>`
+          )
+          .join("");
+        const hiddenCount = Math.max(0, (section.items?.length || 0) - 12);
+        const moreLine = hiddenCount > 0
+          ? `<li class="autofill-preview-more">…and ${hiddenCount} more</li>`
+          : "";
+        return `
+          <section class="autofill-preview-section">
+            <header class="autofill-preview-section-head">
+              <span class="autofill-preview-section-label">${escapeHtml(section.label || "Items")}</span>
+              <span class="autofill-preview-section-count">${section.count ?? 0}</span>
+            </header>
+            <ul class="autofill-preview-list">${itemsHtml}${moreLine}</ul>
+          </section>`;
+      })
+      .join("");
+
+    const overlay = document.createElement("div");
+    overlay.className = "dialog-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", dialogId);
+    overlay.innerHTML = `
+      <div class="dialog autofill-preview-dialog">
+        <div class="dialog-header">
+          <span class="dialog-icon autofill-preview-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path d="M10 4a6 6 0 100 12 6 6 0 000-12zm-1 9V7l5 3-5 3z"/></svg>
+          </span>
+          <span class="dialog-title" id="${dialogId}">Ready to autofill</span>
+        </div>
+        <div class="dialog-body autofill-preview-body">
+          <div class="autofill-preview-meta">
+            <div><strong>${escapeHtml(summary?.workflowLabel || "Autofill")}</strong></div>
+            <div class="autofill-preview-su">${escapeHtml(summary?.serviceUserDisplayName || "")}</div>
+            <div class="autofill-preview-total">${summary?.totalItems ?? 0} item${(summary?.totalItems ?? 0) === 1 ? "" : "s"} queued</div>
+          </div>
+          <div class="autofill-preview-scroll">
+            ${sectionsHtml || '<div class="autofill-preview-empty">No structured items detected — payload will be sent as-is.</div>'}
+          </div>
+          <label class="autofill-preview-skip">
+            <input type="checkbox" id="${skipId}" />
+            <span>Skip this preview for the rest of this popup session</span>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary dialog-cancel">Cancel</button>
+          <button class="btn btn-primary dialog-confirm">Start autofill</button>
+        </div>
+      </div>
+    `;
+
+    const cancelBtn = overlay.querySelector(".dialog-cancel");
+    const confirmBtn = overlay.querySelector(".dialog-confirm");
+    const skipCheckbox = overlay.querySelector(`#${skipId}`);
+
+    const close = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+
+    cancelBtn.addEventListener("click", () => close({ confirmed: false, skipNextTime: false }));
+    confirmBtn.addEventListener("click", () => close({ confirmed: true, skipNextTime: Boolean(skipCheckbox?.checked) }));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close({ confirmed: false, skipNextTime: false });
+    });
+
+    const focusable = [cancelBtn, confirmBtn, skipCheckbox].filter(Boolean);
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close({ confirmed: false, skipNextTime: false });
+        return;
+      }
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        close({ confirmed: true, skipNextTime: Boolean(skipCheckbox?.checked) });
+        return;
+      }
+      if (e.key === "Tab" && focusable.length > 0) {
+        const idx = focusable.indexOf(document.activeElement);
+        e.preventDefault();
+        if (e.shiftKey) focusable[idx <= 0 ? focusable.length - 1 : idx - 1].focus();
+        else focusable[idx >= focusable.length - 1 ? 0 : idx + 1].focus();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    confirmBtn.focus();
+  });
+}
   const versionLabel = String(version || "").trim();
   const formattedVersion = versionLabel
     ? versionLabel.startsWith("v")

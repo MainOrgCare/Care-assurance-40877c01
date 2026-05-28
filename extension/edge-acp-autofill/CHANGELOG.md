@@ -1,5 +1,26 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.6.46 — Preview-Before-Fill Dialog
+
+### New: Preview-Before-Fill Confirmation
+
+- Clicking **Start Autofill** now opens a preview modal that lists exactly what the engine is about to type, grouped by section (assessments / form sections / EMAR medication & non-conformance rows), with per-section counts and a workflow + service-user header. The operator confirms the run or cancels before any field is touched.
+- The dialog is **skipped automatically when Dry Run is on** (Dry Run is itself a non-destructive preview) and can be silenced for the rest of the popup session via the **Skip this preview for the rest of this popup session** checkbox. The opt-out resets when the popup is closed and reopened.
+- Keyboard: **Esc** cancels, **Ctrl/Cmd+Enter** confirms, **Tab** cycles cancel ↔ confirm ↔ skip checkbox.
+- Implementation: new pure helper `buildAutofillPreviewSummary(payload)` in `popup/state.js` (no DOM), new `showAutofillPreviewDialog(summary)` modal in `popup/ui.js` returning `{ confirmed, skipNextTime }`, gate inserted in the `startAutofill` click handler in `popup/main.js` between the workflow-safety check and the runtime message dispatch. New `state.skipAutofillPreviewThisSession` flag tracks the per-session opt-out.
+
+## Version 0.6.45 — EMAR Skipped-Row Banner & Header Polish
+
+### New: EMAR Skipped-Row Banner
+
+- The popup now surfaces skipped EMAR rows in a dedicated amber banner directly under the error banner. Populated live from the `caAcpEmarSkippedRows` storage bucket (which `content-emar.js` writes via `CA_EXTENSION_EMAR_SKIPPED`), the banner stays hidden when there is nothing to surface and exposes per-row `table`, `row N`, `code`, `reason`, and timestamp inside a collapsible details list.
+- Two actions ship with the banner: **Copy CSV** writes a `table,rowIndex,code,reason,timestamp` CSV to the clipboard (one line per skipped row, header always present), and **Clear** drops the storage bucket back to empty. Storage updates fan out through the existing `chrome.storage.onChanged` plumbing so any popup window stays in sync.
+- New `ui.js` exports: `renderEmarSkippedBanner(rows)` and `buildEmarSkippedRowsCsv(rows)`. Initial state restore happens during popup init from the existing `POPUP_INITIAL_STORAGE_KEYS` load.
+
+### Polish: Premium Header Treatment
+
+- Heightened the popup header's inner glow with stronger teal/blue radial gradients, added a soft top highlight band, and bumped the bottom hairline from 12% to 22% white plus a 1px inset shadow. Result: noticeably more depth on hi-DPI displays without changing layout or typography.
+
 ## Version 0.6.44 - Diagnostics Pipeline & Field Retry
 
 ### New: Server-Side Extension Diagnostics
