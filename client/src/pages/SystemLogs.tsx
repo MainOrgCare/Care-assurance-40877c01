@@ -33,6 +33,10 @@ import {
   Database,
   User,
   Clock,
+  ThumbsUp,
+  ThumbsDown,
+  Sparkles,
+  ListFilter,
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDataExport } from "@/hooks/useDataExport";
@@ -127,6 +131,42 @@ function getEventMeta(eventType: string, details?: SystemLogEntry["details"]): E
   if (type === "data_mutation") {
     return { category: "data", severity: "info", label: "Data Change", icon: <Database className="h-3.5 w-3.5" /> };
   }
+  if (type === "rostering_recommendation") {
+    const decision = String((details as Record<string, unknown> | undefined)?.decision ?? "").toLowerCase();
+    const isImplemented = decision === "implemented";
+    return {
+      category: "data",
+      severity: "info",
+      label: isImplemented ? "Rec Implemented" : decision === "rejected" ? "Rec Rejected" : "Recommendation",
+      icon: isImplemented
+        ? <ThumbsUp className="h-3.5 w-3.5" />
+        : decision === "rejected"
+          ? <ThumbsDown className="h-3.5 w-3.5" />
+          : <Sparkles className="h-3.5 w-3.5" />,
+    };
+  }
+  if (type === "data_create" || type === "data_update" || type === "data_delete") {
+    return {
+      category: "data",
+      severity: type === "data_delete" ? "warning" : "info",
+      label: type === "data_create" ? "Data Create" : type === "data_update" ? "Data Update" : "Data Delete",
+      icon: type === "data_delete" ? <Trash2 className="h-3.5 w-3.5" /> : <FileEdit className="h-3.5 w-3.5" />,
+    };
+  }
+  if (type === "mutation_rejected" || type === "mutation_error") {
+    return {
+      category: "security",
+      severity: type === "mutation_error" ? "critical" : "warning",
+      label: type === "mutation_error" ? "Mutation Error" : "Mutation Rejected",
+      icon: <ShieldAlert className="h-3.5 w-3.5" />,
+    };
+  }
+  if (type === "api_request") {
+    return { category: "system", severity: "info", label: "API Request", icon: <Globe className="h-3.5 w-3.5" /> };
+  }
+  if (type === "action") {
+    return { category: "system", severity: "info", label: "User Action", icon: <User className="h-3.5 w-3.5" /> };
+  }
   if (status === "blocked" || status === "flagged") {
     return { category: "security", severity: "critical", label: eventType, icon: <ShieldAlert className="h-3.5 w-3.5" /> };
   }
@@ -182,7 +222,8 @@ export default function SystemLogs() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const limit = 25;
+  const [limit, setLimit] = useState(25);
+  const [includeAll, setIncludeAll] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
   const { toast } = useToast();
@@ -198,6 +239,7 @@ export default function SystemLogs() {
         search: debouncedSearch,
         status: statusFilter,
       });
+      if (includeAll) params.set("includeAll", "true");
       const response = await fetch(`/api/system-logs?${params}`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch audit logs");
       const data: PaginatedResponse = await response.json();
@@ -212,11 +254,11 @@ export default function SystemLogs() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statusFilter, toast]);
+  }, [page, limit, debouncedSearch, statusFilter, includeAll, toast]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, categoryFilter]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, categoryFilter, limit, includeAll]);
 
   const goToPage = useCallback((newPage: number) => {
     setPage(Math.max(1, Math.min(newPage, totalPages)));
@@ -334,7 +376,7 @@ export default function SystemLogs() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="py-3 grid gap-3 md:grid-cols-[2fr_1fr]">
+        <CardContent className="py-3 grid gap-3 md:grid-cols-[2fr_1fr_auto_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -357,6 +399,28 @@ export default function SystemLogs() {
               <SelectItem value="system">System</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={String(limit)} onValueChange={(v) => setLimit(Number(v))}>
+            <SelectTrigger aria-label="Rows per page" className="min-w-[8.5rem]">
+              <ListFilter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25 / page</SelectItem>
+              <SelectItem value="50">50 / page</SelectItem>
+              <SelectItem value="100">100 / page</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant={includeAll ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIncludeAll((v) => !v)}
+            aria-pressed={includeAll}
+            title={includeAll ? "Hiding nothing — including API request firehose" : "Hidden: api_request (high-volume)"}
+          >
+            <Activity className="mr-2 h-3.5 w-3.5" />
+            {includeAll ? "Showing everything" : "Show everything"}
+          </Button>
         </CardContent>
       </Card>
 

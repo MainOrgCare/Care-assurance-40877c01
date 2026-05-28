@@ -27,8 +27,9 @@ export function registerSystemLogRoutes(
       const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "10"), 10) || 10));
       const search = typeof req.query.search === "string" ? req.query.search : "";
       const status = typeof req.query.status === "string" ? req.query.status : "all";
+      const includeAll = String(req.query.includeAll || "").toLowerCase() === "true";
 
-      const result = await storage.getSystemLogsPaginated({ page, limit, search, status });
+      const result = await storage.getSystemLogsPaginated({ page, limit, search, status, includeAll });
       return res.json(result);
     } catch (error: unknown) {
       console.error("Failed to fetch system logs:", error);

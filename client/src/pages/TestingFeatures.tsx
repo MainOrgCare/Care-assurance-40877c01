@@ -412,6 +412,13 @@ interface RowAnalysis {
   doubleUpWorkers?: string[];
   doubleUpSlotKey?: string | null;
   excludeFromMetrics?: boolean;
+  /**
+   * True when both the actual start and actual end source values reported
+   * seconds and those seconds were exactly ":00". These rows are treated as
+   * synthetic / system-generated punches (rather than real carer arrivals)
+   * and are excluded from recommendation trend analysis.
+   */
+  actualTimesAreSyntheticZeroSeconds?: boolean;
   callTypeLabel?: string | null;
   templateWeek?: "week1" | "week2" | null;
   templateDay?: string | null;
@@ -1225,6 +1232,17 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       const actualTimeMinutes = actualTimeField ? parseTimeToMinutes(actualTimeField.value) : null;
       const plannedEndTimeMinutes = plannedEndTimeField ? parseTimeToMinutes(plannedEndTimeField.value) : null;
       const actualEndTimeMinutes = actualEndTimeField ? parseTimeToMinutes(actualEndTimeField.value) : null;
+      // Flag rows whose actual start AND actual end both report seconds and
+      // both end with ":00". These are almost always synthetic / round-minute
+      // entries (auto-filled or templated) rather than real carer punches,
+      // and would otherwise skew recommendation averages.
+      const actualStartHasReportedZeroSeconds = timeValueHasZeroSeconds(actualTimeField?.value);
+      const actualEndHasReportedZeroSeconds = timeValueHasZeroSeconds(actualEndTimeField?.value);
+      const actualTimesAreSyntheticZeroSeconds =
+        typeof actualTimeMinutes === "number" &&
+        typeof actualEndTimeMinutes === "number" &&
+        actualStartHasReportedZeroSeconds &&
+        actualEndHasReportedZeroSeconds;
       const scheduleDeltaMinutes =
         plannedTimeMinutes !== null && actualTimeMinutes !== null
           ? actualTimeMinutes - plannedTimeMinutes
@@ -1478,6 +1496,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         normalizedServiceUserKey,
         isDuplicateSlotRow: false,
         excludeFromMetrics,
+        actualTimesAreSyntheticZeroSeconds,
         callTypeLabel,
       };
     },
@@ -2094,6 +2113,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     const driftOverTwoHours = primaryRows.filter((row) => row.scheduleFlag).length;
     const durationShortfall = primaryRows.filter((row) => row.durationFlag).length;
     const durationOverrun = primaryRows.filter((row) => row.durationOverrunFlag).length;
+    const syntheticZeroSecondRows = primaryRows.filter(
+      (row) => row.actualTimesAreSyntheticZeroSeconds,
+    ).length;
 
     return {
       totalRows,
@@ -2108,6 +2130,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       driftOverTwoHours,
       durationShortfall,
       durationOverrun,
+      syntheticZeroSecondRows,
     };
   }, [analysisResults, dedupedResults.length, primaryRows]);
 
@@ -2186,6 +2209,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         count: issueBreakdown.mismatchedCarers,
         base: totalBase,
         helper: "All rows",
+      },
+      {
+        key: "synthetic-zero-seconds",
+        label: "Synthetic :00 punches excluded from recs",
+        count: issueBreakdown.syntheticZeroSecondRows,
+        base: uniqueBase,
+        helper: "Unique slots",
       },
     ];
 
@@ -2595,6 +2625,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       if (!userKey) continue;
       const callTypeKey = normalizeCallTypeKey(row.callTypeLabel ?? null);
       if (!callTypeKey) continue;
+      // Skip synthetic round-minute rows: when both actual start AND actual end
+      // report seconds = :00, the row is almost certainly an auto-filled or
+      // templated entry rather than a real carer punch. Including them would
+      // pull recommendation averages toward whatever the planned time was.
+      if (row.actualTimesAreSyntheticZeroSeconds) continue;
 
       const baselineMinutesRaw =
         typeof row.serviceRequirementTimeMinutes === "number"
@@ -4806,6 +4841,33 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       description: `${selectedRecommendation.serviceUserName} • ${selectedRecommendation.timeBandLabel}`,
     });
 
+    // Persist the decision to the audit trail so admins can review what was accepted vs rejected.
+    fetch("/api/system-logs", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "rostering_recommendation",
+        action: decision === "implemented" ? "Implemented rostering recommendation" : "Rejected rostering recommendation",
+        target: `${selectedRecommendation.serviceUserName} · ${selectedRecommendation.callTypeLabel} · ${selectedRecommendation.timeBandLabel}`,
+        status: decision === "implemented" ? "Authorized" : "Flagged",
+        serviceUserInitials: selectedRecommendation.serviceUserName,
+        details: {
+          decision,
+          recommendationKey: selectedRecommendation.key,
+          serviceUserName: selectedRecommendation.serviceUserName,
+          serviceUserArea: selectedRecommendation.serviceUserArea ?? null,
+          callTypeLabel: selectedRecommendation.callTypeLabel,
+          timeBandLabel: selectedRecommendation.timeBandLabel,
+          suggestedPlannedTime: selectedRecommendation.suggestedPlannedTimeLabel,
+          suggestedPlannedDurationMinutes: selectedRecommendation.suggestedPlannedDurationMinutes,
+        },
+      }),
+    }).catch((err) => {
+      // Audit trail is best-effort; never block the UI flow.
+      console.warn("Failed to record recommendation decision in system log", err);
+    });
+
     // Auto-advance to next pending recommendation
     const currentIndex = careCallRecommendations.findIndex((r) => r.key === selectedRecommendation.key);
     const nextPending = careCallRecommendations.find(
@@ -5618,6 +5680,17 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl hover-elevate shimmer motion-safe:animate-slide-up stagger-1 md:p-10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%),radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_45%)]" />
+        {/* Tab-aware accent halo — each tab gets its own color signature */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
+            activeTab === "data"
+              ? "bg-[radial-gradient(circle_at_85%_-10%,rgba(56,189,248,0.22),transparent_50%)]"
+              : activeTab === "analyse"
+                ? "bg-[radial-gradient(circle_at_85%_-10%,rgba(139,92,246,0.22),transparent_50%)]"
+                : "bg-[radial-gradient(circle_at_85%_-10%,rgba(245,158,11,0.22),transparent_50%)]"
+          }`}
+        />
         <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
         <div className="pointer-events-none absolute -left-24 -bottom-32 h-64 w-64 rounded-full bg-success/10 blur-3xl" />
         <div className="relative z-10 space-y-8">
@@ -5725,14 +5798,22 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
           </div>
 
           <Tabs value={activeTab} onValueChange={handleWorkspaceTabChange} className="space-y-4">
-            <TabsList className="grid w-full max-w-xl grid-cols-3 rounded-2xl bg-background/70 p-1">
-              <TabsTrigger value="data" className="gap-1.5">
+            <TabsList className="grid w-full max-w-xl grid-cols-3 rounded-2xl border border-border/60 bg-gradient-to-r from-background/80 via-background/60 to-background/80 p-1 shadow-soft backdrop-blur">
+              <TabsTrigger
+                value="data"
+                className="gap-1.5 rounded-xl data-[state=active]:bg-gradient-to-br data-[state=active]:from-sky-500/15 data-[state=active]:to-emerald-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-sky-400/30"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
                 Data
                 {fileMeta && processingState === "ready" && (
                   <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                 )}
               </TabsTrigger>
-              <TabsTrigger value="analyse" className="gap-1.5">
+              <TabsTrigger
+                value="analyse"
+                className="gap-1.5 rounded-xl data-[state=active]:bg-gradient-to-br data-[state=active]:from-violet-500/15 data-[state=active]:to-sky-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-violet-400/30"
+              >
+                <FlaskConical className="h-3.5 w-3.5" />
                 Analyse
                 {processingState === "ready" && (
                   <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
@@ -5744,7 +5825,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 )}
               </TabsTrigger>
-              <TabsTrigger value="view" className="gap-1.5">
+              <TabsTrigger
+                value="view"
+                className="gap-1.5 rounded-xl data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500/15 data-[state=active]:to-rose-500/10 data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-amber-400/30"
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
                 View
                 {careCallRecommendations.length > 0 && remainingRecommendationCount > 0 && (
                   <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[9px] font-bold leading-none">
@@ -9398,6 +9483,34 @@ function isTruthyValue(value: any): boolean {
   const text = String(value).trim().toLowerCase();
   if (!text) return false;
   return ["true", "yes", "y", "1", "t", "checked"].includes(text);
+}
+
+/**
+ * Returns true only when the raw time source value clearly reports a seconds
+ * component AND that seconds component is exactly "00".
+ *
+ * Used to detect synthetic / round-minute punch entries (e.g. \"09:00:00\")
+ * that should be excluded from rostering recommendation analysis. Sources
+ * that don't include seconds at all (e.g. \"09:00\") return false — we only
+ * want to exclude rows where the seconds were explicitly reported as zero.
+ */
+function timeValueHasZeroSeconds(value: any): boolean {
+  if (value === null || value === undefined || value === "") return false;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Excel serial datetimes carry full seconds resolution. Treat the seconds
+    // component as reported and check if it rounds to a whole minute.
+    const fraction = value - Math.floor(value);
+    if (fraction < 0 || fraction >= 1) return false;
+    const totalSeconds = Math.round(fraction * 24 * 60 * 60);
+    return totalSeconds > 0 && totalSeconds % 60 === 0;
+  }
+  const str = String(value).trim();
+  if (!str) return false;
+  // Match an HH:MM:SS chunk anywhere (handles "01/01/2026 09:00:00" too).
+  // Only return true when the source actually carries a seconds field.
+  const match = str.match(/(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?(?:\s*(am|pm))?/i);
+  if (!match) return false;
+  return Number(match[3]) === 0;
 }
 
 function parseTimeToMinutes(value: any): number | null {

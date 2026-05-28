@@ -33,6 +33,8 @@ import {
   MapPin,
   Route,
   Search,
+  Sparkles,
+  Timer,
   Users,
 } from "lucide-react";
 
@@ -45,9 +47,66 @@ interface ServiceUser {
 
 type RouteMode = "location" | "time";
 
+/**
+ * A call placed on the run timeline. `effectiveStartMinutes` is the actual
+ * scheduled start time after no-overlap resolution; `pushedMinutes` is how far
+ * forward it had to move from `desiredStartMinutes` to avoid colliding with the
+ * previous call. Duration is taken from the service-requirement length
+ * (`averagePlannedDurationMinutes`, which is sourced from service requirement
+ * times in the parser) — never the variable actual length.
+ */
+interface ScheduledCall {
+  call: SharedCallSlot;
+  desiredStartMinutes: number;
+  effectiveStartMinutes: number;
+  durationMinutes: number;
+  endMinutes: number;
+  pushedMinutes: number;
+}
+
+const DEFAULT_CALL_DURATION_MINUTES = 30;
+const RUN_TRAVEL_BUFFER_MINUTES = 5;
+
+/** Service-requirement length for a call, falling back to a sensible default. */
+function durationForCall(call: SharedCallSlot): number {
+  const planned = call.averagePlannedDurationMinutes;
+  if (typeof planned === "number" && Number.isFinite(planned) && planned > 0) {
+    return Math.max(5, Math.round(planned));
+  }
+  return DEFAULT_CALL_DURATION_MINUTES;
+}
+
+/**
+ * Place an ordered list of calls onto a timeline so they never overlap.
+ * Each call keeps its recommended start unless the previous call (plus a short
+ * travel buffer) would still be running — in which case the call is pushed
+ * forward to start exactly when the previous one ends + buffer.
+ */
+function buildRunSchedule(orderedCalls: SharedCallSlot[]): ScheduledCall[] {
+  const result: ScheduledCall[] = [];
+  let cursor = Number.NEGATIVE_INFINITY;
+  for (const call of orderedCalls) {
+    const desired = callStartMinutes(call);
+    const duration = durationForCall(call);
+    const effective = Math.max(desired, cursor);
+    const end = effective + duration;
+    result.push({
+      call,
+      desiredStartMinutes: desired,
+      effectiveStartMinutes: effective,
+      durationMinutes: duration,
+      endMinutes: end,
+      pushedMinutes: Math.max(0, effective - desired),
+    });
+    cursor = end + RUN_TRAVEL_BUFFER_MINUTES;
+  }
+  return result;
+}
+
 function formatMinutesToTime(minutes: number): string {
-  const hrs = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
+  const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hrs = Math.floor(normalized / 60);
+  const mins = Math.round(normalized % 60);
   return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
@@ -211,6 +270,33 @@ export default function RosteringRuns() {
     return calls.sort((a, b) => callStartMinutes(a) - callStartMinutes(b));
   }, [selectedUsers, callTypeFilter, serviceUsers, routeMode]);
 
+  // Resolve the ordered run into a no-overlap timeline using service-requirement
+  // durations. Each scheduled entry exposes both the desired start (what the
+  // recommendation asked for) and the effective start (after collision push).
+  const scheduledRun = useMemo<ScheduledCall[]>(
+    () => buildRunSchedule(optimalRun),
+    [optimalRun],
+  );
+
+  const overlapResolvedCount = useMemo(
+    () => scheduledRun.reduce((acc, s) => acc + (s.pushedMinutes > 0 ? 1 : 0), 0),
+    [scheduledRun],
+  );
+
+  const totalScheduledDurationMinutes = useMemo(
+    () => scheduledRun.reduce((acc, s) => acc + s.durationMinutes, 0),
+    [scheduledRun],
+  );
+
+  // First/last effective minute used for proportional timeline placement.
+  const timelineBounds = useMemo(() => {
+    if (scheduledRun.length === 0) return null;
+    const first = scheduledRun[0].effectiveStartMinutes;
+    const last = scheduledRun[scheduledRun.length - 1].endMinutes;
+    const span = Math.max(1, last - first);
+    return { first, last, span };
+  }, [scheduledRun]);
+
   // Count location transitions ("hops") between consecutive calls — lower is a tighter route.
   const routeStats = useMemo(() => {
     if (optimalRun.length < 2) return { hops: 0, distinctLocations: optimalRun.length };
@@ -224,13 +310,11 @@ export default function RosteringRuns() {
     return { hops, distinctLocations: distinct.size };
   }, [optimalRun]);
 
-  // Total time span estimation
+  // Total elapsed minutes from the first scheduled start to the last scheduled end.
   const totalGapMinutes = useMemo(() => {
-    if (optimalRun.length < 2) return 0;
-    const first = optimalRun[0].averageActualStartMinutes ?? optimalRun[0].averagePlannedStartMinutes ?? 0;
-    const last = optimalRun[optimalRun.length - 1].averageActualStartMinutes ?? optimalRun[optimalRun.length - 1].averagePlannedStartMinutes ?? 0;
-    return Math.max(0, last - first);
-  }, [optimalRun]);
+    if (!timelineBounds) return 0;
+    return Math.max(0, timelineBounds.span);
+  }, [timelineBounds]);
 
   const handleSelectAll = useCallback(() => {
     setSelectedUsers(new Set(filteredServiceUsers.map((su) => su.key)));
@@ -250,24 +334,38 @@ export default function RosteringRuns() {
   }, []);
 
   const handleCopyRun = useCallback(() => {
-    if (!optimalRun.length) return;
-    const lines = optimalRun.map((call, idx) => {
-      const time = call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0);
-      return `${idx + 1}. ${call.serviceUserName} — ${call.callTypeLabel} (${call.timeBandLabel}) @ ${time}`;
+    if (!scheduledRun.length) return;
+    const lines = scheduledRun.map((entry, idx) => {
+      const start = formatMinutesToTime(entry.effectiveStartMinutes);
+      const end = formatMinutesToTime(entry.endMinutes);
+      const pushedTag = entry.pushedMinutes > 0 ? ` (+${entry.pushedMinutes}m to avoid overlap)` : "";
+      return `${idx + 1}. ${entry.call.serviceUserName} — ${entry.call.callTypeLabel} (${entry.call.timeBandLabel}) @ ${start}–${end} · ${entry.durationMinutes}m${pushedTag}`;
     });
-    const text = `Optimal Run (${optimalRun.length} calls)\n${"─".repeat(40)}\n${lines.join("\n")}`;
+    const text = `Optimal Run (${scheduledRun.length} calls)\n${"─".repeat(40)}\n${lines.join("\n")}`;
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied to clipboard", description: `${optimalRun.length} calls in optimal order.` });
-  }, [optimalRun, toast]);
+    toast({ title: "Copied to clipboard", description: `${scheduledRun.length} calls in optimal order.` });
+  }, [scheduledRun, toast]);
 
   const handleExportCSV = useCallback(() => {
-    if (!optimalRun.length) return;
-    const header = "Order,Service User,Call Type,Time Band,Suggested Time,Planned Length (min),Actual Length (min),Suggested Length (min),Area,Address,Advice,Has Recommendation";
-    const rows = optimalRun.map((call, idx) => {
-      const time = call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0);
-      const plannedLen = call.averagePlannedDurationMinutes != null ? Math.round(call.averagePlannedDurationMinutes) : "";
-      const actualLen = call.averageActualDurationMinutes != null ? Math.round(call.averageActualDurationMinutes) : "";
-      return `${idx + 1},"${call.serviceUserName}","${call.callTypeLabel}","${call.timeBandLabel}","${time}","${plannedLen}","${actualLen}","${call.suggestedPlannedDurationMinutes ?? ""}","${call.serviceUserArea ?? ""}","${(call.serviceUserAddress ?? "").replace(/"/g, '""')}","${call.advice.join("; ").replace(/"/g, '""')}","${call.hasRecommendation ? "Yes" : "No"}"`;
+    if (!scheduledRun.length) return;
+    const header = "Order,Service User,Call Type,Time Band,Desired Start,Effective Start,End,Length (min),Pushed (min),Area,Address,Advice,Has Recommendation";
+    const rows = scheduledRun.map((entry, idx) => {
+      const { call } = entry;
+      return [
+        idx + 1,
+        `"${call.serviceUserName}"`,
+        `"${call.callTypeLabel}"`,
+        `"${call.timeBandLabel}"`,
+        `"${formatMinutesToTime(entry.desiredStartMinutes)}"`,
+        `"${formatMinutesToTime(entry.effectiveStartMinutes)}"`,
+        `"${formatMinutesToTime(entry.endMinutes)}"`,
+        entry.durationMinutes,
+        entry.pushedMinutes,
+        `"${call.serviceUserArea ?? ""}"`,
+        `"${(call.serviceUserAddress ?? "").replace(/"/g, '""')}"`,
+        `"${call.advice.join("; ").replace(/"/g, '""')}"`,
+        call.hasRecommendation ? "Yes" : "No",
+      ].join(",");
     });
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -277,7 +375,7 @@ export default function RosteringRuns() {
     a.download = `optimal-run-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [optimalRun]);
+  }, [scheduledRun]);
 
   // Empty state: no analysis data available
   if (allSlots.length === 0) {
@@ -316,16 +414,17 @@ export default function RosteringRuns() {
     <div className="page-shell max-w-5xl mx-auto space-y-6 pb-8">
       {/* Header */}
       <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl md:p-8">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.1),transparent_55%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_55%)]" />
         <div className="relative z-10 space-y-4">
           <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-            <ListOrdered className="h-3.5 w-3.5" />
+            <Sparkles className="h-3.5 w-3.5" />
             Optimal Ordering
           </div>
           <div>
-            <h1 className="text-3xl font-heading font-bold text-foreground">Rostering Runs</h1>
+            <h1 className="text-3xl font-heading font-bold text-foreground md:text-4xl">Rostering Runs</h1>
             <p className="text-muted-foreground max-w-2xl mt-2">
-              Select service users to build an optimised rota run. Calls are ordered by their recommended times to minimise gaps and maximise efficiency.
+              Select service users to build an optimised run. Calls are placed end‑to‑end on the timeline using their
+              <span className="font-medium text-foreground/80"> service‑requirement length</span> so two visits can never overlap.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -339,10 +438,16 @@ export default function RosteringRuns() {
                 {selectedUsers.size} selected
               </Badge>
             )}
-            {optimalRun.length > 0 && (
+            {scheduledRun.length > 0 && (
               <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
                 <ListOrdered className="mr-2 h-3.5 w-3.5 text-primary" />
-                {optimalRun.length} call{optimalRun.length === 1 ? "" : "s"} in run
+                {scheduledRun.length} call{scheduledRun.length === 1 ? "" : "s"} in run
+              </Badge>
+            )}
+            {overlapResolvedCount > 0 && (
+              <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 px-3 py-1 text-xs text-amber-700 dark:text-amber-300">
+                <Timer className="mr-2 h-3.5 w-3.5" />
+                {overlapResolvedCount} pushed to avoid overlap
               </Badge>
             )}
           </div>
@@ -459,10 +564,10 @@ export default function RosteringRuns() {
                   Optimal Run
                 </CardTitle>
                 <CardDescription>
-                  {optimalRun.length > 0
+                  {scheduledRun.length > 0
                     ? routeMode === "location"
-                      ? `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} routed by location & time`
-                      : `${optimalRun.length} call${optimalRun.length === 1 ? "" : "s"} ordered by recommended time`
+                      ? `${scheduledRun.length} call${scheduledRun.length === 1 ? "" : "s"} routed by location & time — placed end‑to‑end with no overlap`
+                      : `${scheduledRun.length} call${scheduledRun.length === 1 ? "" : "s"} ordered by recommended time — placed end‑to‑end with no overlap`
                     : "Select service users to generate an optimal run"}
                 </CardDescription>
               </div>
@@ -497,7 +602,7 @@ export default function RosteringRuns() {
                     <Clock className="h-3 w-3" /> Time
                   </button>
                 </div>
-                {optimalRun.length > 0 && (
+                {scheduledRun.length > 0 && (
                   <>
                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleCopyRun}>
                       <Copy className="h-3 w-3" /> Copy
@@ -512,27 +617,25 @@ export default function RosteringRuns() {
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Summary stats */}
-            {optimalRun.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
-                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
+            {scheduledRun.length > 0 && timelineBounds && (
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                <div className="rounded-xl border border-border/60 bg-gradient-to-br from-background/90 to-background/60 px-3 py-2 text-center shadow-sm">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Calls</p>
-                  <p className="text-lg font-bold text-foreground">{optimalRun.length}</p>
+                  <p className="text-lg font-bold text-foreground">{scheduledRun.length}</p>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Time span</p>
+                <div className="rounded-xl border border-border/60 bg-gradient-to-br from-background/90 to-background/60 px-3 py-2 text-center shadow-sm">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Window</p>
                   <p className="text-sm font-bold text-foreground leading-tight">
-                    {optimalRun.length >= 2
-                      ? `${formatMinutesToTime(callStartMinutes(optimalRun[0]))}–${formatMinutesToTime(callStartMinutes(optimalRun[optimalRun.length - 1]))}`
-                      : "—"}
+                    {formatMinutesToTime(timelineBounds.first)}–{formatMinutesToTime(timelineBounds.last)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total span</p>
+                <div className="rounded-xl border border-border/60 bg-gradient-to-br from-background/90 to-background/60 px-3 py-2 text-center shadow-sm">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">On‑call time</p>
                   <p className="text-lg font-bold text-foreground">
-                    {totalGapMinutes > 0 ? `${Math.floor(totalGapMinutes / 60)}h ${totalGapMinutes % 60}m` : "—"}
+                    {Math.floor(totalScheduledDurationMinutes / 60)}h {totalScheduledDurationMinutes % 60}m
                   </p>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-center">
+                <div className="rounded-xl border border-border/60 bg-gradient-to-br from-background/90 to-background/60 px-3 py-2 text-center shadow-sm">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Area hops</p>
                   <p className="text-lg font-bold text-foreground">
                     {routeStats.hops}
@@ -542,90 +645,145 @@ export default function RosteringRuns() {
               </div>
             )}
 
+            {/* Proportional timeline strip */}
+            {scheduledRun.length > 0 && timelineBounds && (
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Run timeline</p>
+                  <p className="text-[10px] text-muted-foreground">Service‑requirement lengths · no overlap</p>
+                </div>
+                <div className="relative h-7 w-full rounded-md bg-background/70 ring-1 ring-border/60 overflow-hidden">
+                  {scheduledRun.map((entry, idx) => {
+                    const leftPct = ((entry.effectiveStartMinutes - timelineBounds.first) / timelineBounds.span) * 100;
+                    const widthPct = Math.max(0.6, (entry.durationMinutes / timelineBounds.span) * 100);
+                    const pushed = entry.pushedMinutes > 0;
+                    return (
+                      <Tooltip key={`tl-${idx}`}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={`absolute top-0 h-full rounded-sm transition-colors ${
+                              pushed
+                                ? "bg-amber-500/70 hover:bg-amber-500"
+                                : entry.call.hasRecommendation
+                                  ? "bg-primary/70 hover:bg-primary"
+                                  : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
+                            }`}
+                            style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                            aria-label={`${idx + 1}. ${entry.call.serviceUserName}`}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-[11px] space-y-0.5">
+                          <p className="font-semibold">{idx + 1}. {entry.call.serviceUserName}</p>
+                          <p className="font-mono">{formatMinutesToTime(entry.effectiveStartMinutes)}–{formatMinutesToTime(entry.endMinutes)} · {entry.durationMinutes}m</p>
+                          {pushed && <p className="text-amber-600 dark:text-amber-300">Pushed +{entry.pushedMinutes}m to avoid overlap</p>}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary/70" /> Recommended</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-muted-foreground/40" /> No rec</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-500/70" /> Shifted</span>
+                </div>
+              </div>
+            )}
+
             {/* Run list */}
-            {optimalRun.length > 0 ? (
+            {scheduledRun.length > 0 ? (
               <ScrollArea className="h-[380px] border rounded-xl">
                 <div className="divide-y">
-                  {optimalRun.map((call, idx) => (
-                    <div key={`${call.serviceUserKey}-${call.callTypeLabel}-${idx}`} className="flex items-center gap-3 px-3 py-3">
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shrink-0 ${
-                        call.hasRecommendation ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                      }`}>
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate flex items-center gap-1.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="truncate cursor-default">{call.serviceUserName}</span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="space-y-1.5">
-                              <p className="font-semibold text-xs">{call.serviceUserName}</p>
-                              <div className="flex items-center gap-2 text-[11px]">
-                                <Clock className="h-3 w-3 text-primary/70" />
-                                <span className="text-muted-foreground">Planned:</span>
-                                <span className="font-mono font-medium">{call.averagePlannedStartMinutes != null ? formatMinutesToTime(call.averagePlannedStartMinutes) : "—"}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-[11px]">
-                                <Clock className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-muted-foreground">Actual:</span>
-                                <span className="font-mono font-medium">{call.averageActualStartMinutes != null ? formatMinutesToTime(call.averageActualStartMinutes) : "—"}</span>
-                              </div>
-                              {(call.averagePlannedDurationMinutes != null || call.averageActualDurationMinutes != null) && (
+                  {scheduledRun.map((entry, idx) => {
+                    const { call } = entry;
+                    const pushed = entry.pushedMinutes > 0;
+                    return (
+                      <div
+                        key={`${call.serviceUserKey}-${call.callTypeLabel}-${idx}`}
+                        className={`flex items-center gap-3 px-3 py-3 transition-colors ${
+                          pushed ? "bg-amber-500/[0.04] hover:bg-amber-500/[0.07]" : "hover:bg-muted/40"
+                        }`}
+                      >
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0 ring-1 ${
+                          call.hasRecommendation
+                            ? "bg-primary/10 text-primary ring-primary/30"
+                            : "bg-muted text-muted-foreground ring-border/60"
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="truncate cursor-default">{call.serviceUserName}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="space-y-1.5">
+                                <p className="font-semibold text-xs">{call.serviceUserName}</p>
                                 <div className="flex items-center gap-2 text-[11px]">
-                                  <span className="text-muted-foreground">Length:</span>
+                                  <Clock className="h-3 w-3 text-primary/70" />
+                                  <span className="text-muted-foreground">Recommended:</span>
+                                  <span className="font-mono font-medium">{formatMinutesToTime(entry.desiredStartMinutes)}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[11px]">
+                                  <Timer className="h-3 w-3 text-primary/70" />
+                                  <span className="text-muted-foreground">Scheduled:</span>
                                   <span className="font-mono font-medium">
-                                    {call.averagePlannedDurationMinutes != null ? `${Math.round(call.averagePlannedDurationMinutes)}m` : "—"} planned
-                                    {" / "}
-                                    {call.averageActualDurationMinutes != null ? `${Math.round(call.averageActualDurationMinutes)}m` : "—"} actual
+                                    {formatMinutesToTime(entry.effectiveStartMinutes)}–{formatMinutesToTime(entry.endMinutes)}
                                   </span>
                                 </div>
-                              )}
-                              {call.serviceUserAddress && (
-                                <div className="flex items-start gap-2 text-[11px] max-w-[260px]">
-                                  <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-                                  <span className="text-muted-foreground break-words">{call.serviceUserAddress}</span>
+                                <div className="flex items-center gap-2 text-[11px]">
+                                  <span className="text-muted-foreground">Length (service req):</span>
+                                  <span className="font-mono font-medium">{entry.durationMinutes}m</span>
                                 </div>
-                              )}
-                            </TooltipContent>
-                          </Tooltip>
-                          {call.hasRecommendation && (
-                            <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-primary/30 text-primary">
-                              Rec
-                            </Badge>
+                                {pushed && (
+                                  <p className="text-[11px] text-amber-600 dark:text-amber-300">
+                                    Pushed +{entry.pushedMinutes}m forward to avoid overlap with the previous call.
+                                  </p>
+                                )}
+                                {call.serviceUserAddress && (
+                                  <div className="flex items-start gap-2 text-[11px] max-w-[260px]">
+                                    <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+                                    <span className="text-muted-foreground break-words">{call.serviceUserAddress}</span>
+                                  </div>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                            {call.hasRecommendation && (
+                              <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-primary/30 text-primary">
+                                Rec
+                              </Badge>
+                            )}
+                            {pushed && (
+                              <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10">
+                                +{entry.pushedMinutes}m
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate">
+                            {call.callTypeLabel} · {call.timeBandLabel} · {entry.durationMinutes} min
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 max-w-[160px]">
+                          <div className={`text-sm font-mono font-semibold tabular-nums ${
+                            pushed ? "text-amber-700 dark:text-amber-300" : call.hasRecommendation ? "text-primary" : "text-foreground"
+                          }`}>
+                            {formatMinutesToTime(entry.effectiveStartMinutes)}
+                            <span className="text-muted-foreground"> → </span>
+                            {formatMinutesToTime(entry.endMinutes)}
+                          </div>
+                          {call.serviceUserArea && (
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {call.serviceUserArea}
+                            </div>
+                          )}
+                          {call.serviceUserAddress && (
+                            <div className="text-[10px] text-muted-foreground/80 truncate" title={call.serviceUserAddress}>
+                              {call.serviceUserAddress}
+                            </div>
                           )}
                         </div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {call.callTypeLabel} · {call.timeBandLabel}
-                          {(() => {
-                            const planned = call.averagePlannedDurationMinutes;
-                            const actual = call.averageActualDurationMinutes;
-                            if (planned == null && actual == null) return null;
-                            const fmt = (m: number | null) =>
-                              m == null ? "—" : `${Math.round(m)} min`;
-                            return (
-                              <span> · Length {fmt(planned)} planned / {fmt(actual)} actual</span>
-                            );
-                          })()}
-                        </div>
                       </div>
-                      <div className="text-right shrink-0 max-w-[150px]">
-                        <div className={`text-sm font-mono font-semibold ${call.hasRecommendation ? "text-primary" : "text-foreground"}`}>
-                          {call.suggestedPlannedTimeLabel ?? formatMinutesToTime(call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 0)}
-                        </div>
-                        {call.serviceUserArea && (
-                          <div className="text-[10px] text-muted-foreground truncate">
-                            {call.serviceUserArea}
-                          </div>
-                        )}
-                        {call.serviceUserAddress && (
-                          <div className="text-[10px] text-muted-foreground/80 truncate" title={call.serviceUserAddress}>
-                            {call.serviceUserAddress}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             ) : (

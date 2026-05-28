@@ -1346,15 +1346,19 @@ export class DatabaseStorage implements IStorage {
     limit: number;
     search?: string;
     status?: string;
+    /** When true, include high-volume api_request rows that are normally hidden. */
+    includeAll?: boolean;
   }): Promise<{ logs: SystemLog[]; total: number; page: number; totalPages: number }> {
-    const { page, limit, search, status } = options;
+    const { page, limit, search, status, includeAll } = options;
     const offset = (page - 1) * limit;
 
     // Build conditions array
     const conditions: any[] = [];
 
-    // Hide noisy request logs from the activity feed
-    conditions.push(sql`${systemLogs.eventType} != 'api_request'`);
+    // Hide noisy request logs from the activity feed unless the caller opts in
+    if (!includeAll) {
+      conditions.push(sql`${systemLogs.eventType} != 'api_request'`);
+    }
 
     // Search filter - searches across username, eventType, and details (as text)
     if (search && search.trim()) {
