@@ -508,6 +508,7 @@ export default function RosteringStudioUnified({
   const [timelineZoomIndex, setTimelineZoomIndex] = useState(2);
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [showAllWorkers, setShowAllWorkers] = useState(true);
+  const [showSecondaryBars, setShowSecondaryBars] = useState(false);
   const [showOnlyTemplated, setShowOnlyTemplated] = useState(false); // Show all calls by default
   const [showRecommendationBadges, setShowRecommendationBadges] = useState(true);
   const [workerFilter, setWorkerFilter] = useState<"all" | "over" | "under">("all");
@@ -528,6 +529,11 @@ export default function RosteringStudioUnified({
   const [showRunsDialog, setShowRunsDialog] = useState(false);
   const [runsSelectedUsers, setRunsSelectedUsers] = useState<Set<string>>(new Set());
   const [runsCallType, setRunsCallType] = useState<string>("all");
+  const [detailsSections, setDetailsSections] = useState({
+    selectedVisit: true,
+    quickActions: false,
+    savedSchedules: false,
+  });
 
   const buildScheduleSnapshot = useCallback((lanes: GanttLane[]): ScheduleSnapshot => {
     const workers = lanes.map((lane) => ({
@@ -644,6 +650,7 @@ export default function RosteringStudioUnified({
       const parsed = JSON.parse(raw) as Partial<{
         panelVisibility: Partial<PanelVisibility>;
         showAllWorkers: boolean;
+        showSecondaryBars: boolean;
         showOnlyTemplated: boolean;
         showHalfHourTicks: boolean;
         workerFilter: "all" | "over" | "under";
@@ -656,6 +663,7 @@ export default function RosteringStudioUnified({
         setPanelVisibility({ ...defaultPanelVisibility, ...parsed.panelVisibility });
       }
       if (typeof parsed.showAllWorkers === "boolean") setShowAllWorkers(parsed.showAllWorkers);
+      if (typeof parsed.showSecondaryBars === "boolean") setShowSecondaryBars(parsed.showSecondaryBars);
       if (typeof parsed.showOnlyTemplated === "boolean") setShowOnlyTemplated(parsed.showOnlyTemplated);
       if (typeof parsed.showHalfHourTicks === "boolean") setShowHalfHourTicks(parsed.showHalfHourTicks);
       if (parsed.workerFilter) setWorkerFilter(parsed.workerFilter);
@@ -673,6 +681,7 @@ export default function RosteringStudioUnified({
     const payload = {
       panelVisibility,
       showAllWorkers,
+      showSecondaryBars,
       showOnlyTemplated,
       showHalfHourTicks,
       workerFilter,
@@ -682,7 +691,7 @@ export default function RosteringStudioUnified({
       selectedTemplateDay,
     };
     window.localStorage.setItem(ROSTERING_PREFERENCES_KEY, JSON.stringify(payload));
-  }, [panelVisibility, showAllWorkers, showOnlyTemplated, showHalfHourTicks, workerFilter, snapMinutes, timelineZoomIndex, selectedTemplateWeek, selectedTemplateDay]);
+  }, [panelVisibility, showAllWorkers, showSecondaryBars, showOnlyTemplated, showHalfHourTicks, workerFilter, snapMinutes, timelineZoomIndex, selectedTemplateWeek, selectedTemplateDay]);
 
   // Saved states
   const { data: savedStates = [] } = useQuery<SavedRosterStateSummary[]>({
@@ -1134,6 +1143,13 @@ export default function RosteringStudioUnified({
     dispatchRoster({ type: "CLEAR_SELECTION" });
   }, []);
 
+  const toggleDetailsSection = useCallback((section: "selectedVisit" | "quickActions" | "savedSchedules") => {
+    setDetailsSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  }, []);
+
   const handleResetState = useCallback(() => {
     dispatchRoster({ type: "RESET" });
     toast({ title: "Schedule reset" });
@@ -1155,6 +1171,7 @@ export default function RosteringStudioUnified({
       costs: true,
       templates: true,
     });
+    setShowSecondaryBars(true);
   }, []);
 
   const handleResetPanels = useCallback(() => {
@@ -1575,8 +1592,8 @@ export default function RosteringStudioUnified({
         {/* IMPORTANT: Use `h-full` (not `h-screen`) because Layout already owns the viewport height. */}
         <div className={`rostering-studio-redesign flex ${embedded ? "h-full min-h-0" : "min-h-[72vh] flex-1"} flex-col overflow-hidden`}>
         {/* TOP MENU BAR */}
-        <div className="rstd-topbar flex min-h-12 flex-wrap items-center gap-3 px-3 py-2 flex-shrink-0">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className="rstd-topbar flex min-h-10 items-center gap-2 overflow-x-auto px-2.5 py-1.5 flex-shrink-0">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 whitespace-nowrap">
             <div className="rstd-brand">
               <span className="rstd-brand-mark">RS</span>
               <div className="rstd-brand-copy">
@@ -1941,7 +1958,7 @@ export default function RosteringStudioUnified({
           </div>
 
           {/* Quick date selector in menu bar */}
-          <div className="flex w-full flex-wrap items-center justify-start gap-1 sm:ml-auto sm:w-auto sm:justify-end">
+          <div className="flex items-center gap-1 whitespace-nowrap">
             <Button
               variant="ghost"
               size="icon"
@@ -1976,12 +1993,24 @@ export default function RosteringStudioUnified({
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              type="button"
+              variant={showSecondaryBars ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[10px]"
+              onClick={() => setShowSecondaryBars((prev) => !prev)}
+              title={showSecondaryBars ? "Hide secondary bars" : "Show secondary bars"}
+            >
+              {showSecondaryBars ? <EyeOff className="mr-1 h-3.5 w-3.5" /> : <Eye className="mr-1 h-3.5 w-3.5" />}
+              {showSecondaryBars ? "Hide controls" : "Show controls"}
+            </Button>
           </div>
         </div>
 
         {/* STATS BAR */}
-        <div className="rstd-stats flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-[11px] flex-shrink-0">
-          <div className="flex flex-wrap items-center gap-2">
+        {showSecondaryBars && (
+        <div className="rstd-stats flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2.5 py-1 text-[11px] flex-shrink-0">
+          <div className="flex items-center gap-2">
             <div className="rstd-stat-chip">
               <Users className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="font-semibold">{totalWorkersCount}</span>
@@ -2019,7 +2048,7 @@ export default function RosteringStudioUnified({
               <span className="text-muted-foreground">2-ups</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             {hasRosterChanges && (
               <Badge variant="outline" className="text-[10px]">
                 Unsaved changes
@@ -2030,9 +2059,11 @@ export default function RosteringStudioUnified({
             </Badge>
           </div>
         </div>
+        )}
 
         {/* PANEL DOCK - quick toggles so every tool is reachable without hunting menus */}
-        <div className="rstd-dock flex min-h-9 flex-wrap items-center gap-1.5 px-2.5 py-1.5 text-[11px] flex-shrink-0">
+        {showSecondaryBars && (
+        <div className="rstd-dock flex min-h-8 items-center gap-1.5 overflow-x-auto whitespace-nowrap px-2 py-1 text-[11px] flex-shrink-0">
           {(
             [
               { key: "workers", label: "Workers", icon: Users },
@@ -2071,7 +2102,7 @@ export default function RosteringStudioUnified({
               </Button>
             );
           })}
-          <div className="flex w-full items-center gap-1 shrink-0 sm:ml-auto sm:w-auto sm:justify-end">
+          <div className="ml-auto flex items-center gap-1 shrink-0">
             <Button
               type="button"
               size="sm"
@@ -2099,6 +2130,7 @@ export default function RosteringStudioUnified({
             </Badge>
           </div>
         </div>
+        )}
 
         {/* MAIN WORKSPACE - Grid Layout */}
         <div className="rstd-main flex min-h-0 flex-1 overflow-hidden">
@@ -2773,160 +2805,198 @@ export default function RosteringStudioUnified({
                       </div>
                     </div>
                     <ScrollArea className="rstd-scroll-area flex-1 min-h-0">
-                      <div className="p-2 space-y-2.5">
+                      <div className="p-1.5 space-y-2">
                         {/* Selected Visit Details */}
-                        <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-[var(--shadow-xs)]">
-                          <p className="text-[9px] uppercase tracking-wide text-primary/70 font-semibold mb-1.5 flex items-center gap-1">
-                            <Clock4 className="h-3 w-3" />
-                            Selected Visit
-                          </p>
-                          {selectedTimelineEntry ? (
-                            <div className="space-y-1.5">
-                              <p className="text-[12px] font-semibold leading-tight">{selectedTimelineEntry.title}</p>
-                              <div className="flex items-center gap-1.5 text-[9px]">
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 h-5 font-semibold border-primary/30 bg-primary/5">
-                                  {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
-                                </Badge>
-                                <span className="text-muted-foreground">
-                                  {formatMinutesDisplay(selectedTimelineEntry.durationMinutes)}
-                                </span>
-                              </div>
-                              {selectedTimelineEntry.callTypeLabel && (
-                                <CallTypeChip callType={selectedTimelineEntry.callTypeLabel} size="sm" />
-                              )}
-                              {selectedTimelineEntry.address && (
-                                <p className="text-[10px] text-muted-foreground border-l-2 border-primary/30 pl-1.5">
-                                  {selectedTimelineEntry.address}
-                                </p>
-                              )}
-                              <div className="pt-2 border-t">
-                                <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
-                                  Reassign to
-                                </p>
-                                <Select
-                                  onValueChange={(laneId: string) =>
-                                    handleReassignEntry(selectedTimelineEntry.id, laneId)
-                                  }
-                                >
-                                  <SelectTrigger className="h-6 text-[10px]">
-                                    <SelectValue placeholder="Select worker..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {timelineLanes.map((lane: GanttLane) => (
-                                      <SelectItem key={lane.id} value={lane.id} className="text-xs">
-                                        {lane.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                        <Collapsible open={detailsSections.selectedVisit} onOpenChange={() => toggleDetailsSection("selectedVisit")}>
+                          <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-2 shadow-[var(--shadow-xs)]">
+                            <CollapsibleTrigger asChild>
                               <Button
+                                type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="w-full h-7 text-[10px] mt-1 hover:bg-primary/10"
-                                onClick={() => setSelectedTimelineEntryId(null)}
+                                className="h-6 w-full justify-between px-1 text-[9px] uppercase tracking-wide text-primary/80"
                               >
-                                Clear selection
+                                <span className="font-semibold flex items-center gap-1">
+                                  <Clock4 className="h-3 w-3" />
+                                  Selected Visit
+                                </span>
+                                <ChevronRight className={`h-3.5 w-3.5 transition-transform ${detailsSections.selectedVisit ? "rotate-90" : ""}`} />
                               </Button>
-                            </div>
-                          ) : (
-                            <p className="text-[10px] text-muted-foreground py-2 text-center">
-                              👆 Click a visit on the timeline
-                            </p>
-                          )}
-                        </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-1.5">
+                              {selectedTimelineEntry ? (
+                                <div className="space-y-1.5">
+                                  <p className="text-[12px] font-semibold leading-tight">{selectedTimelineEntry.title}</p>
+                                  <div className="flex items-center gap-1.5 text-[9px]">
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 h-5 font-semibold border-primary/30 bg-primary/5">
+                                      {formatMinutesToTime(selectedTimelineEntry.startMinutes)}
+                                    </Badge>
+                                    <span className="text-muted-foreground">
+                                      {formatMinutesDisplay(selectedTimelineEntry.durationMinutes)}
+                                    </span>
+                                  </div>
+                                  {selectedTimelineEntry.callTypeLabel && (
+                                    <CallTypeChip callType={selectedTimelineEntry.callTypeLabel} size="sm" />
+                                  )}
+                                  {selectedTimelineEntry.address && (
+                                    <p className="text-[10px] text-muted-foreground border-l-2 border-primary/30 pl-1.5">
+                                      {selectedTimelineEntry.address}
+                                    </p>
+                                  )}
+                                  <div className="pt-2 border-t">
+                                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
+                                      Reassign to
+                                    </p>
+                                    <Select
+                                      onValueChange={(laneId: string) =>
+                                        handleReassignEntry(selectedTimelineEntry.id, laneId)
+                                      }
+                                    >
+                                      <SelectTrigger className="h-6 text-[10px]">
+                                        <SelectValue placeholder="Select worker..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {timelineLanes.map((lane: GanttLane) => (
+                                          <SelectItem key={lane.id} value={lane.id} className="text-xs">
+                                            {lane.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full h-7 text-[10px] mt-1 hover:bg-primary/10"
+                                    onClick={() => setSelectedTimelineEntryId(null)}
+                                  >
+                                    Clear selection
+                                  </Button>
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-muted-foreground py-2 text-center">
+                                  👆 Click a visit on the timeline
+                                </p>
+                              )}
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
 
                         {/* Quick Actions */}
-                        <div className="rounded-lg border p-1.5">
-                          <p className="text-[8px] uppercase tracking-wide text-muted-foreground mb-1">
-                            Quick Actions
-                          </p>
-                          <div className="space-y-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-start h-6 text-[10px]"
-                              onClick={handleRunOptimization}
-                              disabled={isOptimizing}
-                            >
-                              <Zap className="mr-1.5 h-3 w-3" />
-                              {isOptimizing ? "Optimizing..." : "Optimize"}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-start h-6 text-[10px]"
-                              onClick={handleApplyRecommendedTimes}
-                              disabled={callTimesForEditor.length === 0}
-                            >
-                              <Clock4 className="mr-1.5 h-3 w-3" />
-                              Apply Times
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-start h-6 text-[10px]"
-                              onClick={handleAutoBalance}
-                            >
-                              <ArrowDownUp className="mr-1.5 h-3 w-3" />
-                              Balance
-                            </Button>
+                        <Collapsible open={detailsSections.quickActions} onOpenChange={() => toggleDetailsSection("quickActions")}>
+                          <div className="rounded-lg border p-1.5">
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-full justify-between px-1 text-[8px] uppercase tracking-wide text-muted-foreground"
+                              >
+                                <span>Quick Actions</span>
+                                <ChevronRight className={`h-3.5 w-3.5 transition-transform ${detailsSections.quickActions ? "rotate-90" : ""}`} />
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-1">
+                              <div className="space-y-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full justify-start h-6 text-[10px]"
+                                  onClick={handleRunOptimization}
+                                  disabled={isOptimizing}
+                                >
+                                  <Zap className="mr-1.5 h-3 w-3" />
+                                  {isOptimizing ? "Optimizing..." : "Optimize"}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full justify-start h-6 text-[10px]"
+                                  onClick={handleApplyRecommendedTimes}
+                                  disabled={callTimesForEditor.length === 0}
+                                >
+                                  <Clock4 className="mr-1.5 h-3 w-3" />
+                                  Apply Times
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full justify-start h-6 text-[10px]"
+                                  onClick={handleAutoBalance}
+                                >
+                                  <ArrowDownUp className="mr-1.5 h-3 w-3" />
+                                  Balance
+                                </Button>
+                              </div>
+                            </CollapsibleContent>
                           </div>
-                        </div>
+                        </Collapsible>
 
                         {/* Saved Schedules */}
-                        <div className="rounded-lg border p-1.5">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-[8px] uppercase tracking-wide text-muted-foreground">
-                              Saved Schedules
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => {
-                                setSaveScheduleName(`${selectedTemplateDay} ${getTemplateWeekLabel(selectedTemplateWeek)}`);
-                                setSaveScheduleDescription("");
-                                setShowSaveDialog(true);
-                              }}
-                              disabled={!hasRosterChanges}
-                            >
-                              <Save className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                          {savedStates.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">No saved schedules</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {savedStates.slice(0, 5).map((state: SavedRosterStateSummary) => (
-                                <div
-                                  key={state.id}
-                                  className="flex items-center justify-between rounded border p-2 text-xs"
+                        <Collapsible open={detailsSections.savedSchedules} onOpenChange={() => toggleDetailsSection("savedSchedules")}>
+                          <div className="rounded-lg border p-1.5">
+                            <div className="flex items-center justify-between mb-1">
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1 justify-between text-[8px] uppercase tracking-wide text-muted-foreground"
                                 >
-                                  <span className="truncate">{state.name}</span>
-                                  <div className="flex gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() => loadRosterStateMutation.mutate(state.id)}
-                                    >
-                                      <FolderOpen className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-destructive"
-                                      onClick={() => deleteRosterStateMutation.mutate(state.id)}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
+                                  <span>Saved Schedules</span>
+                                  <ChevronRight className={`ml-1 h-3.5 w-3.5 transition-transform ${detailsSections.savedSchedules ? "rotate-90" : ""}`} />
+                                </Button>
+                              </CollapsibleTrigger>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => {
+                                  setSaveScheduleName(`${selectedTemplateDay} ${getTemplateWeekLabel(selectedTemplateWeek)}`);
+                                  setSaveScheduleDescription("");
+                                  setShowSaveDialog(true);
+                                }}
+                                disabled={!hasRosterChanges}
+                              >
+                                <Save className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
-                          )}
-                        </div>
+                            <CollapsibleContent className="pt-1">
+                              {savedStates.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No saved schedules</p>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {savedStates.slice(0, 5).map((state: SavedRosterStateSummary) => (
+                                    <div
+                                      key={state.id}
+                                      className="flex items-center justify-between rounded border p-1.5 text-xs"
+                                    >
+                                      <span className="truncate">{state.name}</span>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => loadRosterStateMutation.mutate(state.id)}
+                                        >
+                                          <FolderOpen className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-destructive"
+                                          onClick={() => deleteRosterStateMutation.mutate(state.id)}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
                       </div>
                     </ScrollArea>
                   </div>

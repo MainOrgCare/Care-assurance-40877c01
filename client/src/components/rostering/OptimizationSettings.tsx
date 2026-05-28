@@ -74,7 +74,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
 
   return (
     <Card className="border-border/60 bg-background/70 h-full min-h-0 flex flex-col">
-      <CardHeader className="pb-3 shrink-0">
+      <CardHeader className="pb-2 shrink-0">
         <CardTitle className="text-sm flex items-center gap-2">
           <Settings2 className="h-4 w-4 text-primary" />
           Optimization Settings
@@ -83,9 +83,9 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
           Configure how the optimizer balances travel, workload, and continuity.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 min-h-0 space-y-5 overflow-y-auto overscroll-contain pr-1">
+      <CardContent className="flex-1 min-h-0 space-y-3.5 overflow-y-auto overscroll-contain pr-1">
         {/* Priority Weights */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Priority Weights
@@ -99,7 +99,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
           </div>
 
           {/* Travel Weight */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Route className="h-3.5 w-3.5 text-sky-500" />
@@ -120,7 +120,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
           </div>
 
           {/* Balance Weight */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Users className="h-3.5 w-3.5 text-success" />
@@ -141,7 +141,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
           </div>
 
           {/* Continuity Weight */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5 text-violet-500" />
@@ -173,7 +173,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium">Respect time-critical windows</p>
@@ -268,7 +268,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
               Enforced Rules
             </p>
           </div>
-          <div className="rounded-lg border border-warning/30 bg-warning/10/50 dark:border-warning/30 dark:bg-warning/30 p-3 space-y-3">
+          <div className="rounded-lg border border-warning/30 bg-warning/10/50 dark:border-warning/30 dark:bg-warning/30 p-2.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Lock className="h-3.5 w-3.5 text-warning" />
@@ -347,7 +347,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
         
         {/* Progress phases when optimizing */}
         {isOptimizing && (
-          <div className="mt-3 space-y-2">
+          <div className="mt-2.5 space-y-1.5">
             <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
               <div className="h-full bg-primary rounded-full" style={{ width: "60%" }} />
             </div>

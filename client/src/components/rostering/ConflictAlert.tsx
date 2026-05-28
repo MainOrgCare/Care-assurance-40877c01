@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, Clock, Users, MapPin, Wand2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TimelineEntry, GanttLane } from "@/lib/rostering/rosterModel";
+import { haversineDistance, estimateTravelMinutes } from "@/lib/rostering/travelUtils";
 
 export type ConflictType = "overlap" | "travel" | "double-up" | "time-critical" | "workload";
 
@@ -185,6 +186,43 @@ export const detectConflicts = (lanes: GanttLane[]): ConflictDetail[] => {
             newStartMinutes: currEnd + 5, // Add 5 min buffer
           },
         });
+        continue;
+      }
+
+      // Check for travel-gap violation (docs §5.1): when both visits are geocoded and the
+      // actual gap between them is shorter than the estimated driving time, the worker
+      // physically cannot get there in time. Only evaluated when the visits don't overlap.
+      if (
+        curr.latitude != null &&
+        curr.longitude != null &&
+        next.latitude != null &&
+        next.longitude != null
+      ) {
+        const distanceKm = haversineDistance(
+          curr.latitude,
+          curr.longitude,
+          next.latitude,
+          next.longitude
+        );
+        const travelMinutes = estimateTravelMinutes(distanceKm);
+        const gapMinutes = next.startMinutes - currEnd;
+        if (travelMinutes > gapMinutes) {
+          const shortfall = travelMinutes - gapMinutes;
+          conflicts.push({
+            type: "travel",
+            entry1Id: curr.id,
+            entry2Id: next.id,
+            entry1Title: curr.title,
+            entry2Title: next.title,
+            laneId: lane.id,
+            laneName: lane.label,
+            suggestion: `Allow ~${travelMinutes} min travel: move "${next.title}" ${shortfall} min later`,
+            suggestedMove: {
+              entryId: next.id,
+              newStartMinutes: currEnd + travelMinutes,
+            },
+          });
+        }
       }
     }
   }
@@ -206,18 +244,42 @@ export const generateAutoResolutions = (
       .sort((a, b) => a.startMinutes - b.startMinutes);
 
     let cursor = sorted[0]?.startMinutes ?? 360; // 6:00 AM
+    let prev: TimelineEntry | undefined;
 
     for (const entry of sorted) {
-      // If entry starts before cursor, move it
-      if (entry.startMinutes < cursor) {
-        // For time-critical entries, don't move unless absolutely necessary
+      // When we have a previous visit, the earliest legal start for this one is the
+      // previous end plus either the estimated driving time (if both visits are
+      // geocoded) or a flat 5-minute buffer. This keeps auto-resolutions consistent
+      // with the travel-gap conflicts emitted by detectConflicts().
+      let buffer = 5;
+      if (
+        prev &&
+        prev.latitude != null &&
+        prev.longitude != null &&
+        entry.latitude != null &&
+        entry.longitude != null
+      ) {
+        const distanceKm = haversineDistance(
+          prev.latitude,
+          prev.longitude,
+          entry.latitude,
+          entry.longitude
+        );
+        buffer = Math.max(5, estimateTravelMinutes(distanceKm));
+      }
+      const earliestStart = prev ? cursor - 5 + buffer : cursor;
+
+      // If entry starts before its earliest legal start, move it (unless time-critical).
+      if (entry.startMinutes < earliestStart) {
         if (!entry.isTimeCritical) {
-          moves[entry.id] = cursor;
+          moves[entry.id] = earliestStart;
         }
       }
-      // Update cursor to end of this entry + 5 min buffer
       const effectiveStart = moves[entry.id] ?? entry.startMinutes;
+      // Cursor tracks "end of this visit + 5 min" so the next iteration can add its
+      // own travel buffer relative to a known anchor.
       cursor = effectiveStart + entry.durationMinutes + 5;
+      prev = entry;
     }
   }
 

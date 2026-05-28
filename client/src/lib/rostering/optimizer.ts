@@ -374,7 +374,8 @@ export const runFullOptimization = (
     originalAssignments,
     resultOverrides,
     enforcedConstraints,
-    rosteringData?.recommendedCallTimes
+    rosteringData?.recommendedCallTimes,
+    rosteringData?.workerConstraints
   );
 
   return {
@@ -980,18 +981,103 @@ const applyOverridesToWorkloads = (
   }
 };
 
+/**
+ * Count hard-constraint violations in the optimised schedule.
+ *
+ * Mirrors docs/Rostering.md §5.4–5.6 and §6 step 5: a defensible decision trail must
+ * surface (a) double-booked / overlapping visits, (b) per-worker hour-cap breaches, and
+ * (c) time-critical calls pushed outside their tolerance window. Each distinct failure
+ * counts once. Computed from the *final* schedule (final lane membership + override times).
+ */
+export const countConstraintViolations = (
+  workloads: LaneWorkload[],
+  overrides: { time: Record<string, number>; lane: Record<string, string> },
+  constraints: OptimizationConstraints,
+  workerConstraints?: WorkerConstraint[]
+): number => {
+  let violations = 0;
+
+  const constraintsByWorker = new Map<string, WorkerConstraint>();
+  if (workerConstraints) {
+    for (const c of workerConstraints) constraintsByWorker.set(c.workerKey, c);
+  }
+
+  const tolerance = constraints.timeCriticalToleranceMinutes ?? DEFAULT_TIME_CRITICAL_TOLERANCE;
+
+  for (const workload of workloads) {
+    const scheduled = workload.entries
+      .map((entry) => {
+        const start = overrides.time[entry.id] ?? entry.startMinutes;
+        return { entry, start, end: start + entry.durationMinutes };
+      })
+      .sort((a, b) => a.start - b.start || a.end - b.end);
+
+    // (a) No-overlap / no double-booking: any consecutive pair that overlaps in time.
+    for (let i = 1; i < scheduled.length; i += 1) {
+      if (scheduled[i].start < scheduled[i - 1].end) {
+        violations += 1;
+      }
+    }
+
+    // (c) Time-critical tolerance: a pinned call moved beyond its allowed window.
+    if (constraints.respectTimeCritical) {
+      for (const { entry } of scheduled) {
+        if (!entry.isTimeCritical) continue;
+        const movedTo = overrides.time[entry.id];
+        if (typeof movedTo === "number" && Math.abs(movedTo - entry.startMinutes) > tolerance) {
+          violations += 1;
+        }
+      }
+    }
+
+    // (b) Per-worker daily hard limits (calls + minutes), when constraints are supplied.
+    const limit = constraintsByWorker.get(workload.laneId);
+    if (limit) {
+      const callCount = workload.entries.length;
+      const minuteTotal = workload.entries.reduce((sum, e) => sum + e.durationMinutes, 0);
+      if (limit.maxCallsPerDay && callCount > limit.maxCallsPerDay) violations += 1;
+      if (limit.maxMinutesPerDay && minuteTotal > limit.maxMinutesPerDay) violations += 1;
+    }
+  }
+
+  return violations;
+};
+
 const calculateResultMetrics = (
   originalLanes: GanttLane[],
   workloads: LaneWorkload[],
   originalAssignments: Map<string, string>,
   overrides: { time: Record<string, number>; lane: Record<string, string> },
   constraints: OptimizationConstraints,
-  recommendedTimes?: RecommendedCallTime[]
+  recommendedTimes?: RecommendedCallTime[],
+  workerConstraints?: WorkerConstraint[]
 ): OptimizationResultMetrics => {
-  // Calculate travel reduction (simplified - would need geocoding for accuracy)
-  const originalTotalGaps = calculateTotalGaps(originalLanes);
-  const optimizedTotalGaps = calculateTotalGapsFromWorkloads(workloads, overrides.time);
-  const totalTravelReduction = Math.max(0, originalTotalGaps - optimizedTotalGaps);
+  // Calculate travel reduction.
+  // When geocoded coordinates are available on the entries, measure the real change in
+  // estimated driving time (Haversine + detour factor) between the original and optimised
+  // schedules. When no coordinates exist, fall back to the idle-gap proxy so the metric
+  // still reflects tighter sequencing rather than collapsing to zero.
+  const coordLookup = buildCoordLookup(workloads);
+  let totalTravelReduction: number;
+  if (coordLookup.size >= 2) {
+    const originalTravel = calculateScheduledTravel(
+      originalLanes.map((lane) => ({
+        entries: lane.entries.map((e) => ({ id: e.id, startMinutes: e.startMinutes })),
+      })),
+      coordLookup
+    );
+    const optimizedTravel = calculateScheduledTravel(
+      workloads.map((w) => ({
+        entries: w.entries.map((e) => ({ id: e.id, startMinutes: overrides.time[e.id] ?? e.startMinutes })),
+      })),
+      coordLookup
+    );
+    totalTravelReduction = Math.max(0, originalTravel - optimizedTravel);
+  } else {
+    const originalTotalGaps = calculateTotalGaps(originalLanes);
+    const optimizedTotalGaps = calculateTotalGapsFromWorkloads(workloads, overrides.time);
+    totalTravelReduction = Math.max(0, originalTotalGaps - optimizedTotalGaps);
+  }
 
   // Calculate workload variance
   const workloadMinutes = workloads.map((w) => w.totalMinutes);
@@ -1017,17 +1103,15 @@ const calculateResultMetrics = (
     ? Math.round((continuityMaintained / totalServiceUsers) * 100)
     : 100;
 
-  // Count constraint violations
-  let constraintViolations = 0;
-  if (constraints.respectTimeCritical) {
-    for (const lane of originalLanes) {
-      for (const entry of lane.entries) {
-        if (entry.isTimeCritical && overrides.time[entry.id] !== entry.startMinutes) {
-          constraintViolations++;
-        }
-      }
-    }
-  }
+  // Count constraint violations.
+  // Per docs/Rostering.md §5.4–5.6 and §6 step 5, this must cover the no-overlap rule,
+  // per-worker hour caps, and time-critical tolerance — not merely whether a call moved.
+  const constraintViolations = countConstraintViolations(
+    workloads,
+    overrides,
+    constraints,
+    workerConstraints
+  );
 
   // Calculate recommended time score
   let recommendedTimeScore = 100;
@@ -1072,6 +1156,46 @@ const calculateResultMetrics = (
     constraintViolations,
     recommendedTimeScore,
   };
+};
+
+/**
+ * Build a lookup of entry id -> geocoded coordinate from the working workloads.
+ * Entries carry lat/lon when the caller supplied geocoded points.
+ */
+const buildCoordLookup = (
+  workloads: LaneWorkload[]
+): Map<string, { lat: number; lon: number }> => {
+  const map = new Map<string, { lat: number; lon: number }>();
+  for (const workload of workloads) {
+    for (const entry of workload.entries) {
+      if (entry.lat != null && entry.lon != null) {
+        map.set(entry.id, { lat: entry.lat, lon: entry.lon });
+      }
+    }
+  }
+  return map;
+};
+
+/**
+ * Estimate total driving minutes for a set of lanes. Within each lane, visits are ordered
+ * by start time and consecutive geocoded pairs contribute Haversine-based travel estimates.
+ * Pairs without coordinates contribute nothing.
+ */
+const calculateScheduledTravel = (
+  lanes: Array<{ entries: Array<{ id: string; startMinutes: number }> }>,
+  coordLookup: Map<string, { lat: number; lon: number }>
+): number => {
+  let total = 0;
+  for (const lane of lanes) {
+    const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
+    for (let i = 1; i < sorted.length; i += 1) {
+      const from = coordLookup.get(sorted[i - 1].id);
+      const to = coordLookup.get(sorted[i].id);
+      if (!from || !to) continue;
+      total += estimateTravelMinutes(haversineDistance(from.lat, from.lon, to.lat, to.lon));
+    }
+  }
+  return total;
 };
 
 const calculateTotalGaps = (lanes: GanttLane[]): number => {
