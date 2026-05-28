@@ -70,6 +70,116 @@ describe("rostering conflict detection", () => {
 
     expect(detectConflicts(lanes)).toHaveLength(0);
   });
+
+  it("flags unpaired double-up calls", () => {
+    const lanes: GanttLane[] = [
+      {
+        id: "w1",
+        label: "A.Smith",
+        entries: [
+          {
+            id: "du-1",
+            title: "Personal Care",
+            serviceUserKey: "su-1",
+            callTypeLabel: "Morning",
+            isDoubleUp: true,
+            startMinutes: 8 * 60,
+            requiredStartMinutes: 8 * 60,
+            durationMinutes: 30,
+          },
+        ],
+      },
+    ];
+
+    const conflicts = detectConflicts(lanes);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].type).toBe("double-up");
+    expect(conflicts[0].entry1Id).toBe("du-1");
+  });
+
+  it("flags out-of-sync double-up timings across workers", () => {
+    const lanes: GanttLane[] = [
+      {
+        id: "w1",
+        label: "A.Smith",
+        entries: [
+          {
+            id: "du-1",
+            title: "Personal Care",
+            serviceUserKey: "su-1",
+            callTypeLabel: "Morning",
+            isDoubleUp: true,
+            startMinutes: 8 * 60,
+            requiredStartMinutes: 8 * 60,
+            durationMinutes: 30,
+          },
+        ],
+      },
+      {
+        id: "w2",
+        label: "B.Jones",
+        entries: [
+          {
+            id: "du-2",
+            title: "Personal Care",
+            serviceUserKey: "su-1",
+            callTypeLabel: "Morning",
+            isDoubleUp: true,
+            startMinutes: 8 * 60 + 20,
+            requiredStartMinutes: 8 * 60,
+            durationMinutes: 30,
+          },
+        ],
+      },
+    ];
+
+    const conflicts = detectConflicts(lanes);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].type).toBe("double-up");
+    expect(conflicts[0].entry1Id).toBe("du-1");
+    expect(conflicts[0].entry2Id).toBe("du-2");
+    expect(conflicts[0].suggestedMove?.entryId).toBe("du-2");
+    expect(conflicts[0].suggestedMove?.newStartMinutes).toBe(8 * 60);
+  });
+
+  it("does not flag double-up when both workers are aligned", () => {
+    const lanes: GanttLane[] = [
+      {
+        id: "w1",
+        label: "A.Smith",
+        entries: [
+          {
+            id: "du-1",
+            title: "Personal Care",
+            serviceUserKey: "su-1",
+            callTypeLabel: "Morning",
+            isDoubleUp: true,
+            startMinutes: 8 * 60,
+            requiredStartMinutes: 8 * 60,
+            durationMinutes: 30,
+          },
+        ],
+      },
+      {
+        id: "w2",
+        label: "B.Jones",
+        entries: [
+          {
+            id: "du-2",
+            title: "Personal Care",
+            serviceUserKey: "su-1",
+            callTypeLabel: "Morning",
+            isDoubleUp: true,
+            startMinutes: 8 * 60,
+            requiredStartMinutes: 8 * 60,
+            durationMinutes: 30,
+          },
+        ],
+      },
+    ];
+
+    expect(detectConflicts(lanes)).toHaveLength(0);
+  });
 });
 
 describe("rostering auto-resolutions", () => {

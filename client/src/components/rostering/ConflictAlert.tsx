@@ -158,11 +158,29 @@ export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts, onR
  */
 export const detectConflicts = (lanes: GanttLane[]): ConflictDetail[] => {
   const conflicts: ConflictDetail[] = [];
+  const doubleUpEntriesBySlot = new Map<
+    string,
+    Array<{ laneId: string; laneName: string; entry: TimelineEntry }>
+  >();
 
   for (const lane of lanes) {
     const sorted = [...lane.entries]
       .filter((e) => Number.isFinite(e.startMinutes))
       .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    for (const entry of sorted) {
+      if (!entry.isDoubleUp) continue;
+      const slotUserKey = entry.serviceUserKey ?? entry.serviceUserName ?? entry.title;
+      const slotTime = entry.requiredStartMinutes ?? entry.startMinutes;
+      const slotType = entry.callTypeLabel ?? "";
+      const slotKey = `${slotUserKey}|${slotTime}|${slotType}`;
+      const participants = doubleUpEntriesBySlot.get(slotKey);
+      if (participants) {
+        participants.push({ laneId: lane.id, laneName: lane.label, entry });
+      } else {
+        doubleUpEntriesBySlot.set(slotKey, [{ laneId: lane.id, laneName: lane.label, entry }]);
+      }
+    }
 
     for (let i = 0; i < sorted.length - 1; i++) {
       const curr = sorted[i];
@@ -224,6 +242,45 @@ export const detectConflicts = (lanes: GanttLane[]): ConflictDetail[] => {
           });
         }
       }
+    }
+  }
+
+  // Double-up safety checks across all lanes.
+  for (const participants of doubleUpEntriesBySlot.values()) {
+    if (participants.length <= 1) {
+      const only = participants[0];
+      if (!only) continue;
+      conflicts.push({
+        type: "double-up",
+        entry1Id: only.entry.id,
+        entry1Title: only.entry.title,
+        laneId: only.laneId,
+        laneName: only.laneName,
+        suggestion: "Double-up call is unpaired; assign a second worker at the same time",
+      });
+      continue;
+    }
+
+    const starts = participants.map((p) => p.entry.startMinutes);
+    const targetStart = Math.min(...starts);
+    const anchor = participants.find((p) => p.entry.startMinutes === targetStart) ?? participants[0];
+
+    for (const participant of participants) {
+      if (participant.entry.startMinutes === targetStart) continue;
+      conflicts.push({
+        type: "double-up",
+        entry1Id: anchor.entry.id,
+        entry2Id: participant.entry.id,
+        entry1Title: anchor.entry.title,
+        entry2Title: participant.entry.title,
+        laneId: participant.laneId,
+        laneName: participant.laneName,
+        suggestion: `Align double-up timing: move "${participant.entry.title}" to ${targetStart} minutes`,
+        suggestedMove: {
+          entryId: participant.entry.id,
+          newStartMinutes: targetStart,
+        },
+      });
     }
   }
 

@@ -337,6 +337,20 @@ interface ComparisonData {
   };
 }
 
+interface OutputSummaryChip {
+  label: string;
+  value: string;
+  tone?: "default" | "good" | "warn";
+}
+
+interface OutputSummary {
+  kind: "optimization" | "recommendations" | "baseline";
+  title: string;
+  subtitle: string;
+  timestampLabel: string;
+  chips: OutputSummaryChip[];
+}
+
 // ===== HELPER FUNCTIONS =====
 const formatMinutesDisplay = (minutes: number | null | undefined): string => {
   if (minutes === null || minutes === undefined) return "—";
@@ -369,6 +383,13 @@ const getTemplateWeekLabel = (week: TemplateWeekKey): string => {
   return week === "week1" ? "Week 1" : "Week 2";
 };
 
+const normalizeLookupToken = (value: string | null | undefined): string =>
+  (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
 // ===== PANEL VISIBILITY STATE =====
 interface PanelVisibility {
   timeline: boolean;
@@ -388,9 +409,9 @@ interface PanelVisibility {
 
 const defaultPanelVisibility: PanelVisibility = {
   timeline: true,
-  map: true,
+  map: false,
   workers: true,
-  details: true,
+  details: false,
   callTimes: false,
   constraints: false,
   workload: false,
@@ -530,7 +551,7 @@ export default function RosteringStudioUnified({
   const [runsSelectedUsers, setRunsSelectedUsers] = useState<Set<string>>(new Set());
   const [runsCallType, setRunsCallType] = useState<string>("all");
   const [detailsSections, setDetailsSections] = useState({
-    selectedVisit: true,
+    selectedVisit: false,
     quickActions: false,
     savedSchedules: false,
   });
@@ -561,6 +582,7 @@ export default function RosteringStudioUnified({
   }, []);
 
   const [savedComparisonData, setSavedComparisonData] = useState<ComparisonData | null>(null);
+  const [outputSummary, setOutputSummary] = useState<OutputSummary | null>(null);
 
   const timelineZoom = TIMELINE_ZOOM_LEVELS[timelineZoomIndex] ?? 100;
   const timelineRowHeight = useMemo(
@@ -860,7 +882,13 @@ export default function RosteringStudioUnified({
     for (const lane of timelineLanes) {
       totalCalls += lane.entries.length;
       for (const entry of lane.entries) {
-        if (entry.serviceUserKey) keys.add(entry.serviceUserKey);
+        const serviceIdentity =
+          entry.serviceUserKey?.trim() ||
+          entry.serviceUserName?.trim() ||
+          entry.title?.trim();
+        if (serviceIdentity) {
+          keys.add(serviceIdentity.toLowerCase());
+        }
         totalMinutes += entry.durationMinutes;
       }
       const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
@@ -877,6 +905,46 @@ export default function RosteringStudioUnified({
       totalCallsCount: totalCalls,
       totalHoursCount: Math.round((totalMinutes / 60) * 10) / 10,
       conflictsCount: conflicts,
+    };
+  }, [timelineLanes]);
+
+  const dataQuality = useMemo(() => {
+    let missingServiceIdentity = 0;
+    let missingRequiredStart = 0;
+    let invalidDuration = 0;
+    let missingCoordinates = 0;
+
+    for (const lane of timelineLanes) {
+      for (const entry of lane.entries) {
+        const hasIdentity = Boolean(
+          entry.serviceUserKey?.trim() ||
+            entry.serviceUserName?.trim() ||
+            entry.title?.trim()
+        );
+        if (!hasIdentity) {
+          missingServiceIdentity += 1;
+        }
+        if (entry.requiredStartMinutes == null) {
+          missingRequiredStart += 1;
+        }
+        if (!Number.isFinite(entry.durationMinutes) || entry.durationMinutes <= 0 || entry.durationMinutes > 24 * 60) {
+          invalidDuration += 1;
+        }
+        if (entry.latitude == null || entry.longitude == null) {
+          missingCoordinates += 1;
+        }
+      }
+    }
+
+    const totalIssues =
+      missingServiceIdentity + missingRequiredStart + invalidDuration;
+
+    return {
+      missingServiceIdentity,
+      missingRequiredStart,
+      invalidDuration,
+      missingCoordinates,
+      totalIssues,
     };
   }, [timelineLanes]);
   const totalServiceUsersCount = timelineStats.totalServiceUsersCount;
@@ -935,14 +1003,51 @@ export default function RosteringStudioUnified({
     }
     return Array.from(set).sort();
   }, [careWorkerRosters]);
+
+  const serviceUserNameToKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const roster of careWorkerRosters) {
+      for (const cg of roster.callGroups) {
+        const key = cg.normalizedServiceUserKey?.trim();
+        const name = cg.serviceUserName?.trim();
+        if (!key || !name) continue;
+        const normalizedName = normalizeLookupToken(name);
+        if (!map.has(normalizedName)) {
+          map.set(normalizedName, key);
+        }
+      }
+    }
+    return map;
+  }, [careWorkerRosters]);
+
   const callTimeLookup = useMemo(() => {
     const map = new Map<string, RecommendedCallTime>();
     for (const callTime of callTimesForEditor) {
-      const key = `${callTime.serviceUserKey}::${(callTime.callTypeLabel || "").toLowerCase()}`;
+      const key = `${callTime.serviceUserKey}::${normalizeLookupToken(callTime.callTypeLabel)}`;
       map.set(key, callTime);
     }
     return map;
   }, [callTimesForEditor]);
+
+  const getRecommendationForEntry = useCallback(
+    (entry: Pick<TimelineEntry, "serviceUserKey" | "serviceUserName" | "title" | "callTypeLabel">): RecommendedCallTime | undefined => {
+      const callTypeToken = normalizeLookupToken(entry.callTypeLabel);
+      if (!callTypeToken) return undefined;
+
+      const directKey = entry.serviceUserKey?.trim();
+      if (directKey) {
+        const direct = callTimeLookup.get(`${directKey}::${callTypeToken}`);
+        if (direct) return direct;
+      }
+
+      const fallbackIdentity = entry.serviceUserName?.trim() || entry.title?.trim();
+      if (!fallbackIdentity) return undefined;
+      const mappedServiceUserKey = serviceUserNameToKey.get(normalizeLookupToken(fallbackIdentity));
+      if (!mappedServiceUserKey) return undefined;
+      return callTimeLookup.get(`${mappedServiceUserKey}::${callTypeToken}`);
+    },
+    [callTimeLookup, serviceUserNameToKey]
+  );
 
   // ===== MUTATIONS =====
   const saveCallTimeMutation = useMutation({
@@ -1152,6 +1257,7 @@ export default function RosteringStudioUnified({
 
   const handleResetState = useCallback(() => {
     dispatchRoster({ type: "RESET" });
+    setOutputSummary(null);
     toast({ title: "Schedule reset" });
   }, [toast]);
 
@@ -1176,7 +1282,77 @@ export default function RosteringStudioUnified({
 
   const handleResetPanels = useCallback(() => {
     setPanelVisibility(defaultPanelVisibility);
+    setShowSecondaryBars(false);
+    setDetailsSections({
+      selectedVisit: false,
+      quickActions: false,
+      savedSchedules: false,
+    });
   }, []);
+
+  const handleApplyToolPreset = useCallback(
+    (preset: "operations" | "analysis" | "admin") => {
+      switch (preset) {
+        case "operations":
+          setPanelVisibility({
+            timeline: true,
+            map: true,
+            workers: true,
+            details: true,
+            callTimes: false,
+            constraints: false,
+            workload: true,
+            optimization: true,
+            database: false,
+            aiAnalysis: false,
+            comparison: false,
+            costs: false,
+            templates: false,
+          });
+          toast({ title: "Tools preset: Operations" });
+          break;
+        case "analysis":
+          setPanelVisibility({
+            timeline: true,
+            map: true,
+            workers: false,
+            details: false,
+            callTimes: false,
+            constraints: false,
+            workload: true,
+            optimization: true,
+            database: false,
+            aiAnalysis: true,
+            comparison: Boolean(savedComparisonData),
+            costs: true,
+            templates: false,
+          });
+          toast({ title: "Tools preset: Analysis" });
+          break;
+        case "admin":
+          setPanelVisibility({
+            timeline: true,
+            map: false,
+            workers: true,
+            details: false,
+            callTimes: true,
+            constraints: true,
+            workload: false,
+            optimization: false,
+            database: true,
+            aiAnalysis: false,
+            comparison: false,
+            costs: false,
+            templates: true,
+          });
+          toast({ title: "Tools preset: Admin" });
+          break;
+      }
+
+      setShowSecondaryBars(true);
+    },
+    [savedComparisonData, toast]
+  );
 
   const handleCaptureBaseline = useCallback(() => {
     const snapshot = buildScheduleSnapshot(timelineLanes);
@@ -1190,6 +1366,20 @@ export default function RosteringStudioUnified({
       },
     });
     setPanelVisibility((prev) => ({ ...prev, comparison: true }));
+    setOutputSummary({
+      kind: "baseline",
+      title: "Baseline captured",
+      subtitle: "Current schedule snapshot saved for comparison.",
+      timestampLabel: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      chips: [
+        { label: "Workers", value: String(snapshot.workers.length) },
+        {
+          label: "Calls",
+          value: String(snapshot.workers.reduce((sum, worker) => sum + worker.calls, 0)),
+        },
+        { label: "Conflicts", value: String(snapshot.conflicts), tone: snapshot.conflicts > 0 ? "warn" : "good" },
+      ],
+    });
     toast({ title: "Baseline captured" });
   }, [buildScheduleSnapshot, timelineLanes, toast]);
 
@@ -1238,6 +1428,20 @@ export default function RosteringStudioUnified({
         timeOverrides: result.timeOverrides,
         laneOverrides: result.laneOverrides,
       });
+      setOutputSummary({
+        kind: "optimization",
+        title: "Optimization output",
+        subtitle: "Full optimization applied with updated travel, balance, and continuity metrics.",
+        timestampLabel: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        chips: [
+          { label: "Time shifts", value: String(Object.keys(result.timeOverrides).length) },
+          { label: "Reassignments", value: String(Object.keys(result.laneOverrides).length) },
+          { label: "Travel saved", value: `${result.metrics.totalTravelReduction}m`, tone: result.metrics.totalTravelReduction > 0 ? "good" : "default" },
+          { label: "Continuity", value: `${result.metrics.continuityScore}%`, tone: result.metrics.continuityScore >= 70 ? "good" : "default" },
+          { label: "Recommended", value: `${result.metrics.recommendedTimeScore}%`, tone: result.metrics.recommendedTimeScore >= 70 ? "good" : "default" },
+          { label: "Violations", value: String(result.metrics.constraintViolations), tone: result.metrics.constraintViolations > 0 ? "warn" : "good" },
+        ],
+      });
       toast({
         title: "Optimization complete",
         description: `Adjusted ${Object.keys(result.timeOverrides).length} visits`,
@@ -1254,11 +1458,12 @@ export default function RosteringStudioUnified({
 
   const handleApplyRecommendedTimes = useCallback(() => {
     let applied = 0;
+    let totalConsidered = 0;
     const timeOverrides: Record<string, number> = {};
     for (const lane of timelineLanes) {
       for (const entry of lane.entries) {
-        const key = `${entry.serviceUserKey || ""}::${(entry.callTypeLabel || "").toLowerCase()}`;
-        const rec = callTimeLookup.get(key);
+        totalConsidered += 1;
+        const rec = getRecommendationForEntry(entry);
         if (rec) {
           timeOverrides[entry.id] = rec.recommendedStartMinutes;
           applied++;
@@ -1290,8 +1495,27 @@ export default function RosteringStudioUnified({
         timeOverrides,
       });
     }
+    setOutputSummary({
+      kind: "recommendations",
+      title: "Recommended times output",
+      subtitle: applied > 0
+        ? "Recommended start times have been applied to matching calls."
+        : "No matching recommendations were available for current timeline entries.",
+      timestampLabel: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      chips: [
+        { label: "Applied", value: String(applied), tone: applied > 0 ? "good" : "default" },
+        { label: "Matched", value: String(applied) },
+        { label: "Unmatched", value: String(Math.max(0, totalConsidered - applied)), tone: totalConsidered > applied ? "warn" : "good" },
+        {
+          label: "Hit rate",
+          value: `${totalConsidered > 0 ? Math.round((applied / totalConsidered) * 100) : 0}%`,
+          tone: totalConsidered > 0 && applied / totalConsidered >= 0.7 ? "good" : "default",
+        },
+        { label: "Loaded rules", value: String(callTimesForEditor.length) },
+      ],
+    });
     toast({ title: `Applied ${applied} recommended times` });
-  }, [buildScheduleSnapshot, timelineLanes, callTimeLookup, baseTimelineLanes, rosterState.present.timeOverrides, rosterState.present.laneOverrides, toast]);
+  }, [buildScheduleSnapshot, timelineLanes, getRecommendationForEntry, baseTimelineLanes, rosterState.present.timeOverrides, rosterState.present.laneOverrides, callTimesForEditor.length, toast]);
 
   const handleAutoBalance = useCallback(() => {
     // Open optimization settings panel with workload balance focus
@@ -1339,7 +1563,7 @@ export default function RosteringStudioUnified({
     }
     // Also check recommended times and prefer those
     const withRecommendedStart = matchingEntries.map((e) => {
-      const key = `${e.serviceUserKey}::${e.callTypeLabel.toLowerCase()}`;
+      const key = `${e.serviceUserKey}::${normalizeLookupToken(e.callTypeLabel)}`;
       const rec = callTimeLookup.get(key);
       return {
         ...e,
@@ -2007,6 +2231,46 @@ export default function RosteringStudioUnified({
           </div>
         </div>
 
+        {/* OUTPUT SUMMARY STRIP */}
+        {outputSummary && (
+          <div className="mx-0.5 mt-1 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-center gap-2">
+                {outputSummary.kind === "optimization" ? (
+                  <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
+                ) : outputSummary.kind === "recommendations" ? (
+                  <Clock4 className="h-3.5 w-3.5 text-primary shrink-0" />
+                ) : (
+                  <GitCompare className="h-3.5 w-3.5 text-primary shrink-0" />
+                )}
+                <span className="font-semibold truncate">{outputSummary.title}</span>
+                <span className="text-muted-foreground shrink-0">{outputSummary.timestampLabel}</span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-[10px]"
+                onClick={() => setOutputSummary(null)}
+              >
+                Dismiss
+              </Button>
+            </div>
+            <p className="mt-0.5 text-[10px] text-muted-foreground truncate">{outputSummary.subtitle}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {outputSummary.chips.map((chip) => (
+                <Badge
+                  key={`${chip.label}-${chip.value}`}
+                  variant="secondary"
+                  className={`text-[10px] ${chip.tone === "good" ? "text-success" : chip.tone === "warn" ? "text-warning" : ""}`}
+                >
+                  {chip.label}: {chip.value}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* STATS BAR */}
         {showSecondaryBars && (
         <div className="rstd-stats flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2.5 py-1 text-[11px] flex-shrink-0">
@@ -2047,12 +2311,39 @@ export default function RosteringStudioUnified({
               <span className="font-semibold">{doubleUpsCount}</span>
               <span className="text-muted-foreground">2-ups</span>
             </div>
+            <div className="rstd-stat-chip">
+              {dataQuality.totalIssues > 0 ? (
+                <AlertTriangle className="h-3 w-3 text-warning" />
+              ) : (
+                <CheckCircle2 className="h-3 w-3 text-success" />
+              )}
+              <span
+                className={`font-semibold ${
+                  dataQuality.totalIssues > 0 ? "text-warning" : "text-success"
+                }`}
+              >
+                {dataQuality.totalIssues}
+              </span>
+              <span className="text-muted-foreground">Data Issues</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {hasRosterChanges && (
               <Badge variant="outline" className="text-[10px]">
                 Unsaved changes
               </Badge>
+            )}
+            {dataQuality.totalIssues > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => handleApplyToolPreset("admin")}
+                title={`Missing identity: ${dataQuality.missingServiceIdentity}, missing start time: ${dataQuality.missingRequiredStart}, invalid duration: ${dataQuality.invalidDuration}`}
+              >
+                Review Data
+              </Button>
             )}
             <Badge variant="secondary" className="text-[10px]">
               Zoom: {timelineZoom}%
@@ -2102,6 +2393,36 @@ export default function RosteringStudioUnified({
               </Button>
             );
           })}
+          <div className="ml-1 flex items-center gap-1 border-l pl-1.5">
+            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Presets</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => handleApplyToolPreset("operations")}
+            >
+              Ops
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => handleApplyToolPreset("analysis")}
+            >
+              Analysis
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => handleApplyToolPreset("admin")}
+            >
+              Admin
+            </Button>
+          </div>
           <div className="ml-auto flex items-center gap-1 shrink-0">
             <Button
               type="button"
@@ -2203,7 +2524,7 @@ export default function RosteringStudioUnified({
                                 (e.target as HTMLElement).blur(); // Prevent aria-hidden focus issue
                                 openWorkerTools(worker.key);
                               }}
-                              className={`w-full h-10 px-2 py-1.5 text-left transition-all duration-200 rounded-md mx-1 ${
+                              className={`w-full h-8 px-1.5 py-1 text-left transition-all duration-200 rounded-md mx-1 ${
                                 isSelected 
                                   ? "bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30 shadow-[var(--shadow-xs)]" 
                                   : "hover:bg-muted/60 hover:shadow-[var(--shadow-xs)]"
@@ -2212,7 +2533,7 @@ export default function RosteringStudioUnified({
                               <div className="flex items-center gap-1">
                                 <WorkerAvatar name={worker.workerName} size="sm" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-[11px] font-medium leading-tight">{worker.workerName}</p>
+                                  <p className="truncate text-[10px] font-medium leading-tight">{worker.workerName}</p>
                                   <p className="text-[9px] text-muted-foreground leading-tight">
                                     {summary
                                       ? `${summary.totalCalls} calls · ${(summary.totalDurationMinutes / 60).toFixed(1)}h`

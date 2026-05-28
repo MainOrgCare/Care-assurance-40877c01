@@ -18,6 +18,9 @@ describe("pilot access rules", () => {
     expect(canAccessApiPath("pilot", "PUT", "/api/dashboard/widgets")).toBe(true);
     expect(canAccessApiPath("pilot", "PATCH", "/api/auth/password")).toBe(true);
     expect(canAccessApiPath("pilot", "GET", "/api/audits")).toBe(true);
+    expect(canAccessApiPath("pilot", "GET", "/api/admin/rostering/workbooks/abc")).toBe(true);
+    expect(canAccessApiPath("pilot", "POST", "/api/admin/rostering/recommendations/123/apply")).toBe(false);
+    expect(canAccessApiPath("pilot", "DELETE", "/api/admin/rostering-recommendations")).toBe(false);
     expect(canAccessApiPath("pilot", "GET", "/api/audits/care-workers")).toBe(false);
     expect(canAccessApiPath("pilot", "POST", "/api/audits")).toBe(false);
     expect(canAccessApiPath("pilot", "GET", "/api/messages/unread-count")).toBe(false);
