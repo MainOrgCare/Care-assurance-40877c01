@@ -7653,6 +7653,12 @@ function bindEvents() {
       result._uiReceipt = analysisReceipt;
       state.currentAnalysisResults = result;
       displayAnalysisResults(result);
+      logActivity({
+        type: "analyze",
+        tone: "success",
+        label: "Documents analyzed",
+        detail: `${analysisReceipt.parsedCount} of ${analysisReceipt.fileCount} file(s) parsed`,
+      });
       switchTab("autofill");
     } catch (error) {
       showError(error.message);
@@ -8063,6 +8069,7 @@ function bindEvents() {
 
       await refreshSignatureStatus();
       showSuccess("Signature uploaded successfully!");
+      logActivity({ type: "signature", tone: "success", label: "Signature uploaded", detail: file.name });
       dom.signatureFile.value = "";
       if (dom.signatureFilename) dom.signatureFilename.textContent = "";
     } catch (error) {
@@ -8252,7 +8259,11 @@ function bindStorageListener() {
       if (changes[STORAGE_KEYS.lastError]) {
         try {
           const err = changes[STORAGE_KEYS.lastError].newValue;
-          if (err) showError(typeof err === "string" ? err : err.message || "Unknown error");
+          if (err) {
+            const message = typeof err === "string" ? err : err.message || "Unknown error";
+            showError(message);
+            logActivity({ type: "autofill", tone: "error", label: "Autofill error", detail: message });
+          }
           schedulePopupRefresh({ payload: true, workspace: true });
         }
         catch (e) { console.warn("[CA Extension] error handler error:", e); }
@@ -8275,6 +8286,12 @@ function bindStorageListener() {
         try {
           applyPopupAppTheme(changes[STORAGE_KEYS.appTheme].newValue);
         } catch (e) { console.warn("[CA Extension] theme sync handler error:", e); }
+      }
+
+      if (changes[STORAGE_KEYS.activityLog]) {
+        try {
+          renderActivityLog(Array.isArray(changes[STORAGE_KEYS.activityLog].newValue) ? changes[STORAGE_KEYS.activityLog].newValue : []);
+        } catch (e) { console.warn("[CA Extension] activity log handler error:", e); }
       }
     } catch (outerErr) {
       console.error("[CA Extension] storage.onChanged crash:", outerErr);
