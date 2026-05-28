@@ -386,7 +386,7 @@ export const AdminDatabasePanel: React.FC = () => {
 
         {/* Last Cleanup Result */}
         {cleanupMutation.data && (
-          <div className="rounded-xl border border-success/20 bg-success/100/5 p-4">
+          <div className="rounded-xl border border-success/20 bg-success/5 p-4">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="h-5 w-5 text-success mt-0.5" />
               <div>

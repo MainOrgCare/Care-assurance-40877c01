@@ -604,9 +604,15 @@ function getPayloadCaseIdHint(payload) {
 export function compareExtensionVersions(left, right) {
   const toParts = (value) =>
     String(value || "")
+      .trim()
+      .replace(/^v/i, "") // tolerate a leading "v" (e.g. "v0.8.1")
       .split(".")
-      .map((part) => Number.parseInt(part, 10))
-      .map((part) => (Number.isFinite(part) ? part : 0));
+      .map((part) => {
+        // Capture the leading integer of each segment so pre-release suffixes
+        // like "1-beta" or "1rc2" compare by their numeric component.
+        const match = /^\d+/.exec(part.trim());
+        return match ? Number.parseInt(match[0], 10) : 0;
+      });
 
   const leftParts = toParts(left);
   const rightParts = toParts(right);

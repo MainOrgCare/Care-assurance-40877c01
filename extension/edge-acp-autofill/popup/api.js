@@ -102,7 +102,7 @@ export async function apiProxy(endpoint, method = "GET", body = null, options = 
           resolve(innerResponse);
         }
       );
-    });
+    }).catch((error) => ({ ok: false, error: error?.message || "Proxy dispatch failed" }));
 
     lastResponse = response;
     if (!isRetryableProxyFailure(response) || attempt >= maxRetries) {
@@ -241,9 +241,15 @@ export async function downloadExtensionPackage(options = {}) {
 export async function findConnectedWorkspaceTab(targetOrigin) {
   const patterns = buildCareAssuranceTabPatterns(targetOrigin);
   for (const pattern of patterns) {
-    const tabs = await chrome.tabs.query({ url: pattern });
-    if (tabs.length > 0) {
-      return tabs.find((tab) => tab.active) || tabs[0];
+    try {
+      const tabs = await chrome.tabs.query({ url: pattern });
+      if (tabs.length > 0) {
+        return tabs.find((tab) => tab.active) || tabs[0];
+      }
+    } catch (error) {
+      // A single malformed match pattern (or a transient query failure) must
+      // not abort the whole lookup — keep scanning the remaining patterns.
+      console.warn("[CA Extension] tab query failed for pattern", { pattern, error: error?.message });
     }
   }
   return null;

@@ -93,7 +93,7 @@ const getCallTypeColor = (callTypeLabel: string | null | undefined): { bg: strin
     return { bg: "bg-warning/10", border: "border-warning/30" };
   }
   if (label.includes("tea") || label.includes("afternoon") || /(^| )pm( |$)/.test(label)) {
-    return { bg: "bg-success/10/80 dark:bg-success-950/30", border: "bg-success/10" };
+    return { bg: "bg-success/10 dark:bg-success/15", border: "bg-success/10" };
   }
   if (label.includes("bed") || label.includes("evening") || label.includes("night") || label.includes("eve")) {
     return { bg: "bg-indigo-100/80 dark:bg-indigo-950/30", border: "border-indigo-300/80 dark:border-indigo-700/60" };
@@ -109,7 +109,7 @@ const getTimeBandBackgrounds = (
   const bands = [
     { key: "am", start: 6 * 60, end: 12 * 60, className: "bg-sky-500/5 dark:bg-sky-400/10" },
     { key: "lunch", start: 12 * 60, end: 14 * 60, className: "bg-warning/5" },
-    { key: "tea", start: 14 * 60, end: 17 * 60, className: "bg-success/100/5 dark:bg-success-400/10" },
+    { key: "tea", start: 14 * 60, end: 17 * 60, className: "bg-success/5 dark:bg-success/10" },
     { key: "bed", start: 17 * 60, end: 22 * 60, className: "bg-indigo-500/5 dark:bg-indigo-400/10" },
   ];
 

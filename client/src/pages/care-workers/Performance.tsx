@@ -542,8 +542,17 @@ export default function Performance() {
                     {careWorkers.filter(w => w.discrepancyCount === 0 && w.auditCount > 0).map(worker => (
                       <li
                         key={worker.name}
-                        className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/30 border border-border/40 rounded-xl transition-colors group cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`View details for ${worker.name}`}
+                        className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/30 border border-border/40 rounded-xl transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={() => setSelectedWorker(worker)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedWorker(worker);
+                          }
+                        }}
                         data-testid={`performer-${worker.name.replace(/\s/g, '-')}`}
                       >
                         <span className="text-sm font-medium tracking-tight text-foreground group-hover:text-primary transition-colors">{worker.name}</span>

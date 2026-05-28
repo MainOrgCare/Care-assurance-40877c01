@@ -166,7 +166,7 @@ export const CallTimeEditor: React.FC<CallTimeEditorProps> = ({
     for (const [key, style] of Object.entries(callTypeColors)) {
       if (l.includes(key)) return style;
     }
-    return "bg-success/10 dark:bg-success-950/40 text-success dark:text-success-400 border-success/30 dark:border-success-700/60";
+    return "bg-success/10 dark:bg-success/15 text-success dark:text-success border-success/30 dark:border-success/40";
   };
 
   return (

@@ -886,7 +886,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       iconClassName: "text-warning",
     },
     critical: {
-      className: "border-destructive/20 bg-destructive/100/10 text-destructive dark:text-destructive shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
+      className: "border-destructive/20 bg-destructive/10 text-destructive dark:text-destructive shadow-[0_6px_16px_-14px_rgba(220,38,38,0.45)]",
       iconClassName: "text-destructive dark:text-destructive",
     },
   };

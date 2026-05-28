@@ -1014,7 +1014,10 @@ export default function CarePlanning() {
                         )}
                       >
                         <CardHeader
-                          className="cursor-pointer py-4"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={expandedContentSections.has(sIdx)}
+                          className="cursor-pointer py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-t-xl"
                           onClick={() => {
                             setExpandedContentSections((prev) => {
                               const next = new Set(prev);
@@ -1022,6 +1025,17 @@ export default function CarePlanning() {
                               else next.add(sIdx);
                               return next;
                             });
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setExpandedContentSections((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(sIdx)) next.delete(sIdx);
+                                else next.add(sIdx);
+                                return next;
+                              });
+                            }
                           }}
                         >
                           <div className="flex items-center justify-between">
@@ -1087,7 +1101,7 @@ export default function CarePlanning() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="rounded-lg font-semibold">TOTAL {sectionStats.total}</Badge>
                   <Badge className="rounded-lg font-semibold bg-destructive/15 text-destructive border-destructive/20">HIGH {sectionStats.high}</Badge>
-                  <Badge className="rounded-lg font-semibold bg-warning/100/15 text-warning border-warning/20">MED {sectionStats.medium}</Badge>
+                  <Badge className="rounded-lg font-semibold bg-warning/15 text-warning border-warning/20">MED {sectionStats.medium}</Badge>
                   <Badge className="rounded-lg font-semibold bg-success/15 text-success border-success/20">LOW {sectionStats.low}</Badge>
                 </div>
               </div>
@@ -1220,15 +1234,24 @@ export default function CarePlanning() {
                   data-testid={`card-section-${index}`}
                 >
                   <CardHeader
-                    className="cursor-pointer py-5"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expandedSections.has(index)}
+                    className="cursor-pointer py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-t-xl"
                     onClick={() => toggleSection(index)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleSection(index);
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-500",
                           section.priority === 'high' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                          section.priority === 'medium' ? 'bg-warning/100/10 border-warning/20 text-warning' :
+                          section.priority === 'medium' ? 'bg-warning/10 border-warning/20 text-warning' :
                           'bg-success/10 border-success/20 text-success'
                         )}>
                           {section.title.toLowerCase().includes('warning') || section.priority === 'high' ? (

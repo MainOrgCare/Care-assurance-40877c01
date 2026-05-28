@@ -166,12 +166,17 @@ export function setActiveSectionButton(tabName) {
   buttons.forEach((btn) => {
     btn?.classList.remove("active");
     btn?.removeAttribute("aria-current");
+    // ARIA tablist semantics: only the active tab is selected and reachable
+    // via Tab; the rest use roving tabindex and arrow-key navigation.
+    btn?.setAttribute("aria-selected", "false");
+    btn?.setAttribute("tabindex", "-1");
   });
   const target = SECTION_JUMP_MAP[tabName];
   const activeBtn = target ? dom[target.button] : null;
   if (activeBtn) {
     activeBtn.classList.add("active");
-    activeBtn.setAttribute("aria-current", "true");
+    activeBtn.setAttribute("aria-selected", "true");
+    activeBtn.setAttribute("tabindex", "0");
   }
 }
 

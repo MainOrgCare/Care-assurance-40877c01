@@ -982,21 +982,21 @@ const AIAdminLog = memo(function AIAdminLog() {
                 className="border border-border/60 rounded-xl bg-background/60"
               >
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                  <div className="flex items-center justify-between w-full pr-4">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Badge variant="outline" className="font-mono text-xs">
+                  <div className="flex items-center justify-between w-full pr-4 gap-2">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Badge variant="outline" className="font-mono text-xs shrink-0">
                         {formatTimestamp(log.createdAt)}
                       </Badge>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-xs max-w-[160px] truncate">
                         {log.username || "Unknown User"}
                       </Badge>
-                      <span className="text-sm font-medium text-foreground truncate max-w-[300px]">
+                      <span className="text-sm font-medium text-foreground truncate min-w-0">
                         {log.endpoint.replace('/api/', '')}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       {(log.retryCount || 0) > 0 && (
-                        <Badge variant="secondary" className="text-xs bg-warning/100/15 text-warning border-warning/30">
+                        <Badge variant="secondary" className="text-xs bg-warning/15 text-warning border-warning/30">
                           {log.retryCount} retry{(log.retryCount || 0) > 1 ? "ies" : ""}
                         </Badge>
                       )}
@@ -1018,7 +1018,7 @@ const AIAdminLog = memo(function AIAdminLog() {
                       </div>
                       <div>
                         <span className="font-semibold text-muted-foreground">Model:</span>
-                        <span className="ml-2">{log.model} ({log.provider})</span>
+                        <span className="ml-2 break-all">{log.model} ({log.provider})</span>
                       </div>
                       <div>
                         <span className="font-semibold text-muted-foreground">Input Tokens:</span>
@@ -1032,9 +1032,9 @@ const AIAdminLog = memo(function AIAdminLog() {
                         <span className="font-semibold text-muted-foreground">Retries:</span>
                         <span className="ml-2">{(log.retryCount || 0).toLocaleString()}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="font-semibold text-muted-foreground">Retry Reason:</span>
-                        <span className="ml-2">{log.lastRetryReason || "none"}</span>
+                        <span className="ml-2 break-words">{log.lastRetryReason || "none"}</span>
                       </div>
                     </div>
                     
@@ -1454,7 +1454,7 @@ const AICostSection = memo(function AICostSection() {
                         {formatProviderLabel(log.provider)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-xs">
+                    <TableCell className="text-muted-foreground font-mono text-xs break-all">
                       {log.model}
                     </TableCell>
                     <TableCell className="text-right text-foreground">
@@ -2503,16 +2503,16 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                   aria-expanded={isExpanded}
                   aria-label={`${user.username} session details`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse" />
-                    <div>
-                      <span className="font-medium text-foreground">{user.username}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-medium text-foreground break-all">{user.username}</span>
                       <Badge variant="outline" className={`ml-2 text-xs ${user.role === "admin" ? "border-primary/50 text-primary" : "border-border text-foreground"}`}>
                         {user.role}
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <span className="text-sm text-muted-foreground font-mono">{getSessionDuration(user.currentSession)}</span>
                     <svg 
                       className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -2528,7 +2528,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">IP Address</p>
-                        <p className="text-sm text-foreground font-mono">{ipAddress}</p>
+                        <p className="text-sm text-foreground font-mono break-all">{ipAddress}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Last Activity</p>
@@ -2539,7 +2539,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                       {location && (
                         <div className="md:col-span-2">
                           <p className="text-xs text-muted-foreground mb-1">Approximate Location</p>
-                          <p className="text-sm text-foreground">{location}</p>
+                          <p className="text-sm text-foreground break-words">{location}</p>
                         </div>
                       )}
                     </div>
@@ -2617,7 +2617,7 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-muted-foreground" />
-                      <span className="text-muted-foreground">{user.username}</span>
+                      <span className="text-muted-foreground break-all min-w-0">{user.username}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -2678,13 +2678,13 @@ const ActivePresenceSection = memo(function ActivePresenceSection() {
           <DialogHeader>
             <DialogTitle className="text-foreground">Block IP Address</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              This will prevent anyone from logging in from IP: <span className="font-mono text-foreground">{blockingIp?.ip}</span>
+              This will prevent anyone from logging in from IP: <span className="font-mono text-foreground break-all">{blockingIp?.ip}</span>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label className="text-muted-foreground">Associated User</Label>
-              <p className="text-sm text-foreground">{blockingIp?.username || "Unknown"}</p>
+              <p className="text-sm text-foreground break-all">{blockingIp?.username || "Unknown"}</p>
             </div>
             <div className="space-y-2">
               <Label className="text-muted-foreground">Reason (optional)</Label>
@@ -2782,10 +2782,10 @@ const BlockedIpsSection = memo(function BlockedIpsSection() {
           <TableBody>
             {blockedIps.map((blocked) => (
               <TableRow key={blocked.id} className="border-border/30 hover:bg-muted/20" data-testid={`row-blocked-ip-${blocked.id}`}>
-                <TableCell className="font-mono text-foreground">{blocked.ipAddress}</TableCell>
-                <TableCell className="text-muted-foreground">{blocked.username || "-"}</TableCell>
-                <TableCell className="text-muted-foreground">{blocked.blockedBy}</TableCell>
-                <TableCell className="text-muted-foreground">{blocked.reason || "-"}</TableCell>
+                <TableCell className="font-mono text-foreground break-all">{blocked.ipAddress}</TableCell>
+                <TableCell className="text-muted-foreground break-all">{blocked.username || "-"}</TableCell>
+                <TableCell className="text-muted-foreground break-words">{blocked.blockedBy}</TableCell>
+                <TableCell className="text-muted-foreground break-words">{blocked.reason || "-"}</TableCell>
                 <TableCell className="text-muted-foreground text-xs">
                   {new Date(blocked.createdAt).toLocaleString()}
                 </TableCell>
@@ -3031,7 +3031,7 @@ const PolicyDocumentsSection = memo(function PolicyDocumentsSection() {
             <TableBody>
               {documents.map((doc) => (
                 <TableRow key={doc.id} className="border-border/30 hover:bg-muted/20 transition-colors" data-testid={`row-policy-${doc.id}`}>
-                  <TableCell className="font-medium text-foreground">{doc.name}</TableCell>
+                  <TableCell className="font-medium text-foreground break-words">{doc.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
                       {getCategoryLabel(doc.category)}
@@ -3287,11 +3287,11 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         {!msg.isRead && (
-                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />
                         )}
-                        <span className="font-medium text-foreground">{msg.name}</span>
+                        <span className="font-medium text-foreground truncate min-w-0">{msg.name}</span>
                         {msg.organisation && (
                           <Badge variant="outline" className="text-xs border-white/20">
                             {msg.organisation}
@@ -3305,7 +3305,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
                       </div>
                       <a
                         href={`mailto:${msg.email}`}
-                        className="text-sm text-secondary hover:underline"
+                        className="text-sm text-secondary hover:underline break-all"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.email}

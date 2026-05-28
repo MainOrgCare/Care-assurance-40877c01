@@ -200,10 +200,21 @@ const Section = memo(function Section({ title, children, defaultOpen = false }: 
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <Card className="app-surface bg-card border-border">
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+          <CardHeader
+            role="button"
+            tabIndex={0}
+            aria-expanded={isOpen}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsOpen((prev) => !prev);
+              }
+            }}
+            className="cursor-pointer hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-t-xl"
+          >
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">{title}</CardTitle>
-              {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              {isOpen ? <ChevronUp size={20} aria-hidden="true" /> : <ChevronDown size={20} aria-hidden="true" />}
             </div>
           </CardHeader>
         </CollapsibleTrigger>
@@ -1246,7 +1257,7 @@ export default function PlanEnhancer() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {isRuleBasedOutput && (
-            <Badge className="bg-success-100 text-success-800 border border-success-300 dark:bg-success-900/40 dark:text-success-200 dark:border-success-700">
+            <Badge className="bg-success/10 text-success border border-success/30 dark:bg-success/15 dark:text-success dark:border-success/40">
               Secure Rule-Based Output
             </Badge>
           )}
@@ -1375,7 +1386,7 @@ export default function PlanEnhancer() {
                 <div
                   key={document.key}
                   className={document.highlighted
-                    ? "rounded-xl border border-success-500/20 bg-success/5 p-4 text-sm"
+                    ? "rounded-xl border border-success/20 bg-success/5 p-4 text-sm"
                     : "rounded-xl border border-border/40 bg-muted/20 p-4 text-sm"
                   }
                   data-testid={document.dataTestId}
@@ -1465,12 +1476,12 @@ export default function PlanEnhancer() {
           {(preAnalysis || isPreAnalyzing) && (
             <div className="p-5 bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-success-700 flex items-center gap-2">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-success flex items-center gap-2">
                   <Zap size={12} />
                   Quick Analysis
-                  <Badge variant="outline" className="text-[8px] bg-success-100 border-success-300">NO AI COST</Badge>
+                  <Badge variant="outline" className="text-[8px] bg-success/10 border-success/30">NO AI COST</Badge>
                 </h4>
-                {isPreAnalyzing && <Loader2 size={14} className="animate-spin text-success-600" />}
+                {isPreAnalyzing && <Loader2 size={14} className="animate-spin text-success" />}
               </div>
               
               {preAnalysis && (
@@ -1525,7 +1536,7 @@ export default function PlanEnhancer() {
                   )}
                   
                   {/* AI Recommendation */}
-                  <div className="pt-2 border-t border-success-200 flex items-center justify-between">
+                  <div className="pt-2 border-t border-success/20 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {preAnalysis.aiNeeded ? (
                         <>
@@ -1534,8 +1545,8 @@ export default function PlanEnhancer() {
                         </>
                       ) : (
                         <>
-                          <Check size={12} className="text-success-600" />
-                          <span className="text-[10px] text-success-600 font-semibold">Good extraction quality</span>
+                          <Check size={12} className="text-success" />
+                          <span className="text-[10px] text-success font-semibold">Good extraction quality</span>
                         </>
                       )}
                     </div>
@@ -1735,7 +1746,7 @@ export default function PlanEnhancer() {
                       <TooltipTrigger asChild>
                         <Badge 
                           variant="secondary" 
-                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-warning text-white border-0"
+                          className="absolute -top-2 -right-2 h-5 min-w-5 p-0 flex items-center justify-center text-[10px] bg-warning text-warning-foreground border-0"
                         >
                           {verificationStats.total}
                         </Badge>

@@ -8181,8 +8181,15 @@ function bindEvents() {
       const tabOrder = ["connect", "upload", "autofill", "review", "ops", "logs"];
       const currentTab = e.target.dataset.tab;
       const idx = tabOrder.indexOf(currentTab);
-      if (e.key === "ArrowRight" && idx < tabOrder.length - 1) { e.preventDefault(); switchTab(tabOrder[idx + 1]); document.getElementById(`tab-${tabOrder[idx + 1]}`)?.focus(); }
-      if (e.key === "ArrowLeft" && idx > 0) { e.preventDefault(); switchTab(tabOrder[idx - 1]); document.getElementById(`tab-${tabOrder[idx - 1]}`)?.focus(); }
+      const focusTab = (nextIdx) => {
+        const next = tabOrder[nextIdx];
+        switchTab(next);
+        document.getElementById(`tab-${next}`)?.focus();
+      };
+      if (e.key === "ArrowRight") { e.preventDefault(); focusTab((idx + 1) % tabOrder.length); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); focusTab((idx - 1 + tabOrder.length) % tabOrder.length); }
+      else if (e.key === "Home") { e.preventDefault(); focusTab(0); }
+      else if (e.key === "End") { e.preventDefault(); focusTab(tabOrder.length - 1); }
     }
   });
 

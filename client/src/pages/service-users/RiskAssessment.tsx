@@ -1832,7 +1832,7 @@ export default function RiskAssessment() {
                 </Button>
               )}
             </div>
-            <div className="rounded-md border border-warning/30 bg-warning/100/10 px-3 py-2 text-xs text-warning dark:text-warning">
+            <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning dark:text-warning">
               Assessments without supporting evidence are not auto-listed. Add them manually below if needed.
             </div>
           </CardHeader>

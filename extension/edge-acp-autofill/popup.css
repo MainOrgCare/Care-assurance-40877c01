@@ -7556,3 +7556,46 @@ body.ca-theme-overhaul .action-row {
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OVERFLOW SAFETY NET
+   Guarantees dynamic content (Case IDs, URLs, hashes, service-user names, log
+   lines, status detail) stays inside its container on every popup surface.
+   Long unbroken strings now wrap instead of escaping the card or being clipped
+   out of view. Elements that intentionally truncate with `white-space: nowrap`
+   + ellipsis are unaffected because `nowrap` takes precedence over
+   `overflow-wrap`. Explicit `min-width` values (badges, counters, avatars) win
+   on specificity, so this only relaxes flex/grid children that defaulted to
+   `min-width: auto` — the root cause of ellipsis chains overflowing.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.popup-content,
+.popup-content *,
+.case-context-strip,
+.case-context-strip * {
+  min-width: 0;
+}
+
+.popup-content p,
+.popup-content span,
+.popup-content strong,
+.popup-content small,
+.popup-content li,
+.popup-content dd,
+.popup-content dt,
+.popup-content code,
+.popup-content label,
+.popup-content a,
+.case-context-strip span,
+.case-context-strip strong,
+.header-title,
+.header-subtitle {
+  overflow-wrap: anywhere;
+}
+
+/* The header text column must shrink so the title/subtitle never push the
+   header actions off the 450px popup or overflow the gradient bar. */
+.popup-header .header-title,
+.popup-header .header-subtitle {
+  min-width: 0;
+  max-width: 100%;
+}

@@ -6021,7 +6021,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       {showAnalyseTab && (
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] items-stretch motion-safe:animate-slide-up stagger-2">
-          <Alert className="relative overflow-hidden border-warning/25 bg-warning/100/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-warning/30 dark:bg-warning/100/10">
+          <Alert className="relative overflow-hidden border-warning/25 bg-warning/5 text-foreground shadow-soft backdrop-blur-xl hover-elevate dark:border-warning/30 dark:bg-warning/10">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_55%)]" />
             <AlertTitle className="flex items-center gap-2 text-base">
               <Shield className="h-4 w-4 text-warning" />
@@ -9378,7 +9378,7 @@ function DiagnosticStat({
 function InsightPill({ tone = "default", children }: { tone?: InsightTone; children: ReactNode }) {
   const toneClass: Record<InsightTone, string> = {
     default: "bg-success/10 text-success",
-    warning: "bg-warning/100/15 text-warning",
+    warning: "bg-warning/15 text-warning",
     destructive: "bg-destructive/10 text-destructive",
   };
   return (

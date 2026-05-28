@@ -120,6 +120,11 @@ import { CallTimeEditor, type RecommendedCallTime } from "@/components/rostering
 import { WorkloadHeatmap } from "@/components/rostering/WorkloadHeatmap";
 import { WorkerConstraintsEditor, type WorkerConstraint as WorkerConstraintUI } from "@/components/rostering/WorkerConstraintsEditor";
 import { buildAllWorkerLanes, buildWorkerSummaries, type TimelineEntry, type GanttLane } from "@/lib/rostering/rosterModel";
+import {
+  computeTimelineStats,
+  computeDataQuality,
+  computeScheduleSnapshotMetrics,
+} from "@/lib/rostering/rosteringMetrics";
 import { useRosteringKeyboardShortcuts, buildRosteringShortcuts, type KeyboardShortcut } from "@/hooks/useRosteringKeyboardShortcuts";
 import {
   rosterHistoryReducer,
@@ -580,21 +585,11 @@ export default function RosteringStudioUnified({
       calls: lane.entries.length,
       minutes: lane.entries.reduce((sum, entry) => sum + entry.durationMinutes, 0),
     }));
-    let conflicts = 0;
-    for (const lane of lanes) {
-      const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
-      for (let i = 0; i < sorted.length - 1; i += 1) {
-        const current = sorted[i];
-        const next = sorted[i + 1];
-        if (current.startMinutes + current.durationMinutes > next.startMinutes) {
-          conflicts += 1;
-        }
-      }
-    }
+    const { conflicts, travelGaps } = computeScheduleSnapshotMetrics(lanes);
     return {
       workers,
       conflicts,
-      travelGaps: 0,
+      travelGaps,
       timestamp: new Date().toISOString(),
     };
   }, []);
@@ -891,79 +886,15 @@ export default function RosteringStudioUnified({
 
   // Stats calculations
   const totalWorkersCount = careWorkerRosters.length;
-  const timelineStats = useMemo(() => {
-    const keys = new Set<string>();
-    let totalCalls = 0;
-    let totalMinutes = 0;
-    let conflicts = 0;
-    for (const lane of timelineLanes) {
-      totalCalls += lane.entries.length;
-      for (const entry of lane.entries) {
-        const serviceIdentity =
-          entry.serviceUserKey?.trim() ||
-          entry.serviceUserName?.trim() ||
-          entry.title?.trim();
-        if (serviceIdentity) {
-          keys.add(serviceIdentity.toLowerCase());
-        }
-        totalMinutes += entry.durationMinutes;
-      }
-      const sorted = [...lane.entries].sort((a, b) => a.startMinutes - b.startMinutes);
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const curr = sorted[i];
-        const next = sorted[i + 1];
-        if (curr.startMinutes + curr.durationMinutes > next.startMinutes) {
-          conflicts++;
-        }
-      }
-    }
-    return {
-      totalServiceUsersCount: keys.size,
-      totalCallsCount: totalCalls,
-      totalHoursCount: Math.round((totalMinutes / 60) * 10) / 10,
-      conflictsCount: conflicts,
-    };
-  }, [timelineLanes]);
+  const timelineStats = useMemo(
+    () => computeTimelineStats(timelineLanes),
+    [timelineLanes],
+  );
 
-  const dataQuality = useMemo(() => {
-    let missingServiceIdentity = 0;
-    let missingRequiredStart = 0;
-    let invalidDuration = 0;
-    let missingCoordinates = 0;
-
-    for (const lane of timelineLanes) {
-      for (const entry of lane.entries) {
-        const hasIdentity = Boolean(
-          entry.serviceUserKey?.trim() ||
-            entry.serviceUserName?.trim() ||
-            entry.title?.trim()
-        );
-        if (!hasIdentity) {
-          missingServiceIdentity += 1;
-        }
-        if (entry.requiredStartMinutes == null) {
-          missingRequiredStart += 1;
-        }
-        if (!Number.isFinite(entry.durationMinutes) || entry.durationMinutes <= 0 || entry.durationMinutes > 24 * 60) {
-          invalidDuration += 1;
-        }
-        if (entry.latitude == null || entry.longitude == null) {
-          missingCoordinates += 1;
-        }
-      }
-    }
-
-    const totalIssues =
-      missingServiceIdentity + missingRequiredStart + invalidDuration;
-
-    return {
-      missingServiceIdentity,
-      missingRequiredStart,
-      invalidDuration,
-      missingCoordinates,
-      totalIssues,
-    };
-  }, [timelineLanes]);
+  const dataQuality = useMemo(
+    () => computeDataQuality(timelineLanes),
+    [timelineLanes],
+  );
   const totalServiceUsersCount = timelineStats.totalServiceUsersCount;
   const totalCallsCount = timelineStats.totalCallsCount;
   const totalHoursCount = timelineStats.totalHoursCount;
@@ -2904,7 +2835,7 @@ export default function RosteringStudioUnified({
                       <div className="rstd-panel-head rstd-panel-head-constraints flex items-center gap-2 px-3 py-2">
                         <UserCog className="h-4 w-4 text-warning" />
                         <span className="text-[11px] font-semibold uppercase tracking-wide">Constraints</span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-warning/100/10 text-warning border-warning/20">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5 font-semibold bg-warning/10 text-warning border-warning/20">
                           {constraintsForEditor.length}
                         </Badge>
                       </div>

@@ -104,13 +104,13 @@ export const ConflictSummary: React.FC<ConflictSummaryProps> = ({ conflicts, onR
 
   if (total === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-success/30 dark:border-success-800/50 bg-success/10 dark:bg-success-950/30 px-3 py-2">
+      <div className="flex items-center gap-2 rounded-lg border border-success/30 dark:border-success/40 bg-success/10 dark:bg-success/15 px-3 py-2">
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-success/100 text-white">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-success dark:text-success-400">No conflicts detected</p>
+        <p className="text-sm font-medium text-success dark:text-success">No conflicts detected</p>
       </div>
     );
   }

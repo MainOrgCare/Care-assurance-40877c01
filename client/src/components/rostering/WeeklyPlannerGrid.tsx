@@ -69,7 +69,7 @@ const SHORT_WEEKDAYS: Record<string, string> = {
 const CALL_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   am: { bg: "bg-primary/10 dark:bg-blue-950/40", text: "text-blue-800 dark:text-blue-400", border: "border-blue-300 dark:border-blue-700/60" },
   morning: { bg: "bg-primary/10 dark:bg-blue-950/40", text: "text-blue-800 dark:text-blue-400", border: "border-blue-300 dark:border-blue-700/60" },
-  lunch: { bg: "bg-warning/10", text: "text-warning dark:text-warning", border: "border-warning/30/60" },
+  lunch: { bg: "bg-warning/10", text: "text-warning dark:text-warning", border: "border-warning/30" },
   tea: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-800 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
   evening: { bg: "bg-purple-100 dark:bg-purple-950/40", text: "text-purple-800 dark:text-purple-400", border: "border-purple-300 dark:border-purple-700/60" },
   night: { bg: "bg-muted", text: "text-foreground", border: "border-border" },

@@ -268,7 +268,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
               Enforced Rules
             </p>
           </div>
-          <div className="rounded-lg border border-warning/30 bg-warning/10/50 dark:border-warning/30 dark:bg-warning/30 p-2.5 space-y-2.5">
+          <div className="rounded-lg border border-warning/30 bg-warning/10 dark:border-warning/30 dark:bg-warning/30 p-2.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Lock className="h-3.5 w-3.5 text-warning" />

@@ -821,7 +821,7 @@ export default function BillingTool() {
                 </div>
               )}
               {analysis.summary.warnings && analysis.summary.warnings.length > 0 && (
-                <div className="sm:col-span-3 rounded-xl border border-warning/30 bg-warning/100/10 px-4 py-3 text-sm text-warning">
+                <div className="sm:col-span-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
                   <ul className="list-disc list-inside space-y-1">
                     {analysis.summary.warnings.map((warning) => (
                       <li key={warning}>{warning}</li>
@@ -931,7 +931,7 @@ export default function BillingTool() {
                   </div>
 
                   {supportPlanResult.extractionWarnings?.length ? (
-                    <div className="rounded-lg border border-warning/40 bg-warning/100/10 px-3 py-2 text-sm text-warning">
+                    <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                       <p className="text-xs uppercase tracking-[0.15em] text-warning mb-1">Extraction warnings</p>
                       <ul className="list-disc list-inside space-y-1">
                         {supportPlanResult.extractionWarnings.map((warning) => (
@@ -988,7 +988,7 @@ export default function BillingTool() {
                     ) : (
                       <ul className="space-y-2 text-sm">
                         {supportPlanResult.comparison.discrepancies.map((item) => (
-                          <li key={item} className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/100/10 px-3 py-2 text-warning">
+                          <li key={item} className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-warning">
                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                             <span>{item}</span>
                           </li>

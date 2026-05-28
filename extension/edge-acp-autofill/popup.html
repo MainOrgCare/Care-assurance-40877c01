@@ -31,44 +31,44 @@
         </div>
       </header>
 
-      <nav class="tab-navigation" aria-label="Popup sections">
-        <button id="tab-connect" class="tab-btn active" data-tab="connect" aria-current="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+      <nav class="tab-navigation" role="tablist" aria-label="Popup sections">
+        <button id="tab-connect" class="tab-btn active" data-tab="connect" role="tab" aria-selected="true" aria-controls="tab-content-connect">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
           <span class="tab-copy">
             <span class="tab-title">Home</span>
             <span id="tab-connect-status" class="tab-status" data-tone="muted">Offline</span>
           </span>
         </button>
-        <button id="tab-upload" class="tab-btn" data-tab="upload" aria-label="Intake">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        <button id="tab-upload" class="tab-btn" data-tab="upload" role="tab" aria-selected="false" aria-controls="tab-content-upload" aria-label="Intake">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           <span class="tab-copy">
             <span class="tab-title">Intake</span>
             <span id="tab-upload-status" class="tab-status" data-tone="muted">Stage docs</span>
           </span>
         </button>
-        <button id="tab-autofill" class="tab-btn" data-tab="autofill" aria-label="Autofill">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        <button id="tab-autofill" class="tab-btn" data-tab="autofill" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Autofill">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           <span class="tab-copy">
             <span class="tab-title">Run</span>
             <span id="tab-autofill-status" class="tab-status" data-tone="muted">Waiting</span>
           </span>
         </button>
-        <button id="tab-review" class="tab-btn" data-tab="review" aria-label="Review">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <button id="tab-review" class="tab-btn" data-tab="review" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Review">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           <span class="tab-copy">
             <span class="tab-title">Review</span>
             <span id="tab-review-status" class="tab-status" data-tone="muted">Payload</span>
           </span>
         </button>
-        <button id="tab-ops" class="tab-btn" data-tab="ops" aria-label="Operations">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6"/><path d="M6 20V10"/><path d="M18 20V4"/></svg>
+        <button id="tab-ops" class="tab-btn" data-tab="ops" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Operations">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20v-6"/><path d="M6 20V10"/><path d="M18 20V4"/></svg>
           <span class="tab-copy">
             <span class="tab-title">Ops</span>
             <span id="tab-ops-status" class="tab-status" data-tone="muted">Idle</span>
           </span>
         </button>
-        <button id="tab-logs" class="tab-btn" data-tab="logs" aria-label="Logs">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+        <button id="tab-logs" class="tab-btn" data-tab="logs" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Logs">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
           <span class="tab-copy">
             <span class="tab-title">Logs</span>
             <span id="tab-logs-status" class="tab-status" data-tone="muted">Quiet</span>
@@ -132,7 +132,7 @@
         </section>
 
         <!-- ========== SECTION 1: WORKSPACE ========== -->
-        <div id="tab-content-connect" class="tab-content active" tabindex="-1">
+        <div id="tab-content-connect" class="tab-content active" role="tabpanel" aria-labelledby="tab-connect" tabindex="-1">
           <div class="section-divider">
             <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg></span>
             <span class="section-divider-copy">
@@ -359,7 +359,7 @@
         </div>
 
         <!-- ========== SECTION 2: INTAKE ========== -->
-        <div id="tab-content-upload" class="tab-content" tabindex="-1">
+        <div id="tab-content-upload" class="tab-content" role="tabpanel" aria-labelledby="tab-upload" tabindex="-1">
           <div class="section-divider">
             <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span>
             <span class="section-divider-copy">
@@ -574,7 +574,7 @@
         </div>
 
         <!-- ========== SECTION 3: AUTOFILL ========== -->
-        <div id="tab-content-autofill" class="tab-content" tabindex="-1">
+        <div id="tab-content-autofill" class="tab-content" role="tabpanel" aria-labelledby="tab-autofill" tabindex="-1">
           <div class="section-divider" data-panel-section="autofill">
             <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></span>
             <span class="section-divider-copy">

@@ -8,9 +8,9 @@ export interface OptimizationScoreProps {
 }
 
 const gradeColors: Record<OptimizationMetrics["grade"], { bg: string; text: string; border: string }> = {
-  A: { bg: "bg-success/10 dark:bg-success-950/40", text: "text-success dark:text-success-400", border: "bg-success/10" },
+  A: { bg: "bg-success/10 dark:bg-success/15", text: "text-success dark:text-success", border: "bg-success/10" },
   B: { bg: "bg-success/10 dark:bg-green-950/40", text: "text-success dark:text-green-400", border: "border-green-300 dark:border-green-700/60" },
-  C: { bg: "bg-warning/10", text: "text-warning", border: "border-warning/30/60" },
+  C: { bg: "bg-warning/10", text: "text-warning", border: "border-warning/30" },
   D: { bg: "bg-orange-100 dark:bg-orange-950/40", text: "text-orange-700 dark:text-orange-400", border: "border-orange-300 dark:border-orange-700/60" },
   F: { bg: "bg-destructive/10 dark:bg-destructive/10", text: "text-destructive dark:text-destructive", border: "border-destructive/30" },
 };
@@ -96,7 +96,7 @@ export const OptimizationScore: React.FC<OptimizationScoreProps> = ({
               )}
               <span className="text-[10px] uppercase tracking-wide">Conflicts</span>
             </div>
-            <p className={`text-sm font-semibold mt-1 ${metrics.conflictCount > 0 ? "text-warning" : "text-success dark:text-success-400"}`}>
+            <p className={`text-sm font-semibold mt-1 ${metrics.conflictCount > 0 ? "text-warning" : "text-success dark:text-success"}`}>
               {metrics.conflictCount}
             </p>
           </div>
