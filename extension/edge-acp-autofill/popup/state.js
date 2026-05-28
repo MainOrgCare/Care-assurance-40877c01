@@ -32,6 +32,7 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   appTheme: "caAcpAppTheme",
   runtimeConfig: "caAcpRuntimeConfig",
   emarSkippedRows: "caAcpEmarSkippedRows",
+  activityLog: "caAcpActivityLog",
 };
 
 export const MESSAGE_TYPES = _g.MESSAGE_TYPES || {
@@ -1075,6 +1076,60 @@ export function buildRuntimeDiagnosticsState(snapshot = {}) {
 
 export function createRequestId() {
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECENT ACTIVITY LOG
+// Lightweight, storage-backed history of operator-facing events (connect,
+// payload load, autofill start/finish, incidents). Capped to the most recent
+// MAX_ACTIVITY_ENTRIES so the local bucket never grows unbounded.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const ACTIVITY_LOG_KEY = STORAGE_KEYS.activityLog || "caAcpActivityLog";
+export const MAX_ACTIVITY_ENTRIES = 25;
+
+export async function loadActivityLog() {
+  try {
+    const data = await loadStorage([ACTIVITY_LOG_KEY]);
+    const entries = data?.[ACTIVITY_LOG_KEY];
+    return Array.isArray(entries) ? entries : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Append an activity entry and persist the capped, newest-first list.
+ * Pure side-effect helper — safe to fire-and-forget from handlers.
+ * @param {{ type?: string, tone?: string, label: string, detail?: string }} entry
+ */
+export async function recordActivity(entry) {
+  if (!entry || !entry.label) return;
+  try {
+    const existing = await loadActivityLog();
+    const next = [
+      {
+        type: String(entry.type || "info"),
+        tone: String(entry.tone || "normal"),
+        label: String(entry.label).slice(0, 120),
+        detail: entry.detail ? String(entry.detail).slice(0, 200) : "",
+        at: new Date().toISOString(),
+      },
+      ...existing,
+    ].slice(0, MAX_ACTIVITY_ENTRIES);
+    await setStorage({ [ACTIVITY_LOG_KEY]: next });
+    return next;
+  } catch (error) {
+    console.warn("[CA Extension] recordActivity failed:", error);
+  }
+}
+
+export async function clearActivityLog() {
+  try {
+    await setStorage({ [ACTIVITY_LOG_KEY]: [] });
+  } catch (error) {
+    console.warn("[CA Extension] clearActivityLog failed:", error);
+  }
 }
 
 export async function writeToClipboard(value) {

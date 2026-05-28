@@ -99,6 +99,8 @@ export function cacheDomElements() {
     "emar-skipped-banner", "emar-skipped-title", "emar-skipped-count",
     "emar-skipped-list", "emar-skipped-toggle",
     "emar-skipped-copy", "emar-skipped-clear",
+    // Recent activity log
+    "activity-list", "activity-count", "clear-activity",
     // Live progress
     "autofill-live-progress", "live-progress-fill", "live-progress-label",
     "live-progress-field", "live-progress-queue",
@@ -132,15 +134,47 @@ export function cacheDomElements() {
 // TAB NAVIGATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function switchTab(tabName, { persist = true } = {}) {
-  const tabs = [dom.tabConnect, dom.tabUpload, dom.tabAutofill];
-  const panels = [dom.tabContentConnect, dom.tabContentUpload, dom.tabContentAutofill];
-  tabs.forEach(btn => { btn?.classList.remove("active"); btn?.setAttribute("aria-selected", "false"); });
-  panels.forEach(content => { content?.classList.remove("active"); content?.setAttribute("hidden", ""); });
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION JUMP (single scrollable view)
+//
+// The popup now renders all three sections stacked in one scroll container.
+// switchTab keeps its name/signature for backwards compatibility with the many
+// existing callers, but instead of hiding panels it highlights the matching
+// jump button and smoothly scrolls the target section into view.
+// ═══════════════════════════════════════════════════════════════════════════
 
-  if (tabName === "connect") { dom.tabConnect?.classList.add("active"); dom.tabConnect?.setAttribute("aria-selected", "true"); dom.tabContentConnect?.classList.add("active"); dom.tabContentConnect?.removeAttribute("hidden"); }
-  if (tabName === "upload") { dom.tabUpload?.classList.add("active"); dom.tabUpload?.setAttribute("aria-selected", "true"); dom.tabContentUpload?.classList.add("active"); dom.tabContentUpload?.removeAttribute("hidden"); }
-  if (tabName === "autofill") { dom.tabAutofill?.classList.add("active"); dom.tabAutofill?.setAttribute("aria-selected", "true"); dom.tabContentAutofill?.classList.add("active"); dom.tabContentAutofill?.removeAttribute("hidden"); }
+const SECTION_JUMP_MAP = {
+  connect: { button: "tabConnect", panel: "tabContentConnect" },
+  upload: { button: "tabUpload", panel: "tabContentUpload" },
+  autofill: { button: "tabAutofill", panel: "tabContentAutofill" },
+};
+
+export function setActiveSectionButton(tabName) {
+  const buttons = [dom.tabConnect, dom.tabUpload, dom.tabAutofill];
+  buttons.forEach((btn) => {
+    btn?.classList.remove("active");
+    btn?.removeAttribute("aria-current");
+  });
+  const target = SECTION_JUMP_MAP[tabName];
+  const activeBtn = target ? dom[target.button] : null;
+  if (activeBtn) {
+    activeBtn.classList.add("active");
+    activeBtn.setAttribute("aria-current", "true");
+  }
+}
+
+export function switchTab(tabName, { persist = true, scroll = true } = {}) {
+  setActiveSectionButton(tabName);
+
+  const target = SECTION_JUMP_MAP[tabName];
+  const panel = target ? dom[target.panel] : null;
+  if (scroll && panel) {
+    try {
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {
+      panel.scrollIntoView();
+    }
+  }
 
   if (persist) {
     chrome.storage.local.set({ [STORAGE_KEYS.lastTab]: tabName }).catch(() => {});
@@ -287,8 +321,55 @@ export function buildEmarSkippedRowsCsv(rows) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LOADING & VALIDATION HELPERS
+// RECENT ACTIVITY LOG
 // ═══════════════════════════════════════════════════════════════════════════
+
+function formatActivityTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return d.toLocaleDateString([], { day: "2-digit", month: "short" });
+}
+
+/**
+ * Render the recent-activity history list from a newest-first array of
+ * { type, tone, label, detail, at } entries produced by recordActivity().
+ */
+export function renderActivityLog(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (dom.activityCount) {
+    dom.activityCount.textContent = String(list.length);
+    dom.activityCount.hidden = list.length === 0;
+  }
+  if (!dom.activityList) return;
+
+  if (list.length === 0) {
+    dom.activityList.innerHTML =
+      '<div class="activity-empty">No recent activity yet. Connect, stage documents, or run autofill to build a history.</div>';
+    return;
+  }
+
+  const allowedTones = new Set(["success", "warn", "error", "info", "normal"]);
+  dom.activityList.innerHTML = list
+    .map((entry) => {
+      const tone = allowedTones.has(entry?.tone) ? entry.tone : "normal";
+      const label = escapeHtml(entry?.label || "Activity");
+      const detail = entry?.detail ? `<span class="activity-detail">${escapeHtml(entry.detail)}</span>` : "";
+      const time = escapeHtml(formatActivityTime(entry?.at));
+      return (
+        `<div class="activity-item" data-tone="${escapeAttr(tone)}">` +
+        '<span class="activity-dot" aria-hidden="true"></span>' +
+        `<span class="activity-body"><span class="activity-label">${label}</span>${detail}</span>` +
+        (time ? `<span class="activity-time">${time}</span>` : "") +
+        "</div>"
+      );
+    })
+    .join("");
+}
 
 export function setButtonLoading(btn, loading) {
   if (!btn) return;

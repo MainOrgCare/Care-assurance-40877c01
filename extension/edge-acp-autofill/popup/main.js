@@ -30,6 +30,9 @@ import {
   buildCommandCenterState,
   buildRuntimeDiagnosticsState,
   buildAutofillPreviewSummary,
+  recordActivity,
+  loadActivityLog,
+  clearActivityLog,
 } from "./state.js";
 
 import {
@@ -45,6 +48,7 @@ import {
   dom,
   cacheDomElements,
   switchTab,
+  setActiveSectionButton,
   showError,
   showSuccess,
   showInfo,
@@ -69,6 +73,7 @@ import {
   updateLiveProgress,
   renderEmarSkippedBanner,
   buildEmarSkippedRowsCsv,
+  renderActivityLog,
   renderPageCompanion,
   renderAutofillSessionSummary,
   renderCaseContextStrip,
@@ -108,6 +113,68 @@ const POPUP_INITIAL_STORAGE_KEYS = [
   STORAGE_KEYS.runtimeConfig,
   STORAGE_KEYS.emarSkippedRows,
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECENT ACTIVITY LOG
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Re-render the recent-activity list from storage. */
+async function refreshActivityLog() {
+  try {
+    renderActivityLog(await loadActivityLog());
+  } catch (error) {
+    debugLog("[CA Extension] refreshActivityLog failed:", error);
+  }
+}
+
+/** Record an activity entry, then re-render the list. Fire-and-forget safe. */
+function logActivity(entry) {
+  void (async () => {
+    await recordActivity(entry);
+    await refreshActivityLog();
+  })();
+}
+
+/**
+ * Highlight the jump-bar button for whichever stacked section is currently in
+ * view. Uses IntersectionObserver against the scroll container so the active
+ * pill follows manual scrolling in the single-page layout.
+ */
+let _sectionScrollSpyObserver = null;
+function setupSectionScrollSpy() {
+  if (_sectionScrollSpyObserver) return;
+  const root = document.querySelector(".popup-content");
+  const sections = [
+    { name: "connect", el: dom.tabContentConnect },
+    { name: "upload", el: dom.tabContentUpload },
+    { name: "autofill", el: dom.tabContentAutofill },
+  ].filter((s) => s.el);
+  if (!root || sections.length === 0 || typeof IntersectionObserver === "undefined") return;
+
+  const visibility = new Map();
+  _sectionScrollSpyObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        visibility.set(entry.target, entry.intersectionRatio);
+      }
+      let best = null;
+      let bestRatio = 0;
+      for (const section of sections) {
+        const ratio = visibility.get(section.el) || 0;
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          best = section.name;
+        }
+      }
+      if (best && bestRatio > 0) setActiveSectionButton(best);
+    },
+    { root, threshold: [0, 0.25, 0.5, 0.75, 1] }
+  );
+
+  for (const section of sections) {
+    _sectionScrollSpyObserver.observe(section.el);
+  }
+}
 
 const getPopupAutoCollectConfig = () => getRuntimeConfig()?.popup?.autoCollect || {};
 
@@ -7003,6 +7070,13 @@ async function connectToCareAssurance() {
           updateUploadPendingStatus();
         }
 
+        logActivity({
+          type: "connect",
+          tone: "success",
+          label: "Connected to CareAssurance",
+          detail: user?.username ? `Signed in as ${user.username}` : targetOrigin,
+        });
+
         break;
       } else if (statusRes.status === 401 || statusRes.error === "Not logged in") {
         await setStorage({ [STORAGE_KEYS.serverUrl]: targetOrigin });
@@ -7116,10 +7190,20 @@ async function autoDetectIds() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function bindEvents() {
-  // Tab navigation
+  // Section jump bar (single scrollable view)
   dom.tabConnect?.addEventListener("click", () => switchTab("connect"));
   dom.tabUpload?.addEventListener("click", () => switchTab("upload"));
   dom.tabAutofill?.addEventListener("click", () => switchTab("autofill"));
+
+  // Recent activity — clear history
+  dom.clearActivity?.addEventListener("click", async () => {
+    await clearActivityLog();
+    await refreshActivityLog();
+    showInfo("Recent activity cleared");
+  });
+
+  // Scroll-spy: highlight the section closest to the top of the scroll area.
+  setupSectionScrollSpy();
 
   // Connection
   dom.connectBtn?.addEventListener("click", connectToCareAssurance);
@@ -7341,6 +7425,12 @@ function bindEvents() {
       if (!res.ok) throw new Error(res.error || "Failed to load care plan");
       await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
       showSuccess("Care plan loaded! Go to Autofill tab.");
+      logActivity({
+        type: "payload",
+        tone: "success",
+        label: "Care plan payload loaded",
+        detail: state.selectedUser?.name ? String(state.selectedUser.name) : "",
+      });
       switchTab("autofill");
       schedulePopupRefresh({ payload: true, immediate: true });
     } catch (error) { showError(error.message); } finally { setButtonLoading(dom.loadCarePlanBtn, false); }
@@ -7700,6 +7790,21 @@ function bindEvents() {
           dom.progressStatus.textContent = response?.ok ? "Autofill started!" : response?.error || "Failed";
         }
         if (!response?.ok && response?.error) showError(response.error);
+        if (response?.ok) {
+          logActivity({
+            type: "autofill",
+            tone: "info",
+            label: `Autofill started — ${getPayloadWorkflowLabel(payload)}`,
+            detail: `Case ${caseId}${dom.dryRun?.checked ? " · dry run" : ""}`,
+          });
+        } else {
+          logActivity({
+            type: "autofill",
+            tone: "error",
+            label: "Autofill failed to start",
+            detail: response?.error || "Unknown error",
+          });
+        }
       }
     );
   });
@@ -8061,7 +8166,7 @@ function bindEvents() {
       if (dialog) { dialog.remove(); return; }
       if (dom.autofillUserDropdown && !dom.autofillUserDropdown.hidden) { dom.autofillUserDropdown.hidden = true; return; }
     }
-    if (e.target.getAttribute("role") === "tab") {
+    if (e.target.matches?.(".tab-btn[data-tab]")) {
       const tabOrder = ["connect", "upload", "autofill"];
       const currentTab = e.target.dataset.tab;
       const idx = tabOrder.indexOf(currentTab);
@@ -8110,6 +8215,7 @@ function bindStorageListener() {
           if (!newState) {
             if (dom.progressStatus) dom.progressStatus.textContent = "\u2713 Autofill complete!";
             showSuccess("Autofill batch complete! All forms have been filled.");
+            logActivity({ type: "autofill", tone: "success", label: "Autofill batch complete", detail: "All staged forms filled" });
             schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
             if (dom.connectionBadge) {
               dom.connectionBadge.classList.add("connected");
@@ -8244,7 +8350,7 @@ function bindStorageListener() {
 
   const savedTab = initialState?.[STORAGE_KEYS.lastTab];
   if (savedTab) {
-    switchTab(savedTab, { persist: false });
+    switchTab(savedTab, { persist: false, scroll: false });
   }
 
   const savedAutofillUser = initialState?.[STORAGE_KEYS.lastAutofillUser];
@@ -8260,7 +8366,7 @@ function bindStorageListener() {
   }
 
   if (initialState?.[STORAGE_KEYS.payload]) {
-    switchTab("autofill", { persist: false });
+    switchTab("autofill", { persist: false, scroll: false });
   }
 
   // Restore EMAR skipped-rows banner from previous session (banner stays hidden if list is empty).
@@ -8274,6 +8380,7 @@ function bindStorageListener() {
   void refreshPayloadStatus();
   void refreshSignatureStatus();
   void refreshWorkspaceContext();
+  void refreshActivityLog();
 
   // Auto-detect case IDs from active tab URL
   runPopupIdleTask(async () => {

@@ -24,6 +24,7 @@
     appTheme: "caAcpAppTheme",
     runtimeConfig: "caAcpRuntimeConfig",
     emarSkippedRows: "caAcpEmarSkippedRows",
+    activityLog: "caAcpActivityLog",
   };
 
   const FORM_CONFIGS = {

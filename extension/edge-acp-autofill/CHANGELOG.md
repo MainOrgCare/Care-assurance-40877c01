@@ -1,5 +1,16 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.7.0 — Unified Single-Scroll Popup & Recent Activity
+
+### Changed
+
+- **Tabs collapsed into one focused, scrollable view.** The three popup panels (Workspace, Intake, Autofill) now render in a single continuous scroll area. The former tab bar is repurposed as a sticky **section-jump bar** — clicking a pill smooth-scrolls to that section, and a scroll-spy (`IntersectionObserver`) keeps the active pill in sync as the user scrolls. Each section gains a `.section-divider` header (icon + title + one-line description) for orientation.
+- Arrow-left/right keyboard navigation on the jump bar now keys off `data-tab` instead of `role="tab"` (ARIA tablist semantics removed since panels are no longer mutually exclusive).
+
+### Added
+
+- **Recent Activity log.** A collapsible card on the Workspace section records the last 25 actions (connect, care-plan payload load, autofill start/failure) newest-first, each with a tone-coloured dot, label, detail, and relative timestamp ("just now", "5m ago", …). Backed by a new `activityLog` storage key with `loadActivityLog()` / `recordActivity()` / `clearActivityLog()` helpers in `popup/state.js`. A **Clear** button empties the log.
+
 ## Version 0.6.47 — Maintenance & Hardening Pass
 
 ### Removed

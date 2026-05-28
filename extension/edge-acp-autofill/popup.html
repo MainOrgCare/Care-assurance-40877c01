@@ -31,23 +31,23 @@
         </div>
       </header>
 
-      <!-- Tab Navigation -->
-      <nav class="tab-navigation" role="tablist" aria-label="Extension sections">
-        <button id="tab-connect" class="tab-btn active" data-tab="connect" role="tab" aria-selected="true" aria-controls="tab-content-connect">
+      <!-- Section Jump Bar (single scrollable view) -->
+      <nav class="tab-navigation" aria-label="Jump to section">
+        <button id="tab-connect" class="tab-btn active" data-tab="connect" aria-current="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
           <span class="tab-copy">
             <span class="tab-title">Workspace</span>
             <span id="tab-connect-status" class="tab-status" data-tone="muted">Offline</span>
           </span>
         </button>
-        <button id="tab-upload" class="tab-btn" data-tab="upload" role="tab" aria-selected="false" aria-controls="tab-content-upload" aria-label="Intake">
+        <button id="tab-upload" class="tab-btn" data-tab="upload" aria-label="Intake">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           <span class="tab-copy">
             <span class="tab-title">Intake</span>
             <span id="tab-upload-status" class="tab-status" data-tone="muted">Stage docs</span>
           </span>
         </button>
-        <button id="tab-autofill" class="tab-btn" data-tab="autofill" role="tab" aria-selected="false" aria-controls="tab-content-autofill" aria-label="Autofill">
+        <button id="tab-autofill" class="tab-btn" data-tab="autofill" aria-label="Autofill">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           <span class="tab-copy">
             <span class="tab-title">Autofill</span>
@@ -135,9 +135,32 @@
           </div>
         </details>
 
-        <!-- ========== TAB 1: CONNECT ========== -->
-        <div id="tab-content-connect" class="tab-content active" role="tabpanel" aria-labelledby="tab-connect">
-          
+        <details class="activity-card card collapsible" open>
+          <summary class="collapsible-header">
+            <span>Recent Activity</span>
+            <span class="chevron">▼</span>
+          </summary>
+          <div class="card-content">
+            <div class="activity-card-toolbar">
+              <span id="activity-count" class="badge badge-muted" aria-label="Recent activity entries">0</span>
+              <button id="clear-activity" class="btn btn-ghost btn-sm" title="Clear recent activity" aria-label="Clear recent activity">Clear</button>
+            </div>
+            <div id="activity-list" class="activity-list" aria-live="polite">
+              <div class="activity-empty">No recent activity yet. Connect, stage documents, or run autofill to build a history.</div>
+            </div>
+          </div>
+        </details>
+
+        <!-- ========== SECTION 1: WORKSPACE ========== -->
+        <div id="tab-content-connect" class="tab-content active" tabindex="-1">
+          <div class="section-divider">
+            <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg></span>
+            <span class="section-divider-copy">
+              <span class="section-divider-title">Workspace</span>
+              <span class="section-divider-detail">Connect, monitor status, and jump into CareAssurance</span>
+            </span>
+          </div>
+
           <section class="card">
             <div class="card-header">
               <h2 class="card-title">
@@ -338,8 +361,15 @@
           </section>
         </div>
 
-        <!-- ========== TAB 2: UPLOAD ========== -->
-        <div id="tab-content-upload" class="tab-content" role="tabpanel" aria-labelledby="tab-upload">
+        <!-- ========== SECTION 2: INTAKE ========== -->
+        <div id="tab-content-upload" class="tab-content" tabindex="-1">
+          <div class="section-divider">
+            <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span>
+            <span class="section-divider-copy">
+              <span class="section-divider-title">Intake</span>
+              <span class="section-divider-detail">Stage and analyze documents for a case</span>
+            </span>
+          </div>
 
           <div class="step-indicator">
             <div class="step active" id="step-select"><span class="step-number">1</span> Select</div>
@@ -546,8 +576,15 @@
           </section>
         </div>
 
-        <!-- ========== TAB 3: AUTOFILL ========== -->
-        <div id="tab-content-autofill" class="tab-content" role="tabpanel" aria-labelledby="tab-autofill">
+        <!-- ========== SECTION 3: AUTOFILL ========== -->
+        <div id="tab-content-autofill" class="tab-content" tabindex="-1">
+          <div class="section-divider">
+            <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></span>
+            <span class="section-divider-copy">
+              <span class="section-divider-title">Autofill</span>
+              <span class="section-divider-detail">Review the payload and fill the live ACP form</span>
+            </span>
+          </div>
 
           <section class="card autofill-session-card">
             <div class="card-header">
