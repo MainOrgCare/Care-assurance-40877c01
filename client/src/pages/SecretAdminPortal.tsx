@@ -204,6 +204,26 @@ interface AdminAcpServiceUser {
 }
 
 type AdminAcpWorkflow = "risk" | "emar" | "care-plan";
+type AdminPortalTab = "overview" | "command" | "users" | "presence" | "messages" | "policies" | "ai" | "database";
+type AdminActionTone = "success" | "primary" | "warning" | "danger";
+
+interface AdminActionQueueItem {
+  id: string;
+  label: string;
+  description: string;
+  countLabel: string;
+  tone: AdminActionTone;
+  icon: typeof Shield;
+  actionLabel: string;
+  onSelect: () => void;
+}
+
+const ADMIN_ACTION_TONE_CLASSES: Record<AdminActionTone, string> = {
+  success: "border-success/30 bg-success/8 text-success",
+  primary: "border-primary/30 bg-primary/8 text-primary",
+  warning: "border-warning/35 bg-warning/10 text-warning",
+  danger: "border-destructive/30 bg-destructive/10 text-destructive",
+};
 
 const ADMIN_ACP_WORKFLOWS: Record<AdminAcpWorkflow, { label: string; path: string; icon: typeof Shield }> = {
   risk: { label: "Risk Assess", path: "/service-users/risk-assessment", icon: Shield },
@@ -1079,7 +1099,7 @@ const AICostSection = memo(function AICostSection() {
     "emar_pass": "bg-primary/10 text-primary",
     "drug_interactions": "bg-destructive/10 text-destructive",
     "care_plan": "bg-success/10 text-success",
-    "risk_assessment": "bg-warning/100/10 text-warning",
+    "risk_assessment": "bg-warning/10 text-warning",
     "plan_enhancer": "bg-secondary/10 text-secondary",
   };
 
@@ -2182,7 +2202,7 @@ const AIOptimizationSection = memo(function AIOptimizationSection() {
 
       {/* Cache Stats */}
       {cacheStats && (
-        <div className="mt-4 p-3 bg-warning/100/10 rounded-lg border border-warning/20">
+        <div className="mt-4 p-3 bg-warning/10 rounded-lg border border-warning/20">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-foreground">Cache Statistics</span>
             <button
@@ -3371,7 +3391,7 @@ const ContactMessagesSection = memo(function ContactMessagesSection() {
             <Button
               variant="outline"
               onClick={() => selectedMessage && handleArchive(selectedMessage.id)}
-              className="border-warning/30 text-warning hover:bg-warning/100/10"
+              className="border-warning/30 text-warning hover:bg-warning/10"
             >
               <Archive size={14} className="mr-2" />
               Archive
@@ -4110,7 +4130,7 @@ const OperationsCommandCenter = memo(function OperationsCommandCenter({
           <div className="grid gap-3 md:grid-cols-2">
             <Button
               variant="outline"
-              className="justify-start border-warning/40 text-warning hover:bg-warning/100/10"
+              className="justify-start border-warning/40 text-warning hover:bg-warning/10"
               onClick={handleMarkAllAlertsRead}
               data-testid="button-clear-all-alerts"
             >
@@ -4257,6 +4277,7 @@ export default function SecretAdminPortal() {
   const { users, approveUser, rejectUser, auditLogs, fetchUsers } = useAuth();
   const [, navigate] = useLocation();
   const [mounted, setMounted] = useState(false);
+  const [adminTab, setAdminTab] = useState<AdminPortalTab>("overview");
   const [adminAlerts, setAdminAlerts] = useState<AdminAlert[]>([]);
   const { toast } = useToast();
   
@@ -5067,6 +5088,16 @@ export default function SecretAdminPortal() {
 
   const pendingUsers = useMemo(() => users.filter(u => u.status === "pending"), [users]);
   const activeUsers = useMemo(() => users.filter(u => u.status === "active"), [users]);
+  const suspendedUsers = useMemo(() => users.filter(u => u.status === "suspended"), [users]);
+  const archivedUsers = useMemo(() => users.filter(u => u.status === "archived"), [users]);
+  const inactiveActiveUsers = useMemo(() => {
+    const staleAfterMs = 14 * 24 * 60 * 60 * 1000;
+    return activeUsers.filter((u) => {
+      if (!u.lastOnlineAt) return true;
+      const lastSeen = new Date(u.lastOnlineAt).getTime();
+      return Number.isNaN(lastSeen) || Date.now() - lastSeen > staleAfterMs;
+    });
+  }, [activeUsers]);
   const extensionManifestVersion = extensionInfo?.manifestVersion || "Unknown";
   const extensionSizeLabel = formatBytes(extensionInfo?.package?.sizeBytes);
   const extensionPackagedAt = extensionInfo?.package?.packagedAt
@@ -5108,40 +5139,150 @@ export default function SecretAdminPortal() {
     : extensionVersionMismatch
     ? `The page currently sees extension v${installedExtensionStatus.version}. Refresh after loading v${extensionInfo?.manifestVersion || "latest"}.`
     : "The installed extension version matches the package currently published from CareAssurance.";
+  const unreadOperationsCount = opsHealth
+    ? opsHealth.alerts.unreadAdminAlerts + opsHealth.alerts.unreadContactMessages
+    : adminAlerts.length;
+  const hasExtensionAttention = Boolean(
+    installedExtensionStatus?.refreshRequired ||
+      extensionVersionMismatch ||
+      (installedExtensionStatus && !installedExtensionStatus.detected)
+  );
+  const totalAttentionCount =
+    pendingUsers.length +
+    unreadOperationsCount +
+    suspendedUsers.length +
+    (hasExtensionAttention ? 1 : 0);
+  const operationalStatusLabel = totalAttentionCount > 0 ? "Attention needed" : "Stable";
+  const operationalStatusClass =
+    totalAttentionCount > 0
+      ? "border-warning/35 bg-warning/10 text-warning"
+      : "border-success/30 bg-success/8 text-success";
+  const adminActionQueue: AdminActionQueueItem[] = [];
+
+  if (pendingUsers.length > 0) {
+    adminActionQueue.push({
+      id: "pending-users",
+      label: "Review pending user approvals",
+      description: "Approve or reject new accounts before they reach operational modules.",
+      countLabel: `${pendingUsers.length} waiting`,
+      tone: "warning",
+      icon: UserPlus,
+      actionLabel: "Open users",
+      onSelect: () => {
+        setUserStatusFilter("pending");
+        setAdminTab("users");
+      },
+    });
+  }
+
+  if (unreadOperationsCount > 0 || adminAlerts.length > 0) {
+    adminActionQueue.push({
+      id: "ops-alerts",
+      label: "Clear the incident queue",
+      description: "Review staff discrepancy alerts, contact messages, and recent platform events.",
+      countLabel: `${Math.max(unreadOperationsCount, adminAlerts.length)} open`,
+      tone: unreadOperationsCount > 3 ? "danger" : "warning",
+      icon: AlertTriangle,
+      actionLabel: "Open command",
+      onSelect: () => setAdminTab("command"),
+    });
+  }
+
+  if (hasExtensionAttention) {
+    adminActionQueue.push({
+      id: "extension-sync",
+      label: "Check browser extension rollout",
+      description: extensionSyncSummary,
+      countLabel: installedExtensionVersion,
+      tone: installedExtensionStatus?.refreshRequired ? "danger" : "primary",
+      icon: Download,
+      actionLabel: "Open manager",
+      onSelect: () => navigate("/admin/extension-manager"),
+    });
+  }
+
+  if (suspendedUsers.length > 0) {
+    adminActionQueue.push({
+      id: "suspended-users",
+      label: "Audit suspended accounts",
+      description: "Review suspended users and reinstate or archive records where appropriate.",
+      countLabel: `${suspendedUsers.length} suspended`,
+      tone: "danger",
+      icon: Lock,
+      actionLabel: "Review users",
+      onSelect: () => {
+        setUserStatusFilter("suspended");
+        setAdminTab("users");
+      },
+    });
+  }
+
+  if (adminActionQueue.length === 0) {
+    adminActionQueue.push({
+      id: "all-clear",
+      label: "No high-priority admin actions",
+      description: "Core access, alert, and extension signals are currently clear.",
+      countLabel: "All clear",
+      tone: "success",
+      icon: ShieldCheck,
+      actionLabel: "View command",
+      onSelect: () => setAdminTab("command"),
+    });
+  }
 
   if (!mounted) return null;
 
   return (
-    <div className="relative space-y-8 animate-in fade-in duration-700 p-2 md:p-8">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-40 right-0 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
-        <div className="absolute top-40 left-0 h-80 w-80 rounded-full bg-success/10 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_55%)]" />
-      </div>
+    <div className="page-shell-compact animate-fade-in p-2 md:p-6">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-8 shadow-medium backdrop-blur">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_55%),radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.12),transparent_45%)]" />
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-primary">
-              <Shield size={24} className="text-primary-foreground" />
-            </div>
-            <div>
-              <h2 className="text-xl font-heading font-bold tracking-tight text-foreground">Administrator Controls</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="text-primary border-primary/30 bg-primary/8">Level 0 Access</Badge>
-                <span className="text-xs text-muted-foreground">•</span>
-                <p className="text-xs text-muted-foreground">Owner Access Only</p>
+      <Card className="overflow-hidden border-border/60 bg-card shadow-medium">
+        <CardContent className="p-5 md:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary text-primary-foreground shadow-soft">
+                <Shield size={24} />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <div>
+                  <p className="page-kicker">Administration</p>
+                  <h2 className="text-2xl font-heading font-bold tracking-normal text-foreground">
+                    Administrator Control Room
+                  </h2>
+                </div>
+                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  Manage access, platform modes, extension rollout, policy assets, AI controls, and operational recovery from one command surface.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-primary/30 bg-primary/8 text-primary">
+                    Level 0 access
+                  </Badge>
+                  <Badge variant="outline" className={operationalStatusClass}>
+                    {operationalStatusLabel}
+                  </Badge>
+                  <Badge variant="outline" className="border-border bg-muted/40 text-muted-foreground">
+                    {activeUsers.length} active users
+                  </Badge>
+                </div>
               </div>
             </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-auto xl:min-w-[28rem]">
+              {[
+                { label: "Attention", value: totalAttentionCount, detail: "items", tone: "text-warning" },
+                { label: "Sessions", value: opsHealth?.sessions.total ?? "—", detail: "active", tone: "text-primary" },
+                { label: "Alerts", value: unreadOperationsCount, detail: "unread", tone: unreadOperationsCount > 0 ? "text-warning" : "text-success" },
+                { label: "Extension", value: installedExtensionVersion, detail: "browser", tone: hasExtensionAttention ? "text-warning" : "text-success" },
+              ].map((metric) => (
+                <div key={metric.label} className="rounded-lg border border-border bg-muted/25 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{metric.label}</p>
+                  <p className={`mt-1 truncate text-sm font-semibold ${metric.tone}`}>{metric.value}</p>
+                  <p className="text-[10px] text-muted-foreground">{metric.detail}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          
-          <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-success/30 bg-success/8 shadow-soft">
-            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-success">System Active</span>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -5150,43 +5291,80 @@ export default function SecretAdminPortal() {
         <div className="lg:col-span-8 space-y-8">
           
           {/* Critical Tools Section */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <Link href="/call-reconciliation">
-              <div className="group relative overflow-hidden rounded-xl border border-border/60 bg-background/70 p-6 shadow-soft transition-all hover-elevate cursor-pointer">
-                <div className="absolute top-0 right-0 p-3 opacity-30 group-hover:opacity-50 transition-opacity">
-                  <ArrowRightLeft size={80} className="text-muted-foreground" />
-                </div>
-                <div className="relative z-10">
-                  <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-primary/8">
-                    <ArrowRightLeft size={18} className="text-primary" />
-                  </div>
-                  <h3 className="text-[0.8125rem] font-semibold mb-1 text-foreground">Call Reconciliation</h3>
-                  <p className="text-xs text-muted-foreground">ECM matching interface for admin use only.</p>
-                </div>
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto justify-start rounded-xl border border-border/60 bg-card p-4 text-left shadow-soft hover-elevate"
+              onClick={() => setAdminTab("command")}
+              data-testid="button-open-admin-command-center"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary">
+                  <Power size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">Command Center</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Maintenance, read-only, announcements, snapshots.</span>
+                </span>
               </div>
-            </Link>
+            </Button>
 
-            <Button 
-              className="group relative overflow-hidden rounded-xl border border-border/60 bg-background/70 p-6 h-auto transition-all hover-elevate cursor-pointer w-full text-left flex flex-col items-start"
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto justify-start rounded-xl border border-border/60 bg-card p-4 text-left shadow-soft hover-elevate"
+              onClick={() => {
+                setUserStatusFilter("pending");
+                setAdminTab("users");
+              }}
+              data-testid="button-open-admin-user-review"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                  <UserPlus size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">User Review</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{pendingUsers.length} pending approval{pendingUsers.length === 1 ? "" : "s"}.</span>
+                </span>
+              </div>
+            </Button>
+
+            <Button asChild variant="ghost" className="h-auto justify-start rounded-xl border border-border/60 bg-card p-4 text-left shadow-soft hover-elevate">
+              <Link href="/call-reconciliation">
+                <span className="flex min-w-0 items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary">
+                    <ArrowRightLeft size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">Call Reconciliation</span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">Match ECM evidence and operational exceptions.</span>
+                  </span>
+                </span>
+              </Link>
+            </Button>
+
+            <Button
+              className="h-auto justify-start rounded-xl border border-border/60 bg-card p-4 text-left shadow-soft hover-elevate"
               onClick={handleOpenSystemLogDialog}
               data-testid="button-system-log"
               variant="ghost"
             >
-              <div className="absolute top-0 right-0 p-3 opacity-30 group-hover:opacity-50 transition-opacity">
-                <Terminal size={80} className="text-muted-foreground" />
-              </div>
-              <div className="relative z-10 w-full">
-                <div className="h-9 w-9 rounded-lg flex items-center justify-center mb-4 bg-primary/8">
-                  <Terminal size={18} className="text-primary" />
-                </div>
-                <h3 className="text-[0.8125rem] font-semibold mb-1 text-foreground">System Log</h3>
-                <p className="text-xs text-muted-foreground">View audit completion records.</p>
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Terminal size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">Audit Completion Log</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Open the focused audit-completion record.</span>
+                </span>
               </div>
             </Button>
           </div>
 
           {/* Admin Tabs */}
-          <Tabs defaultValue="overview" className="w-full">
+          <Tabs value={adminTab} onValueChange={(value) => setAdminTab(value as AdminPortalTab)} className="w-full">
             <div className="overflow-x-auto -mx-2 px-2 pb-1 scrollbar-hide">
               <TabsList className="inline-flex h-10 w-max gap-1 border p-1 rounded-xl mb-6 bg-muted/40 border-border/60">
                 <TabsTrigger value="overview" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
@@ -5226,6 +5404,58 @@ export default function SecretAdminPortal() {
             </div>
 
             <TabsContent value="overview" className="space-y-6">
+              <Card className="overflow-hidden border-border/60 bg-card shadow-medium">
+                <CardHeader className="border-b border-border/30 bg-muted/25">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Activity className="h-4 w-4 text-primary" />
+                        Admin Action Queue
+                      </CardTitle>
+                      <CardDescription>
+                        Prioritized work from users, operations health, extension sync, and alert state.
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className={operationalStatusClass}>
+                      {totalAttentionCount} attention item{totalAttentionCount === 1 ? "" : "s"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    {adminActionQueue.map((item) => {
+                      const QueueIcon = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={item.onSelect}
+                          className="group flex min-w-0 items-start justify-between gap-4 rounded-xl border border-border bg-muted/20 p-4 text-left transition-colors hover:border-primary/30 hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+                          data-testid={`button-admin-action-${item.id}`}
+                        >
+                          <span className="flex min-w-0 items-start gap-3">
+                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${ADMIN_ACTION_TONE_CLASSES[item.tone]}`}>
+                              <QueueIcon size={17} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-foreground">{item.label}</span>
+                              <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 flex-col items-end gap-2">
+                            <Badge variant="outline" className={ADMIN_ACTION_TONE_CLASSES[item.tone]}>
+                              {item.countLabel}
+                            </Badge>
+                            <span className="text-[11px] font-semibold text-primary transition-colors group-hover:text-primary/80">
+                              {item.actionLabel}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
               
               {/* Admin Quick Metrics */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -5685,7 +5915,7 @@ export default function SecretAdminPortal() {
               <div className="grid md:grid-cols-4 gap-4">
                 {[
                   { label: "Active Users", value: activeUsers.length.toString(), sub: "Currently approved", iconCls: "text-success", bgCls: "bg-success/10", icon: ShieldCheck },
-                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-warning", bgCls: "bg-warning/100/10", icon: Clock },
+                  { label: "Pending Approvals", value: pendingUsers.length.toString(), sub: "Awaiting review", iconCls: "text-warning", bgCls: "bg-warning/10", icon: Clock },
                   { label: "Suspended", value: users.filter(u => (u.status as string) === "suspended").length.toString(), sub: "Account suspensions", iconCls: "text-destructive", bgCls: "bg-destructive/10", icon: Lock },
                   { label: "Total Logs", value: systemLogs.length.toString(), sub: "Session activity", iconCls: "text-primary", bgCls: "bg-primary/10", icon: Activity }
                 ].map((stat, i) => (
@@ -6205,10 +6435,10 @@ export default function SecretAdminPortal() {
              </CardContent>
           </Card>
 
-           <Card className="border-border/60 bg-background/70 shadow-medium hover-elevate">
+           <Card className="border-border/60 bg-card shadow-medium hover-elevate">
              <CardHeader className="border-b border-border/30 bg-muted/30">
                 <CardTitle className="text-sm flex items-center gap-2 text-foreground">
-                   <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center"><Activity className="h-3.5 w-3.5 text-muted-foreground" /></div> Quick Stats
+                   <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center"><Activity className="h-3.5 w-3.5 text-muted-foreground" /></div> Access Signals
                 </CardTitle>
              </CardHeader>
              <CardContent className="pt-4">
@@ -6218,16 +6448,20 @@ export default function SecretAdminPortal() {
                       <span className="text-sm font-semibold text-foreground">{users.length}</span>
                    </div>
                    <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
-                      <span className="text-xs text-muted-foreground">Admins</span>
-                      <span className="text-sm font-semibold text-primary">{users.filter(u => u.role === 'admin').length}</span>
+                      <span className="text-xs text-muted-foreground">Pending Approval</span>
+                      <span className="text-sm font-semibold text-warning">{pendingUsers.length}</span>
                    </div>
                    <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
-                     <span className="text-xs text-muted-foreground">Pilots</span>
-                     <span className="text-sm font-semibold text-secondary">{users.filter(u => u.role === 'pilot').length}</span>
+                     <span className="text-xs text-muted-foreground">Suspended</span>
+                     <span className="text-sm font-semibold text-destructive">{suspendedUsers.length}</span>
                    </div>
                    <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
-                      <span className="text-xs text-muted-foreground">Staff</span>
-                      <span className="text-sm font-semibold text-foreground">{users.filter(u => u.role === 'staff').length}</span>
+                      <span className="text-xs text-muted-foreground">Inactive Active Users</span>
+                      <span className="text-sm font-semibold text-foreground">{inactiveActiveUsers.length}</span>
+                   </div>
+                   <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30">
+                      <span className="text-xs text-muted-foreground">Archived</span>
+                      <span className="text-sm font-semibold text-muted-foreground">{archivedUsers.length}</span>
                    </div>
                 </div>
              </CardContent>

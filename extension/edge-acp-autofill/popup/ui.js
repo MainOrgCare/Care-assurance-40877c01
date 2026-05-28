@@ -1,6 +1,6 @@
 /**
  * ui.js — DOM references, rendering, toasts, tabs, and visual updates
- * CareAssurance Extension v0.8.0
+ * CareAssurance Extension v0.8.1
  */
 
 import {
@@ -39,8 +39,8 @@ export const dom = {};
 export function cacheDomElements() {
   const ids = [
     // Tabs
-    "tab-connect", "tab-upload", "tab-autofill",
-    "tab-connect-status", "tab-upload-status", "tab-autofill-status",
+    "tab-connect", "tab-upload", "tab-autofill", "tab-review", "tab-ops", "tab-logs",
+    "tab-connect-status", "tab-upload-status", "tab-autofill-status", "tab-review-status", "tab-ops-status", "tab-logs-status",
     "tab-content-connect", "tab-content-upload", "tab-content-autofill",
     // Header
     "header-subtitle", "connection-badge", "connection-uptime", "overlay-pin-btn",
@@ -145,22 +145,24 @@ export function cacheDomElements() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SECTION JUMP (single scrollable view)
+// REAL TAB NAVIGATION
 //
-// The popup now renders all three sections stacked in one scroll container.
-// switchTab keeps its name/signature for backwards compatibility with the many
-// existing callers, but instead of hiding panels it highlights the matching
-// jump button and smoothly scrolls the target section into view.
+// switchTab keeps its name/signature for backwards compatibility with existing
+// callers. The popup now shows one focused section at a time; Autofill, Review,
+// Ops, and Logs share the same DOM host but expose different card groups.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SECTION_JUMP_MAP = {
   connect: { button: "tabConnect", panel: "tabContentConnect" },
   upload: { button: "tabUpload", panel: "tabContentUpload" },
   autofill: { button: "tabAutofill", panel: "tabContentAutofill" },
+  review: { button: "tabReview", panel: "tabContentAutofill" },
+  ops: { button: "tabOps", panel: "tabContentAutofill" },
+  logs: { button: "tabLogs", panel: "tabContentAutofill" },
 };
 
 export function setActiveSectionButton(tabName) {
-  const buttons = [dom.tabConnect, dom.tabUpload, dom.tabAutofill];
+  const buttons = document.querySelectorAll(".tab-btn[data-tab]");
   buttons.forEach((btn) => {
     btn?.classList.remove("active");
     btn?.removeAttribute("aria-current");
@@ -174,20 +176,41 @@ export function setActiveSectionButton(tabName) {
 }
 
 export function switchTab(tabName, { persist = true, scroll = true } = {}) {
-  setActiveSectionButton(tabName);
+  const normalizedTab = SECTION_JUMP_MAP[tabName] ? tabName : "connect";
+  setActiveSectionButton(normalizedTab);
 
-  const target = SECTION_JUMP_MAP[tabName];
-  const panel = target ? dom[target.panel] : null;
-  if (scroll && panel) {
-    try {
-      panel.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch {
-      panel.scrollIntoView();
-    }
+  const activeRoot = normalizedTab === "connect" || normalizedTab === "upload" ? normalizedTab : "autofill";
+  const rootPanels = [
+    { name: "connect", el: dom.tabContentConnect },
+    { name: "upload", el: dom.tabContentUpload },
+    { name: "autofill", el: dom.tabContentAutofill },
+  ];
+  rootPanels.forEach(({ name, el }) => {
+    if (!el) return;
+    const active = name === activeRoot;
+    el.classList.toggle("active", active);
+    el.classList.toggle("is-panel-hidden", !active);
+    el.setAttribute("aria-hidden", active ? "false" : "true");
+    if (active) el.removeAttribute("inert");
+    else el.setAttribute("inert", "");
+  });
+
+  dom.tabContentAutofill?.querySelectorAll("[data-panel-section]").forEach((el) => {
+    const section = el.getAttribute("data-panel-section") || "autofill";
+    const active = section === normalizedTab;
+    el.classList.toggle("is-panel-hidden", !active);
+    el.setAttribute("aria-hidden", active ? "false" : "true");
+    if (active) el.removeAttribute("inert");
+    else el.setAttribute("inert", "");
+  });
+
+  if (scroll) {
+    const root = document.querySelector(".popup-content");
+    if (root) root.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (persist) {
-    chrome.storage.local.set({ [STORAGE_KEYS.lastTab]: tabName }).catch(() => {});
+    chrome.storage.local.set({ [STORAGE_KEYS.lastTab]: normalizedTab }).catch(() => {});
   }
 }
 
@@ -355,6 +378,8 @@ export function renderActivityLog(entries) {
     dom.activityCount.textContent = String(list.length);
     dom.activityCount.hidden = list.length === 0;
   }
+  setTabStatus(dom.tabLogs, dom.tabLogsStatus, list.length > 0 ? `${list.length} events` : "Quiet", list.length > 0 ? "normal" : "muted");
+  setTabBadge(dom.tabLogs, list.length > 0 ? list.length : null, "normal");
   if (!dom.activityList) return;
 
   if (list.length === 0) {
@@ -842,9 +867,39 @@ export function updateTabBadges(payload, fileCount) {
     autofillTone = "success";
   }
 
+  let reviewStatus = "Payload";
+  let reviewTone = "muted";
+  if (payload && hasAnalysisSelection) {
+    reviewStatus = "Review ready";
+    reviewTone = "success";
+  } else if (payload) {
+    reviewStatus = "Payload ready";
+    reviewTone = "success";
+  } else if (hasAnalysisSelection) {
+    reviewStatus = "Selections";
+    reviewTone = "warning";
+  }
+
+  let opsStatus = "Idle";
+  let opsTone = "muted";
+  if (workflowSafety.code === "page-refresh-required" || workflowSafety.severity === "blocking") {
+    opsStatus = "Attention";
+    opsTone = "warning";
+  } else if (payload || state.pageCompanionContext?.routeLabel) {
+    opsStatus = "Live";
+    opsTone = "success";
+  }
+
+  const activityCount = Number.parseInt(String(dom.activityCount?.textContent || "0"), 10) || 0;
+  const logsStatus = activityCount > 0 ? `${activityCount} events` : "Quiet";
+  const logsTone = activityCount > 0 ? "normal" : "muted";
+
   setTabStatus(dom.tabConnect, dom.tabConnectStatus, workspaceStatus, workspaceTone);
   setTabStatus(dom.tabUpload, dom.tabUploadStatus, intakeStatus, intakeTone);
   setTabStatus(dom.tabAutofill, dom.tabAutofillStatus, autofillStatus, autofillTone);
+  setTabStatus(dom.tabReview, dom.tabReviewStatus, reviewStatus, reviewTone);
+  setTabStatus(dom.tabOps, dom.tabOpsStatus, opsStatus, opsTone);
+  setTabStatus(dom.tabLogs, dom.tabLogsStatus, logsStatus, logsTone);
 
   setTabBadge(dom.tabConnect, workflowSafety.action === "open-status" ? true : null, workflowSafety.action === "open-status" ? "warning" : null);
   setTabBadge(
@@ -853,6 +908,9 @@ export function updateTabBadges(payload, fileCount) {
     workflowSafety.severity === "blocking" ? "warning" : payload ? "success" : null,
   );
   setTabBadge(dom.tabUpload, fileCount > 0 ? fileCount : null, "warning");
+  setTabBadge(dom.tabReview, payload || hasAnalysisSelection ? true : null, payload ? "success" : "warning");
+  setTabBadge(dom.tabOps, opsTone === "warning" ? true : null, "warning");
+  setTabBadge(dom.tabLogs, activityCount > 0 ? activityCount : null, "normal");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

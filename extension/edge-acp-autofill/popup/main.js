@@ -1,6 +1,6 @@
 /**
  * main.js — Entry point: event binding, connection flow, and initialization
- * CareAssurance Extension v0.8.0
+ * CareAssurance Extension v0.8.1
  */
 
 import {
@@ -146,44 +146,11 @@ function logActivity(entry) {
 }
 
 /**
- * Highlight the jump-bar button for whichever stacked section is currently in
- * view. Uses IntersectionObserver against the scroll container so the active
- * pill follows manual scrolling in the single-page layout.
+ * Legacy no-op retained for older initialization flow. Tabs are now real
+ * panels, so there is no section scroll spy to attach.
  */
-let _sectionScrollSpyObserver = null;
 function setupSectionScrollSpy() {
-  if (_sectionScrollSpyObserver) return;
-  const root = document.querySelector(".popup-content");
-  const sections = [
-    { name: "connect", el: dom.tabContentConnect },
-    { name: "upload", el: dom.tabContentUpload },
-    { name: "autofill", el: dom.tabContentAutofill },
-  ].filter((s) => s.el);
-  if (!root || sections.length === 0 || typeof IntersectionObserver === "undefined") return;
-
-  const visibility = new Map();
-  _sectionScrollSpyObserver = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        visibility.set(entry.target, entry.intersectionRatio);
-      }
-      let best = null;
-      let bestRatio = 0;
-      for (const section of sections) {
-        const ratio = visibility.get(section.el) || 0;
-        if (ratio > bestRatio) {
-          bestRatio = ratio;
-          best = section.name;
-        }
-      }
-      if (best && bestRatio > 0) setActiveSectionButton(best);
-    },
-    { root, threshold: [0, 0.25, 0.5, 0.75, 1] }
-  );
-
-  for (const section of sections) {
-    _sectionScrollSpyObserver.observe(section.el);
-  }
+  return;
 }
 
 const getPopupAutoCollectConfig = () => getRuntimeConfig()?.popup?.autoCollect || {};
@@ -7222,10 +7189,13 @@ async function autoDetectIds() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function bindEvents() {
-  // Section jump bar (single scrollable view)
+  // Primary popup tabs
   dom.tabConnect?.addEventListener("click", () => switchTab("connect"));
   dom.tabUpload?.addEventListener("click", () => switchTab("upload"));
   dom.tabAutofill?.addEventListener("click", () => switchTab("autofill"));
+  dom.tabReview?.addEventListener("click", () => switchTab("review"));
+  dom.tabOps?.addEventListener("click", () => switchTab("ops"));
+  dom.tabLogs?.addEventListener("click", () => switchTab("logs"));
 
   // Recent activity — clear history
   dom.clearActivity?.addEventListener("click", async () => {
@@ -7456,14 +7426,14 @@ function bindEvents() {
       const res = await apiProxy(`/api/extension/care-plan/${state.selectedUser.id}`);
       if (!res.ok) throw new Error(res.error || "Failed to load care plan");
       await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: res.data });
-      showSuccess("Care plan loaded! Go to Autofill tab.");
+      showSuccess("Care plan loaded. Review the payload before running Autofill.");
       logActivity({
         type: "payload",
         tone: "success",
         label: "Care plan payload loaded",
         detail: state.selectedUser?.name ? String(state.selectedUser.name) : "",
       });
-      switchTab("autofill");
+      switchTab("review");
       schedulePopupRefresh({ payload: true, immediate: true });
     } catch (error) { showError(error.message); } finally { setButtonLoading(dom.loadCarePlanBtn, false); }
   });
@@ -7691,7 +7661,7 @@ function bindEvents() {
         label: "Documents analyzed",
         detail: `${analysisReceipt.parsedCount} of ${analysisReceipt.fileCount} file(s) parsed`,
       });
-      switchTab("autofill");
+      switchTab("review");
     } catch (error) {
       showError(error.message);
     } finally {
@@ -7729,6 +7699,7 @@ function bindEvents() {
     await setStorageWithTimestamp({ [STORAGE_KEYS.payload]: payload });
     schedulePopupRefresh({ payload: true, immediate: true });
     if (dom.selectionSection) dom.selectionSection.hidden = true;
+    switchTab("autofill");
   });
 
   // Autofill controls
@@ -8072,6 +8043,7 @@ function bindEvents() {
   });
 
   dom.autofillSessionDiagnostics?.addEventListener("click", () => {
+    switchTab("ops");
     if (dom.commandCenterSection) dom.commandCenterSection.open = true;
   });
 
@@ -8206,7 +8178,7 @@ function bindEvents() {
       if (dom.autofillUserDropdown && !dom.autofillUserDropdown.hidden) { dom.autofillUserDropdown.hidden = true; return; }
     }
     if (e.target.matches?.(".tab-btn[data-tab]")) {
-      const tabOrder = ["connect", "upload", "autofill"];
+      const tabOrder = ["connect", "upload", "autofill", "review", "ops", "logs"];
       const currentTab = e.target.dataset.tab;
       const idx = tabOrder.indexOf(currentTab);
       if (e.key === "ArrowRight" && idx < tabOrder.length - 1) { e.preventDefault(); switchTab(tabOrder[idx + 1]); document.getElementById(`tab-${tabOrder[idx + 1]}`)?.focus(); }

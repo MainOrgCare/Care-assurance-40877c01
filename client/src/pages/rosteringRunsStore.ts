@@ -23,6 +23,8 @@ export interface SharedCareCallRecommendation {
   offsetConsistency: number | null;
 }
 
+export type RecommendationDecision = "implemented" | "rejected";
+
 /** All analysed call slots (including those without recommendations). */
 export interface SharedCallSlot {
   key: string;
@@ -52,6 +54,8 @@ export interface SharedCallSlot {
 
 let _sharedRecommendations: SharedCareCallRecommendation[] = [];
 let _sharedAllSlots: SharedCallSlot[] = [];
+let _sharedRecommendationDecisions: Record<string, RecommendationDecision> = {};
+const _decisionListeners = new Set<() => void>();
 
 export function setSharedRecommendations(recs: SharedCareCallRecommendation[]): void {
   _sharedRecommendations = recs;
@@ -67,4 +71,36 @@ export function setSharedAllSlots(slots: SharedCallSlot[]): void {
 
 export function getSharedAllSlots(): SharedCallSlot[] {
   return _sharedAllSlots;
+}
+
+export function setSharedRecommendationDecisions(
+  decisions: Record<string, RecommendationDecision>,
+): void {
+  _sharedRecommendationDecisions = { ...decisions };
+  _decisionListeners.forEach((listener) => listener());
+}
+
+export function updateSharedRecommendationDecision(
+  key: string,
+  decision: RecommendationDecision | null,
+): Record<string, RecommendationDecision> {
+  const next = { ..._sharedRecommendationDecisions };
+  if (decision) {
+    next[key] = decision;
+  } else {
+    delete next[key];
+  }
+  setSharedRecommendationDecisions(next);
+  return next;
+}
+
+export function getSharedRecommendationDecisions(): Record<string, RecommendationDecision> {
+  return _sharedRecommendationDecisions;
+}
+
+export function subscribeSharedRecommendationDecisions(listener: () => void): () => void {
+  _decisionListeners.add(listener);
+  return () => {
+    _decisionListeners.delete(listener);
+  };
 }

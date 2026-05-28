@@ -1,7 +1,13 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as React from "react";
 import { SafeXLSX, RawXLSX, type WorkBook } from "@/lib/safe-xlsx";
-import { setSharedRecommendations, setSharedAllSlots } from "@/pages/rosteringRunsStore";
+import {
+  getSharedRecommendationDecisions,
+  setSharedAllSlots,
+  setSharedRecommendationDecisions,
+  setSharedRecommendations,
+  type RecommendationDecision,
+} from "@/pages/rosteringRunsStore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Link, Redirect } from "wouter";
@@ -358,8 +364,6 @@ const SERVICE_REQUIREMENT_SERVICE_TYPE_KEYWORDS = [
 type RowStatus = "clean" | "attention";
 type ProcessingState = "idle" | "parsing" | "ready" | "analyzing" | "complete";
 type RosteringWorkspaceTab = "data" | "analyse" | "view";
-type RecommendationDecision = "implemented" | "rejected";
-
 interface RowAnalysis {
   rowNumber: number;
   status: RowStatus;
@@ -825,7 +829,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const [isSavingWorkbook, setIsSavingWorkbook] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<string>(() => _wsCached('selectedCompany', ""));
   const [selectedBranch, setSelectedBranch] = useState<string>(() => _wsCached('selectedBranch', ""));
-  const [recommendationDecisions, setRecommendationDecisions] = useState<Record<string, RecommendationDecision>>(() => _wsCached('recommendationDecisions', {}));
+  const [recommendationDecisions, setRecommendationDecisions] = useState<Record<string, RecommendationDecision>>(() =>
+    getSharedRecommendationDecisions(),
+  );
   const [selectedRecommendationServiceUser, setSelectedRecommendationServiceUser] = useState<string | null>(() => _wsCached('selectedRecommendationServiceUser', null));
   const [selectedRecommendationKey, setSelectedRecommendationKey] = useState<string | null>(() => _wsCached('selectedRecommendationKey', null));
   // Comparison mode state
@@ -2924,6 +2930,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   useEffect(() => {
     setSharedRecommendations(careCallRecommendations);
   }, [careCallRecommendations]);
+
+  useEffect(() => {
+    setSharedRecommendationDecisions(recommendationDecisions);
+  }, [recommendationDecisions]);
 
   // Sync ALL call slots to shared store so Runs page can show every call
   useEffect(() => {

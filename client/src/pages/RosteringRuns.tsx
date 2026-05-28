@@ -1,8 +1,17 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/context/AuthContext";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/use-toast";
-import { getSharedAllSlots, type SharedCallSlot } from "@/pages/rosteringRunsStore";
+import {
+  getSharedAllSlots,
+  getSharedRecommendationDecisions,
+  setSharedRecommendationDecisions,
+  subscribeSharedRecommendationDecisions,
+  updateSharedRecommendationDecision,
+  type RecommendationDecision,
+  type SharedCallSlot,
+} from "@/pages/rosteringRunsStore";
 import {
   Card,
   CardContent,
@@ -114,6 +123,22 @@ function callStartMinutes(call: SharedCallSlot): number {
   return call.averageActualStartMinutes ?? call.averagePlannedStartMinutes ?? 9999;
 }
 
+function recommendationDecisionLabel(decision: RecommendationDecision | undefined): string {
+  if (decision === "implemented") return "Approved";
+  if (decision === "rejected") return "Rejected";
+  return "Pending";
+}
+
+function initialsForLog(name: string): string {
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part.trim().charAt(0).toUpperCase())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join("");
+  return initials || "SU";
+}
+
 // Extract a UK-style postcode outward code (e.g. "SW1A", "M14", "L4") from a free-text field.
 function extractPostcodeOutward(text: string | null | undefined): string | null {
   if (!text) return null;
@@ -209,11 +234,18 @@ function optimiseRouteByLocation(calls: SharedCallSlot[]): SharedCallSlot[] {
 export default function RosteringRuns() {
   usePageTitle("Rostering Runs");
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isPilotUser = user?.role === "pilot";
 
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [callTypeFilter, setCallTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [routeMode, setRouteMode] = useState<RouteMode>("location");
+  const recommendationDecisions = useSyncExternalStore(
+    subscribeSharedRecommendationDecisions,
+    getSharedRecommendationDecisions,
+    getSharedRecommendationDecisions,
+  );
 
   // Read ALL call slots from shared store (populated by Analyse)
   const allSlots = getSharedAllSlots();
@@ -283,6 +315,26 @@ export default function RosteringRuns() {
     [scheduledRun],
   );
 
+  const approvedRunRecommendationCount = useMemo(
+    () =>
+      scheduledRun.reduce(
+        (acc, entry) =>
+          acc + (entry.call.hasRecommendation && recommendationDecisions[entry.call.key] === "implemented" ? 1 : 0),
+        0,
+      ),
+    [scheduledRun, recommendationDecisions],
+  );
+
+  const pendingRunRecommendationCount = useMemo(
+    () =>
+      scheduledRun.reduce(
+        (acc, entry) =>
+          acc + (entry.call.hasRecommendation && recommendationDecisions[entry.call.key] !== "implemented" ? 1 : 0),
+        0,
+      ),
+    [scheduledRun, recommendationDecisions],
+  );
+
   const totalScheduledDurationMinutes = useMemo(
     () => scheduledRun.reduce((acc, s) => acc + s.durationMinutes, 0),
     [scheduledRun],
@@ -339,16 +391,19 @@ export default function RosteringRuns() {
       const start = formatMinutesToTime(entry.effectiveStartMinutes);
       const end = formatMinutesToTime(entry.endMinutes);
       const pushedTag = entry.pushedMinutes > 0 ? ` (+${entry.pushedMinutes}m to avoid overlap)` : "";
-      return `${idx + 1}. ${entry.call.serviceUserName} — ${entry.call.callTypeLabel} (${entry.call.timeBandLabel}) @ ${start}–${end} · ${entry.durationMinutes}m${pushedTag}`;
+      const decisionTag = entry.call.hasRecommendation
+        ? ` · ${recommendationDecisionLabel(recommendationDecisions[entry.call.key])}`
+        : "";
+      return `${idx + 1}. ${entry.call.serviceUserName} — ${entry.call.callTypeLabel} (${entry.call.timeBandLabel}) @ ${start}–${end} · ${entry.durationMinutes}m${pushedTag}${decisionTag}`;
     });
     const text = `Optimal Run (${scheduledRun.length} calls)\n${"─".repeat(40)}\n${lines.join("\n")}`;
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard", description: `${scheduledRun.length} calls in optimal order.` });
-  }, [scheduledRun, toast]);
+  }, [scheduledRun, recommendationDecisions, toast]);
 
   const handleExportCSV = useCallback(() => {
     if (!scheduledRun.length) return;
-    const header = "Order,Service User,Call Type,Time Band,Desired Start,Effective Start,End,Length (min),Pushed (min),Area,Address,Advice,Has Recommendation";
+    const header = "Order,Service User,Call Type,Time Band,Desired Start,Effective Start,End,Length (min),Pushed (min),Area,Address,Advice,Has Recommendation,Approval Status";
     const rows = scheduledRun.map((entry, idx) => {
       const { call } = entry;
       return [
@@ -365,6 +420,7 @@ export default function RosteringRuns() {
         `"${(call.serviceUserAddress ?? "").replace(/"/g, '""')}"`,
         `"${call.advice.join("; ").replace(/"/g, '""')}"`,
         call.hasRecommendation ? "Yes" : "No",
+        `"${call.hasRecommendation ? recommendationDecisionLabel(recommendationDecisions[call.key]) : "Not applicable"}"`,
       ].join(",");
     });
     const csv = [header, ...rows].join("\n");
@@ -375,7 +431,111 @@ export default function RosteringRuns() {
     a.download = `optimal-run-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [scheduledRun]);
+  }, [scheduledRun, recommendationDecisions]);
+
+  const recordRecommendationDecision = useCallback((call: SharedCallSlot, decision: RecommendationDecision | null) => {
+    if (!call.hasRecommendation) return;
+    if (isPilotUser) {
+      toast({
+        title: "Read-only access",
+        description: "Pilot users can review runs but cannot approve rostering recommendations.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateSharedRecommendationDecision(call.key, decision);
+
+    if (decision === "implemented") {
+      toast({
+        title: "Rostering recommendation approved",
+        description: `${call.serviceUserName} • ${call.timeBandLabel}`,
+      });
+    } else {
+      toast({
+        title: "Approval reset",
+        description: `${call.serviceUserName} is back to pending.`,
+      });
+    }
+
+    fetch("/api/system-logs", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "rostering_recommendation",
+        action: decision === "implemented" ? "Approved rostering run recommendation" : "Reset rostering run recommendation approval",
+        target: `${call.serviceUserName} · ${call.callTypeLabel} · ${call.timeBandLabel}`,
+        status: decision === "implemented" ? "Authorized" : "Pending",
+        serviceUserInitials: initialsForLog(call.serviceUserName),
+        details: {
+          decision: decision ?? "pending",
+          recommendationKey: call.key,
+          serviceUserName: call.serviceUserName,
+          serviceUserArea: call.serviceUserArea ?? null,
+          callTypeLabel: call.callTypeLabel,
+          timeBandLabel: call.timeBandLabel,
+          suggestedPlannedTime: call.suggestedPlannedTimeLabel,
+          suggestedPlannedDurationMinutes: call.suggestedPlannedDurationMinutes,
+          source: "rostering_runs",
+        },
+      }),
+    }).catch((err) => {
+      console.warn("Failed to record rostering run recommendation decision in system log", err);
+    });
+  }, [isPilotUser, toast]);
+
+  const approveCurrentRunRecommendations = useCallback(() => {
+    if (isPilotUser) {
+      toast({
+        title: "Read-only access",
+        description: "Pilot users can review runs but cannot approve rostering recommendations.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const recommendationCalls = scheduledRun.filter((entry) => entry.call.hasRecommendation);
+    if (!recommendationCalls.length) {
+      toast({
+        title: "No recommendations to approve",
+        description: "The current run only contains calls without timing recommendations.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const next = { ...recommendationDecisions };
+    recommendationCalls.forEach((entry) => {
+      next[entry.call.key] = "implemented";
+    });
+    setSharedRecommendationDecisions(next);
+
+    toast({
+      title: "Run recommendations approved",
+      description: `${recommendationCalls.length} recommendation${recommendationCalls.length === 1 ? "" : "s"} marked approved.`,
+    });
+
+    fetch("/api/system-logs", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "rostering_recommendation",
+        action: "Approved rostering run recommendations",
+        target: `Rostering Runs · ${recommendationCalls.length} call${recommendationCalls.length === 1 ? "" : "s"}`,
+        status: "Authorized",
+        details: {
+          decision: "implemented",
+          source: "rostering_runs",
+          recommendationKeys: recommendationCalls.map((entry) => entry.call.key),
+          callCount: recommendationCalls.length,
+        },
+      }),
+    }).catch((err) => {
+      console.warn("Failed to record rostering run approval summary in system log", err);
+    });
+  }, [isPilotUser, scheduledRun, recommendationDecisions, toast]);
 
   // Empty state: no analysis data available
   if (allSlots.length === 0) {
@@ -442,6 +602,12 @@ export default function RosteringRuns() {
               <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
                 <ListOrdered className="mr-2 h-3.5 w-3.5 text-primary" />
                 {scheduledRun.length} call{scheduledRun.length === 1 ? "" : "s"} in run
+              </Badge>
+            )}
+            {approvedRunRecommendationCount > 0 && (
+              <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                {approvedRunRecommendationCount} approved
               </Badge>
             )}
             {overlapResolvedCount > 0 && (
@@ -604,6 +770,11 @@ export default function RosteringRuns() {
                 </div>
                 {scheduledRun.length > 0 && (
                   <>
+                    {pendingRunRecommendationCount > 0 && !isPilotUser && (
+                      <Button size="sm" variant="secondary" className="h-7 text-xs gap-1" onClick={approveCurrentRunRecommendations}>
+                        <CheckCircle2 className="h-3 w-3" /> Approve run
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={handleCopyRun}>
                       <Copy className="h-3 w-3" /> Copy
                     </Button>
@@ -748,8 +919,17 @@ export default function RosteringRuns() {
                               </TooltipContent>
                             </Tooltip>
                             {call.hasRecommendation && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-primary/30 text-primary">
-                                Rec
+                              <Badge
+                                variant="outline"
+                                className={`px-1.5 py-0 text-[9px] leading-tight ${
+                                  recommendationDecisions[call.key] === "implemented"
+                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                    : recommendationDecisions[call.key] === "rejected"
+                                      ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                                      : "border-primary/30 text-primary"
+                                }`}
+                              >
+                                {recommendationDecisionLabel(recommendationDecisions[call.key])}
                               </Badge>
                             )}
                             {pushed && (
@@ -778,6 +958,32 @@ export default function RosteringRuns() {
                           {call.serviceUserAddress && (
                             <div className="text-[10px] text-muted-foreground/80 truncate" title={call.serviceUserAddress}>
                               {call.serviceUserAddress}
+                            </div>
+                          )}
+                          {call.hasRecommendation && !isPilotUser && (
+                            <div className="mt-2 flex justify-end gap-1">
+                              {recommendationDecisions[call.key] === "implemented" ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={() => recordRecommendationDecision(call, null)}
+                                >
+                                  Reset
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  className="h-6 gap-1 px-2 text-[10px]"
+                                  onClick={() => recordRecommendationDecision(call, "implemented")}
+                                >
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Approve
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>

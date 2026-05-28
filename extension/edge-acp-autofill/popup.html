@@ -31,12 +31,11 @@
         </div>
       </header>
 
-      <!-- Section Jump Bar (single scrollable view) -->
-      <nav class="tab-navigation" aria-label="Jump to section">
+      <nav class="tab-navigation" aria-label="Popup sections">
         <button id="tab-connect" class="tab-btn active" data-tab="connect" aria-current="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
           <span class="tab-copy">
-            <span class="tab-title">Workspace</span>
+            <span class="tab-title">Home</span>
             <span id="tab-connect-status" class="tab-status" data-tone="muted">Offline</span>
           </span>
         </button>
@@ -50,8 +49,29 @@
         <button id="tab-autofill" class="tab-btn" data-tab="autofill" aria-label="Autofill">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           <span class="tab-copy">
-            <span class="tab-title">Autofill</span>
+            <span class="tab-title">Run</span>
             <span id="tab-autofill-status" class="tab-status" data-tone="muted">Waiting</span>
+          </span>
+        </button>
+        <button id="tab-review" class="tab-btn" data-tab="review" aria-label="Review">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span class="tab-copy">
+            <span class="tab-title">Review</span>
+            <span id="tab-review-status" class="tab-status" data-tone="muted">Payload</span>
+          </span>
+        </button>
+        <button id="tab-ops" class="tab-btn" data-tab="ops" aria-label="Operations">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6"/><path d="M6 20V10"/><path d="M18 20V4"/></svg>
+          <span class="tab-copy">
+            <span class="tab-title">Ops</span>
+            <span id="tab-ops-status" class="tab-status" data-tone="muted">Idle</span>
+          </span>
+        </button>
+        <button id="tab-logs" class="tab-btn" data-tab="logs" aria-label="Logs">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+          <span class="tab-copy">
+            <span class="tab-title">Logs</span>
+            <span id="tab-logs-status" class="tab-status" data-tone="muted">Quiet</span>
           </span>
         </button>
       </nav>
@@ -111,46 +131,6 @@
           </div>
         </section>
 
-        <details class="workspace-summary card collapsible">
-          <summary class="collapsible-header">
-            <span>Quick Overview</span>
-            <span class="chevron">▼</span>
-          </summary>
-          <div class="card-content summary-grid">
-            <div class="summary-item">
-              <span class="summary-label">Service users</span>
-              <strong class="summary-title">Care plans &amp; risks</strong>
-              <span class="summary-detail">Open records and move straight into ACP-ready workflows.</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-label">Carers</span>
-              <strong class="summary-title">Care worker-aware autofill</strong>
-              <span class="summary-detail">Use guided settings and verification to support carer-related fields.</span>
-            </div>
-            <div class="summary-item">
-              <span class="summary-label">Extension + site</span>
-              <strong class="summary-title">One connected workspace</strong>
-              <span class="summary-detail">Upload, review, and autofill with the same CareAssurance flow.</span>
-            </div>
-          </div>
-        </details>
-
-        <details class="activity-card card collapsible" open>
-          <summary class="collapsible-header">
-            <span>Recent Activity</span>
-            <span class="chevron">▼</span>
-          </summary>
-          <div class="card-content">
-            <div class="activity-card-toolbar">
-              <span id="activity-count" class="badge badge-muted" aria-label="Recent activity entries">0</span>
-              <button id="clear-activity" class="btn btn-ghost btn-sm" title="Clear recent activity" aria-label="Clear recent activity">Clear</button>
-            </div>
-            <div id="activity-list" class="activity-list" aria-live="polite">
-              <div class="activity-empty">No recent activity yet. Connect, stage documents, or run autofill to build a history.</div>
-            </div>
-          </div>
-        </details>
-
         <!-- ========== SECTION 1: WORKSPACE ========== -->
         <div id="tab-content-connect" class="tab-content active" tabindex="-1">
           <div class="section-divider">
@@ -160,6 +140,23 @@
               <span class="section-divider-detail">Connect, monitor status, and jump into CareAssurance</span>
             </span>
           </div>
+
+          <section class="workspace-summary card">
+            <div class="card-content summary-grid">
+              <div class="summary-item">
+                <span class="summary-label">Case flow</span>
+                <strong class="summary-title">Plan, risk, autofill</strong>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Readiness</span>
+                <strong class="summary-title">Version and tab checks</strong>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Review</span>
+                <strong class="summary-title">Payload before fill</strong>
+              </div>
+            </div>
+          </section>
 
           <section class="card">
             <div class="card-header">
@@ -578,7 +575,7 @@
 
         <!-- ========== SECTION 3: AUTOFILL ========== -->
         <div id="tab-content-autofill" class="tab-content" tabindex="-1">
-          <div class="section-divider">
+          <div class="section-divider" data-panel-section="autofill">
             <span class="section-divider-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></span>
             <span class="section-divider-copy">
               <span class="section-divider-title">Autofill</span>
@@ -586,7 +583,7 @@
             </span>
           </div>
 
-          <section class="card autofill-session-card">
+          <section class="card autofill-session-card" data-panel-section="autofill">
             <div class="card-header">
               <div>
                 <span class="section-kicker">Autofill</span>
@@ -633,7 +630,7 @@
             </div>
           </section>
 
-          <details id="command-center-section" class="card collapsible ops-command-center-card">
+          <details id="command-center-section" class="card collapsible ops-command-center-card" data-panel-section="ops" open>
             <summary class="collapsible-header">
               <div class="collapsible-header-copy">
                 <span class="section-kicker">Operations</span>
@@ -712,7 +709,7 @@
             </div>
           </details>
 
-          <section class="card">
+          <section class="card" data-panel-section="autofill">
             <div class="card-header">
               <h2 class="card-title">Payload Status</h2>
             </div>
@@ -725,7 +722,7 @@
             </div>
           </section>
 
-          <section class="card">
+          <section class="card" data-panel-section="autofill">
             <div class="card-header">
               <h2 class="card-title">Page Companion</h2>
               <p class="card-description">Drive the live Mobizio or CareAssurance page from the popup and keep the in-page workflow visible.</p>
@@ -761,7 +758,31 @@
             </div>
           </section>
 
-          <details id="payload-inspector-section" class="card collapsible" hidden>
+          <section class="card review-dashboard-card" data-panel-section="review">
+            <div class="card-header">
+              <div>
+                <span class="section-kicker">Review Desk</span>
+                <h2 class="card-title">Payload Review</h2>
+                <p class="card-description">Inspect generated content, copy individual fields, and confirm assessment selections before running Autofill.</p>
+              </div>
+            </div>
+            <div class="card-content review-dashboard-grid">
+              <div class="review-dashboard-item">
+                <span class="review-dashboard-label">Payload</span>
+                <strong>Latest JSON and summary</strong>
+              </div>
+              <div class="review-dashboard-item">
+                <span class="review-dashboard-label">Fields</span>
+                <strong>One-click copy controls</strong>
+              </div>
+              <div class="review-dashboard-item">
+                <span class="review-dashboard-label">Assessments</span>
+                <strong>Select before generation</strong>
+              </div>
+            </div>
+          </section>
+
+          <details id="payload-inspector-section" class="card collapsible" data-panel-section="review" hidden>
             <summary class="collapsible-header">
               <span>Latest Payload</span>
               <span class="chevron">▼</span>
@@ -776,7 +797,7 @@
           </details>
 
           <!-- Quick Field Copy: one-click copy of individual payload field values -->
-          <details id="quick-field-copy-section" class="card collapsible" hidden>
+          <details id="quick-field-copy-section" class="card collapsible" data-panel-section="review" hidden>
             <summary class="collapsible-header">
               <span>Quick Field Copy</span>
               <span class="chevron">▼</span>
@@ -787,7 +808,7 @@
             </div>
           </details>
 
-          <section id="selection-section" class="card" hidden>
+          <section id="selection-section" class="card" data-panel-section="review" hidden>
             <div class="card-header">
               <h2 class="card-title">Select Assessments</h2>
               <p class="card-description">Choose the sections you want to generate and review before filling ACP</p>
@@ -805,7 +826,7 @@
             </div>
           </section>
 
-          <section class="card">
+          <section class="card" data-panel-section="autofill">
             <div class="card-header">
               <h2 class="card-title">ACP Settings</h2>
               <p class="card-description">Tune the workflow for service user records and care worker-related field completion</p>
@@ -859,7 +880,7 @@
             </div>
           </section>
 
-          <section class="card">
+          <section class="card run-controls-card" data-panel-section="autofill">
             <div class="card-content">
               <!-- Pre-flight warnings (blockers and cautions shown before Start Autofill) -->
               <div id="preflight-warnings" class="preflight-warnings" hidden></div>
@@ -876,7 +897,7 @@
             </div>
           </section>
 
-          <details id="autofill-live-progress" class="card collapsible" hidden>
+          <details id="autofill-live-progress" class="card collapsible" data-panel-section="autofill" hidden>
             <summary class="collapsible-header">
               <span>Live Autofill Progress</span>
               <span class="chevron">▼</span>
@@ -894,7 +915,7 @@
             </div>
           </details>
 
-          <details id="payload-review-panel" class="card collapsible" hidden>
+          <details id="payload-review-panel" class="card collapsible" data-panel-section="review" hidden>
             <summary class="collapsible-header">
               <span>Payload Review</span>
               <span class="chevron">▼</span>
@@ -906,7 +927,23 @@
             </div>
           </details>
 
-          <details class="card collapsible">
+          <details class="activity-card card collapsible" data-panel-section="logs" open>
+            <summary class="collapsible-header">
+              <span>Recent Activity</span>
+              <span class="chevron">▼</span>
+            </summary>
+            <div class="card-content">
+              <div class="activity-card-toolbar">
+                <span id="activity-count" class="badge badge-muted" aria-label="Recent activity entries">0</span>
+                <button id="clear-activity" class="btn btn-ghost btn-sm" title="Clear recent activity" aria-label="Clear recent activity">Clear</button>
+              </div>
+              <div id="activity-list" class="activity-list" aria-live="polite">
+                <div class="activity-empty">No recent activity yet. Connect, stage documents, or run autofill to build a history.</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="card collapsible" data-panel-section="logs" open>
             <summary class="collapsible-header">
               <span>Signature & Logs</span>
               <span class="chevron">▼</span>
@@ -946,7 +983,7 @@
             <span id="footer-status-text">Ready</span>
           </span>
           <span class="footer-divider">&middot;</span>
-            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.8.0</span></span>
+            <span class="footer-text">CareAssurance <span id="footer-extension-version">v0.8.1</span></span>
         </div>
       </footer>
     </main>

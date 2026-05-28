@@ -1,25 +1,16 @@
 {
     "version": "0.2.0",
     "configurations": [
-      
-
-        
         {
-         "name": "Launch via NPM",
+            "name": "SSH care-assurance",
+            "command": "ssh care-assurance",
             "request": "launch",
-            "runtimeArgs": [
-                "run-script",
-                "dev:setup"
-            ],
-            "runtimeExecutable": "npm",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
-            "type": "node"
+            "type": "node-terminal"
         },
+      
         {
-            "command": "npm start",
-            "name": "Run npm start",
+            "command": "npm run dev:setup",
+            "name": "Run npm dev:setup",
             "request": "launch",
             "type": "node-terminal"
         },

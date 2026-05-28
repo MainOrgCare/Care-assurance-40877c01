@@ -506,9 +506,7 @@ body {
 }
 .tab-btn.active svg { opacity: 1; }
 
-/* ===== TAB CONTENT — single scrollable view =====
-   All sections render stacked. The top nav acts as a section-jump bar
-   (see .tab-btn / switchTab) rather than hiding/showing panels. */
+/* ===== TAB CONTENT ===== */
 .tab-content {
   display: flex;
   flex-direction: column;
@@ -516,8 +514,7 @@ body {
   scroll-margin-top: 8px;
 }
 
-/* Section divider header that introduces each stacked section in the
-   single-scroll layout. */
+/* Section divider header used inside focused panels. */
 .section-divider {
   display: flex;
   align-items: center;
@@ -7295,4 +7292,267 @@ kbd {
   border-bottom-width: 2px;
   border-radius: 3px;
   color: var(--color-text-secondary, #6b7280);
+}
+
+/* ===== v0.8.1 PROFESSIONAL TABBED WORKSPACE ===== */
+body.ca-theme-overhaul {
+  width: 560px;
+  height: 640px;
+}
+
+body.ca-theme-overhaul .popup-header {
+  height: 58px;
+}
+
+body.ca-theme-overhaul .header-content {
+  padding: 0 14px;
+  gap: 10px;
+}
+
+body.ca-theme-overhaul .header-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+body.ca-theme-overhaul .header-title {
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+body.ca-theme-overhaul .header-subtitle {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.ca-theme-overhaul .tab-navigation {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  height: auto;
+  min-height: 56px;
+  padding: 6px;
+  gap: 4px;
+}
+
+body.ca-theme-overhaul .tab-btn {
+  min-width: 0;
+  height: 44px;
+  padding: 5px 4px;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 8px;
+}
+
+body.ca-theme-overhaul .tab-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+body.ca-theme-overhaul .tab-copy {
+  align-items: center;
+  width: 100%;
+}
+
+body.ca-theme-overhaul .tab-title,
+body.ca-theme-overhaul .tab-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.ca-theme-overhaul .tab-title {
+  font-size: 11px;
+}
+
+body.ca-theme-overhaul .tab-status {
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.popup-content > .tab-content:not(.active),
+.tab-content.is-panel-hidden,
+[data-panel-section].is-panel-hidden {
+  display: none !important;
+}
+
+body.ca-theme-overhaul .tab-content {
+  gap: 8px;
+}
+
+body.ca-theme-overhaul .popup-content {
+  padding: 10px;
+  gap: 8px;
+}
+
+body.ca-theme-overhaul .section-divider {
+  margin-top: 0;
+  padding: 0 2px;
+}
+
+body.ca-theme-overhaul .section-divider-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+body.ca-theme-overhaul .section-divider-title {
+  font-size: 12px;
+}
+
+body.ca-theme-overhaul .section-divider-detail {
+  font-size: 10.5px;
+}
+
+body.ca-theme-overhaul .card {
+  border-radius: 10px;
+}
+
+body.ca-theme-overhaul .card-header {
+  padding: 10px 12px 8px;
+  gap: 4px;
+}
+
+body.ca-theme-overhaul .card-content {
+  padding: 10px 12px 12px;
+  gap: 8px;
+}
+
+body.ca-theme-overhaul .card-title {
+  font-size: 13px;
+}
+
+body.ca-theme-overhaul .card-description {
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+body.ca-theme-overhaul .case-context-strip {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+}
+
+body.ca-theme-overhaul .case-context-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+body.ca-theme-overhaul .case-context-item {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+}
+
+body.ca-theme-overhaul .case-context-label,
+body.ca-theme-overhaul .case-context-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.ca-theme-overhaul .summary-grid,
+body.ca-theme-overhaul .extension-health-meta,
+body.ca-theme-overhaul .upload-handoff-meta,
+body.ca-theme-overhaul .autofill-session-meta,
+body.ca-theme-overhaul .page-companion-grid,
+body.ca-theme-overhaul .ops-metric-grid,
+body.ca-theme-overhaul .workspace-metric-grid,
+body.ca-theme-overhaul .review-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+body.ca-theme-overhaul .extension-health-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body.ca-theme-overhaul .summary-item,
+body.ca-theme-overhaul .review-dashboard-item {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-card) 84%, var(--color-muted));
+}
+
+body.ca-theme-overhaul .summary-detail {
+  display: none;
+}
+
+body.ca-theme-overhaul .workspace-actions-grid,
+body.ca-theme-overhaul .main-view-route-strip,
+body.ca-theme-overhaul .page-companion-actions,
+body.ca-theme-overhaul .upload-handoff-actions,
+body.ca-theme-overhaul .auto-collect-info-actions,
+body.ca-theme-overhaul .runtime-actions,
+body.ca-theme-overhaul .upload-sync-actions {
+  gap: 6px;
+}
+
+body.ca-theme-overhaul .upload-bucket-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.ca-theme-overhaul .upload-bucket-card {
+  border-radius: 10px;
+  padding: 9px;
+}
+
+body.ca-theme-overhaul .upload-bucket-header span,
+body.ca-theme-overhaul .upload-bucket-dropzone {
+  font-size: 10px;
+}
+
+body.ca-theme-overhaul .upload-bucket-dropzone {
+  min-height: 34px;
+  padding: 7px;
+}
+
+body.ca-theme-overhaul .form-row {
+  gap: 8px;
+}
+
+body.ca-theme-overhaul .form-group {
+  margin-bottom: 8px;
+}
+
+body.ca-theme-overhaul .activity-list,
+body.ca-theme-overhaul .log-container,
+body.ca-theme-overhaul .payload-json,
+body.ca-theme-overhaul .service-user-list {
+  max-height: 170px;
+}
+
+body.ca-theme-overhaul .ops-command-center-card .card-content,
+body.ca-theme-overhaul .runtime-diagnostics {
+  max-height: none;
+}
+
+body.ca-theme-overhaul .run-controls-card .card-content {
+  gap: 7px;
+}
+
+body.ca-theme-overhaul .action-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+@media (max-width: 500px) {
+  body.ca-theme-overhaul {
+    width: 450px;
+  }
+
+  body.ca-theme-overhaul .tab-title {
+    font-size: 10px;
+  }
+
+  body.ca-theme-overhaul .tab-status {
+    display: none;
+  }
 }

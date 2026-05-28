@@ -1,5 +1,13 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.8.1 — Professional Multi-Tab Popup
+
+### Changed
+
+- Replaced the long single-scroll popup with six focused tabs: Home, Intake, Run, Review, Ops, and Logs. The existing shared state/rendering model is preserved, but operators no longer have to scroll through every workflow section to reach review tools or diagnostics.
+- Split the former Autofill stack into dedicated views: Run keeps session, payload status, page companion, ACP settings, and start controls; Review owns payload inspection, quick field copy, assessment selection, and payload review; Ops owns the command center; Logs owns recent activity, signature status, runtime diagnostics, and raw logs.
+- Tightened the visual density and professional finish: wider popup canvas, compact header, six-column tab rail, denser cards, two-column intake buckets, shorter drop zones, compact context metrics, and constrained log/list heights.
+
 ## Version 0.7.0 — Unified Single-Scroll Popup & Recent Activity
 
 ### Changed
