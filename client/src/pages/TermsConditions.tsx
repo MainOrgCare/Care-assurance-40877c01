@@ -11,7 +11,7 @@ export default function TermsConditions() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/login">
-            <Button variant="ghost" size="icon" data-testid="button-back" className="text-foreground/80">
+            <Button variant="ghost" size="icon" data-testid="button-back" aria-label="Back to login" className="text-foreground/80">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>

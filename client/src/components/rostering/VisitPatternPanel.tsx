@@ -452,11 +452,21 @@ function ServiceUserCard({ su }: { su: ServiceUserPattern }) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`Toggle visit pattern details for ${su.name}`}
       className={cn(
-        "rounded-lg border bg-card p-3 shadow-[var(--shadow-xs)] transition-shadow hover:shadow-sm cursor-pointer",
+        "rounded-lg border bg-card p-3 shadow-[var(--shadow-xs)] transition-shadow hover:shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         su.continuityScore < 50 ? "border-amber-300/50 dark:border-amber-800/30" : ""
       )}
       onClick={() => setExpanded(!expanded)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setExpanded(!expanded);
+        }
+      }}
     >
       {/* Top row */}
       <div className="flex items-start gap-3">

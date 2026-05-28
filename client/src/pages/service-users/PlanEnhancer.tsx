@@ -132,7 +132,7 @@ const CopyButton = memo(function CopyButton({ text, label }: { text: string; lab
   };
 
   return (
-    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
+    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCopy} aria-label={label ? `Copy ${label}` : 'Copy to clipboard'} data-testid={`button-copy-${label?.toLowerCase().replace(/\s/g, '-') || 'text'}`}>
       {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
     </Button>
   );

@@ -408,11 +408,21 @@ export default function StaffingGapsPanel({ careWorkerRosters, selectedTemplateW
                 coverageMatrix.map((su) => (
                   <div key={su.key} className="group">
                     <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expandedRow === su.key}
+                      aria-label={`Toggle coverage details for ${su.name}`}
                       className={cn(
-                        "grid cursor-pointer grid-cols-[180px_repeat(7,1fr)] gap-px rounded-sm hover:bg-muted/40 transition-colors",
+                        "grid cursor-pointer grid-cols-[180px_repeat(7,1fr)] gap-px rounded-sm hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         su.gapDays.length > 0 ? "bg-destructive/3" : ""
                       )}
                       onClick={() => setExpandedRow(expandedRow === su.key ? null : su.key)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpandedRow(expandedRow === su.key ? null : su.key);
+                        }
+                      }}
                     >
                       {/* Service user name */}
                       <div className="flex min-w-0 items-center gap-1.5 px-2 py-1.5">

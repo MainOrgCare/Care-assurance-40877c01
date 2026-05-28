@@ -2190,6 +2190,7 @@ export default function RosteringStudioUnified({
               variant="ghost"
               size="icon"
               className="h-7 w-7 hover:bg-primary/20 transition-colors"
+              aria-label="Previous template week"
               onClick={() => setSelectedTemplateWeek((p) => (p === "week1" ? "week2" : "week1"))}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -2201,6 +2202,7 @@ export default function RosteringStudioUnified({
               variant="ghost"
               size="icon"
               className="h-7 w-7 hover:bg-primary/20 transition-colors"
+              aria-label="Next template week"
               onClick={() => setSelectedTemplateWeek((p) => (p === "week1" ? "week2" : "week1"))}
             >
               <ChevronRight className="h-4 w-4" />
@@ -2498,6 +2500,7 @@ export default function RosteringStudioUnified({
                         variant="ghost"
                         size="icon"
                         className="h-4 w-4"
+                        aria-label={showAllWorkers ? "Show fewer workers" : "Show all workers"}
                         onClick={() => setShowAllWorkers(!showAllWorkers)}
                       >
                         {showAllWorkers ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
@@ -2694,6 +2697,7 @@ export default function RosteringStudioUnified({
                           size="icon"
                           variant="outline"
                           className="h-6 w-6"
+                          aria-label="Zoom timeline out"
                           onClick={handleTimelineZoomOut}
                           disabled={timelineZoomIndex === 0}
                         >
@@ -2713,6 +2717,7 @@ export default function RosteringStudioUnified({
                           size="icon"
                           variant="outline"
                           className="h-6 w-6"
+                          aria-label="Zoom timeline in"
                           onClick={handleTimelineZoomIn}
                           disabled={timelineZoomIndex === TIMELINE_ZOOM_LEVELS.length - 1}
                         >
@@ -3365,6 +3370,7 @@ export default function RosteringStudioUnified({
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
+                                aria-label="Save current schedule"
                                 onClick={() => {
                                   setSaveScheduleName(`${selectedTemplateDay} ${getTemplateWeekLabel(selectedTemplateWeek)}`);
                                   setSaveScheduleDescription("");
@@ -3391,6 +3397,7 @@ export default function RosteringStudioUnified({
                                           variant="ghost"
                                           size="icon"
                                           className="h-6 w-6"
+                                          aria-label={`Load schedule ${state.name}`}
                                           onClick={() => loadRosterStateMutation.mutate(state.id)}
                                         >
                                           <FolderOpen className="h-3 w-3" />
@@ -3399,6 +3406,7 @@ export default function RosteringStudioUnified({
                                           variant="ghost"
                                           size="icon"
                                           className="h-6 w-6 text-destructive"
+                                          aria-label={`Delete schedule ${state.name}`}
                                           onClick={() => deleteRosterStateMutation.mutate(state.id)}
                                         >
                                           <Trash2 className="h-3 w-3" />

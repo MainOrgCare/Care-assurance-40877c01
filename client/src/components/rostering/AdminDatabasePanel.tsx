@@ -372,6 +372,7 @@ export const AdminDatabasePanel: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Delete upload"
                       onClick={() => deleteUploadMutation.mutate(upload.id)}
                       disabled={deleteUploadMutation.isPending}
                     >
