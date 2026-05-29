@@ -7599,3 +7599,110 @@ body.ca-theme-overhaul .action-row {
   min-width: 0;
   max-width: 100%;
 }
+
+/* ── Auto-collect pipeline stepper (Collect → Save → Analyse → Copy) ───── */
+.auto-collect-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 10px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+}
+
+.auto-collect-pipeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.auto-collect-pipeline-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  border: 1.5px solid var(--color-border);
+  background: hsl(0, 0%, 100%);
+  color: var(--color-secondary, #475569);
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
+}
+
+.auto-collect-pipeline-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted, #64748b);
+  white-space: nowrap;
+}
+
+.auto-collect-pipeline-bar {
+  flex: 1 1 auto;
+  height: 2px;
+  min-width: 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-border) 80%, transparent);
+  align-self: flex-start;
+  margin-top: 11px;
+}
+
+.auto-collect-pipeline-step[data-step-state="active"] .auto-collect-pipeline-icon {
+  border-color: hsl(215, 85%, 55%);
+  background: hsl(214, 95%, 96%);
+  color: hsl(215, 85%, 45%);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px hsla(215, 85%, 55%, 0.16);
+  animation: auto-collect-pulse 1.4s ease-in-out infinite;
+}
+
+.auto-collect-pipeline-step[data-step-state="active"] .auto-collect-pipeline-label {
+  color: hsl(215, 85%, 45%);
+  font-weight: 700;
+}
+
+.auto-collect-pipeline-step[data-step-state="done"] .auto-collect-pipeline-icon {
+  border-color: hsl(152, 58%, 40%);
+  background: hsl(152, 62%, 94%);
+  color: hsl(152, 58%, 32%);
+}
+
+.auto-collect-pipeline-step[data-step-state="failed"] .auto-collect-pipeline-icon {
+  border-color: hsl(0, 72%, 52%);
+  background: hsl(0, 88%, 96%);
+  color: hsl(0, 72%, 46%);
+}
+
+@keyframes auto-collect-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px hsla(215, 85%, 55%, 0.16); }
+  50% { box-shadow: 0 0 0 6px hsla(215, 85%, 55%, 0.05); }
+}
+
+.is-app-theme-dark .auto-collect-pipeline-icon {
+  background: hsl(222, 20%, 16%);
+  border-color: hsl(222, 14%, 32%);
+  color: hsl(214, 18%, 72%);
+}
+
+.is-app-theme-dark .auto-collect-pipeline-step[data-step-state="active"] .auto-collect-pipeline-icon {
+  background: hsl(215, 60%, 22%);
+  border-color: hsl(215, 80%, 60%);
+  color: hsl(214, 95%, 82%);
+}
+
+.is-app-theme-dark .auto-collect-pipeline-step[data-step-state="done"] .auto-collect-pipeline-icon {
+  background: hsl(152, 40%, 20%);
+  border-color: hsl(152, 50%, 45%);
+  color: hsl(152, 65%, 75%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auto-collect-pipeline-step[data-step-state="active"] .auto-collect-pipeline-icon {
+    animation: none;
+  }
+}

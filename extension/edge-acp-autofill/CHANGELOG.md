@@ -1,5 +1,17 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.8.2 — Auto-collect Save → Analyse → Copy pipeline
+
+### Fixed
+
+- **Auto-collected documents are now saved.** Previously, documents pulled in by Auto-Collect were held only in memory (`state.uploadBuckets`) and the `caAcpUploadedDocuments` storage key was only ever cleared, so staged files vanished when the popup closed. Staged uploads are now persisted to session storage (base64, with a ~6 MB safety cap) on every change and **restored automatically when the popup reopens**.
+- **Auto-collected documents are now analysed automatically.** After a successful Auto-Collect run, the staged documents are parsed (`/api/extension/parse-document`) and analysed (`/api/ai/analyze-risks`) without requiring a separate manual "Analyze" click. The parse/analyse logic was extracted into a shared `runStagedDocumentAnalysis()` used by both the manual button and the pipeline.
+- **Auto-collected documents are now copied to CareAssurance.** The pipeline now calls `syncUploadsToCareAssurance({ force: true })` after analysis to mirror the documents into the CareAssurance workspace. If no workspace is connected, the documents stay saved/analysed and the UI prompts the operator to connect and retry.
+
+### Added
+
+- **Pipeline stepper UI.** The Auto-Collect status panel now shows a visual `Collect → Save → Analyse → Copy` stepper with active/done/failed states (animated active step, reduced-motion aware, light + dark theme variants), so operators can see exactly where a run is.
+
 ## Version 0.8.1 — Professional Multi-Tab Popup
 
 ### Changed

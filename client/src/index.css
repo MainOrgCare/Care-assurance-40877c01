@@ -893,6 +893,24 @@
 .compliee-glow { animation: compliee-glow-pulse 2.5s ease-in-out infinite; }
 .compliee-breathe { animation: compliee-breathe 4s ease-in-out infinite; }
 
+@keyframes compliee-name-shimmer {
+  0% { background-position: 200% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+.compliee-name-shimmer {
+  animation: compliee-name-shimmer 3.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compliee-float,
+  .compliee-glow,
+  .compliee-breathe,
+  .compliee-name-shimmer {
+    animation: none !important;
+  }
+}
+
 /* Theme-specific body backgrounds */
 .theme-dark body,
 html.theme-aurora body,

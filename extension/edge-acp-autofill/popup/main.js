@@ -122,6 +122,7 @@ const POPUP_INITIAL_STORAGE_KEYS = [
   STORAGE_KEYS.appTheme,
   STORAGE_KEYS.runtimeConfig,
   STORAGE_KEYS.emarSkippedRows,
+  STORAGE_KEYS.uploadedDocuments,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -985,6 +986,7 @@ const createAutoCollectInfoSnapshot = (overrides = {}) => ({
   finishedAt: "",
   note: "",
   error: "",
+  pipelineStage: "",
   failedDetails: [],
   failureCounts: {},
   selectedDocuments: [],
@@ -1592,6 +1594,62 @@ const buildAutoCollectInfoDetail = (snapshot) => {
   return metrics.join(" • ") || "Auto-collect run completed.";
 };
 
+const AUTO_COLLECT_PIPELINE_STEPS = [
+  { key: "collect", icon: "⬇", label: "Collect" },
+  { key: "save", icon: "💾", label: "Save" },
+  { key: "analyse", icon: "🧠", label: "Analyse" },
+  { key: "copy", icon: "📤", label: "Copy" },
+];
+
+const AUTO_COLLECT_PIPELINE_ORDER = ["collect", "save", "analyse", "copy", "done"];
+
+const renderAutoCollectPipelineStepper = (snapshot) => {
+  const host = dom.autoCollectInfo;
+  if (!host) return;
+
+  const status = String(snapshot?.status || "idle");
+  const stage = String(snapshot?.pipelineStage || "").trim();
+
+  let stepper = host.querySelector(".auto-collect-pipeline");
+
+  // Only show the stepper once an auto-collect run has produced a pipeline stage.
+  if (status === "idle" || !stage) {
+    if (stepper) stepper.remove();
+    return;
+  }
+
+  if (!stepper) {
+    stepper = document.createElement("div");
+    stepper.className = "auto-collect-pipeline";
+    stepper.setAttribute("role", "list");
+    stepper.setAttribute("aria-label", "Auto-collect pipeline progress");
+    host.prepend(stepper);
+  }
+
+  const activeIndex = AUTO_COLLECT_PIPELINE_ORDER.indexOf(stage);
+  const failed = status === "error";
+
+  stepper.innerHTML = AUTO_COLLECT_PIPELINE_STEPS.map((step, index) => {
+    const stepIndex = AUTO_COLLECT_PIPELINE_ORDER.indexOf(step.key);
+    let stepState = "pending";
+    if (stage === "done") {
+      stepState = "done";
+    } else if (stepIndex < activeIndex) {
+      stepState = "done";
+    } else if (stepIndex === activeIndex) {
+      stepState = failed ? "failed" : "active";
+    }
+    const mark = stepState === "done" ? "✓" : stepState === "failed" ? "!" : step.icon;
+    return `
+      <div class="auto-collect-pipeline-step" data-step-state="${stepState}" role="listitem">
+        <span class="auto-collect-pipeline-icon" aria-hidden="true">${mark}</span>
+        <span class="auto-collect-pipeline-label">${escapeHtml(step.label)}</span>
+      </div>
+      ${index < AUTO_COLLECT_PIPELINE_STEPS.length - 1 ? '<span class="auto-collect-pipeline-bar" aria-hidden="true"></span>' : ""}
+    `;
+  }).join("");
+};
+
 const renderAutoCollectInfoPanel = () => {
   if (!dom.autoCollectInfo || !dom.autoCollectInfoState || !dom.autoCollectInfoTitle || !dom.autoCollectInfoDetail) {
     return;
@@ -1606,6 +1664,8 @@ const renderAutoCollectInfoPanel = () => {
   dom.autoCollectInfoState.textContent = statusLabel;
   dom.autoCollectInfoTitle.textContent = buildAutoCollectInfoTitle(snapshot);
   dom.autoCollectInfoDetail.textContent = buildAutoCollectInfoDetail(snapshot);
+
+  renderAutoCollectPipelineStepper(snapshot);
 
   const actions = getAutoCollectInfoActions(snapshot);
   const recommendation = buildAutoCollectRecommendation(snapshot, actions);
@@ -2340,6 +2400,7 @@ const renderUploadBuckets = () => {
         if (index < 0 || index >= sectionFiles.length) return;
         sectionFiles.splice(index, 1);
         renderUploadBuckets();
+        void persistStagedUploads();
       });
     });
   }
@@ -5160,6 +5221,7 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       sectionLabel: rule.sectionLabel,
       caseId,
       startedAtMs,
+      pipelineStage: "collect",
       note: "Preparing auto-download session...",
     })
   );
@@ -5538,6 +5600,8 @@ const autoCollectDocumentsForSection = async (sectionKey, triggerButton = null) 
       });
     }
 
+    await runAutoCollectPipeline(sectionKey, { collected: downloadedFiles.length });
+
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not auto-collect Mobizio documents.";
@@ -5902,6 +5966,7 @@ const applyUploadFiles = (sectionKey, files) => {
   }
 
   renderUploadBuckets();
+  void persistStagedUploads();
 };
 
 const readFileAsBase64 = (file) =>
@@ -5911,6 +5976,269 @@ const readFileAsBase64 = (file) =>
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STAGED UPLOAD PERSISTENCE + AUTO-COLLECT PIPELINE
+//
+// Auto-collected documents used to live only in `state.uploadBuckets` (memory),
+// so they were lost when the popup closed and were never analysed or copied to
+// CareAssurance automatically. The helpers below persist staged files to
+// session storage, restore them on popup open, and drive the
+// save → analyse → copy pipeline after an auto-collect run.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// chrome.storage.session has a ~10 MB quota; keep a safety margin for base64.
+const MAX_PERSIST_UPLOAD_BYTES = 6 * 1024 * 1024;
+
+const base64ToUint8Array = (base64) => {
+  const binary = atob(String(base64 || ""));
+  const length = binary.length;
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};
+
+const serializeStagedUploadsForStorage = async () => {
+  ensureUploadBuckets();
+  const totalBytes = flattenUploadBuckets().reduce(
+    (sum, entry) => sum + Number(entry.file?.size || 0),
+    0
+  );
+  if (totalBytes === 0) {
+    return null;
+  }
+  if (totalBytes > MAX_PERSIST_UPLOAD_BYTES) {
+    // Too large to persist safely; staged files remain in memory for this session.
+    return { savedAt: new Date().toISOString(), oversized: true, buckets: {} };
+  }
+
+  const buckets = {};
+  for (const section of UPLOAD_SECTION_CONFIG) {
+    const files = state.uploadBuckets[section.key] || [];
+    const records = [];
+    for (const file of files) {
+      try {
+        const base64Data = await readFileAsBase64(file);
+        records.push({
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          size: file.size,
+          lastModified: file.lastModified || Date.now(),
+          base64Data,
+        });
+      } catch {
+        // Skip files that cannot be read; better to persist the rest.
+      }
+    }
+    buckets[section.key] = records;
+  }
+  return { savedAt: new Date().toISOString(), oversized: false, buckets };
+};
+
+const persistStagedUploads = async () => {
+  try {
+    const serialized = await serializeStagedUploadsForStorage();
+    await setStorage({ [STORAGE_KEYS.uploadedDocuments]: serialized });
+  } catch (error) {
+    console.warn("[CA Extension] Failed to persist staged uploads:", error);
+  }
+};
+
+const restoreStagedUploadsFromStorage = (stored) => {
+  if (!stored || typeof stored !== "object" || !stored.buckets) {
+    return false;
+  }
+  ensureUploadBuckets();
+
+  let restoredCount = 0;
+  for (const section of UPLOAD_SECTION_CONFIG) {
+    const records = Array.isArray(stored.buckets[section.key]) ? stored.buckets[section.key] : [];
+    const files = [];
+    for (const record of records) {
+      try {
+        const bytes = base64ToUint8Array(record.base64Data);
+        files.push(
+          new File([bytes], record.name || "document", {
+            type: record.type || "application/octet-stream",
+            lastModified: Number(record.lastModified) || Date.now(),
+          })
+        );
+        restoredCount += 1;
+      } catch {
+        // Skip corrupt records.
+      }
+    }
+    if (files.length > 0) {
+      state.uploadBuckets[section.key] = files;
+    }
+  }
+
+  if (restoredCount > 0) {
+    renderUploadBuckets();
+    updateUploadSyncStatus(
+      `Restored ${restoredCount} staged document${restoredCount === 1 ? "" : "s"} from your previous session.`,
+      "success"
+    );
+  }
+  return restoredCount > 0;
+};
+
+/**
+ * Parse + analyse every staged document through the CareAssurance AI pipeline.
+ * Shared by the manual "Analyze" button and the automatic auto-collect pipeline.
+ * Returns true when an analysis result was produced; throws on hard failures.
+ */
+const runStagedDocumentAnalysis = async ({ switchToReview = true } = {}) => {
+  const selectedEntries = flattenUploadBuckets();
+  if (selectedEntries.length === 0) {
+    return false;
+  }
+
+  updateUploadSteps(2);
+  if (dom.analysisProgress) dom.analysisProgress.hidden = false;
+  if (dom.analysisStatus) dom.analysisStatus.textContent = "Analyzing...";
+
+  let content = "";
+  const failedFiles = [];
+
+  for (let i = 0; i < selectedEntries.length; i++) {
+    const { section, file } = selectedEntries[i];
+    if (dom.analysisStatus) {
+      dom.analysisStatus.textContent = `Parsing file ${i + 1} of ${selectedEntries.length}...`;
+    }
+    try {
+      const base64Data = await readFileAsBase64(file);
+      const parseRes = await apiProxy(
+        "/api/extension/parse-document",
+        "POST",
+        { filename: file.name, base64Data },
+        { timeoutMs: 120000 }
+      );
+
+      const parsedText = parseRes?.data?.text || parseRes?.text;
+      if (parseRes?.ok && parsedText) {
+        const sectionConfig = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
+        const heading =
+          section === "additionalDocuments"
+            ? `${sectionConfig?.heading || "=== ADDITIONAL DOCUMENT"}: ${file.name} ===`
+            : sectionConfig?.heading || `=== ${section} ===`;
+        content += `\n\n${heading}\n${parsedText}`;
+      } else {
+        failedFiles.push(file.name);
+      }
+    } catch (err) {
+      console.warn(`[CA Extension] Failed to parse ${file.name}:`, err);
+      failedFiles.push(file.name);
+    }
+  }
+
+  if (failedFiles.length > 0) showError(`Could not parse: ${failedFiles.join(", ")}`);
+  if (dom.uploadNotes?.value) {
+    content += `\n\n=== ADDITIONAL CONTEXT (USER ENTERED) ===\n${dom.uploadNotes.value}`;
+  }
+  if (!content.trim()) {
+    throw new Error("No readable content found. Please check your files are valid PDF, DOCX, or text files.");
+  }
+
+  if (dom.analysisStatus) dom.analysisStatus.textContent = "Analyzing document content...";
+
+  const response = await apiProxy(
+    "/api/ai/analyze-risks",
+    "POST",
+    { documentContent: content, allowSensitive: false },
+    { timeoutMs: 180000 }
+  );
+  if (!response?.ok) throw new Error(response?.error || "Analysis failed");
+
+  const result = response.data || response.result;
+  if (!result) throw new Error("No analysis result returned");
+
+  const analysisReceipt = {
+    fileCount: selectedEntries.length,
+    parsedCount: selectedEntries.length - failedFiles.length,
+    failedFiles,
+    hasNotes: Boolean(dom.uploadNotes?.value?.trim()),
+    sections: Array.from(
+      new Set(
+        selectedEntries
+          .map(({ section }) => {
+            const config = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
+            return config?.label || config?.title || section;
+          })
+          .filter(Boolean)
+      )
+    ),
+  };
+  result._uiReceipt = analysisReceipt;
+  state.currentAnalysisResults = result;
+  displayAnalysisResults(result);
+  logActivity({
+    type: "analyze",
+    tone: "success",
+    label: "Documents analyzed",
+    detail: `${analysisReceipt.parsedCount} of ${analysisReceipt.fileCount} file(s) parsed`,
+  });
+  if (switchToReview) switchTab("review");
+  return true;
+};
+
+/**
+ * Drive the full save → analyse → copy pipeline after an auto-collect run.
+ * Each stage is independently guarded so a later failure never discards the
+ * documents that were successfully collected and staged.
+ */
+const runAutoCollectPipeline = async (sectionKey, { collected = 0 } = {}) => {
+  // 1) SAVE — persist staged documents so they survive the popup closing.
+  updateAutoCollectInfoSnapshot({
+    pipelineStage: "save",
+    note: `Saving ${collected} collected document${collected === 1 ? "" : "s"}...`,
+  });
+  await persistStagedUploads();
+
+  // 2) ANALYSE — run the collected documents through the AI pipeline.
+  let analysed = false;
+  try {
+    updateAutoCollectInfoSnapshot({ pipelineStage: "analyse", note: "Analysing collected documents..." });
+    analysed = await runStagedDocumentAnalysis({ switchToReview: false });
+    if (dom.analysisProgress) dom.analysisProgress.hidden = true;
+  } catch (error) {
+    if (dom.analysisProgress) dom.analysisProgress.hidden = true;
+    const message = error instanceof Error ? error.message : "Automatic analysis failed.";
+    updateAutoCollectInfoSnapshot({ note: `Saved & staged. Analysis could not complete: ${message}` });
+  }
+
+  // 3) COPY — mirror the documents into the CareAssurance workspace.
+  if (!state.isConnected) {
+    updateAutoCollectInfoSnapshot({
+      pipelineStage: "copy",
+      note: "Saved & analysed. Connect your workspace to copy documents into CareAssurance.",
+    });
+    updateUploadSyncStatus(
+      "Documents saved and analysed. Connect your workspace to copy them into CareAssurance.",
+      "warning"
+    );
+    return;
+  }
+
+  try {
+    updateAutoCollectInfoSnapshot({ pipelineStage: "copy", note: "Copying documents into CareAssurance..." });
+    const copied = await syncUploadsToCareAssurance({ force: true });
+    updateAutoCollectInfoSnapshot({
+      pipelineStage: copied ? "done" : "copy",
+      note: copied
+        ? `Done — ${collected} document${collected === 1 ? "" : "s"} saved, ${
+            analysed ? "analysed" : "staged"
+          }, and copied to CareAssurance.`
+        : "Saved & analysed. Copying to CareAssurance did not complete — use Send to retry.",
+    });
+  } catch (error) {
+    // syncUploadsToCareAssurance surfaces its own status; keep the docs staged.
+    const message = error instanceof Error ? error.message : "Copy to CareAssurance failed.";
+    updateAutoCollectInfoSnapshot({ note: `Saved & analysed. Copy to CareAssurance failed: ${message}` });
+  }
+};
 
 const sendUploadPayloadToTab = async (tabId, payload) => {
   for (let attempt = 0; attempt < MAX_UPLOAD_SYNC_ATTEMPTS; attempt += 1) {
@@ -7579,8 +7907,7 @@ function bindEvents() {
   });
 
   dom.analyzeDocuments?.addEventListener("click", async () => {
-    const selectedEntries = flattenUploadBuckets();
-    if (selectedEntries.length === 0) return;
+    if (flattenUploadBuckets().length === 0) return;
 
     if (isUploadWorkflowBusy()) {
       showInfo("Please wait for the current upload operation to finish.");
@@ -7590,78 +7917,9 @@ function bindEvents() {
     analyzeInFlight = true;
     updateUploadActionInterlocks();
     setButtonLoading(dom.analyzeDocuments, true);
-    updateUploadSteps(2);
-    if (dom.analysisProgress) dom.analysisProgress.hidden = false;
-    if (dom.analysisStatus) dom.analysisStatus.textContent = "Analyzing...";
 
     try {
-      let content = "";
-      const failedFiles = [];
-
-      for (let i = 0; i < selectedEntries.length; i++) {
-        const { section, file } = selectedEntries[i];
-        if (dom.analysisStatus) {
-          dom.analysisStatus.textContent = `Parsing file ${i + 1} of ${selectedEntries.length}...`;
-        }
-        try {
-          const base64Data = await readFileAsBase64(file);
-          const parseRes = await apiProxy(
-            "/api/extension/parse-document",
-            "POST",
-            { filename: file.name, base64Data },
-            { timeoutMs: 120000 }
-          );
-
-          const parsedText = parseRes?.data?.text || parseRes?.text;
-          if (parseRes?.ok && parsedText) {
-            const sectionConfig = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
-            const heading =
-              section === "additionalDocuments"
-                ? `${sectionConfig?.heading || "=== ADDITIONAL DOCUMENT"}: ${file.name} ===`
-                : sectionConfig?.heading || `=== ${section} ===`;
-            content += `\n\n${heading}\n${parsedText}`;
-          } else {
-            failedFiles.push(file.name);
-          }
-        } catch (err) {
-          console.warn(`[CA Extension] Failed to parse ${file.name}:`, err);
-          failedFiles.push(file.name);
-        }
-      }
-
-      if (failedFiles.length > 0) showError(`Could not parse: ${failedFiles.join(", ")}`);
-      if (dom.uploadNotes?.value) {
-        content += `\n\n=== ADDITIONAL CONTEXT (USER ENTERED) ===\n${dom.uploadNotes.value}`;
-      }
-      if (!content.trim()) throw new Error("No readable content found. Please check your files are valid PDF, DOCX, or text files.");
-
-      if (dom.analysisStatus) dom.analysisStatus.textContent = "Analyzing document content...";
-
-      const response = await apiProxy("/api/ai/analyze-risks", "POST", { documentContent: content, allowSensitive: false }, { timeoutMs: 180000 });
-      if (!response?.ok) throw new Error(response?.error || "Analysis failed");
-
-      const result = response.data || response.result;
-      if (!result) throw new Error("No analysis result returned");
-      const analysisReceipt = {
-        fileCount: selectedEntries.length,
-        parsedCount: selectedEntries.length - failedFiles.length,
-        failedFiles,
-        hasNotes: Boolean(dom.uploadNotes?.value?.trim()),
-        sections: Array.from(new Set(selectedEntries.map(({ section }) => {
-          const config = UPLOAD_SECTION_CONFIG.find((item) => item.key === section);
-          return config?.label || config?.title || section;
-        }).filter(Boolean))),
-      };
-      result._uiReceipt = analysisReceipt;
-      state.currentAnalysisResults = result;
-      displayAnalysisResults(result);
-      logActivity({
-        type: "analyze",
-        tone: "success",
-        label: "Documents analyzed",
-        detail: `${analysisReceipt.parsedCount} of ${analysisReceipt.fileCount} file(s) parsed`,
-      });
-      switchTab("review");
+      await runStagedDocumentAnalysis({ switchToReview: true });
     } catch (error) {
       showError(error.message);
     } finally {
@@ -8370,6 +8628,14 @@ function bindStorageListener() {
   const initialState = await loadStorage(POPUP_INITIAL_STORAGE_KEYS);
 
   applyRuntimeConfig(initialState?.[STORAGE_KEYS.runtimeConfig] || null);
+
+  // Restore documents staged in a previous popup session (auto-collected or
+  // manually added) so they are not lost when the popup closes/reopens.
+  try {
+    restoreStagedUploadsFromStorage(initialState?.[STORAGE_KEYS.uploadedDocuments]);
+  } catch (error) {
+    console.warn("[CA Extension] Failed to restore staged uploads:", error);
+  }
 
   applyPopupAppTheme(initialState?.[STORAGE_KEYS.appTheme]);
 

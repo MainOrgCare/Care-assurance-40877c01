@@ -69,7 +69,22 @@ function MiniCompliee({ className = "", reduceMotion = false }: { className?: st
         <rect x="36" y="6" width="16" height="14" rx="6" fill="currentColor" />
 
         {/* Eyes */}
-        <circle cx="21" cy="34" r="10" fill="white" />
+        <motion.g
+          className="origin-[32px_34px]"
+          animate={reduceMotion ? undefined : { scaleY: [1, 1, 0.1, 1, 1] }}
+          transition={
+            reduceMotion
+              ? undefined
+              : {
+                  duration: 0.4,
+                  repeat: Infinity,
+                  repeatDelay: 3.4,
+                  ease: "easeInOut",
+                  times: [0, 0.45, 0.5, 0.55, 1],
+                }
+          }
+        >
+          <circle cx="21" cy="34" r="10" fill="white" />
         <circle cx="43" cy="34" r="10" fill="white" />
         <motion.circle
           cx="24"
@@ -133,6 +148,7 @@ function MiniCompliee({ className = "", reduceMotion = false }: { className?: st
                 }
           }
         />
+        </motion.g>
 
         {/* Smile */}
         <motion.path
@@ -197,6 +213,7 @@ export default function ComplieeIdleButton({
           : {
               opacity: 1,
               y: [0, -4, 0],
+              rotate: [0, 0, -4, 4, -3, 2, 0],
               scale: 1,
             }
       }
@@ -213,6 +230,13 @@ export default function ComplieeIdleButton({
                 repeat: Infinity,
                 ease: "easeInOut",
                 delay: 0.5,
+              },
+              rotate: {
+                duration: 1.4,
+                repeat: Infinity,
+                repeatDelay: 5,
+                ease: "easeInOut",
+                delay: 2.5,
               },
               scale: { type: "spring", stiffness: 300, damping: 20 },
             }

@@ -14,7 +14,7 @@ import {
   Download,
   ArrowUpRight,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -154,6 +154,39 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
     lg: "h-12 w-12",
   };
 
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const motionOn = !prefersReducedMotion;
+
+  // Periodic natural blink while idle, with a quick double-blink for life-like feel.
+  const [isBlinking, setIsBlinking] = useState(false);
+  useEffect(() => {
+    if (!motionOn) {
+      setIsBlinking(false);
+      return;
+    }
+
+    let blinkOff: ReturnType<typeof setTimeout>;
+    const scheduleBlink = () => {
+      // Randomised interval so blinks never feel mechanical.
+      const nextIn = 2600 + Math.random() * 3200;
+      return setTimeout(() => {
+        setIsBlinking(true);
+        blinkOff = setTimeout(() => setIsBlinking(false), 130);
+      }, nextIn);
+    };
+
+    let blinkOn = scheduleBlink();
+    const loop = setInterval(() => {
+      blinkOn = scheduleBlink();
+    }, 5800);
+
+    return () => {
+      clearTimeout(blinkOn);
+      clearTimeout(blinkOff);
+      clearInterval(loop);
+    };
+  }, [motionOn]);
+
   return (
     <motion.div
       className={cn(
@@ -161,30 +194,50 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
         "relative rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg border border-primary/20",
       )}
       title="Compli-ee - Your Compliance Assistant"
-      animate={animate ? {
-        scale: [1, 1.05, 1],
-        boxShadow: [
-          "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
-          "0 0 12px 3px color-mix(in oklab, var(--color-primary) 25%, transparent)",
-          "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
-        ],
-      } : {}}
-      transition={animate ? { repeat: Infinity, duration: 1.5, ease: "easeInOut" } : {}}
+      animate={
+        motionOn
+          ? animate
+            ? {
+                scale: [1, 1.05, 1],
+                boxShadow: [
+                  "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
+                  "0 0 12px 3px color-mix(in oklab, var(--color-primary) 25%, transparent)",
+                  "0 0 0 0px color-mix(in oklab, var(--color-primary) 30%, transparent)",
+                ],
+              }
+            : {
+                // Gentle idle breathing so the avatar always feels alive.
+                scale: [1, 1.02, 1],
+              }
+          : {}
+      }
+      transition={
+        motionOn
+          ? animate
+            ? { repeat: Infinity, duration: 1.5, ease: "easeInOut" }
+            : { repeat: Infinity, duration: 4, ease: "easeInOut" }
+          : {}
+      }
     >
       <motion.svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 64 80"
         className={cn("w-full h-full p-1 overflow-visible drop-shadow-sm")}
         initial="rest"
-        whileHover="hover"
-        animate={animate ? "thinking" : "rest"}
+        whileHover={motionOn ? "hover" : undefined}
+        animate={motionOn ? (animate ? "thinking" : "idle") : "rest"}
       >
         <motion.g 
           className="origin-[32px_30px]"
           variants={{
-            rest: { rotate: 0 },
+            rest: { rotate: 0, y: 0 },
+            idle: {
+              rotate: [-1.5, 1.5, -1.5],
+              y: [0, -1, 0],
+              transition: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+            },
             thinking: { rotate: [-3, 3, -3], transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" } },
-            hover: { rotate: [0, -10, 10, -5, 5, 0], transition: { duration: 0.8 } }
+            hover: { rotate: [0, -10, 10, -5, 5, 0], scale: [1, 1.06, 1], transition: { duration: 0.8 } }
           }}
         >
           <rect x="10" y="8" width="44" height="20" rx="10" fill="white"/>
@@ -195,36 +248,76 @@ export const ComplieeAvatar = React.memo(function ComplieeAvatar({
           <rect x="24" y="4" width="16" height="16" rx="6" fill="white"/>
           <rect x="36" y="6" width="16" height="14" rx="6" fill="white"/>
 
-          {/* Eyes */}
+          {/* Eyes - whites */}
           <circle cx="21" cy="34" r="10" fill="white"/>
           <circle cx="43" cy="34" r="10" fill="white"/>
-          <motion.circle
-            cx="24" cy="35" r="6" fill="#1e1e1e"
-            variants={{
-              rest: {},
-              thinking: { x: [0, 1.5, -1, 0], y: [-0.5, 0.5, -0.5], transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
-              hover: {},
-            }}
-          />
-          <motion.circle
-            cx="46" cy="35" r="6" fill="#1e1e1e"
-            variants={{
-              rest: {},
-              thinking: { x: [0, 1.5, -1, 0], y: [-0.5, 0.5, -0.5], transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
-              hover: {},
-            }}
-          />
-          <motion.circle cx="27" cy="32" r="3" fill="white"
-            animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-          />
-          <motion.circle cx="49" cy="32" r="3" fill="white"
-            animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.3 }}
-          />
 
-          {/* Smile */}
-          <path d="M24 46 Q32 52 40 46" stroke="#ec4899" strokeWidth="3" fill="none" strokeLinecap="round"/>
+          {/* Eyes - open vs blink (happy squint) */}
+          <AnimatePresence mode="wait" initial={false}>
+            {isBlinking ? (
+              <motion.g
+                key="blink"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.04 }}
+              >
+                <rect x="17" y="33" width="14" height="3" rx="1.5" fill="#1e1e1e"/>
+                <rect x="39" y="33" width="14" height="3" rx="1.5" fill="#1e1e1e"/>
+              </motion.g>
+            ) : (
+              <motion.g
+                key="open"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.04 }}
+              >
+                <motion.circle
+                  cx="24" cy="35" r="6" fill="#1e1e1e"
+                  variants={{
+                    rest: {},
+                    idle: { x: [0, 1, -1, 0], y: [0, -0.6, 0.6, 0], transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" } },
+                    thinking: { x: [0, 1.5, -1, 0], y: [-0.5, 0.5, -0.5], transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
+                    hover: {},
+                  }}
+                />
+                <motion.circle
+                  cx="46" cy="35" r="6" fill="#1e1e1e"
+                  variants={{
+                    rest: {},
+                    idle: { x: [0, 1, -1, 0], y: [0, -0.6, 0.6, 0], transition: { duration: 3.6, repeat: Infinity, ease: "easeInOut" } },
+                    thinking: { x: [0, 1.5, -1, 0], y: [-0.5, 0.5, -0.5], transition: { duration: 2, repeat: Infinity, ease: "easeInOut" } },
+                    hover: {},
+                  }}
+                />
+                <motion.circle cx="27" cy="32" r="3" fill="white"
+                  animate={motionOn ? { scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] } : undefined}
+                  transition={motionOn ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : undefined}
+                />
+                <motion.circle cx="49" cy="32" r="3" fill="white"
+                  animate={motionOn ? { scale: [0.8, 1.3, 0.8], opacity: [0.4, 1, 0.4] } : undefined}
+                  transition={motionOn ? { repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.3 } : undefined}
+                />
+              </motion.g>
+            )}
+          </AnimatePresence>
+
+          {/* Smile - widens on hover/thinking */}
+          <motion.path
+            d="M24 46 Q32 52 40 46"
+            stroke="#ec4899"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+            variants={{
+              rest: { d: "M24 46 Q32 52 40 46" },
+              idle: { d: "M24 46 Q32 52 40 46" },
+              thinking: { d: "M23 45 Q32 54 41 45" },
+              hover: { d: "M22 44 Q32 56 42 44" },
+            }}
+            transition={{ duration: 0.3 }}
+          />
           <rect x="6" y="36" width="6" height="4" rx="2" fill="#f43f5e" opacity="0.6"/>
           <rect x="52" y="36" width="6" height="4" rx="2" fill="#f43f5e" opacity="0.6"/>
         </motion.g>
