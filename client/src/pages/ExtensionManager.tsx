@@ -921,7 +921,7 @@ export default function ExtensionManager() {
                 </Button>
               </div>
 
-              <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
+              <Badge variant="outline" className="border-success/30 bg-success/10 text-success whitespace-normal text-center">
                 {extensionInfo?.versionUpdated
                   ? `Updated to v${extensionInfo.manifestVersion || "latest"}`
                   : extensionInfo?.package?.rebuilt

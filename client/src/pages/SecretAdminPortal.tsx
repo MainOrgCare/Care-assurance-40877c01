@@ -5305,7 +5305,7 @@ export default function SecretAdminPortal() {
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground">Command Center</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Maintenance, read-only, announcements, snapshots.</span>
+                  <span className="mt-1 block whitespace-normal text-xs leading-5 text-muted-foreground">Maintenance, read-only, announcements, snapshots.</span>
                 </span>
               </div>
             </Button>
@@ -5326,7 +5326,7 @@ export default function SecretAdminPortal() {
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground">User Review</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{pendingUsers.length} pending approval{pendingUsers.length === 1 ? "" : "s"}.</span>
+                  <span className="mt-1 block whitespace-normal text-xs leading-5 text-muted-foreground">{pendingUsers.length} pending approval{pendingUsers.length === 1 ? "" : "s"}.</span>
                 </span>
               </div>
             </Button>
@@ -5339,7 +5339,7 @@ export default function SecretAdminPortal() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-foreground">Call Reconciliation</span>
-                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">Match ECM evidence and operational exceptions.</span>
+                    <span className="mt-1 block whitespace-normal text-xs leading-5 text-muted-foreground">Match ECM evidence and operational exceptions.</span>
                   </span>
                 </span>
               </Link>
@@ -5357,7 +5357,7 @@ export default function SecretAdminPortal() {
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground">Audit Completion Log</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Open the focused audit-completion record.</span>
+                  <span className="mt-1 block whitespace-normal text-xs leading-5 text-muted-foreground">Open the focused audit-completion record.</span>
                 </span>
               </div>
             </Button>
@@ -5637,7 +5637,7 @@ export default function SecretAdminPortal() {
                         Update Extension
                       </Button>
                     </div>
-                    <Badge variant="outline" className="border-success/30 text-success bg-success/10">
+                    <Badge variant="outline" className="border-success/30 text-success bg-success/10 whitespace-normal text-center">
                       {extensionInfo?.versionUpdated
                         ? `Updated to v${extensionInfo.manifestVersion || "latest"}`
                         : extensionInfo?.package?.rebuilt
