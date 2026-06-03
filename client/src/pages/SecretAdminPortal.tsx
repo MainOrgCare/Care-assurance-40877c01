@@ -4469,6 +4469,34 @@ function RosteringOperationalPanel() {
     return map;
   }, [filteredSlots]);
 
+  // Priority recommendation queue: pending recs ranked by potential impact (drift × calls)
+  const priorityRecs = useMemo(() => {
+    return filteredSlots
+      .filter((s) => s.hasRecommendation && !decisions[s.key])
+      .map((s) => ({
+        slot: s,
+        impact: (typeof s.averageStartOffsetMinutes === "number" ? Math.abs(s.averageStartOffsetMinutes) : 0) * s.totalCalls,
+      }))
+      .sort((a, b) => b.impact - a.impact)
+      .slice(0, 8);
+  }, [filteredSlots, decisions]);
+
+  // Data quality: per-SU coverage (callsWithTimes / totalCalls)
+  const dataQuality = useMemo(() => {
+    const map = new Map<string, { name: string; area: string | null; withTimes: number; total: number }>();
+    for (const slot of filteredSlots) {
+      let e = map.get(slot.serviceUserKey);
+      if (!e) { e = { name: slot.serviceUserName, area: slot.serviceUserArea, withTimes: 0, total: 0 }; map.set(slot.serviceUserKey, e); }
+      e.withTimes += slot.callsWithTimes;
+      e.total += slot.totalCalls;
+    }
+    return Array.from(map.entries())
+      .map(([key, e]) => ({ key, ...e, coveragePct: e.total > 0 ? Math.round((e.withTimes / e.total) * 100) : 0 }))
+      .filter((e) => e.coveragePct < 70)
+      .sort((a, b) => a.coveragePct - b.coveragePct)
+      .slice(0, 5);
+  }, [filteredSlots]);
+
   // CSV export
   const handleExport = () => {
     const rows = [
@@ -4505,10 +4533,49 @@ function RosteringOperationalPanel() {
     );
   }
 
+  // Auto-generated narrative summary
+  const narrative = (() => {
+    const parts: string[] = [];
+    const suCount = serviceUserStats.length;
+    parts.push(`Analysis covers **${allSlots.length} call slots** across **${suCount} service user${suCount !== 1 ? "s" : ""}**.`);
+    if (globalStats.avgDrift != null) {
+      const dir = globalStats.avgSignedDrift != null && globalStats.avgSignedDrift < 0 ? "early" : "late";
+      parts.push(`Average schedule drift is **${Math.round(globalStats.avgDrift)}m** (typically running ${dir}).`);
+    }
+    if (globalStats.slaPct != null) {
+      const slaDesc = globalStats.slaPct >= 85 ? "good" : globalStats.slaPct >= 70 ? "moderate" : "poor";
+      parts.push(`SLA compliance (≤15m drift) is **${slaDesc}** at **${globalStats.slaPct}%**.`);
+    }
+    if (criticalSUs.length > 0) {
+      parts.push(`**${criticalSUs.length} service user${criticalSUs.length > 1 ? "s" : ""}** have a risk score ≥65 and need immediate attention.`);
+    }
+    if (globalStats.pending > 0 && globalStats.potentialSavingsMinutes > 0) {
+      parts.push(`Implementing **${globalStats.pending} pending recommendation${globalStats.pending !== 1 ? "s" : ""}** could address up to **${globalStats.potentialSavingsMinutes.toLocaleString()} call-minutes** of drift.`);
+    } else if (globalStats.implemented > 0 && globalStats.pending === 0) {
+      parts.push(`All **${globalStats.totalRecs} recommendation${globalStats.totalRecs !== 1 ? "s" : ""}** have been actioned — well done.`);
+    }
+    const worstArea = areaStats[0];
+    if (worstArea?.avgDrift != null && areaStats.length > 1) {
+      parts.push(`**${worstArea.area}** shows the highest area drift at **${Math.round(worstArea.avgDrift)}m**.`);
+    }
+    return parts;
+  })();
+
   const maxCallTypeDrift = Math.max(...callTypeStats.map((c) => c.avgDrift ?? 0), 1);
 
   return (
     <div className="space-y-6">
+
+      {/* Auto-generated narrative summary */}
+      <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 flex gap-3">
+        <BarChart3 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <div className="text-xs text-foreground/80 space-y-0.5">
+          {narrative.map((part, i) => (
+            <p key={i} dangerouslySetInnerHTML={{ __html: part.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+          ))}
+        </div>
+      </div>
+
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
@@ -5053,6 +5120,90 @@ function RosteringOperationalPanel() {
           </Card>
         );
       })()}
+
+      {/* Priority Recommendation Queue */}
+      {priorityRecs.length > 0 && (
+        <Card className="border-border/60 bg-card shadow-medium overflow-hidden">
+          <CardHeader className="border-b border-border/30 bg-muted/25 py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-amber-500" />
+              Priority Recommendation Queue
+              <Badge variant="secondary" className="text-[10px] tabular-nums">{priorityRecs.length}</Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">Highest-impact pending recommendations ranked by drift × call volume</CardDescription>
+          </CardHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/30 text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40">
+                  <th className="px-4 py-2 font-semibold">#</th>
+                  <th className="px-3 py-2 font-semibold">Service User</th>
+                  <th className="px-3 py-2 font-semibold">Call</th>
+                  <th className="px-3 py-2 font-semibold">Time Band</th>
+                  <th className="px-3 py-2 font-semibold text-right">Current</th>
+                  <th className="px-3 py-2 font-semibold text-right">Suggested</th>
+                  <th className="px-3 py-2 font-semibold text-right">Drift</th>
+                  <th className="px-3 py-2 font-semibold text-right">Impact</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {priorityRecs.map(({ slot, impact }, idx) => {
+                  const drift = slot.averageStartOffsetMinutes != null ? Math.round(slot.averageStartOffsetMinutes) : null;
+                  const abs = drift != null ? Math.abs(drift) : 0;
+                  const driftColour = abs >= 45 ? "text-rose-600 dark:text-rose-400 font-bold" : abs >= 20 ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-yellow-600 dark:text-yellow-400";
+                  const impactHours = Math.round(impact / 60);
+                  return (
+                    <tr key={slot.key} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-2 text-muted-foreground font-mono">{idx + 1}</td>
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-foreground truncate max-w-[130px]">{slot.serviceUserName}</div>
+                        {slot.serviceUserArea && <div className="text-[10px] text-muted-foreground">{slot.serviceUserArea}</div>}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{slot.callTypeLabel}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{slot.timeBandLabel}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{slot.averagePlannedStartMinutes != null ? (() => { const h = Math.floor(slot.averagePlannedStartMinutes / 60); const m = Math.round(slot.averagePlannedStartMinutes % 60); return `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}`; })() : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-primary font-medium">{slot.suggestedPlannedTimeLabel ?? "—"}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${driftColour}`}>
+                        {drift != null ? (drift > 0 ? `+${abs}m` : `-${abs}m`) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                          {impactHours > 0 ? `~${impactHours}h` : `${Math.round(impact)}m`}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Data quality warning */}
+      {dataQuality.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/10 shadow-sm overflow-hidden">
+          <CardHeader className="border-b border-amber-200/60 dark:border-amber-800/30 py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              Low Data Coverage
+            </CardTitle>
+            <CardDescription className="text-xs">These service users have fewer than 70% of calls with timing data — drift analysis may be inaccurate</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-3 pb-3">
+            <div className="flex flex-wrap gap-2">
+              {dataQuality.map((su) => (
+                <div key={su.key} className="flex items-center gap-1.5 rounded-md border border-amber-200 dark:border-amber-800/50 bg-white/60 dark:bg-amber-950/20 px-2.5 py-1">
+                  <span className="text-xs font-medium text-foreground">{su.name}</span>
+                  {su.area && <span className="text-[10px] text-muted-foreground">· {su.area}</span>}
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 tabular-nums ml-1">{su.coveragePct}%</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
     </div>
   );
 }
