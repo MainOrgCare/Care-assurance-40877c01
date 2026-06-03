@@ -2373,6 +2373,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         underdeliveredCount: durationValues.filter((v) => v < 80).length,
         overdeliveredCount: durationValues.filter((v) => v > 120).length,
       },
+      driftBands: {
+        low:      driftValues.filter((v) => v < 10).length,
+        moderate: driftValues.filter((v) => v >= 10 && v < 20).length,
+        high:     driftValues.filter((v) => v >= 20 && v < 45).length,
+        critical: driftValues.filter((v) => v >= 45).length,
+        total:    driftValues.length,
+      },
     };
   }, [analysisResults.length, coverage, excludedCounts, summary, primaryRows]);
 
@@ -7722,6 +7729,198 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             </CardContent>
           </Card>
         </div>
+
+        {/* ── Data Quality Dashboard ── */}
+        {processingState === "complete" && healthSummary && (
+          <div className="space-y-4 motion-safe:animate-fade-in">
+            {/* Sub-score cards */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {(
+                [
+                  {
+                    label: "Completeness",
+                    score: healthSummary.completeness.score,
+                    grade: healthSummary.completeness.grade,
+                    helper: "How much of the expected data is present",
+                    detail: (() => {
+                      const b = healthSummary.completeness.breakdown;
+                      const lowest = Object.entries(b).sort((a, b2) => a[1] - b2[1])[0];
+                      return lowest ? `Lowest: ${lowest[0].replace(/([A-Z])/g, " $1").toLowerCase()} (${Math.round(lowest[1] * 100)}%)` : null;
+                    })(),
+                    colour: healthSummary.completeness.score >= 80 ? "emerald" : healthSummary.completeness.score >= 60 ? "amber" : "red",
+                  },
+                  {
+                    label: "Consistency",
+                    score: healthSummary.consistency.score,
+                    grade: healthSummary.consistency.grade,
+                    helper: "Duplicates, mismatches, and excluded rows",
+                    detail: healthSummary.consistency.duplicateRate > 0
+                      ? `${Math.round(healthSummary.consistency.duplicateRate * 100)}% duplicate rate`
+                      : "No duplicates detected",
+                    colour: healthSummary.consistency.score >= 80 ? "emerald" : healthSummary.consistency.score >= 60 ? "amber" : "red",
+                  },
+                  {
+                    label: "Timeliness",
+                    score: healthSummary.timeliness.score,
+                    grade: healthSummary.timeliness.grade,
+                    helper: "Schedule drift — how close actual vs planned times are",
+                    detail: healthSummary.timeliness.driftP50 !== null
+                      ? `Median drift: ${Math.round(healthSummary.timeliness.driftP50)}m · P90: ${Math.round(healthSummary.timeliness.driftP90 ?? 0)}m`
+                      : "No drift data",
+                    colour: healthSummary.timeliness.score >= 80 ? "emerald" : healthSummary.timeliness.score >= 60 ? "amber" : "red",
+                  },
+                  {
+                    label: "Accuracy",
+                    score: healthSummary.accuracy.score,
+                    grade: healthSummary.accuracy.grade,
+                    helper: "Duration fidelity — how close actual vs planned call durations are",
+                    detail: healthSummary.accuracy.durationP50 !== null
+                      ? `Median duration: ${Math.round(healthSummary.accuracy.durationP50 ?? 0)}% of plan`
+                      : "No duration data",
+                    colour: healthSummary.accuracy.score >= 80 ? "emerald" : healthSummary.accuracy.score >= 60 ? "amber" : "red",
+                  },
+                ] as const
+              ).map((card) => (
+                <div key={card.label} className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{card.label}</p>
+                    <span className={`text-sm font-bold px-2 py-0.5 rounded-md tabular-nums ${
+                      card.colour === "emerald" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                        : card.colour === "amber" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                    }`}>
+                      {card.grade}
+                    </span>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <p className="text-2xl font-bold tabular-nums text-foreground">{card.score}</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">/100</p>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-border/50 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        card.colour === "emerald" ? "bg-emerald-500"
+                          : card.colour === "amber" ? "bg-amber-500"
+                          : "bg-red-500"
+                      }`}
+                      style={{ width: `${card.score}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">{card.helper}</p>
+                  {card.detail && (
+                    <p className="text-[10px] font-medium text-foreground/70 truncate" title={card.detail}>{card.detail}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Drift distribution + Issue breakdown side by side */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* Drift distribution bands */}
+              {healthSummary.driftBands.total > 0 && (
+                <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Schedule drift distribution</p>
+                    <p className="text-[10px] text-muted-foreground">{healthSummary.driftBands.total} slots with timing</p>
+                  </div>
+                  {(
+                    [
+                      { label: "On time (< 10m)", count: healthSummary.driftBands.low, colour: "bg-emerald-500" },
+                      { label: "Moderate (10–20m)", count: healthSummary.driftBands.moderate, colour: "bg-sky-500" },
+                      { label: "High (20–45m)", count: healthSummary.driftBands.high, colour: "bg-amber-500" },
+                      { label: "Critical (> 45m)", count: healthSummary.driftBands.critical, colour: "bg-red-500" },
+                    ] as const
+                  ).map((band) => {
+                    const pct = healthSummary.driftBands.total > 0 ? Math.round((band.count / healthSummary.driftBands.total) * 100) : 0;
+                    return (
+                      <div key={band.label} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{band.label}</span>
+                          <span className="tabular-nums font-medium">{band.count} <span className="text-muted-foreground font-normal">({pct}%)</span></span>
+                        </div>
+                        <div className="h-2 rounded-full bg-border/40 overflow-hidden">
+                          <div className={`h-full rounded-full transition-all duration-700 ${band.colour}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {healthSummary.timeliness.driftP50 !== null && (
+                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/40">
+                      {(
+                        [
+                          { label: "P50", value: healthSummary.timeliness.driftP50 },
+                          { label: "P90", value: healthSummary.timeliness.driftP90 },
+                          { label: "P99", value: healthSummary.timeliness.driftP99 },
+                        ] as const
+                      ).map((p) => (
+                        <div key={p.label} className="text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase">{p.label}</p>
+                          <p className="text-sm font-semibold tabular-nums">{p.value !== null ? `${Math.round(p.value)}m` : "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Issue breakdown */}
+              {issueHighlights.length > 0 && (
+                <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Issue breakdown</p>
+                    <p className="text-[10px] text-muted-foreground">Top issues by count</p>
+                  </div>
+                  {issueHighlights.slice(0, 7).map((item) => {
+                    const pct = item.base > 0 ? Math.round((item.count / item.base) * 100) : 0;
+                    const isHigh = pct > 30;
+                    const isMed = pct > 10 && pct <= 30;
+                    return (
+                      <div key={item.key} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground truncate pr-2 max-w-[60%]">{item.label}</span>
+                          <span className={`tabular-nums font-medium shrink-0 ${isHigh ? "text-red-600 dark:text-red-400" : isMed ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                            {item.count} <span className="text-muted-foreground font-normal">({pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${isHigh ? "bg-red-500" : isMed ? "bg-amber-500" : "bg-sky-500"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Duration fidelity detail */}
+            {healthSummary.accuracy.durationP50 !== null && (
+              <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Duration fidelity detail</p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {(
+                    [
+                      { label: "P10",       value: healthSummary.accuracy.durationP10,          isCount: false, flag: (v: number) => v < 70 },
+                      { label: "Median",    value: healthSummary.accuracy.durationP50,          isCount: false, flag: (v: number) => v < 80 || v > 120 },
+                      { label: "P90",       value: healthSummary.accuracy.durationP90,          isCount: false, flag: (v: number) => v > 130 },
+                      { label: "Under 80%", value: healthSummary.accuracy.underdeliveredCount,  isCount: true,  flag: (v: number) => v > 0 },
+                      { label: "Over 120%", value: healthSummary.accuracy.overdeliveredCount,   isCount: true,  flag: (v: number) => v > 0 },
+                    ] as { label: string; value: number | null; isCount: boolean; flag: (v: number) => boolean }[]
+                  ).map((item) => (
+                    <div key={item.label} className="rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{item.label}</p>
+                      <p className={`text-base font-bold tabular-nums mt-0.5 ${item.value !== null && item.flag(item.value) ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                        {item.value !== null ? (item.isCount ? item.value : `${Math.round(item.value)}%`) : "—"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
           <Accordion type="multiple" className="w-full">
 
