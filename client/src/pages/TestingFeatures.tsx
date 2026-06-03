@@ -7138,7 +7138,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           Suggested planned-time move based on schedule drift, outlier-trimmed timings, and planned versus actual starts.
                         </CardDescription>
                       </div>
-                      {selectedRecommendation && (
+                      {selectedRecommendation && remainingRecommendationCount > 0 && (
                         <div className="hidden md:flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
                           <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono">J</kbd>
                           <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono">K</kbd>
@@ -7156,7 +7156,75 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {!selectedRecommendation ? (
+                    {remainingRecommendationCount === 0 ? (
+                      /* ── Completion screen ── */
+                      <div className="flex flex-col items-center justify-center gap-6 py-10 px-4 text-center motion-safe:animate-fade-in">
+                        {/* Celebration icon ring */}
+                        <div className="relative flex items-center justify-center">
+                          <div className="absolute h-28 w-28 rounded-full bg-emerald-500/10 animate-ping" style={{ animationDuration: "2.5s" }} />
+                          <div className="absolute h-24 w-24 rounded-full bg-emerald-500/15" />
+                          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50 ring-4 ring-emerald-200 dark:ring-emerald-700/50">
+                            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                        </div>
+
+                        {/* Title + stats */}
+                        <div className="space-y-1.5 max-w-sm">
+                          <p className="text-2xl font-bold text-foreground tracking-tight">All done! 🎉</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            Every recommendation has been reviewed. Great work — the schedule can now be updated with confidence.
+                          </p>
+                        </div>
+
+                        {/* Result pills */}
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                          <div className="flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="h-4 w-4" />
+                            {implementedRecommendationCount} implemented
+                          </div>
+                          {rejectedRecommendationCount > 0 && (
+                            <div className="flex items-center gap-1.5 rounded-full bg-red-100 dark:bg-red-900/40 px-3 py-1.5 text-sm font-semibold text-red-700 dark:text-red-400">
+                              <AlertCircle className="h-4 w-4" />
+                              {rejectedRecommendationCount} rejected
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm font-semibold text-muted-foreground">
+                            <TrendingUp className="h-4 w-4" />
+                            {careCallRecommendations.length} total
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-sm">
+                          <Button
+                            type="button"
+                            variant="default"
+                            className="w-full gap-2"
+                            onClick={handleDownloadRecommendations}
+                          >
+                            <Download className="h-4 w-4" />
+                            Download final pack
+                          </Button>
+                          {decisionHistory.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full gap-2"
+                              onClick={handleUndoDecision}
+                              title={`Undo last decision (${decisionHistory.length} in history)`}
+                            >
+                              <ArrowRight className="h-4 w-4 rotate-180" />
+                              Undo last
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Next-step hint */}
+                        <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                          Share the downloaded pack with your scheduling team, then update ECM or your rota system to reflect the new planned times.
+                        </p>
+                      </div>
+                    ) : !selectedRecommendation ? (
                       <div className="flex flex-col items-center justify-center text-center py-12 px-6 rounded-2xl border border-dashed border-border/60 bg-background/40">
                         <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                           <AlertCircle className="h-6 w-6 text-primary" />
