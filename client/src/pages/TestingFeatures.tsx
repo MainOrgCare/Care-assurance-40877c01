@@ -68,6 +68,7 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
+  ChevronRight,
   Clock4,
   Copy,
   FileText,
@@ -77,6 +78,7 @@ import {
   FlaskConical,
   Library,
   Loader2,
+  MapPin,
   Maximize2,
   Minimize2,
   Route,
@@ -841,6 +843,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   // Filters for the recommendation picker list
   const [recommendationSearch, setRecommendationSearch] = useState<string>("");
   const [recommendationStatusFilter, setRecommendationStatusFilter] = useState<"all" | "pending" | "implemented" | "rejected">("all");
+  const [collapsedRecAreas, setCollapsedRecAreas] = useState<Set<string>>(new Set());
   // Comparison mode state
   const [comparisonSnapshot, setComparisonSnapshot] = useState<{
     fileMeta: FileMeta;
@@ -3031,6 +3034,22 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     [filteredRecommendationGroups],
   );
 
+  // Area-grouped rec list — outer grouping by serviceUserArea, inner by service user.
+  const recAreaGroups = useMemo(() => {
+    const areaMap = new Map<string, { area: string; groups: typeof filteredRecommendationGroups }>();
+    for (const group of filteredRecommendationGroups) {
+      const area = group.recs[0]?.serviceUserArea?.trim() || "Unassigned";
+      const existing = areaMap.get(area);
+      if (existing) existing.groups.push(group);
+      else areaMap.set(area, { area, groups: [group] });
+    }
+    return Array.from(areaMap.values()).sort((a, b) => {
+      if (a.area === "Unassigned") return 1;
+      if (b.area === "Unassigned") return -1;
+      return a.area.localeCompare(b.area);
+    });
+  }, [filteredRecommendationGroups]);
+
   const recommendationsForSelectedServiceUser = useMemo(
     () =>
       careCallRecommendations.filter(
@@ -3065,6 +3084,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     () => Object.values(recommendationDecisions).filter((decision) => decision === "rejected").length,
     [recommendationDecisions]
   );
+
+  // Timing data coverage: % of unique slots that have at least one call with timing data.
+  const timingCoveragePct = useMemo(() => {
+    if (!allSlotTrends.length) return null;
+    const withTimes = allSlotTrends.filter((t) => t.callsWithTimes > 0).length;
+    return Math.round((withTimes / allSlotTrends.length) * 100);
+  }, [allSlotTrends]);
 
   useEffect(() => {
     if (!recommendationServiceUsers.length) {
@@ -6340,7 +6366,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       )}
 
       {showAnalyseTab && processingState === "complete" && fileMeta && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 motion-safe:animate-fade-in">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 motion-safe:animate-fade-in">
           <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Quality</p>
             <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
@@ -6366,6 +6392,12 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Avg drift</p>
             <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
               {typeof summary.averageDriftMinutes === "number" ? `${Math.round(summary.averageDriftMinutes)}m` : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Timing cover</p>
+            <p className={`mt-1 text-xl font-bold tabular-nums ${timingCoveragePct !== null && timingCoveragePct < 60 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+              {timingCoveragePct !== null ? `${timingCoveragePct}%` : "—"}
             </p>
           </div>
           <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
@@ -6972,9 +7004,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                       ))}
                     </div>
 
-                    {/* Scrollable grouped list */}
+                    {/* Scrollable area-grouped list */}
                     <ScrollArea className="h-[520px] border rounded-xl">
-                      {filteredRecommendationGroups.length === 0 ? (
+                      {recAreaGroups.length === 0 ? (
                         <div className="py-10 text-center text-xs text-muted-foreground px-4">
                           {recommendationSearch || recommendationStatusFilter !== "all"
                             ? "No recommendations match these filters."
@@ -6982,73 +7014,102 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         </div>
                       ) : (
                         <div className="divide-y">
-                          {filteredRecommendationGroups.map((group) => {
-                            const pending = group.recs.filter((r) => !recommendationDecisions[r.key]).length;
-                            const implemented = group.recs.filter((r) => recommendationDecisions[r.key] === "implemented").length;
+                          {recAreaGroups.map((areaGroup) => {
+                            const isAreaCollapsed = collapsedRecAreas.has(areaGroup.area);
+                            const areaPending = areaGroup.groups.flatMap((g) => g.recs).filter((r) => !recommendationDecisions[r.key]).length;
+                            const areaTotal = areaGroup.groups.flatMap((g) => g.recs).length;
                             return (
-                              <div key={group.key}>
-                                {/* Service user heading */}
-                                <div className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm border-b border-border/60 px-3 py-1.5 flex items-center justify-between gap-2">
-                                  <span className="text-xs font-semibold text-foreground truncate">{group.name}</span>
-                                  <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                                    {implemented}/{group.recs.length} done · {pending} pending
-                                  </span>
-                                </div>
-                                {/* Recommendation rows */}
-                                {group.recs.map((rec) => {
-                                  const decision = recommendationDecisions[rec.key];
-                                  const isSelected = rec.key === selectedRecommendationKey;
+                              <div key={areaGroup.area}>
+                                {/* Area header — only show when more than one area */}
+                                {recAreaGroups.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setCollapsedRecAreas((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(areaGroup.area)) next.delete(areaGroup.area);
+                                        else next.add(areaGroup.area);
+                                        return next;
+                                      })
+                                    }
+                                    className="sticky top-0 z-20 w-full flex items-center gap-1.5 bg-primary/8 backdrop-blur-sm border-b border-border/60 px-2.5 py-1 text-left hover:bg-primary/12 transition"
+                                  >
+                                    <MapPin className="h-3 w-3 text-primary/70 shrink-0" />
+                                    <span className="flex-1 text-[10px] font-bold uppercase tracking-wide text-foreground truncate">{areaGroup.area}</span>
+                                    <span className="text-[9px] text-muted-foreground tabular-nums shrink-0">{areaTotal} rec{areaTotal !== 1 ? "s" : ""} · {areaPending} pending</span>
+                                    <ChevronRight className={`h-3 w-3 text-muted-foreground shrink-0 transition-transform ${isAreaCollapsed ? "" : "rotate-90"}`} />
+                                  </button>
+                                )}
+                                {!isAreaCollapsed && areaGroup.groups.map((group) => {
+                                  const pending = group.recs.filter((r) => !recommendationDecisions[r.key]).length;
+                                  const implemented = group.recs.filter((r) => recommendationDecisions[r.key] === "implemented").length;
                                   return (
-                                    <button
-                                      key={rec.key}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedRecommendationServiceUser(group.key);
-                                        setSelectedRecommendationKey(rec.key);
-                                      }}
-                                      className={`w-full text-left flex items-start gap-2 px-3 py-2 transition ${
-                                        isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : "hover:bg-muted/40"
-                                      }`}
-                                    >
-                                      <span className={`h-2 w-2 rounded-full shrink-0 mt-1.5 ${
-                                        decision === "implemented" ? "bg-emerald-500"
-                                          : decision === "rejected" ? "bg-red-500"
-                                          : "bg-amber-500"
-                                      }`} />
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-xs font-medium text-foreground truncate">
-                                            {rec.timeBandLabel}
-                                          </span>
-                                          {rec.callTypeLabel && rec.callTypeLabel !== rec.timeBandLabel && (
-                                            <span className="text-[10px] text-muted-foreground truncate">· {rec.callTypeLabel}</span>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
-                                          <span className="flex items-center gap-0.5 font-mono text-primary font-medium">
-                                            <Clock4 className="h-2.5 w-2.5" />
-                                            {rec.suggestedPlannedTimeLabel}
-                                          </span>
-                                          {typeof rec.averageStartOffsetMinutes === "number" && rec.averageStartOffsetMinutes !== 0 && (
-                                            <span className={rec.averageStartOffsetMinutes > 0 ? "text-amber-600 dark:text-amber-400" : "text-sky-600 dark:text-sky-400"}>
-                                              {formatSignedMinutes(rec.averageStartOffsetMinutes)}
-                                            </span>
-                                          )}
-                                          {typeof rec.offsetConsistency === "number" && (
-                                            <span>{Math.round(rec.offsetConsistency * 100)}%</span>
-                                          )}
-                                        </div>
-                                        {/* Drift strength bar */}
-                                        {typeof rec.averageStartOffsetMinutes === "number" && rec.averageStartOffsetMinutes !== 0 && (
-                                          <div className="mt-1 h-0.5 w-full rounded-full bg-border/40 overflow-hidden">
-                                            <div
-                                              className={`h-full rounded-full ${rec.averageStartOffsetMinutes > 0 ? "bg-amber-500" : "bg-sky-500"}`}
-                                              style={{ width: `${Math.min(100, Math.round((Math.abs(rec.averageStartOffsetMinutes) / 60) * 100))}%` }}
-                                            />
-                                          </div>
-                                        )}
+                                    <div key={group.key}>
+                                      {/* Service user heading */}
+                                      <div className={`sticky z-10 bg-muted/95 backdrop-blur-sm border-b border-border/60 px-3 py-1.5 flex items-center justify-between gap-2 ${recAreaGroups.length > 1 ? "top-7" : "top-0"}`}>
+                                        <span className="text-xs font-semibold text-foreground truncate">{group.name}</span>
+                                        <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                                          {implemented}/{group.recs.length} done · {pending} pending
+                                        </span>
                                       </div>
-                                    </button>
+                                      {/* Recommendation rows */}
+                                      {group.recs.map((rec) => {
+                                        const decision = recommendationDecisions[rec.key];
+                                        const isSelected = rec.key === selectedRecommendationKey;
+                                        return (
+                                          <button
+                                            key={rec.key}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedRecommendationServiceUser(group.key);
+                                              setSelectedRecommendationKey(rec.key);
+                                            }}
+                                            className={`w-full text-left flex items-start gap-2 px-3 py-2 transition ${
+                                              isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : "hover:bg-muted/40"
+                                            }`}
+                                          >
+                                            <span className={`h-2 w-2 rounded-full shrink-0 mt-1.5 ${
+                                              decision === "implemented" ? "bg-emerald-500"
+                                                : decision === "rejected" ? "bg-red-500"
+                                                : "bg-amber-500"
+                                            }`} />
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-xs font-medium text-foreground truncate">
+                                                  {rec.timeBandLabel}
+                                                </span>
+                                                {rec.callTypeLabel && rec.callTypeLabel !== rec.timeBandLabel && (
+                                                  <span className="text-[10px] text-muted-foreground truncate">· {rec.callTypeLabel}</span>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                                                <span className="flex items-center gap-0.5 font-mono text-primary font-medium">
+                                                  <Clock4 className="h-2.5 w-2.5" />
+                                                  {rec.suggestedPlannedTimeLabel}
+                                                </span>
+                                                {typeof rec.averageStartOffsetMinutes === "number" && rec.averageStartOffsetMinutes !== 0 && (
+                                                  <span className={rec.averageStartOffsetMinutes > 0 ? "text-amber-600 dark:text-amber-400" : "text-sky-600 dark:text-sky-400"}>
+                                                    {formatSignedMinutes(rec.averageStartOffsetMinutes)}
+                                                  </span>
+                                                )}
+                                                {typeof rec.offsetConsistency === "number" && (
+                                                  <span>{Math.round(rec.offsetConsistency * 100)}%</span>
+                                                )}
+                                              </div>
+                                              {/* Drift strength bar */}
+                                              {typeof rec.averageStartOffsetMinutes === "number" && rec.averageStartOffsetMinutes !== 0 && (
+                                                <div className="mt-1 h-0.5 w-full rounded-full bg-border/40 overflow-hidden">
+                                                  <div
+                                                    className={`h-full rounded-full ${rec.averageStartOffsetMinutes > 0 ? "bg-amber-500" : "bg-sky-500"}`}
+                                                    style={{ width: `${Math.min(100, Math.round((Math.abs(rec.averageStartOffsetMinutes) / 60) * 100))}%` }}
+                                                  />
+                                                </div>
+                                              )}
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
                                   );
                                 })}
                               </div>
@@ -9180,6 +9241,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                             );
                         })();
 
+                        const stackTimingCoveragePct = stack.rows.length
+                          ? Math.round((stack.rows.filter((r) => r.actualTimeLabel && r.plannedTimeLabel).length / stack.rows.length) * 100)
+                          : null;
+
                         return (
                   <AccordionItem
                     key={stack.key}
@@ -9207,6 +9272,14 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           <Badge variant="secondary" className="text-xs font-semibold">
                             {workerSet.size || 1} carer{workerSet.size === 1 ? "" : "s"}
                           </Badge>
+                          {stackTimingCoveragePct !== null && (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-semibold ${stackTimingCoveragePct < 50 ? "border-amber-400/60 text-amber-600 dark:text-amber-400" : "border-sky-400/60 text-sky-600 dark:text-sky-400"}`}
+                            >
+                              {stackTimingCoveragePct}% timing
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </AccordionTrigger>

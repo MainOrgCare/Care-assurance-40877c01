@@ -4882,6 +4882,15 @@ function RosteringOperationalPanel() {
             <Download className="h-3.5 w-3.5" />
             CSV
           </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            title="Print report"
+            className="h-8 px-2.5 rounded-md border border-border/60 bg-background text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Print
+          </button>
         </div>
       </div>
 
