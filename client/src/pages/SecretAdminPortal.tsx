@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo, useSyncExternalStore } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronsUpDown, Send } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronsUpDown, Send, Route, Timer, CheckCircle2, BarChart3, AlertCircle, Users, MapPin } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -23,6 +23,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AdminDatabasePanel from "@/components/rostering/AdminDatabasePanel";
 import { DEFAULT_USER_ROLE, getUserRoleLabel, type UserRole } from "@shared/roles";
+import {
+  getSharedAllSlots,
+  getSharedRecommendations,
+  getSharedRecommendationDecisions,
+  subscribeSharedRosteringData,
+  subscribeSharedRecommendationDecisions,
+} from "@/pages/rosteringRunsStore";
 
 const USER_ROLE_OPTIONS: readonly UserRole[] = ["staff", "pilot", "admin"];
 
@@ -4272,6 +4279,348 @@ interface EditingUser {
   lastName: string;
 }
 
+// ---------------------------------------------------------------------------
+// Rostering Operational Panel — admin view of ECM drift and rostering metrics
+// ---------------------------------------------------------------------------
+function RosteringOperationalPanel() {
+  const allSlots = useSyncExternalStore(subscribeSharedRosteringData, getSharedAllSlots, getSharedAllSlots);
+  const recommendations = useSyncExternalStore(subscribeSharedRosteringData, getSharedRecommendations, getSharedRecommendations);
+  const decisions = useSyncExternalStore(subscribeSharedRecommendationDecisions, getSharedRecommendationDecisions, getSharedRecommendationDecisions);
+
+  const [areaFilter, setAreaFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"drift" | "calls" | "name">("drift");
+
+  const areas = useMemo(() => {
+    const set = new Set<string>();
+    allSlots.forEach((s) => { if (s.serviceUserArea) set.add(s.serviceUserArea); });
+    return ["all", ...Array.from(set).sort()];
+  }, [allSlots]);
+
+  const filteredSlots = useMemo(
+    () => areaFilter === "all" ? allSlots : allSlots.filter((s) => s.serviceUserArea === areaFilter),
+    [allSlots, areaFilter],
+  );
+
+  // Per-service-user aggregation
+  const serviceUserStats = useMemo(() => {
+    const map = new Map<string, {
+      key: string; name: string; area: string | null;
+      totalCalls: number; slotsWithDrift: number; totalDriftMinutes: number;
+      durationAdherence: number[]; hasRec: number; implemented: number; rejected: number;
+    }>();
+    for (const slot of filteredSlots) {
+      let entry = map.get(slot.serviceUserKey);
+      if (!entry) {
+        entry = { key: slot.serviceUserKey, name: slot.serviceUserName, area: slot.serviceUserArea, totalCalls: 0, slotsWithDrift: 0, totalDriftMinutes: 0, durationAdherence: [], hasRec: 0, implemented: 0, rejected: 0 };
+        map.set(slot.serviceUserKey, entry);
+      }
+      entry.totalCalls += slot.totalCalls;
+      if (typeof slot.averageStartOffsetMinutes === "number") {
+        entry.slotsWithDrift += 1;
+        entry.totalDriftMinutes += Math.abs(slot.averageStartOffsetMinutes);
+      }
+      if (typeof slot.averageDurationPercent === "number") {
+        entry.durationAdherence.push(slot.averageDurationPercent);
+      }
+      if (slot.hasRecommendation) {
+        entry.hasRec += 1;
+        const d = decisions[slot.key];
+        if (d === "implemented") entry.implemented += 1;
+        else if (d === "rejected") entry.rejected += 1;
+      }
+    }
+    return Array.from(map.values()).map((e) => ({
+      ...e,
+      avgDriftMinutes: e.slotsWithDrift > 0 ? e.totalDriftMinutes / e.slotsWithDrift : null,
+      avgDurationPct: e.durationAdherence.length > 0
+        ? e.durationAdherence.reduce((a, b) => a + b, 0) / e.durationAdherence.length
+        : null,
+    }));
+  }, [filteredSlots, decisions]);
+
+  const sorted = useMemo(() => {
+    const arr = [...serviceUserStats];
+    if (sortBy === "drift") arr.sort((a, b) => (b.avgDriftMinutes ?? -1) - (a.avgDriftMinutes ?? -1));
+    else if (sortBy === "calls") arr.sort((a, b) => b.totalCalls - a.totalCalls);
+    else arr.sort((a, b) => a.name.localeCompare(b.name));
+    return arr;
+  }, [serviceUserStats, sortBy]);
+
+  // Global summary stats
+  const globalStats = useMemo(() => {
+    const withDrift = filteredSlots.filter((s) => typeof s.averageStartOffsetMinutes === "number");
+    const avgDrift = withDrift.length
+      ? withDrift.reduce((acc, s) => acc + Math.abs(s.averageStartOffsetMinutes!), 0) / withDrift.length
+      : null;
+    const withDuration = filteredSlots.filter((s) => typeof s.averageDurationPercent === "number");
+    const avgDuration = withDuration.length
+      ? withDuration.reduce((acc, s) => acc + s.averageDurationPercent!, 0) / withDuration.length
+      : null;
+    const totalRecs = recommendations.length;
+    const implemented = Object.values(decisions).filter((d) => d === "implemented").length;
+    const rejected = Object.values(decisions).filter((d) => d === "rejected").length;
+    const pending = totalRecs - implemented - rejected;
+    const highDrift = filteredSlots.filter((s) => typeof s.averageStartOffsetMinutes === "number" && Math.abs(s.averageStartOffsetMinutes) >= 30).length;
+    return { avgDrift, avgDuration, totalRecs, implemented, rejected, pending, highDrift, totalSlots: filteredSlots.length };
+  }, [filteredSlots, recommendations, decisions]);
+
+  if (allSlots.length === 0) {
+    return (
+      <Card className="border-border/60 bg-card shadow-medium">
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
+          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <Route className="h-7 w-7 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-foreground">No rostering data loaded</p>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            Upload and analyse an ECM export from the Rostering workspace first. Metrics will appear here automatically.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          {
+            label: "Avg Schedule Drift",
+            value: globalStats.avgDrift != null ? `${Math.round(globalStats.avgDrift)}m` : "—",
+            sub: `across ${globalStats.totalSlots} call slots`,
+            icon: <Clock className="h-4 w-4" />,
+            colour: globalStats.avgDrift != null && globalStats.avgDrift >= 20 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+          },
+          {
+            label: "High Drift Slots (≥30m)",
+            value: globalStats.highDrift.toString(),
+            sub: `of ${globalStats.totalSlots} slots`,
+            icon: <AlertTriangle className="h-4 w-4" />,
+            colour: globalStats.highDrift > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400",
+          },
+          {
+            label: "Avg Duration Adherence",
+            value: globalStats.avgDuration != null ? `${Math.round(globalStats.avgDuration)}%` : "—",
+            sub: "planned vs actual",
+            icon: <Timer className="h-4 w-4" />,
+            colour: globalStats.avgDuration != null && globalStats.avgDuration < 85 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+          },
+          {
+            label: "Recommendations",
+            value: globalStats.totalRecs.toString(),
+            sub: `${globalStats.implemented} done · ${globalStats.pending} pending`,
+            icon: <CheckCircle2 className="h-4 w-4" />,
+            colour: "text-foreground",
+          },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-border/60 bg-card shadow-sm">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center text-primary shrink-0">{stat.icon}</div>
+                <span className={`text-xl font-bold tabular-nums ${stat.colour}`}>{stat.value}</span>
+              </div>
+              <p className="mt-2 text-xs font-medium text-foreground">{stat.label}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{stat.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Recommendation progress bar */}
+      {globalStats.totalRecs > 0 && (
+        <Card className="border-border/60 bg-card shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Recommendation Adoption
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {globalStats.implemented} implemented · {globalStats.rejected} rejected · {globalStats.pending} pending
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-3 rounded-full bg-muted/60 overflow-hidden flex">
+              <div className="bg-emerald-500 transition-all" style={{ width: `${(globalStats.implemented / globalStats.totalRecs) * 100}%` }} />
+              <div className="bg-rose-500/70 transition-all" style={{ width: `${(globalStats.rejected / globalStats.totalRecs) * 100}%` }} />
+            </div>
+            <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />Implemented</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500/70 inline-block" />Rejected</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted-foreground/40 inline-block" />Pending</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <select
+            value={areaFilter}
+            onChange={(e) => setAreaFilter(e.target.value)}
+            className="h-8 rounded-md border border-border/70 bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {areas.map((a) => <option key={a} value={a}>{a === "all" ? "All areas" : a}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-muted-foreground">Sort by:</span>
+          {(["drift", "calls", "name"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSortBy(s)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${sortBy === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/60 text-muted-foreground hover:border-primary/40"}`}
+            >
+              {s === "drift" ? "Drift" : s === "calls" ? "Calls" : "Name"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Per-service-user table */}
+      <Card className="border-border/60 bg-card shadow-medium overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-muted/25 py-3 px-4">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            Service User Drift Breakdown
+            <Badge variant="secondary" className="text-[10px] tabular-nums">{sorted.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-muted/30 text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40">
+                <th className="px-4 py-2.5 font-semibold">Service User</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Calls</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Avg Drift</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Duration</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Recs</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {sorted.map((su) => {
+                const driftBand = su.avgDriftMinutes == null ? "—"
+                  : su.avgDriftMinutes >= 45 ? "critical"
+                  : su.avgDriftMinutes >= 20 ? "high"
+                  : su.avgDriftMinutes >= 10 ? "moderate"
+                  : "low";
+                const driftColour = driftBand === "critical" ? "text-rose-600 dark:text-rose-400 font-bold"
+                  : driftBand === "high" ? "text-amber-600 dark:text-amber-400 font-semibold"
+                  : driftBand === "moderate" ? "text-yellow-600 dark:text-yellow-400"
+                  : "text-emerald-600 dark:text-emerald-400";
+                const durColour = su.avgDurationPct == null ? ""
+                  : su.avgDurationPct < 80 ? "text-rose-600 dark:text-rose-400"
+                  : su.avgDurationPct < 95 ? "text-amber-600 dark:text-amber-400"
+                  : "text-emerald-600 dark:text-emerald-400";
+                const pending = su.hasRec - su.implemented - su.rejected;
+                return (
+                  <tr key={su.key} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-foreground truncate max-w-[160px]">{su.name}</div>
+                      {su.area && <div className="text-[10px] text-muted-foreground">{su.area}</div>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.totalCalls.toLocaleString()}</td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums ${su.avgDriftMinutes != null ? driftColour : "text-muted-foreground"}`}>
+                      {su.avgDriftMinutes != null ? `${Math.round(su.avgDriftMinutes)}m` : "—"}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums ${durColour || "text-muted-foreground"}`}>
+                      {su.avgDurationPct != null ? `${Math.round(su.avgDurationPct)}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.hasRec || "—"}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      {su.hasRec > 0 ? (
+                        <div className="flex items-center justify-end gap-1">
+                          {su.implemented > 0 && <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />{su.implemented}</span>}
+                          {pending > 0 && <span className="text-amber-600 dark:text-amber-400">{pending}p</span>}
+                          {su.rejected > 0 && <span className="text-rose-500">{su.rejected}r</span>}
+                        </div>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Most drifted call slots */}
+      {(() => {
+        const top = [...filteredSlots]
+          .filter((s) => typeof s.averageStartOffsetMinutes === "number")
+          .sort((a, b) => Math.abs(b.averageStartOffsetMinutes!) - Math.abs(a.averageStartOffsetMinutes!))
+          .slice(0, 10);
+        if (top.length === 0) return null;
+        return (
+          <Card className="border-border/60 bg-card shadow-medium overflow-hidden">
+            <CardHeader className="border-b border-border/30 bg-muted/25 py-3 px-4">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                Top 10 Highest-Drift Call Slots
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Calls where the average actual start deviates most from the planned time
+              </CardDescription>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/30 text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40">
+                    <th className="px-4 py-2 font-semibold">Service User</th>
+                    <th className="px-3 py-2 font-semibold">Call Type</th>
+                    <th className="px-3 py-2 font-semibold">Time Band</th>
+                    <th className="px-3 py-2 font-semibold text-right">Planned</th>
+                    <th className="px-3 py-2 font-semibold text-right">Avg Actual</th>
+                    <th className="px-3 py-2 font-semibold text-right">Drift</th>
+                    <th className="px-3 py-2 font-semibold text-right">Rec</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {top.map((slot) => {
+                    const drift = Math.round(slot.averageStartOffsetMinutes!);
+                    const abs = Math.abs(drift);
+                    const driftColour = abs >= 45 ? "text-rose-600 dark:text-rose-400 font-bold"
+                      : abs >= 20 ? "text-amber-600 dark:text-amber-400 font-semibold"
+                      : "text-yellow-600 dark:text-yellow-400";
+                    const fmt = (m: number | null) => {
+                      if (m == null) return "—";
+                      const h = Math.floor(m / 60); const mm = Math.round(m % 60);
+                      return `${h.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
+                    };
+                    return (
+                      <tr key={slot.key} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-2 font-medium text-foreground truncate max-w-[140px]">{slot.serviceUserName}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{slot.callTypeLabel}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{slot.timeBandLabel}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(slot.averagePlannedStartMinutes)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(slot.averageActualStartMinutes)}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${driftColour}`}>
+                          {drift > 0 ? `+${drift}m` : `${drift}m`}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {slot.hasRecommendation ? (
+                            <Badge variant="secondary" className="text-[9px] px-1.5">
+                              {decisions[slot.key] === "implemented" ? "✓ Done" : decisions[slot.key] === "rejected" ? "✗ Skip" : "Pending"}
+                            </Badge>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        );
+      })()}
+    </div>
+  );
+}
+
 export default function SecretAdminPortal() {
   usePageTitle("Admin Portal");
   const { users, approveUser, rejectUser, auditLogs, fetchUsers } = useAuth();
@@ -5400,6 +5749,10 @@ export default function SecretAdminPortal() {
                   <Database className="h-3.5 w-3.5" />
                   Database
                 </TabsTrigger>
+                <TabsTrigger value="rostering" className="rounded-lg px-3 py-1.5 text-xs font-semibold gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-xs)] data-[state=active]:text-foreground text-muted-foreground">
+                  <Route className="h-3.5 w-3.5" />
+                  Rostering
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -6404,6 +6757,9 @@ export default function SecretAdminPortal() {
 
             <TabsContent value="database" className="space-y-6">
               <AdminDatabasePanel />
+            </TabsContent>
+            <TabsContent value="rostering" className="space-y-6">
+              <RosteringOperationalPanel />
             </TabsContent>
           </Tabs>
         </div>
