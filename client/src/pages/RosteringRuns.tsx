@@ -35,6 +35,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertCircle,
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -251,6 +252,8 @@ export default function RosteringRuns() {
   const [showRecommendedOnly, setShowRecommendedOnly] = useState(false);
   const [runViewFilter, setRunViewFilter] = useState<"all" | "recs" | "pending">("all");
   const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
+  // Undo stack for recommendation decisions: records {key, prev} before each change
+  const [decisionHistory, setDecisionHistory] = useState<Array<{ key: string; prev: RecommendationDecision | null }>>([]);
 
   const toggleCallExpanded = useCallback((key: string) => {
     setExpandedCalls((prev) => {
@@ -524,6 +527,12 @@ export default function RosteringRuns() {
       return;
     }
 
+    // Push undo entry before applying
+    setDecisionHistory((prev) => [
+      ...prev.slice(-49),
+      { key: call.key, prev: recommendationDecisions[call.key] ?? null },
+    ]);
+
     updateSharedRecommendationDecision(call.key, decision);
 
     if (decision === "implemented") {
@@ -563,7 +572,18 @@ export default function RosteringRuns() {
     }).catch((err) => {
       console.warn("Failed to record rostering run recommendation decision in system log", err);
     });
-  }, [isPilotUser, toast]);
+  }, [isPilotUser, toast, recommendationDecisions]);
+
+  const undoLastDecision = useCallback(() => {
+    if (decisionHistory.length === 0) {
+      toast({ title: "Nothing to undo", description: "No decisions have been recorded yet.", variant: "destructive" });
+      return;
+    }
+    const last = decisionHistory[decisionHistory.length - 1];
+    setDecisionHistory((prev) => prev.slice(0, -1));
+    updateSharedRecommendationDecision(last.key, last.prev);
+    toast({ title: "Decision undone", description: `Reverted to ${last.prev ?? "pending"}` });
+  }, [decisionHistory, toast]);
 
   const approveCurrentRunRecommendations = useCallback(() => {
     if (isPilotUser) {
@@ -1330,6 +1350,19 @@ export default function RosteringRuns() {
                       <span className="font-semibold text-foreground">{pendingRunRecommendationCount}</span> recommendation{pendingRunRecommendationCount === 1 ? "" : "s"} pending approval
                     </p>
                   </div>
+                  {decisionHistory.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-[11px] shrink-0"
+                      onClick={undoLastDecision}
+                      title={`Undo last decision (${decisionHistory.length} step${decisionHistory.length === 1 ? "" : "s"} in history)`}
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Undo
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"

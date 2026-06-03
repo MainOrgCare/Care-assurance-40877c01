@@ -834,6 +834,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const [recommendationDecisions, setRecommendationDecisions] = useState<Record<string, RecommendationDecision>>(() =>
     getSharedRecommendationDecisions(),
   );
+  // Undo stack: each entry records the key + what the decision was *before* the last action
+  const [decisionHistory, setDecisionHistory] = useState<Array<{ key: string; prev: RecommendationDecision | null }>>([]);
   const [selectedRecommendationServiceUser, setSelectedRecommendationServiceUser] = useState<string | null>(() => _wsCached('selectedRecommendationServiceUser', null));
   const [selectedRecommendationKey, setSelectedRecommendationKey] = useState<string | null>(() => _wsCached('selectedRecommendationKey', null));
   // Filters for the recommendation picker list
@@ -4879,6 +4881,12 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       return;
     }
 
+    // Push to undo stack before applying
+    setDecisionHistory((prev) => [
+      ...prev.slice(-49), // cap at 50 entries
+      { key: selectedRecommendation.key, prev: recommendationDecisions[selectedRecommendation.key] ?? null },
+    ]);
+
     setRecommendationDecisions((prev) => ({
       ...prev,
       [selectedRecommendation.key]: decision,
@@ -4929,10 +4937,36 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         if (nextSuKey) setSelectedRecommendationServiceUser(nextSuKey);
       }
     }
-  }, [selectedRecommendation, toast, careCallRecommendations, recommendationDecisions, recommendationServiceUsers]);
+  }, [selectedRecommendation, toast, careCallRecommendations, recommendationDecisions, recommendationServiceUsers, decisionHistory]);
+
+  /** Undo the last recorded recommendation decision. Navigates back to that recommendation. */
+  const handleUndoDecision = useCallback(() => {
+    if (decisionHistory.length === 0) {
+      toast({ title: "Nothing to undo", description: "No decisions have been recorded yet.", variant: "destructive" });
+      return;
+    }
+    const last = decisionHistory[decisionHistory.length - 1];
+    setDecisionHistory((prev) => prev.slice(0, -1));
+    setRecommendationDecisions((prev) => {
+      const next = { ...prev };
+      if (last.prev === null) {
+        delete next[last.key];
+      } else {
+        next[last.key] = last.prev;
+      }
+      return next;
+    });
+    // Navigate back to the undone recommendation
+    const rec = careCallRecommendations.find((r) => r.key === last.key);
+    if (rec) {
+      setSelectedRecommendationKey(rec.key);
+      setSelectedRecommendationServiceUser(rec.serviceUserKey);
+    }
+    toast({ title: "Decision undone", description: rec ? `${rec.serviceUserName} • ${rec.timeBandLabel}` : undefined });
+  }, [decisionHistory, careCallRecommendations, toast]);
 
   // Keyboard shortcuts for the recommendation review view.
-  // I = implement · R = reject · J / ↓ = next · K / ↑ = prev · X = clear decision
+  // I = implement · R = reject · J / ↓ = next · K / ↑ = prev · X = clear decision · U = undo last
   // Active only when the view tab is open and focus is not in an input/textarea.
   useEffect(() => {
     if (activeTab !== "view") return;
@@ -4964,6 +4998,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         }
         return;
       }
+      if (key === "u") {
+        event.preventDefault();
+        handleUndoDecision();
+        return;
+      }
       if (key === "j" || event.key === "ArrowDown" || key === "k" || event.key === "ArrowUp") {
         if (!flatFilteredRecommendations.length) return;
         const dir = (key === "j" || event.key === "ArrowDown") ? 1 : -1;
@@ -4983,7 +5022,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeTab, selectedRecommendation, selectedRecommendationKey, flatFilteredRecommendations, handleRecommendationDecision, recommendationDecisions]);
+  }, [activeTab, selectedRecommendation, selectedRecommendationKey, flatFilteredRecommendations, handleRecommendationDecision, handleUndoDecision, recommendationDecisions]);
 
   const handleDownloadRecommendations = useCallback(() => {
     if (!careCallRecommendations.length) {
@@ -7029,6 +7068,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           <span>impl</span>
                           <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono ml-2">R</kbd>
                           <span>reject</span>
+                          <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono ml-2">U</kbd>
+                          <span>undo</span>
                         </div>
                       )}
                     </div>
@@ -7276,6 +7317,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           >
                             <CheckCircle2 className="h-4 w-4" />
                             Implemented
+                            <kbd className="ml-1 rounded border border-border/60 bg-muted px-1 text-[9px] font-mono text-muted-foreground hidden sm:inline">I</kbd>
                           </Button>
                           <Button
                             type="button"
@@ -7285,6 +7327,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           >
                             <AlertCircle className="h-4 w-4" />
                             Rejected
+                            <kbd className="ml-1 rounded border border-border/60 bg-muted px-1 text-[9px] font-mono text-muted-foreground hidden sm:inline">R</kbd>
                           </Button>
                           {recommendationDecisions[selectedRecommendation.key] && (
                             <Button
@@ -7299,7 +7342,22 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                                 })
                               }
                             >
-                              Reset
+                              Clear
+                              <kbd className="ml-1 rounded border border-border/60 bg-muted px-1 text-[9px] font-mono text-muted-foreground hidden sm:inline">X</kbd>
+                            </Button>
+                          )}
+                          {decisionHistory.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleUndoDecision}
+                              title={`Undo last decision (${decisionHistory.length} in history)`}
+                              className="gap-1.5"
+                            >
+                              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                              Undo
+                              <kbd className="rounded border border-border/60 bg-muted px-1 text-[9px] font-mono text-muted-foreground hidden sm:inline">U</kbd>
                             </Button>
                           )}
                           <span className="text-xs text-muted-foreground ml-auto">
