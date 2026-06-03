@@ -89,6 +89,8 @@ import {
   UploadCloud,
   Users,
   Zap,
+  ArrowRight,
+  X,
 } from "lucide-react";
 
 const ROW_BATCH_SIZE = 250;
@@ -834,6 +836,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   );
   const [selectedRecommendationServiceUser, setSelectedRecommendationServiceUser] = useState<string | null>(() => _wsCached('selectedRecommendationServiceUser', null));
   const [selectedRecommendationKey, setSelectedRecommendationKey] = useState<string | null>(() => _wsCached('selectedRecommendationKey', null));
+  // Filters for the recommendation picker list
+  const [recommendationSearch, setRecommendationSearch] = useState<string>("");
+  const [recommendationStatusFilter, setRecommendationStatusFilter] = useState<"all" | "pending" | "implemented" | "rejected">("all");
   // Comparison mode state
   const [comparisonSnapshot, setComparisonSnapshot] = useState<{
     fileMeta: FileMeta;
@@ -2992,6 +2997,38 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     return Array.from(grouped.values()).sort((left, right) => left.label.localeCompare(right.label));
   }, [careCallRecommendations, recommendationDecisions]);
 
+  // Filtered, grouped list of recommendations for the picker panel.
+  const filteredRecommendationGroups = useMemo(() => {
+    const searchTerm = recommendationSearch.trim().toLowerCase();
+    const matchesStatus = (key: string): boolean => {
+      const decision = recommendationDecisions[key];
+      if (recommendationStatusFilter === "all") return true;
+      if (recommendationStatusFilter === "pending") return !decision;
+      return decision === recommendationStatusFilter;
+    };
+
+    const groups = new Map<string, { key: string; name: string; recs: CareCallRecommendation[] }>();
+    for (const rec of careCallRecommendations) {
+      if (!matchesStatus(rec.key)) continue;
+      if (searchTerm) {
+        const nameMatch = rec.serviceUserName.toLowerCase().includes(searchTerm);
+        const bandMatch = rec.timeBandLabel.toLowerCase().includes(searchTerm);
+        const typeMatch = (rec.callTypeLabel ?? "").toLowerCase().includes(searchTerm);
+        if (!nameMatch && !bandMatch && !typeMatch) continue;
+      }
+      const existing = groups.get(rec.serviceUserKey);
+      if (existing) existing.recs.push(rec);
+      else groups.set(rec.serviceUserKey, { key: rec.serviceUserKey, name: rec.serviceUserName, recs: [rec] });
+    }
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [careCallRecommendations, recommendationDecisions, recommendationSearch, recommendationStatusFilter]);
+
+  // Flat, ordered list of currently visible recommendations — drives keyboard navigation.
+  const flatFilteredRecommendations = useMemo(
+    () => filteredRecommendationGroups.flatMap((group) => group.recs),
+    [filteredRecommendationGroups],
+  );
+
   const recommendationsForSelectedServiceUser = useMemo(
     () =>
       careCallRecommendations.filter(
@@ -4894,6 +4931,60 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     }
   }, [selectedRecommendation, toast, careCallRecommendations, recommendationDecisions, recommendationServiceUsers]);
 
+  // Keyboard shortcuts for the recommendation review view.
+  // I = implement · R = reject · J / ↓ = next · K / ↑ = prev · X = clear decision
+  // Active only when the view tab is open and focus is not in an input/textarea.
+  useEffect(() => {
+    if (activeTab !== "view") return;
+    const isEditable = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+    };
+    const handler = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isEditable(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === "i") {
+        if (selectedRecommendation) { event.preventDefault(); handleRecommendationDecision("implemented"); }
+        return;
+      }
+      if (key === "r") {
+        if (selectedRecommendation) { event.preventDefault(); handleRecommendationDecision("rejected"); }
+        return;
+      }
+      if (key === "x") {
+        if (selectedRecommendation && recommendationDecisions[selectedRecommendation.key]) {
+          event.preventDefault();
+          setRecommendationDecisions((prev) => {
+            const next = { ...prev };
+            delete next[selectedRecommendation.key];
+            return next;
+          });
+        }
+        return;
+      }
+      if (key === "j" || event.key === "ArrowDown" || key === "k" || event.key === "ArrowUp") {
+        if (!flatFilteredRecommendations.length) return;
+        const dir = (key === "j" || event.key === "ArrowDown") ? 1 : -1;
+        const currentIdx = selectedRecommendationKey
+          ? flatFilteredRecommendations.findIndex((r) => r.key === selectedRecommendationKey)
+          : -1;
+        const nextIdx = currentIdx === -1
+          ? (dir === 1 ? 0 : flatFilteredRecommendations.length - 1)
+          : (currentIdx + dir + flatFilteredRecommendations.length) % flatFilteredRecommendations.length;
+        const next = flatFilteredRecommendations[nextIdx];
+        if (next) {
+          event.preventDefault();
+          setSelectedRecommendationServiceUser(next.serviceUserKey);
+          setSelectedRecommendationKey(next.key);
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activeTab, selectedRecommendation, selectedRecommendationKey, flatFilteredRecommendations, handleRecommendationDecision, recommendationDecisions]);
+
   const handleDownloadRecommendations = useCallback(() => {
     if (!careCallRecommendations.length) {
       toast({
@@ -5654,6 +5745,96 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     ];
   }, [fileMeta, processingState]);
 
+  interface WorkspaceStep {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+    action?: { label: string; onClick: () => void };
+    done?: boolean;
+    active?: boolean;
+  }
+
+  const workspaceSteps = useMemo<WorkspaceStep[]>(() => {
+    if (!fileMeta) {
+      return [
+        {
+          icon: <UploadCloud className="h-5 w-5" />,
+          title: "Upload ECM export",
+          description: "Upload a CSV or Excel ECM export to create the rostering dataset.",
+          active: true,
+        },
+        {
+          icon: <FlaskConical className="h-5 w-5" />,
+          title: "Run analysis",
+          description: "Analyse will process every row, flag anomalies, and generate timing recommendations.",
+        },
+        {
+          icon: <TrendingUp className="h-5 w-5" />,
+          title: "Review recommendations",
+          description: "In View, action each suggested timing move and download the final pack.",
+        },
+      ];
+    }
+    if (processingState === "ready" || processingState === "parsing") {
+      return [
+        { icon: <CheckCircle2 className="h-5 w-5" />, title: "Upload ECM export", description: `${fileMeta.name} — ${fileMeta.totalRows.toLocaleString()} rows ready.`, done: true },
+        {
+          icon: <FlaskConical className="h-5 w-5" />,
+          title: "Run analysis",
+          description: "Dataset is loaded. Switch to Analyse and press Run Analysis to begin processing.",
+          active: true,
+          action: { label: "Go to Analyse", onClick: () => handleWorkspaceTabChange("analyse") },
+        },
+        {
+          icon: <TrendingUp className="h-5 w-5" />,
+          title: "Review recommendations",
+          description: "Timing recommendations will appear in View once analysis detects consistent drift.",
+        },
+      ];
+    }
+    if (processingState === "analyzing") {
+      return [
+        { icon: <CheckCircle2 className="h-5 w-5" />, title: "Upload ECM export", description: `${fileMeta.name} — ${fileMeta.totalRows.toLocaleString()} rows.`, done: true },
+        {
+          icon: <Loader2 className="h-5 w-5 animate-spin" />,
+          title: "Analysis running",
+          description: `Processing rows in batches — ${progress}% complete. Move to Analyse to watch results appear.`,
+          active: true,
+          action: { label: "Open Analyse", onClick: () => handleWorkspaceTabChange("analyse") },
+        },
+        {
+          icon: <TrendingUp className="h-5 w-5" />,
+          title: "Review recommendations",
+          description: "Timing recommendations will appear in View once analysis detects consistent drift.",
+        },
+      ];
+    }
+    // complete
+    return [
+      { icon: <CheckCircle2 className="h-5 w-5" />, title: "Upload ECM export", description: `${fileMeta.name} — ${fileMeta.totalRows.toLocaleString()} rows.`, done: true },
+      {
+        icon: <CheckCircle2 className="h-5 w-5" />,
+        title: "Analysis complete",
+        description: `${summary.totalPrimary.toLocaleString()} unique slots — ${summary.attention.toLocaleString()} flagged.`,
+        done: summary.attention === 0,
+        active: summary.attention > 0,
+        action: summary.attention > 0 ? { label: "Review flagged rows", onClick: () => handleWorkspaceTabChange("analyse") } : undefined,
+      },
+      {
+        icon: careCallRecommendations.length > 0 && remainingRecommendationCount === 0 ? <CheckCircle2 className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />,
+        title: careCallRecommendations.length > 0 ? `${careCallRecommendations.length} recommendation${careCallRecommendations.length === 1 ? "" : "s"} ready` : "Review recommendations",
+        description: careCallRecommendations.length > 0
+          ? remainingRecommendationCount > 0
+            ? `${remainingRecommendationCount} timing change${remainingRecommendationCount === 1 ? "" : "s"} still need review.`
+            : "All recommendations actioned — download the final pack."
+          : "No drift-based timing recommendations were generated from this dataset.",
+        done: careCallRecommendations.length > 0 && remainingRecommendationCount === 0,
+        active: careCallRecommendations.length > 0 && remainingRecommendationCount > 0,
+        action: careCallRecommendations.length > 0 ? { label: remainingRecommendationCount > 0 ? "Action recommendations" : "View recommendations", onClick: () => handleWorkspaceTabChange("view") } : undefined,
+      },
+    ];
+  }, [fileMeta, processingState, summary, careCallRecommendations, remainingRecommendationCount, progress, handleWorkspaceTabChange]);
+
   const showAnalyseTab = activeTab === "analyse";
   const showDataTab = activeTab === "data";
   const showViewTab = activeTab === "view";
@@ -5815,8 +5996,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 Data
+                {fileMeta && (
+                  <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[9px] font-bold leading-none tabular-nums">
+                    {fileMeta.totalRows >= 1000 ? `${Math.round(fileMeta.totalRows / 100) / 10}k` : fileMeta.totalRows}
+                  </Badge>
+                )}
                 {fileMeta && processingState === "ready" && (
-                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" title="New data — analysis pending" />
                 )}
               </TabsTrigger>
               <TabsTrigger
@@ -5826,13 +6012,18 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                 <FlaskConical className="h-3.5 w-3.5" />
                 Analyse
                 {processingState === "ready" && (
-                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" title="Ready to run analysis" />
                 )}
                 {processingState === "analyzing" && (
-                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" title="Analysis in progress" />
                 )}
-                {processingState === "complete" && (
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                {processingState === "complete" && summary.attention > 0 && (
+                  <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[9px] font-bold leading-none tabular-nums">
+                    {summary.attention}
+                  </Badge>
+                )}
+                {processingState === "complete" && summary.attention === 0 && (
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" title="No issues flagged" />
                 )}
               </TabsTrigger>
               <TabsTrigger
@@ -5857,6 +6048,42 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       {showDataTab && (
         <div className="space-y-4 motion-safe:animate-slide-up stagger-2">
+          {fileMeta && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rows loaded</p>
+                <p className="mt-1 text-lg font-bold text-foreground tabular-nums">{fileMeta.totalRows.toLocaleString()}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">File size</p>
+                <p className="mt-1 text-lg font-bold text-foreground tabular-nums">{formatBytes(fileMeta.size)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</p>
+                <p className={`mt-1 text-sm font-semibold flex items-center gap-1.5 ${
+                  processingState === "complete" ? "text-emerald-600 dark:text-emerald-400"
+                    : processingState === "analyzing" ? "text-primary"
+                    : processingState === "ready" ? "text-amber-600 dark:text-amber-400"
+                    : "text-muted-foreground"
+                }`}>
+                  {processingState === "complete" && <CheckCircle2 className="h-3.5 w-3.5" />}
+                  {processingState === "analyzing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span className="capitalize">{processingState}</span>
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Recommendations</p>
+                <p className="mt-1 text-lg font-bold text-foreground tabular-nums">
+                  {careCallRecommendations.length}
+                  {remainingRecommendationCount > 0 && (
+                    <span className="ml-1 text-xs font-normal text-amber-600 dark:text-amber-400">
+                      ({remainingRecommendationCount} pending)
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
           <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
             <CardHeader>
@@ -5898,7 +6125,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                     <UploadCloud className="h-5 w-5" aria-hidden="true" />
                     <span>{isDragging ? "Drop the ECM export here" : "Choose an ECM export or drag it here"}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground/80">Accepted formats: CSV, XLS, XLSX.</p>
+                  <div className="flex items-center justify-center gap-1.5 text-[10px]">
+                    {["CSV", "XLS", "XLSX"].map((fmt) => (
+                      <span key={fmt} className="px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground font-mono font-medium">
+                        {fmt}
+                      </span>
+                    ))}
+                  </div>
                 </label>
               </div>
 
@@ -5948,6 +6181,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         View Recommendations ({remainingRecommendationCount} left)
                       </Button>
                     )}
+                    <Button size="sm" variant="ghost" onClick={handleRunAnalysis} className="gap-1.5">
+                      <FlaskConical className="h-3.5 w-3.5" />
+                      Re-run analysis
+                    </Button>
                   </div>
                 </div>
               )}
@@ -5999,23 +6236,96 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
           <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
             <CardHeader>
               <CardTitle>Next Steps</CardTitle>
-              <CardDescription>Follow the next best step for the current workspace state.</CardDescription>
+              <CardDescription>Follow the workflow to action your rostering dataset.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-3">
-                {workspaceRecommendations.map((recommendation, index) => (
-                  <div key={`${recommendation}-${index}`} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                {workspaceSteps.map((step, index) => (
+                  <div
+                    key={index}
+                    className={`rounded-2xl border p-4 flex flex-col gap-3 transition ${
+                      step.done
+                        ? "border-emerald-200/60 bg-emerald-50/40 dark:border-emerald-800/30 dark:bg-emerald-950/20"
+                        : step.active
+                        ? "border-primary/30 bg-primary/5 shadow-soft"
+                        : "border-border/60 bg-background/60 opacity-60"
+                    }`}
+                  >
                     <div className="flex items-start gap-3">
-                      <Badge variant="secondary" className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide flex-shrink-0">
-                        {index + 1}
-                      </Badge>
-                      <p className="text-sm text-muted-foreground">{recommendation}</p>
+                      <div className={`shrink-0 h-9 w-9 rounded-xl flex items-center justify-center ${
+                        step.done ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+                          : step.active ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      }`}>
+                        {step.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                          {step.done && (
+                            <span className="text-[9px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Done</span>
+                          )}
+                          {step.active && !step.done && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{step.description}</p>
+                      </div>
                     </div>
+                    {step.action && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={step.active && !step.done ? "default" : "outline"}
+                        className="w-full text-xs gap-1.5 mt-auto"
+                        onClick={step.action.onClick}
+                      >
+                        {step.action.label}
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {showAnalyseTab && processingState === "complete" && fileMeta && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 motion-safe:animate-fade-in">
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Quality</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
+              {healthSummary?.score ?? "—"}
+              {healthSummary && <span className="text-xs font-normal text-muted-foreground ml-0.5">/100</span>}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Unique slots</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-foreground">{summary.totalPrimary.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Clean</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{summary.clean.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Flagged</p>
+            <p className={`mt-1 text-xl font-bold tabular-nums ${summary.attention > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+              {summary.attention.toLocaleString()}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Avg drift</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
+              {typeof summary.averageDriftMinutes === "number" ? `${Math.round(summary.averageDriftMinutes)}m` : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/70 p-3 shadow-soft">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Duplicates</p>
+            <p className={`mt-1 text-xl font-bold tabular-nums ${summary.duplicateCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+              {summary.duplicateCount.toLocaleString()}
+            </p>
+          </div>
         </div>
       )}
 
@@ -6565,91 +6875,137 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[320px,1fr]">
+              <div className="grid gap-4 xl:grid-cols-[360px,1fr]">
                 <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
-                  <CardHeader>
-                    <CardTitle>Recommendation Picker</CardTitle>
-                    <CardDescription>
-                      Select a service user, then choose the care call band to review the timing recommendation.
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Recommendations</CardTitle>
+                    <CardDescription className="text-xs">
+                      {careCallRecommendations.length} total · {recommendationServiceUsers.length} service user{recommendationServiceUsers.length === 1 ? "" : "s"}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Service user</Label>
-                      <Select
-                        value={selectedRecommendationServiceUser ?? undefined}
-                        onValueChange={setSelectedRecommendationServiceUser}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select service user" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {recommendationServiceUsers.map((serviceUser) => (
-                            <SelectItem key={serviceUser.key} value={serviceUser.key}>
-                              <div className="flex items-center gap-2 w-full">
-                                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                                  serviceUser.remaining === 0
-                                    ? "bg-emerald-500"
-                                    : serviceUser.remaining === serviceUser.total
-                                    ? "bg-amber-500"
-                                    : "bg-primary"
-                                }`} />
-                                <span>{serviceUser.label}</span>
-                                <span className="text-muted-foreground ml-auto">
-                                  {serviceUser.remaining}/{serviceUser.total}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <CardContent className="space-y-3">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by user, band, or call type…"
+                        value={recommendationSearch}
+                        onChange={(e) => setRecommendationSearch(e.target.value)}
+                        className="h-8 pl-8 text-xs"
+                      />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Care call</Label>
-                      <Select
-                        value={selectedRecommendationKey ?? undefined}
-                        onValueChange={setSelectedRecommendationKey}
-                        disabled={!recommendationsForSelectedServiceUser.length}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select call" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {recommendationsForSelectedServiceUser.map((recommendation) => (
-                            <SelectItem key={recommendation.key} value={recommendation.key}>
-                              <div className="flex items-center gap-2 w-full">
-                                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                                  recommendationDecisions[recommendation.key] === "implemented"
-                                    ? "bg-emerald-500"
-                                    : recommendationDecisions[recommendation.key] === "rejected"
-                                    ? "bg-red-500"
-                                    : "bg-amber-500"
-                                }`} />
-                                <span>
-                                  {recommendation.timeBandLabel}
-                                  {recommendation.callTypeLabel && recommendation.callTypeLabel !== recommendation.timeBandLabel
-                                    ? ` • ${recommendation.callTypeLabel}`
-                                    : ""}
-                                </span>
-                                <Badge variant="secondary" className="ml-auto text-[9px] capitalize">
-                                  {recommendationDecisions[recommendation.key] ?? "pending"}
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {/* Status filter tabs */}
+                    <div role="group" aria-label="Filter by status" className="inline-flex w-full items-center rounded-lg border border-border/60 bg-background/80 p-0.5">
+                      {(
+                        [
+                          { id: "all", label: "All", count: careCallRecommendations.length },
+                          { id: "pending", label: "Pending", count: remainingRecommendationCount },
+                          { id: "implemented", label: "Done", count: implementedRecommendationCount },
+                          { id: "rejected", label: "Rejected", count: rejectedRecommendationCount },
+                        ] as const
+                      ).map(({ id, label, count }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setRecommendationStatusFilter(id)}
+                          className={`flex-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition flex items-center justify-center gap-1 ${
+                            recommendationStatusFilter === id
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                          aria-pressed={recommendationStatusFilter === id}
+                        >
+                          {label}
+                          <span className={`tabular-nums text-[9px] ${recommendationStatusFilter === id ? "opacity-90" : "opacity-60"}`}>
+                            {count}
+                          </span>
+                        </button>
+                      ))}
                     </div>
 
-                    <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Download</p>
-                      <p className="text-sm text-muted-foreground">
-                        Export the latest recommendation pack with updated remaining counts and decision statuses.
-                      </p>
-                      <Button type="button" variant="outline" className="w-full" onClick={handleDownloadRecommendations}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download recommendations
+                    {/* Scrollable grouped list */}
+                    <ScrollArea className="h-[520px] border rounded-xl">
+                      {filteredRecommendationGroups.length === 0 ? (
+                        <div className="py-10 text-center text-xs text-muted-foreground px-4">
+                          {recommendationSearch || recommendationStatusFilter !== "all"
+                            ? "No recommendations match these filters."
+                            : "No recommendations to review."}
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {filteredRecommendationGroups.map((group) => {
+                            const pending = group.recs.filter((r) => !recommendationDecisions[r.key]).length;
+                            const implemented = group.recs.filter((r) => recommendationDecisions[r.key] === "implemented").length;
+                            return (
+                              <div key={group.key}>
+                                {/* Service user heading */}
+                                <div className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm border-b border-border/60 px-3 py-1.5 flex items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold text-foreground truncate">{group.name}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                                    {implemented}/{group.recs.length} done · {pending} pending
+                                  </span>
+                                </div>
+                                {/* Recommendation rows */}
+                                {group.recs.map((rec) => {
+                                  const decision = recommendationDecisions[rec.key];
+                                  const isSelected = rec.key === selectedRecommendationKey;
+                                  return (
+                                    <button
+                                      key={rec.key}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedRecommendationServiceUser(group.key);
+                                        setSelectedRecommendationKey(rec.key);
+                                      }}
+                                      className={`w-full text-left flex items-start gap-2 px-3 py-2 transition ${
+                                        isSelected ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : "hover:bg-muted/40"
+                                      }`}
+                                    >
+                                      <span className={`h-2 w-2 rounded-full shrink-0 mt-1.5 ${
+                                        decision === "implemented" ? "bg-emerald-500"
+                                          : decision === "rejected" ? "bg-red-500"
+                                          : "bg-amber-500"
+                                      }`} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-xs font-medium text-foreground truncate">
+                                            {rec.timeBandLabel}
+                                          </span>
+                                          {rec.callTypeLabel && rec.callTypeLabel !== rec.timeBandLabel && (
+                                            <span className="text-[10px] text-muted-foreground truncate">· {rec.callTypeLabel}</span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                                          <span className="flex items-center gap-0.5 font-mono text-primary font-medium">
+                                            <Clock4 className="h-2.5 w-2.5" />
+                                            {rec.suggestedPlannedTimeLabel}
+                                          </span>
+                                          {typeof rec.averageStartOffsetMinutes === "number" && rec.averageStartOffsetMinutes !== 0 && (
+                                            <span className={rec.averageStartOffsetMinutes > 0 ? "text-amber-600 dark:text-amber-400" : "text-sky-600 dark:text-sky-400"}>
+                                              {formatSignedMinutes(rec.averageStartOffsetMinutes)}
+                                            </span>
+                                          )}
+                                          {typeof rec.offsetConsistency === "number" && (
+                                            <span>{Math.round(rec.offsetConsistency * 100)}%</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </ScrollArea>
+
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3 space-y-2">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Export</p>
+                      <Button type="button" variant="outline" size="sm" className="w-full gap-2 text-xs" onClick={handleDownloadRecommendations}>
+                        <Download className="h-3.5 w-3.5" />
+                        Download recommendation pack
                       </Button>
                     </div>
                   </CardContent>
@@ -6657,20 +7013,53 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
                 <Card className="border-border/60 bg-background/75 shadow-medium hover-elevate">
                   <CardHeader>
-                    <CardTitle>Call Recommendation</CardTitle>
-                    <CardDescription>
-                      Suggested planned-time move based on schedule drift, outlier-trimmed timings, and planned versus actual starts.
-                    </CardDescription>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle>Call Recommendation</CardTitle>
+                        <CardDescription>
+                          Suggested planned-time move based on schedule drift, outlier-trimmed timings, and planned versus actual starts.
+                        </CardDescription>
+                      </div>
+                      {selectedRecommendation && (
+                        <div className="hidden md:flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                          <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono">J</kbd>
+                          <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono">K</kbd>
+                          <span>nav</span>
+                          <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono ml-2">I</kbd>
+                          <span>impl</span>
+                          <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono ml-2">R</kbd>
+                          <span>reject</span>
+                        </div>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {!selectedRecommendation ? (
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Select a recommendation</AlertTitle>
-                        <AlertDescription>
-                          Pick a service user and care call to review the suggested time change.
-                        </AlertDescription>
-                      </Alert>
+                      <div className="flex flex-col items-center justify-center text-center py-12 px-6 rounded-2xl border border-dashed border-border/60 bg-background/40">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                          <AlertCircle className="h-6 w-6 text-primary" />
+                        </div>
+                        <p className="text-sm font-medium text-foreground">Select a recommendation</p>
+                        <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                          Pick any row from the list on the left to review the suggested timing change, evidence, and rationale.
+                        </p>
+                        {flatFilteredRecommendations.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 gap-2 text-xs"
+                            onClick={() => {
+                              const first = flatFilteredRecommendations[0];
+                              setSelectedRecommendationServiceUser(first.serviceUserKey);
+                              setSelectedRecommendationKey(first.key);
+                            }}
+                          >
+                            <ArrowRight className="h-3.5 w-3.5" />
+                            Jump to first recommendation
+                          </Button>
+                        )}
+                      </div>
                     ) : (
                       <>
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -6700,11 +7089,52 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                               {(selectedRecommendation.serviceUserArea || "Area unavailable").toString()} • {selectedRecommendation.serviceUserAddress || "Address unavailable"}
                             </p>
                           </div>
-                          <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-center">
-                            <p className="text-xs uppercase tracking-wide text-primary">Suggested move</p>
-                            <p className="mt-1 text-xl font-semibold text-foreground">{selectedRecommendation.suggestedPlannedTimeLabel}</p>
-                          </div>
                         </div>
+
+                        {/* Visual current → suggested time comparison */}
+                        {(() => {
+                          const currentLabel = deriveTimeLabel(selectedRecommendation.averagePlannedStartMinutes, null) ?? "—";
+                          const suggestedLabel = selectedRecommendation.suggestedPlannedTimeLabel;
+                          const delta = (typeof selectedRecommendation.averagePlannedStartMinutes === "number"
+                            && typeof selectedRecommendation.averageActualStartMinutes === "number")
+                            ? Math.round(selectedRecommendation.averageActualStartMinutes - selectedRecommendation.averagePlannedStartMinutes)
+                            : null;
+                          const changed = currentLabel !== suggestedLabel && currentLabel !== "—";
+                          return (
+                            <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-4">
+                              <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                  <div className="text-center">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Current</p>
+                                    <p className="text-2xl font-mono font-semibold text-foreground tabular-nums">{currentLabel}</p>
+                                  </div>
+                                  <div className="flex flex-col items-center px-2">
+                                    <ArrowRight className={`h-5 w-5 ${changed ? "text-primary" : "text-muted-foreground/40"}`} />
+                                    {delta !== null && (
+                                      <span className={`text-[10px] mt-0.5 font-medium ${
+                                        delta > 0 ? "text-amber-600 dark:text-amber-400"
+                                          : delta < 0 ? "text-sky-600 dark:text-sky-400"
+                                          : "text-muted-foreground"
+                                      }`}>
+                                        {formatSignedMinutes(delta)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-[10px] uppercase tracking-wide text-primary">Suggested</p>
+                                    <p className={`text-2xl font-mono font-semibold tabular-nums ${changed ? "text-primary" : "text-foreground"}`}>{suggestedLabel}</p>
+                                  </div>
+                                </div>
+                                {selectedRecommendation.suggestedPlannedDurationMinutes !== null && (
+                                  <div className="text-right">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Suggested duration</p>
+                                    <p className="text-base font-semibold text-foreground">{formatMinutesDisplay(selectedRecommendation.suggestedPlannedDurationMinutes)}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         <div className="grid gap-3 sm:grid-cols-3">
                           <GroupMetric
@@ -8150,8 +8580,10 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         onClick={() => setFilterStatus("all")}
                         aria-pressed={filterStatus === "all"}
                         aria-label="Show all rows"
+                        className="gap-1.5"
                       >
                         All
+                        <span className="text-[9px] opacity-75 tabular-nums">{primaryRows.length.toLocaleString()}</span>
                       </Button>
                       <Button
                         type="button"
@@ -8160,8 +8592,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         onClick={() => setFilterStatus("clean")}
                         aria-pressed={filterStatus === "clean"}
                         aria-label="Show only clean rows"
+                        className="gap-1.5"
                       >
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                         Clean
+                        <span className="text-[9px] opacity-75 tabular-nums">{summary.clean.toLocaleString()}</span>
                       </Button>
                       <Button
                         type="button"
@@ -8170,8 +8605,11 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         onClick={() => setFilterStatus("attention")}
                         aria-pressed={filterStatus === "attention"}
                         aria-label="Show only rows needing attention"
+                        className="gap-1.5"
                       >
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                         Needs Attention
+                        <span className="text-[9px] opacity-75 tabular-nums">{summary.attention.toLocaleString()}</span>
                       </Button>
                       {/* Save Filter Preset */}
                       <Button
@@ -8265,6 +8703,74 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                     </div>
                   )}
                 </CardHeader>
+                {/* Flag-type breakdown chips — quick-filter shortcuts */}
+                {processingState === "complete" && (summary.scheduleAlerts > 0 || summary.durationAlerts > 0 || summary.duplicateCount > 0 || issueBreakdown.missingPlannedTime > 0) && (
+                  <div className="px-6 pb-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mr-1">Quick-filter:</span>
+                    {summary.scheduleAlerts > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterStatus("attention"); setSearchTerm("schedule"); }}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
+                          filterStatus === "attention" && searchTerm === "schedule"
+                            ? "bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                            : "bg-muted/40 border-border/50 text-foreground/70 hover:border-amber-500/40 hover:text-amber-700 dark:hover:text-amber-300"
+                        }`}
+                      >
+                        <Clock4 className="h-3 w-3" />
+                        Schedule alerts
+                        <span className="font-bold tabular-nums">{summary.scheduleAlerts}</span>
+                      </button>
+                    )}
+                    {summary.durationAlerts > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterStatus("attention"); setSearchTerm("duration"); }}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
+                          filterStatus === "attention" && searchTerm === "duration"
+                            ? "bg-orange-500/20 border-orange-500/40 text-orange-700 dark:text-orange-300"
+                            : "bg-muted/40 border-border/50 text-foreground/70 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-300"
+                        }`}
+                      >
+                        <Timer className="h-3 w-3" />
+                        Duration alerts
+                        <span className="font-bold tabular-nums">{summary.durationAlerts}</span>
+                      </button>
+                    )}
+                    {summary.duplicateCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterStatus("all"); setSearchTerm("duplicate"); setShowDuplicateRows(true); }}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors bg-muted/40 border-border/50 text-foreground/70 hover:border-violet-500/40 hover:text-violet-700 dark:hover:text-violet-300"
+                      >
+                        <Copy className="h-3 w-3" />
+                        Duplicates
+                        <span className="font-bold tabular-nums">{summary.duplicateCount}</span>
+                      </button>
+                    )}
+                    {issueBreakdown.missingPlannedTime > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterStatus("all"); setSearchTerm("missing"); }}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors bg-muted/40 border-border/50 text-foreground/70 hover:border-red-500/40 hover:text-red-700 dark:hover:text-red-300"
+                      >
+                        <AlertCircle className="h-3 w-3" />
+                        Missing time
+                        <span className="font-bold tabular-nums">{issueBreakdown.missingPlannedTime}</span>
+                      </button>
+                    )}
+                    {(filterStatus !== "all" || searchTerm) && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterStatus("all"); setSearchTerm(""); }}
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground border border-border/50 hover:bg-muted/60 transition-colors"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 <CardContent>
                   <div className="space-y-4">
                     <div

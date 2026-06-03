@@ -1109,7 +1109,7 @@ export default function RosteringRuns() {
                         {runViewFilter === "pending" ? "All recommendations in this run have been approved. 🎉" : "No calls match this filter."}
                       </div>
                     ) : (
-                      visibleRunEntries.map((entry) => {
+                      visibleRunEntries.map((entry, listIdx) => {
                         const { call } = entry;
                         // True position in the full run (not filtered index)
                         const trueIdx = scheduledRun.indexOf(entry);
@@ -1117,6 +1117,12 @@ export default function RosteringRuns() {
                         const decision = recommendationDecisions[call.key];
                         const isApproved = decision === "implemented";
                         const isExpanded = expandedCalls.has(call.key);
+
+                        // Idle gap before this entry compared to previous in full (unfiltered) run
+                        const prevEntry = trueIdx > 0 ? scheduledRun[trueIdx - 1] : null;
+                        const idleGapMinutes = prevEntry
+                          ? Math.max(0, entry.effectiveStartMinutes - prevEntry.endMinutes - RUN_TRAVEL_BUFFER_MINUTES)
+                          : null;
 
                         // Time delta: how far the suggested time differs from current planned
                         const timeDeltaMinutes =
@@ -1131,18 +1137,29 @@ export default function RosteringRuns() {
                             : `${timeDeltaMinutes}m earlier`;
 
                       return (
-                        <div
-                          key={`${call.serviceUserKey}-${call.callTypeLabel}-${trueIdx}`}
-                          className={`transition-colors ${
-                            pushed
-                              ? "bg-amber-500/[0.04]"
-                              : call.hasRecommendation
-                              ? isApproved
-                                ? "bg-emerald-500/[0.03]"
-                                : "bg-primary/[0.02]"
-                              : ""
-                          }`}
-                        >
+                        <div key={`${call.serviceUserKey}-${call.callTypeLabel}-${trueIdx}`}>
+                          {/* Idle gap separator — show only when gap ≥ 10 min and it's a visible boundary */}
+                          {idleGapMinutes !== null && idleGapMinutes >= 10 && listIdx > 0 && (
+                            <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/20">
+                              <div className="flex-1 h-px bg-border/50" />
+                              <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap flex items-center gap-1">
+                                <Timer className="h-3 w-3 inline" />
+                                {idleGapMinutes}m free
+                              </span>
+                              <div className="flex-1 h-px bg-border/50" />
+                            </div>
+                          )}
+                          <div
+                            className={`transition-colors ${
+                              pushed
+                                ? "bg-amber-500/[0.04]"
+                                : call.hasRecommendation
+                                ? isApproved
+                                  ? "bg-emerald-500/[0.03]"
+                                  : "bg-primary/[0.02]"
+                                : ""
+                            }`}
+                          >
                           {/* Main row */}
                           <div className="flex items-start gap-3 px-3 py-3">
                             {/* Position circle */}
@@ -1298,6 +1315,7 @@ export default function RosteringRuns() {
                               )}
                             </div>
                           </div>
+                          </div>
                         </div>
                       );
                     })
@@ -1325,14 +1343,22 @@ export default function RosteringRuns() {
               )}
             </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <ListOrdered className="h-10 w-10 text-muted-foreground/40 mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  Select service users from the left panel to build an optimised run.
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Calls will be sorted by their optimal times to create an efficient route.
-                </p>
+              <div className="flex flex-col items-center justify-center py-14 text-center gap-3 rounded-xl border border-dashed border-border/60 bg-background/40">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <ListOrdered className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No run built yet</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    Select one or more service users from the left panel — calls are sorted end‑to‑end with no overlap.
+                  </p>
+                </div>
+                {serviceUsersWithRecs.length > 0 && (
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs border-primary/30 text-primary" onClick={handleSelectWithRecs}>
+                    <Zap className="h-3.5 w-3.5" />
+                    Quick-select {serviceUsersWithRecs.length} users with recs
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
