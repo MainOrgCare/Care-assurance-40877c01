@@ -4290,6 +4290,7 @@ function RosteringOperationalPanel() {
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"risk" | "drift" | "calls" | "name">("risk");
   const [suSearch, setSuSearch] = useState("");
+  const [expandedSU, setExpandedSU] = useState<string | null>(null);
 
   const areas = useMemo(() => {
     const set = new Set<string>();
@@ -4388,9 +4389,15 @@ function RosteringOperationalPanel() {
     // Compliance SLA: % of measured slots with drift ≤15m
     const slaCompliant = withDrift.filter((s) => Math.abs(s.averageStartOffsetMinutes!) <= 15).length;
     const slaPct = withDrift.length > 0 ? Math.round((slaCompliant / withDrift.length) * 100) : null;
+    // Potential savings: total drift-minutes that pending recs could eliminate
+    const pendingRecSlots = filteredSlots.filter((s) => s.hasRecommendation && !decisions[s.key]);
+    const potentialSavingsMinutes = Math.round(pendingRecSlots.reduce((acc, s) => {
+      if (typeof s.averageStartOffsetMinutes !== "number") return acc;
+      return acc + Math.abs(s.averageStartOffsetMinutes) * s.totalCalls;
+    }, 0));
     return { avgDrift, avgSignedDrift, avgDuration, avgConsistency, totalRecs, implemented, rejected, pending,
       highDrift: bands.high + bands.critical, totalSlots: filteredSlots.length, bands, withDriftCount: withDrift.length,
-      slaPct, slaCompliant };
+      slaPct, slaCompliant, potentialSavingsMinutes };
   }, [filteredSlots, recommendations, decisions]);
 
   // Per-call-type aggregation
@@ -4433,6 +4440,34 @@ function RosteringOperationalPanel() {
     () => serviceUserStats.filter((s) => s.riskScore >= 65).sort((a, b) => b.riskScore - a.riskScore).slice(0, 3),
     [serviceUserStats],
   );
+
+  // Per-time-band aggregation (heatmap of drift by hour/period)
+  const timeBandStats = useMemo(() => {
+    const map = new Map<string, { band: string; plannedMins: number | null; driftSum: number; driftN: number; count: number }>();
+    for (const slot of filteredSlots) {
+      let e = map.get(slot.timeBandLabel);
+      if (!e) { e = { band: slot.timeBandLabel, plannedMins: slot.averagePlannedStartMinutes, driftSum: 0, driftN: 0, count: 0 }; map.set(slot.timeBandLabel, e); }
+      e.count++;
+      if (typeof slot.averageStartOffsetMinutes === "number") {
+        e.driftSum += Math.abs(slot.averageStartOffsetMinutes);
+        e.driftN++;
+      }
+    }
+    return Array.from(map.values())
+      .map((e) => ({ ...e, avgDrift: e.driftN > 0 ? e.driftSum / e.driftN : null }))
+      .sort((a, b) => (a.plannedMins ?? 0) - (b.plannedMins ?? 0)); // chronological order
+  }, [filteredSlots]);
+
+  // Lookup: slotsByServiceUser for expandable rows
+  const slotsByServiceUser = useMemo(() => {
+    const map = new Map<string, typeof filteredSlots>();
+    for (const slot of filteredSlots) {
+      let arr = map.get(slot.serviceUserKey);
+      if (!arr) { arr = []; map.set(slot.serviceUserKey, arr); }
+      arr.push(slot);
+    }
+    return map;
+  }, [filteredSlots]);
 
   // CSV export
   const handleExport = () => {
@@ -4618,6 +4653,14 @@ function RosteringOperationalPanel() {
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500/70 inline-block" />Rejected</span>
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted-foreground/30 inline-block" />Pending</span>
                 </div>
+                {globalStats.potentialSavingsMinutes > 0 && (
+                  <div className="mt-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 px-3 py-2 flex items-center gap-2">
+                    <TrendingUp className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                      <span className="font-semibold">{globalStats.potentialSavingsMinutes.toLocaleString()} call-minutes</span> of drift could be addressed from {globalStats.pending} pending rec{globalStats.pending !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                )}
               </>
             ) : (
               <p className="text-xs text-muted-foreground text-center py-2">No recommendations generated yet</p>
@@ -4695,6 +4738,41 @@ function RosteringOperationalPanel() {
         </Card>
       )}
 
+      {/* Time-of-day drift heatmap */}
+      {timeBandStats.length > 1 && (
+        <Card className="border-border/60 bg-card shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              Schedule Drift by Time of Day
+            </CardTitle>
+            <CardDescription className="text-xs">Which time bands show most deviation from planned start times</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-1.5 h-20">
+              {(() => {
+                const maxDrift = Math.max(...timeBandStats.map((t) => t.avgDrift ?? 0), 1);
+                return timeBandStats.map((t) => {
+                  const heightPct = t.avgDrift != null ? (t.avgDrift / maxDrift) * 100 : 0;
+                  const barColour = (t.avgDrift ?? 0) >= 45 ? "bg-rose-500" : (t.avgDrift ?? 0) >= 20 ? "bg-amber-500" : (t.avgDrift ?? 0) >= 10 ? "bg-yellow-400" : "bg-emerald-400";
+                  return (
+                    <div key={t.band} className="flex-1 flex flex-col items-center gap-1" title={`${t.band}: ${t.avgDrift != null ? Math.round(t.avgDrift) + "m avg drift" : "no data"} (${t.count} slots)`}>
+                      <span className="text-[9px] tabular-nums text-muted-foreground leading-none">
+                        {t.avgDrift != null ? `${Math.round(t.avgDrift)}m` : ""}
+                      </span>
+                      <div className="w-full rounded-t-sm transition-all" style={{ height: `${Math.max(heightPct, 4)}%`, backgroundColor: `var(--bar-bg)` }}>
+                        <div className={`w-full h-full rounded-t-sm ${barColour}`} style={{ height: "100%" }} />
+                      </div>
+                      <span className="text-[8px] text-muted-foreground truncate w-full text-center leading-none mt-0.5">{t.band}</span>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
@@ -4754,6 +4832,7 @@ function RosteringOperationalPanel() {
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10">
               <tr className="bg-muted/60 text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40">
+                <th className="px-2 py-2.5 w-6" />
                 <th className="px-4 py-2.5 font-semibold">Service User</th>
                 <th className="px-3 py-2.5 font-semibold text-right">Risk</th>
                 <th className="px-3 py-2.5 font-semibold text-right">Avg Drift</th>
@@ -4778,44 +4857,115 @@ function RosteringOperationalPanel() {
                 const durColour = su.avgDurationPct == null ? "" : su.avgDurationPct < 80 ? "text-rose-600 dark:text-rose-400" : su.avgDurationPct < 95 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
                 const riskColour = su.riskScore >= 65 ? "text-rose-600 dark:text-rose-400" : su.riskScore >= 40 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
                 const pending = su.hasRec - su.implemented - su.rejected;
+                const isExpanded = expandedSU === su.key;
+                const suSlots = slotsByServiceUser.get(su.key) ?? [];
                 return (
-                  <tr key={su.key} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <div className="font-medium text-foreground truncate max-w-[160px]">{su.name}</div>
-                      {su.area && <div className="text-[10px] text-muted-foreground">{su.area}</div>}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${riskColour}`}>
-                      {su.riskScore}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums ${driftColour}`}>
-                      {driftAbs != null ? (
-                        <span title={su.avgSignedDrift != null ? `Signed: ${su.avgSignedDrift > 0 ? "+" : ""}${Math.round(su.avgSignedDrift)}m` : ""}>
-                          {Math.round(driftAbs)}m
-                        </span>
-                      ) : "—"}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="h-2 rounded-full bg-muted/50 overflow-hidden w-24">
-                        <div className={`h-full rounded-full ${barColour}`} style={{ width: `${barPct}%` }} />
-                      </div>
-                    </td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums ${durColour || "text-muted-foreground"}`}>
-                      {su.avgDurationPct != null ? `${Math.round(su.avgDurationPct)}%` : "—"}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                      {su.avgConsistency != null ? `${Math.round(su.avgConsistency * 100)}%` : "—"}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.totalCalls.toLocaleString()}</td>
-                    <td className="px-3 py-2.5 text-right">
-                      {su.hasRec > 0 ? (
-                        <div className="flex items-center justify-end gap-1">
-                          {su.implemented > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{su.implemented}✓</span>}
-                          {pending > 0 && <span className="text-amber-600 dark:text-amber-400 tabular-nums">{pending}p</span>}
-                          {su.rejected > 0 && <span className="text-rose-500 tabular-nums">{su.rejected}✗</span>}
+                  <>
+                    <tr
+                      key={su.key}
+                      className="hover:bg-muted/20 transition-colors cursor-pointer select-none"
+                      onClick={() => setExpandedSU(isExpanded ? null : su.key)}
+                    >
+                      <td className="px-2 py-2.5 text-muted-foreground">
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5 rotate-90" />}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-foreground truncate max-w-[160px]">{su.name}</div>
+                        {su.area && <div className="text-[10px] text-muted-foreground">{su.area}</div>}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${riskColour}`}>
+                        {su.riskScore}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right tabular-nums ${driftColour}`}>
+                        {driftAbs != null ? (
+                          <span title={su.avgSignedDrift != null ? `Signed: ${su.avgSignedDrift > 0 ? "+" : ""}${Math.round(su.avgSignedDrift)}m` : ""}>
+                            {Math.round(driftAbs)}m
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="h-2 rounded-full bg-muted/50 overflow-hidden w-24">
+                          <div className={`h-full rounded-full ${barColour}`} style={{ width: `${barPct}%` }} />
                         </div>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className={`px-3 py-2.5 text-right tabular-nums ${durColour || "text-muted-foreground"}`}>
+                        {su.avgDurationPct != null ? `${Math.round(su.avgDurationPct)}%` : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {su.avgConsistency != null ? `${Math.round(su.avgConsistency * 100)}%` : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.totalCalls.toLocaleString()}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        {su.hasRec > 0 ? (
+                          <div className="flex items-center justify-end gap-1">
+                            {su.implemented > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{su.implemented}✓</span>}
+                            {pending > 0 && <span className="text-amber-600 dark:text-amber-400 tabular-nums">{pending}p</span>}
+                            {su.rejected > 0 && <span className="text-rose-500 tabular-nums">{su.rejected}✗</span>}
+                          </div>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${su.key}-expand`}>
+                        <td colSpan={9} className="px-0 py-0 bg-muted/10">
+                          <div className="overflow-x-auto border-t border-border/20">
+                            <table className="w-full text-[11px]">
+                              <thead>
+                                <tr className="bg-muted/30 text-left text-[9px] uppercase tracking-wide text-muted-foreground border-b border-border/30">
+                                  <th className="pl-10 pr-3 py-1.5 font-semibold">Call Type</th>
+                                  <th className="px-3 py-1.5 font-semibold">Time Band</th>
+                                  <th className="px-3 py-1.5 font-semibold text-right">Planned</th>
+                                  <th className="px-3 py-1.5 font-semibold text-right">Avg Start</th>
+                                  <th className="px-3 py-1.5 font-semibold text-right">Drift</th>
+                                  <th className="px-3 py-1.5 font-semibold text-right">Duration%</th>
+                                  <th className="px-3 py-1.5 font-semibold text-right">Calls</th>
+                                  <th className="px-3 py-1.5 font-semibold text-right">Rec</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/20">
+                                {suSlots
+                                  .slice()
+                                  .sort((a, b) => (a.averagePlannedStartMinutes ?? 0) - (b.averagePlannedStartMinutes ?? 0))
+                                  .map((slot) => {
+                                    const sDrift = slot.averageStartOffsetMinutes;
+                                    const sAbs = sDrift != null ? Math.abs(sDrift) : null;
+                                    const sDriftColour = sAbs == null ? "text-muted-foreground" : sAbs >= 45 ? "text-rose-600 dark:text-rose-400 font-bold" : sAbs >= 20 ? "text-amber-600 dark:text-amber-400 font-semibold" : sAbs >= 10 ? "text-yellow-600 dark:text-yellow-400" : "text-emerald-600 dark:text-emerald-400";
+                                    const fmtMins = (m: number | null) => {
+                                      if (m == null) return "—";
+                                      const h = Math.floor(m / 60); const mm = Math.round(m % 60);
+                                      return `${h.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
+                                    };
+                                    const dec = decisions[slot.key];
+                                    return (
+                                      <tr key={slot.key} className="hover:bg-muted/20 transition-colors">
+                                        <td className="pl-10 pr-3 py-1.5 text-foreground/80">{slot.callTypeLabel}</td>
+                                        <td className="px-3 py-1.5 text-muted-foreground">{slot.timeBandLabel}</td>
+                                        <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmtMins(slot.averagePlannedStartMinutes)}</td>
+                                        <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{fmtMins(slot.averageActualStartMinutes)}</td>
+                                        <td className={`px-3 py-1.5 text-right tabular-nums ${sDriftColour}`}>
+                                          {sDrift != null ? (sDrift > 0 ? `+${Math.round(sDrift)}m` : `${Math.round(sDrift)}m`) : "—"}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                          {slot.averageDurationPercent != null ? `${Math.round(slot.averageDurationPercent)}%` : "—"}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{slot.totalCalls}</td>
+                                        <td className="px-3 py-1.5 text-right">
+                                          {slot.hasRecommendation ? (
+                                            <span className={`text-[9px] font-medium ${dec === "implemented" ? "text-emerald-600 dark:text-emerald-400" : dec === "rejected" ? "text-rose-500" : "text-amber-600 dark:text-amber-400"}`}>
+                                              {dec === "implemented" ? "✓ Done" : dec === "rejected" ? "✗ Skip" : "Pending"}
+                                            </span>
+                                          ) : <span className="text-muted-foreground/50">—</span>}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>
