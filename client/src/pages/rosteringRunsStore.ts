@@ -56,9 +56,15 @@ let _sharedRecommendations: SharedCareCallRecommendation[] = [];
 let _sharedAllSlots: SharedCallSlot[] = [];
 let _sharedRecommendationDecisions: Record<string, RecommendationDecision> = {};
 const _decisionListeners = new Set<() => void>();
+const _dataListeners = new Set<() => void>();
+
+function notifyDataListeners(): void {
+  _dataListeners.forEach((listener) => listener());
+}
 
 export function setSharedRecommendations(recs: SharedCareCallRecommendation[]): void {
   _sharedRecommendations = recs;
+  notifyDataListeners();
 }
 
 export function getSharedRecommendations(): SharedCareCallRecommendation[] {
@@ -67,10 +73,23 @@ export function getSharedRecommendations(): SharedCareCallRecommendation[] {
 
 export function setSharedAllSlots(slots: SharedCallSlot[]): void {
   _sharedAllSlots = slots;
+  notifyDataListeners();
 }
 
 export function getSharedAllSlots(): SharedCallSlot[] {
   return _sharedAllSlots;
+}
+
+/**
+ * Subscribe to changes in the shared rostering dataset (analysed slots and
+ * recommendations). Lets reader views (e.g. Rostering Runs) re-render when a
+ * new ECM export is analysed, without remounting.
+ */
+export function subscribeSharedRosteringData(listener: () => void): () => void {
+  _dataListeners.add(listener);
+  return () => {
+    _dataListeners.delete(listener);
+  };
 }
 
 export function setSharedRecommendationDecisions(

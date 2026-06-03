@@ -8,6 +8,7 @@ import {
   getSharedRecommendationDecisions,
   setSharedRecommendationDecisions,
   subscribeSharedRecommendationDecisions,
+  subscribeSharedRosteringData,
   updateSharedRecommendationDecision,
   type RecommendationDecision,
   type SharedCallSlot,
@@ -35,16 +36,22 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Copy,
   Download,
+  Filter,
+  Lightbulb,
   ListOrdered,
   MapPin,
   Route,
   Search,
   Sparkles,
   Timer,
+  TrendingUp,
   Users,
+  Zap,
 } from "lucide-react";
 
 interface ServiceUser {
@@ -241,14 +248,31 @@ export default function RosteringRuns() {
   const [callTypeFilter, setCallTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [routeMode, setRouteMode] = useState<RouteMode>("location");
+  const [showRecommendedOnly, setShowRecommendedOnly] = useState(false);
+  const [runViewFilter, setRunViewFilter] = useState<"all" | "recs" | "pending">("all");
+  const [expandedCalls, setExpandedCalls] = useState<Set<string>>(new Set());
+
+  const toggleCallExpanded = useCallback((key: string) => {
+    setExpandedCalls((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
   const recommendationDecisions = useSyncExternalStore(
     subscribeSharedRecommendationDecisions,
     getSharedRecommendationDecisions,
     getSharedRecommendationDecisions,
   );
 
-  // Read ALL call slots from shared store (populated by Analyse)
-  const allSlots = getSharedAllSlots();
+  // Read ALL call slots from shared store (populated by Analyse). Subscribed so
+  // the view re-renders when a new ECM export is analysed.
+  const allSlots = useSyncExternalStore(
+    subscribeSharedRosteringData,
+    getSharedAllSlots,
+    getSharedAllSlots,
+  );
 
   // Derive service users and call types from all analysed slots
   const { serviceUsers, callTypes } = useMemo(() => {
@@ -276,12 +300,18 @@ export default function RosteringRuns() {
     };
   }, [allSlots]);
 
-  // Filter service users by search
+  // Filter service users by search and recommendation toggle
   const filteredServiceUsers = useMemo(() => {
-    if (!searchTerm.trim()) return serviceUsers;
-    const term = searchTerm.toLowerCase();
-    return serviceUsers.filter((su) => su.name.toLowerCase().includes(term));
-  }, [serviceUsers, searchTerm]);
+    let list = serviceUsers;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter((su) => su.name.toLowerCase().includes(term));
+    }
+    if (showRecommendedOnly) {
+      list = list.filter((su) => su.calls.some((c) => c.hasRecommendation));
+    }
+    return list;
+  }, [serviceUsers, searchTerm, showRecommendedOnly]);
 
   // Compute optimal run order from selected users
   const optimalRun = useMemo(() => {
@@ -335,6 +365,21 @@ export default function RosteringRuns() {
     [scheduledRun, recommendationDecisions],
   );
 
+  const totalRunRecommendationCount = useMemo(
+    () => scheduledRun.reduce((acc, entry) => acc + (entry.call.hasRecommendation ? 1 : 0), 0),
+    [scheduledRun],
+  );
+
+  // Filtered subset of scheduled run for the list view
+  const visibleRunEntries = useMemo(() => {
+    if (runViewFilter === "recs") return scheduledRun.filter((e) => e.call.hasRecommendation);
+    if (runViewFilter === "pending")
+      return scheduledRun.filter(
+        (e) => e.call.hasRecommendation && recommendationDecisions[e.call.key] !== "implemented",
+      );
+    return scheduledRun;
+  }, [scheduledRun, runViewFilter, recommendationDecisions]);
+
   const totalScheduledDurationMinutes = useMemo(
     () => scheduledRun.reduce((acc, s) => acc + s.durationMinutes, 0),
     [scheduledRun],
@@ -367,6 +412,41 @@ export default function RosteringRuns() {
     if (!timelineBounds) return 0;
     return Math.max(0, timelineBounds.span);
   }, [timelineBounds]);
+
+  // Global dataset insights (across all slots, not just current run)
+  const globalStats = useMemo(() => {
+    const withRec = allSlots.filter((s) => s.hasRecommendation);
+    const totalSUs = new Set(allSlots.map((s) => s.serviceUserKey)).size;
+    const susWithRec = new Set(withRec.map((s) => s.serviceUserKey)).size;
+
+    // Avg time delta (suggested vs planned) for slots with both values
+    const deltas: number[] = [];
+    for (const s of withRec) {
+      if (s.averagePlannedStartMinutes != null && s.averageActualStartMinutes != null) {
+        deltas.push(s.averageActualStartMinutes - s.averagePlannedStartMinutes);
+      }
+    }
+    const avgDeltaMinutes =
+      deltas.length > 0 ? Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length) : null;
+
+    // Pct that run early vs late
+    const earlyCount = deltas.filter((d) => d < -1).length;
+    const lateCount = deltas.filter((d) => d > 1).length;
+    const earlyPct = deltas.length > 0 ? Math.round((earlyCount / deltas.length) * 100) : null;
+    const latePct = deltas.length > 0 ? Math.round((lateCount / deltas.length) * 100) : null;
+
+    return { withRecCount: withRec.length, totalSUs, susWithRec, avgDeltaMinutes, earlyPct, latePct };
+  }, [allSlots]);
+
+  // Service users with recs (for quick-select)
+  const serviceUsersWithRecs = useMemo(
+    () => serviceUsers.filter((su) => su.calls.some((c) => c.hasRecommendation)),
+    [serviceUsers],
+  );
+
+  const handleSelectWithRecs = useCallback(() => {
+    setSelectedUsers(new Set(serviceUsersWithRecs.map((su) => su.key)));
+  }, [serviceUsersWithRecs]);
 
   const handleSelectAll = useCallback(() => {
     setSelectedUsers(new Set(filteredServiceUsers.map((su) => su.key)));
@@ -575,7 +655,7 @@ export default function RosteringRuns() {
       {/* Header */}
       <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-medium backdrop-blur-xl md:p-8">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_55%)]" />
-        <div className="relative z-10 space-y-4">
+        <div className="relative z-10 space-y-5">
           <div className="inline-flex items-center gap-3 rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
             <Sparkles className="h-3.5 w-3.5" />
             Optimal Ordering
@@ -587,34 +667,50 @@ export default function RosteringRuns() {
               <span className="font-medium text-foreground/80"> service‑requirement length</span> so two visits can never overlap.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-              <Users className="mr-2 h-3.5 w-3.5" />
-              {serviceUsers.length} service user{serviceUsers.length === 1 ? "" : "s"}
-            </Badge>
-            {selectedUsers.size > 0 && (
-              <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-emerald-500" />
-                {selectedUsers.size} selected
-              </Badge>
+
+          {/* Global insight stat strip */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-border/50 bg-background/60 px-3 py-2 space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Service users</p>
+              <p className="text-xl font-bold text-foreground tabular-nums">{globalStats.totalSUs}</p>
+              {globalStats.susWithRec > 0 && (
+                <p className="text-[10px] text-primary font-medium">
+                  {globalStats.susWithRec} with recs
+                </p>
+              )}
+            </div>
+            <div className="rounded-xl border border-border/50 bg-background/60 px-3 py-2 space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Recommendations</p>
+              <p className="text-xl font-bold text-foreground tabular-nums">{globalStats.withRecCount}</p>
+              {approvedRunRecommendationCount > 0 && (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  {approvedRunRecommendationCount} approved this run
+                </p>
+              )}
+            </div>
+            {globalStats.avgDeltaMinutes !== null && (
+              <div className="rounded-xl border border-border/50 bg-background/60 px-3 py-2 space-y-0.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Avg time drift</p>
+                <p className={`text-xl font-bold tabular-nums ${
+                  globalStats.avgDeltaMinutes > 2 ? "text-amber-600 dark:text-amber-400"
+                  : globalStats.avgDeltaMinutes < -2 ? "text-sky-600 dark:text-sky-400"
+                  : "text-foreground"
+                }`}>
+                  {globalStats.avgDeltaMinutes > 0 ? "+" : ""}{globalStats.avgDeltaMinutes}m
+                </p>
+                <p className="text-[10px] text-muted-foreground">actual vs planned</p>
+              </div>
             )}
-            {scheduledRun.length > 0 && (
-              <Badge variant="outline" className="bg-background/70 px-3 py-1 text-xs">
-                <ListOrdered className="mr-2 h-3.5 w-3.5 text-primary" />
-                {scheduledRun.length} call{scheduledRun.length === 1 ? "" : "s"} in run
-              </Badge>
-            )}
-            {approvedRunRecommendationCount > 0 && (
-              <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300">
-                <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-                {approvedRunRecommendationCount} approved
-              </Badge>
-            )}
-            {overlapResolvedCount > 0 && (
-              <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 px-3 py-1 text-xs text-amber-700 dark:text-amber-300">
-                <Timer className="mr-2 h-3.5 w-3.5" />
-                {overlapResolvedCount} pushed to avoid overlap
-              </Badge>
+            {globalStats.latePct !== null && (
+              <div className="rounded-xl border border-border/50 bg-background/60 px-3 py-2 space-y-0.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Punctuality</p>
+                <p className="text-xl font-bold text-foreground tabular-nums">
+                  {100 - (globalStats.latePct ?? 0) - (globalStats.earlyPct ?? 0)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  on time · {globalStats.latePct}% late · {globalStats.earlyPct}% early
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -625,8 +721,16 @@ export default function RosteringRuns() {
         {/* Left: Service user selection */}
         <Card className="border-border/60 bg-background/75 shadow-medium">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Select Service Users</CardTitle>
-            <CardDescription>Choose which service users to include in the optimised run.</CardDescription>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Select Service Users</CardTitle>
+                <CardDescription>
+                  {globalStats.susWithRec > 0
+                    ? `${globalStats.totalSUs} users · ${globalStats.susWithRec} have recommendations`
+                    : "Choose which service users to include in the optimised run."}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Controls */}
@@ -653,15 +757,38 @@ export default function RosteringRuns() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSelectAll}>
                 Select all ({filteredServiceUsers.length})
               </Button>
+              {serviceUsersWithRecs.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                  onClick={handleSelectWithRecs}
+                >
+                  <Zap className="h-3 w-3" />
+                  With recs ({serviceUsersWithRecs.length})
+                </Button>
+              )}
               {selectedUsers.size > 0 && (
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleClearSelection}>
                   Clear
                 </Button>
               )}
+              <button
+                type="button"
+                onClick={() => setShowRecommendedOnly((v) => !v)}
+                className={`ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium border transition ${
+                  showRecommendedOnly
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "border-border/60 text-muted-foreground hover:text-foreground"
+                }`}
+                title="Show only service users with recommendations"
+              >
+                <Filter className="h-3 w-3" /> Recs only
+              </button>
             </div>
 
             {/* Service user list */}
@@ -700,9 +827,18 @@ export default function RosteringRuns() {
                           <p className="text-[10px] text-muted-foreground pt-0.5 border-t border-border/50">Planned · Actual avg</p>
                         </TooltipContent>
                       </Tooltip>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
                         {su.area && <span>{su.area} · </span>}
                         {su.calls.length} call{su.calls.length === 1 ? "" : "s"}
+                        {(() => {
+                          const recCount = su.calls.filter((c) => c.hasRecommendation).length;
+                          return recCount > 0 ? (
+                            <span className="inline-flex items-center gap-0.5 text-primary font-medium">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              {recCount} rec{recCount === 1 ? "" : "s"}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                     {selectedUsers.has(su.key) && (
@@ -821,23 +957,29 @@ export default function RosteringRuns() {
               <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Run timeline</p>
-                  <p className="text-[10px] text-muted-foreground">Service‑requirement lengths · no overlap</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatMinutesToTime(timelineBounds.first)} – {formatMinutesToTime(timelineBounds.last)} · {Math.floor(timelineBounds.span / 60)}h {timelineBounds.span % 60}m window
+                  </p>
                 </div>
-                <div className="relative h-7 w-full rounded-md bg-background/70 ring-1 ring-border/60 overflow-hidden">
+                {/* Main bar */}
+                <div className="relative h-8 w-full rounded-md bg-background/70 ring-1 ring-border/60 overflow-hidden">
                   {scheduledRun.map((entry, idx) => {
                     const leftPct = ((entry.effectiveStartMinutes - timelineBounds.first) / timelineBounds.span) * 100;
                     const widthPct = Math.max(0.6, (entry.durationMinutes / timelineBounds.span) * 100);
                     const pushed = entry.pushedMinutes > 0;
+                    const approved = recommendationDecisions[entry.call.key] === "implemented";
                     return (
                       <Tooltip key={`tl-${idx}`}>
                         <TooltipTrigger asChild>
                           <div
-                            className={`absolute top-0 h-full rounded-sm transition-colors ${
+                            className={`absolute top-0 h-full rounded-sm transition-colors cursor-pointer ${
                               pushed
                                 ? "bg-amber-500/70 hover:bg-amber-500"
-                                : entry.call.hasRecommendation
-                                  ? "bg-primary/70 hover:bg-primary"
-                                  : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
+                                : approved
+                                  ? "bg-emerald-500/80 hover:bg-emerald-500"
+                                  : entry.call.hasRecommendation
+                                    ? "bg-primary/70 hover:bg-primary"
+                                    : "bg-muted-foreground/35 hover:bg-muted-foreground/55"
                             }`}
                             style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                             aria-label={`${idx + 1}. ${entry.call.serviceUserName}`}
@@ -845,153 +987,343 @@ export default function RosteringRuns() {
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-[11px] space-y-0.5">
                           <p className="font-semibold">{idx + 1}. {entry.call.serviceUserName}</p>
+                          <p className="text-muted-foreground">{entry.call.callTypeLabel}</p>
                           <p className="font-mono">{formatMinutesToTime(entry.effectiveStartMinutes)}–{formatMinutesToTime(entry.endMinutes)} · {entry.durationMinutes}m</p>
+                          {approved && <p className="text-emerald-600 dark:text-emerald-300">✓ Approved</p>}
                           {pushed && <p className="text-amber-600 dark:text-amber-300">Pushed +{entry.pushedMinutes}m to avoid overlap</p>}
                         </TooltipContent>
                       </Tooltip>
                     );
                   })}
+                  {/* Hour tick marks */}
+                  {(() => {
+                    const firstHour = Math.ceil(timelineBounds.first / 60);
+                    const lastHour = Math.floor(timelineBounds.last / 60);
+                    const ticks: JSX.Element[] = [];
+                    for (let h = firstHour; h <= lastHour; h++) {
+                      const pct = ((h * 60 - timelineBounds.first) / timelineBounds.span) * 100;
+                      if (pct <= 0 || pct >= 100) continue;
+                      ticks.push(
+                        <div
+                          key={`tick-${h}`}
+                          className="absolute top-0 h-full w-px bg-border/40 pointer-events-none"
+                          style={{ left: `${pct}%` }}
+                        />,
+                      );
+                    }
+                    return ticks;
+                  })()}
                 </div>
-                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary/70" /> Recommended</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-muted-foreground/40" /> No rec</span>
+                {/* Hour labels below bar */}
+                <div className="relative h-3 w-full mt-0.5">
+                  {(() => {
+                    const firstHour = Math.ceil(timelineBounds.first / 60);
+                    const lastHour = Math.floor(timelineBounds.last / 60);
+                    const labels: JSX.Element[] = [];
+                    for (let h = firstHour; h <= lastHour; h++) {
+                      const pct = ((h * 60 - timelineBounds.first) / timelineBounds.span) * 100;
+                      if (pct <= 1 || pct >= 99) continue;
+                      labels.push(
+                        <span
+                          key={`lbl-${h}`}
+                          className="absolute text-[9px] text-muted-foreground/60 -translate-x-1/2"
+                          style={{ left: `${pct}%` }}
+                        >
+                          {String(h).padStart(2, "0")}:00
+                        </span>,
+                      );
+                    }
+                    return labels;
+                  })()}
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500/80" /> Approved</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-primary/70" /> Pending</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-muted-foreground/35" /> No rec</span>
                   <span className="inline-flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-500/70" /> Shifted</span>
                 </div>
               </div>
             )}
 
+            {/* Recommendation progress bar */}
+            {totalRunRecommendationCount > 0 && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground/80">
+                    <Sparkles className="h-3 w-3 text-primary" />
+                    Recommendation progress
+                  </span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {approvedRunRecommendationCount} / {totalRunRecommendationCount} approved
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                    style={{
+                      width: `${totalRunRecommendationCount > 0 ? Math.round((approvedRunRecommendationCount / totalRunRecommendationCount) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Run list filter tabs */}
+            {scheduledRun.length > 0 && (
+              <div
+                role="group"
+                aria-label="Run view filter"
+                className="inline-flex items-center rounded-lg border border-border/60 bg-background/80 p-0.5 self-start"
+              >
+                {(
+                  [
+                    { id: "all", label: `All (${scheduledRun.length})` },
+                    { id: "recs", label: `Recommendations (${totalRunRecommendationCount})` },
+                    { id: "pending", label: `Pending (${pendingRunRecommendationCount})` },
+                  ] as const
+                ).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setRunViewFilter(id)}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
+                      runViewFilter === id
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    aria-pressed={runViewFilter === id}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Run list */}
             {scheduledRun.length > 0 ? (
-              <ScrollArea className="h-[380px] border rounded-xl">
-                <div className="divide-y">
-                  {scheduledRun.map((entry, idx) => {
-                    const { call } = entry;
-                    const pushed = entry.pushedMinutes > 0;
-                    return (
-                      <div
-                        key={`${call.serviceUserKey}-${call.callTypeLabel}-${idx}`}
-                        className={`flex items-center gap-3 px-3 py-3 transition-colors ${
-                          pushed ? "bg-amber-500/[0.04] hover:bg-amber-500/[0.07]" : "hover:bg-muted/40"
-                        }`}
-                      >
-                        <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0 ring-1 ${
-                          call.hasRecommendation
-                            ? "bg-primary/10 text-primary ring-primary/30"
-                            : "bg-muted text-muted-foreground ring-border/60"
-                        }`}>
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate flex items-center gap-1.5">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="truncate cursor-default">{call.serviceUserName}</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="space-y-1.5">
-                                <p className="font-semibold text-xs">{call.serviceUserName}</p>
-                                <div className="flex items-center gap-2 text-[11px]">
-                                  <Clock className="h-3 w-3 text-primary/70" />
-                                  <span className="text-muted-foreground">Recommended:</span>
-                                  <span className="font-mono font-medium">{formatMinutesToTime(entry.desiredStartMinutes)}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-[11px]">
-                                  <Timer className="h-3 w-3 text-primary/70" />
-                                  <span className="text-muted-foreground">Scheduled:</span>
-                                  <span className="font-mono font-medium">
-                                    {formatMinutesToTime(entry.effectiveStartMinutes)}–{formatMinutesToTime(entry.endMinutes)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-[11px]">
-                                  <span className="text-muted-foreground">Length (service req):</span>
-                                  <span className="font-mono font-medium">{entry.durationMinutes}m</span>
-                                </div>
+              <div className="relative">
+                <ScrollArea className="h-[420px] border rounded-xl">
+                  <div className="divide-y">
+                    {visibleRunEntries.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-muted-foreground">
+                        {runViewFilter === "pending" ? "All recommendations in this run have been approved. 🎉" : "No calls match this filter."}
+                      </div>
+                    ) : (
+                      visibleRunEntries.map((entry) => {
+                        const { call } = entry;
+                        // True position in the full run (not filtered index)
+                        const trueIdx = scheduledRun.indexOf(entry);
+                        const pushed = entry.pushedMinutes > 0;
+                        const decision = recommendationDecisions[call.key];
+                        const isApproved = decision === "implemented";
+                        const isExpanded = expandedCalls.has(call.key);
+
+                        // Time delta: how far the suggested time differs from current planned
+                        const timeDeltaMinutes =
+                          call.hasRecommendation && call.averagePlannedStartMinutes != null
+                            ? Math.round(entry.desiredStartMinutes - call.averagePlannedStartMinutes)
+                            : null;
+                        const timeDeltaLabel =
+                          timeDeltaMinutes === null || timeDeltaMinutes === 0
+                            ? null
+                            : timeDeltaMinutes > 0
+                            ? `+${timeDeltaMinutes}m later`
+                            : `${timeDeltaMinutes}m earlier`;
+
+                      return (
+                        <div
+                          key={`${call.serviceUserKey}-${call.callTypeLabel}-${trueIdx}`}
+                          className={`transition-colors ${
+                            pushed
+                              ? "bg-amber-500/[0.04]"
+                              : call.hasRecommendation
+                              ? isApproved
+                                ? "bg-emerald-500/[0.03]"
+                                : "bg-primary/[0.02]"
+                              : ""
+                          }`}
+                        >
+                          {/* Main row */}
+                          <div className="flex items-start gap-3 px-3 py-3">
+                            {/* Position circle */}
+                            <span
+                              className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0 ring-1 mt-0.5 ${
+                                call.hasRecommendation
+                                  ? isApproved
+                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-emerald-500/30"
+                                    : "bg-primary/10 text-primary ring-primary/30"
+                                  : "bg-muted text-muted-foreground ring-border/60"
+                              }`}
+                            >
+                              {trueIdx + 1}
+                            </span>
+
+                            <div className="flex-1 min-w-0">
+                              {/* Name + badges row */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-sm font-medium truncate">{call.serviceUserName}</span>
+                                {call.hasRecommendation && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`px-1.5 py-0 text-[9px] leading-tight shrink-0 ${
+                                      isApproved
+                                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                        : "border-primary/30 bg-primary/5 text-primary"
+                                    }`}
+                                  >
+                                    {isApproved ? "✓ Approved" : "Pending"}
+                                  </Badge>
+                                )}
                                 {pushed && (
-                                  <p className="text-[11px] text-amber-600 dark:text-amber-300">
-                                    Pushed +{entry.pushedMinutes}m forward to avoid overlap with the previous call.
-                                  </p>
+                                  <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10">
+                                    +{entry.pushedMinutes}m shifted
+                                  </Badge>
                                 )}
-                                {call.serviceUserAddress && (
-                                  <div className="flex items-start gap-2 text-[11px] max-w-[260px]">
-                                    <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-                                    <span className="text-muted-foreground break-words">{call.serviceUserAddress}</span>
-                                  </div>
-                                )}
-                              </TooltipContent>
-                            </Tooltip>
-                            {call.hasRecommendation && (
-                              <Badge
-                                variant="outline"
-                                className={`px-1.5 py-0 text-[9px] leading-tight ${
-                                  recommendationDecisions[call.key] === "implemented"
-                                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                                    : recommendationDecisions[call.key] === "rejected"
-                                      ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
-                                      : "border-primary/30 text-primary"
-                                }`}
-                              >
-                                {recommendationDecisionLabel(recommendationDecisions[call.key])}
-                              </Badge>
-                            )}
-                            {pushed && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[9px] leading-tight border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10">
-                                +{entry.pushedMinutes}m
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground truncate">
-                            {call.callTypeLabel} · {call.timeBandLabel} · {entry.durationMinutes} min
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0 max-w-[160px]">
-                          <div className={`text-sm font-mono font-semibold tabular-nums ${
-                            pushed ? "text-amber-700 dark:text-amber-300" : call.hasRecommendation ? "text-primary" : "text-foreground"
-                          }`}>
-                            {formatMinutesToTime(entry.effectiveStartMinutes)}
-                            <span className="text-muted-foreground"> → </span>
-                            {formatMinutesToTime(entry.endMinutes)}
-                          </div>
-                          {call.serviceUserArea && (
-                            <div className="text-[10px] text-muted-foreground truncate">
-                              {call.serviceUserArea}
-                            </div>
-                          )}
-                          {call.serviceUserAddress && (
-                            <div className="text-[10px] text-muted-foreground/80 truncate" title={call.serviceUserAddress}>
-                              {call.serviceUserAddress}
-                            </div>
-                          )}
-                          {call.hasRecommendation && !isPilotUser && (
-                            <div className="mt-2 flex justify-end gap-1">
-                              {recommendationDecisions[call.key] === "implemented" ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px]"
-                                  onClick={() => recordRecommendationDecision(call, null)}
-                                >
-                                  Reset
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-6 gap-1 px-2 text-[10px]"
-                                  onClick={() => recordRecommendationDecision(call, "implemented")}
-                                >
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Approve
-                                </Button>
+                              </div>
+
+                              {/* Sub-line */}
+                              <div className="text-[11px] text-muted-foreground mt-0.5">
+                                {call.callTypeLabel} · {call.timeBandLabel} · {entry.durationMinutes} min
+                                {call.serviceUserArea && ` · ${call.serviceUserArea}`}
+                              </div>
+
+                              {/* Inline recommendation detail for calls with recs */}
+                              {call.hasRecommendation && (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+                                  <span className="flex items-center gap-1 text-muted-foreground">
+                                    <Clock className="h-3 w-3 text-primary/70 shrink-0" />
+                                    Suggested:
+                                    <span className="font-mono font-semibold text-primary ml-0.5">
+                                      {call.suggestedPlannedTimeLabel ?? formatMinutesToTime(entry.desiredStartMinutes)}
+                                    </span>
+                                  </span>
+                                  {timeDeltaLabel && (
+                                    <span className={`font-medium ${timeDeltaMinutes! > 0 ? "text-amber-600 dark:text-amber-400" : "text-sky-600 dark:text-sky-400"}`}>
+                                      ({timeDeltaLabel} vs planned)
+                                    </span>
+                                  )}
+                                  {call.offsetConsistency != null && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="flex items-center gap-0.5 text-muted-foreground cursor-default">
+                                          <TrendingUp className="h-3 w-3" />
+                                          {Math.round(call.offsetConsistency * 100)}% consistent
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="bottom" className="text-[11px]">
+                                        This care worker visits at a consistent offset {Math.round(call.offsetConsistency * 100)}% of the time.
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Top advice line inline */}
+                              {call.hasRecommendation && call.advice.length > 0 && (
+                                <div className="mt-1.5 flex items-start gap-1.5">
+                                  <Lightbulb className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
+                                  <span className="text-[11px] text-foreground/75 leading-relaxed line-clamp-2">
+                                    {call.advice[0]}
+                                  </span>
+                                  {call.advice.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleCallExpanded(call.key)}
+                                      className="shrink-0 flex items-center gap-0.5 text-[10px] text-primary font-medium hover:underline"
+                                    >
+                                      {isExpanded ? (
+                                        <><ChevronDown className="h-3 w-3" />Less</>
+                                      ) : (
+                                        <><ChevronRight className="h-3 w-3" />+{call.advice.length - 1} more</>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Expanded advice list */}
+                              {isExpanded && call.advice.length > 1 && (
+                                <div className="mt-1.5 space-y-1 pl-4 border-l-2 border-primary/20">
+                                  {call.advice.slice(1).map((tip, ti) => (
+                                    <div key={ti} className="flex items-start gap-1.5">
+                                      <Lightbulb className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                                      <span className="text-[11px] text-foreground/70 leading-relaxed">{tip}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                             </div>
-                          )}
+
+                            {/* Right: time + approve */}
+                            <div className="text-right shrink-0 space-y-1 min-w-[120px]">
+                              <div className={`text-sm font-mono font-semibold tabular-nums ${
+                                pushed ? "text-amber-700 dark:text-amber-300" : call.hasRecommendation ? "text-primary" : "text-foreground"
+                              }`}>
+                                {formatMinutesToTime(entry.effectiveStartMinutes)}
+                                <span className="text-muted-foreground"> → </span>
+                                {formatMinutesToTime(entry.endMinutes)}
+                              </div>
+                              {call.serviceUserAddress && (
+                                <div className="text-[10px] text-muted-foreground/80 truncate" title={call.serviceUserAddress}>
+                                  <MapPin className="inline h-2.5 w-2.5 mr-0.5 align-text-bottom" />
+                                  {call.serviceUserAddress}
+                                </div>
+                              )}
+                              {call.hasRecommendation && !isPilotUser && (
+                                <div className="flex justify-end pt-1">
+                                  {isApproved ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2.5 text-[11px] text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                                      onClick={() => recordRecommendationDecision(call, null)}
+                                    >
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      Approved
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="default"
+                                      size="sm"
+                                      className="h-7 gap-1 px-2.5 text-[11px]"
+                                      onClick={() => recordRecommendationDecision(call, "implemented")}
+                                    >
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      Approve
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </ScrollArea>
+              {/* Sticky bulk-approve bar — shown when pending recs exist */}
+              {pendingRunRecommendationCount > 0 && !isPilotUser && (
+                <div className="absolute bottom-0 inset-x-0 rounded-b-xl border-t border-border/60 bg-background/95 backdrop-blur-sm px-3 py-2 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-foreground">{pendingRunRecommendationCount}</span> recommendation{pendingRunRecommendationCount === 1 ? "" : "s"} pending approval
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 gap-1.5 text-[11px] shrink-0"
+                    onClick={approveCurrentRunRecommendations}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Approve all
+                  </Button>
+                </div>
+              )}
+            </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <ListOrdered className="h-10 w-10 text-muted-foreground/40 mb-3" />
