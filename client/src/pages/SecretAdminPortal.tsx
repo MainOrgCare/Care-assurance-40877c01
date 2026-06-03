@@ -3,7 +3,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronsUpDown, Send, Route, Timer, CheckCircle2, BarChart3, AlertCircle, Users, MapPin } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronRight, ChevronsUpDown, Send, Route, Timer, CheckCircle2, BarChart3, AlertCircle, Users, MapPin } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -4934,7 +4934,7 @@ function RosteringOperationalPanel() {
                       onClick={() => setExpandedSU(isExpanded ? null : su.key)}
                     >
                       <td className="px-2 py-2.5 text-muted-foreground">
-                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5 rotate-90" />}
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-foreground truncate max-w-[160px]">{su.name}</div>

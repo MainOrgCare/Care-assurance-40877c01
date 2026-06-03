@@ -316,6 +316,47 @@ export default function RosteringRuns() {
     return list;
   }, [serviceUsers, searchTerm, showRecommendedOnly]);
 
+  // Group filtered service users by area for the left panel
+  const areaGroups = useMemo(() => {
+    const map = new Map<string, ServiceUser[]>();
+    for (const su of filteredServiceUsers) {
+      const area = su.area ?? "Unassigned";
+      if (!map.has(area)) map.set(area, []);
+      map.get(area)!.push(su);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === "Unassigned") return 1;
+      if (b === "Unassigned") return -1;
+      return a.localeCompare(b);
+    });
+  }, [filteredServiceUsers]);
+
+  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+
+  const toggleAreaCollapsed = useCallback((area: string) => {
+    setCollapsedAreas((prev) => {
+      const next = new Set(prev);
+      if (next.has(area)) next.delete(area);
+      else next.add(area);
+      return next;
+    });
+  }, []);
+
+  const handleSelectArea = useCallback((area: string) => {
+    const sus = areaGroups.find(([a]) => a === area)?.[1] ?? [];
+    const keys = sus.map((su) => su.key);
+    const allSelected = keys.every((k) => selectedUsers.has(k));
+    setSelectedUsers((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        keys.forEach((k) => next.delete(k));
+      } else {
+        keys.forEach((k) => next.add(k));
+      }
+      return next;
+    });
+  }, [areaGroups, selectedUsers]);
+
   // Compute optimal run order from selected users
   const optimalRun = useMemo(() => {
     if (selectedUsers.size === 0) return [];
@@ -415,6 +456,12 @@ export default function RosteringRuns() {
     if (!timelineBounds) return 0;
     return Math.max(0, timelineBounds.span);
   }, [timelineBounds]);
+
+  // On-call utilisation: proportion of the total time window that is actual care time
+  const utilisationPct = useMemo(() => {
+    if (!timelineBounds || totalGapMinutes === 0) return null;
+    return Math.round((totalScheduledDurationMinutes / totalGapMinutes) * 100);
+  }, [totalScheduledDurationMinutes, totalGapMinutes, timelineBounds]);
 
   // Global dataset insights (across all slots, not just current run)
   const globalStats = useMemo(() => {
@@ -811,67 +858,119 @@ export default function RosteringRuns() {
               </button>
             </div>
 
-            {/* Service user list */}
-            <ScrollArea className="h-[400px] border rounded-xl">
-              <div className="divide-y">
-                {filteredServiceUsers.map((su) => (
-                  <label
-                    key={su.key}
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      className="rounded border-border h-4 w-4"
-                      checked={selectedUsers.has(su.key)}
-                      onChange={() => handleToggleUser(su.key)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="text-sm font-medium truncate cursor-default">{su.name}</div>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-[240px] space-y-1.5">
-                          <p className="font-semibold text-xs">{su.name}</p>
-                          {su.calls.map((call, i) => (
-                            <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-x-2 text-[11px]">
-                              <span className="text-muted-foreground truncate">{call.callTypeLabel}</span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-primary/70" />
-                                {call.averagePlannedStartMinutes != null ? formatMinutesToTime(call.averagePlannedStartMinutes) : "—"}
-                              </span>
-                              <span className="text-muted-foreground">
-                                {call.averageActualStartMinutes != null ? formatMinutesToTime(call.averageActualStartMinutes) : "—"}
-                              </span>
-                            </div>
-                          ))}
-                          <p className="text-[10px] text-muted-foreground pt-0.5 border-t border-border/50">Planned · Actual avg</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                        {su.area && <span>{su.area} · </span>}
-                        {su.calls.length} call{su.calls.length === 1 ? "" : "s"}
-                        {(() => {
-                          const recCount = su.calls.filter((c) => c.hasRecommendation).length;
-                          return recCount > 0 ? (
-                            <span className="inline-flex items-center gap-0.5 text-primary font-medium">
-                              <Sparkles className="h-2.5 w-2.5" />
-                              {recCount} rec{recCount === 1 ? "" : "s"}
+            {/* Service user list — grouped by area */}
+            <ScrollArea className="h-[420px] border rounded-xl">
+              {filteredServiceUsers.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  {searchTerm ? "No matching service users." : "No service users with recommendations."}
+                </div>
+              ) : (
+                <div>
+                  {areaGroups.map(([area, sus]) => {
+                    const isCollapsed = collapsedAreas.has(area);
+                    const areaAllSelected = sus.every((su) => selectedUsers.has(su.key));
+                    const areaSomeSelected = !areaAllSelected && sus.some((su) => selectedUsers.has(su.key));
+                    const areaRecCount = sus.reduce((n, su) => n + su.calls.filter((c) => c.hasRecommendation).length, 0);
+                    return (
+                      <div key={area}>
+                        {/* Area header */}
+                        <div className="sticky top-0 z-10 flex items-center gap-2 bg-muted/95 backdrop-blur-sm border-b border-t border-border/50 px-3 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleAreaCollapsed(area)}
+                            className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:text-foreground"
+                            aria-expanded={!isCollapsed}
+                          >
+                            {isCollapsed
+                              ? <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                              : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                            }
+                            <span className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
+                              <MapPin className="h-3 w-3 text-primary/70 shrink-0" />
+                              {area}
                             </span>
-                          ) : null;
-                        })()}
+                            <span className="text-[10px] text-muted-foreground shrink-0 ml-1">
+                              {sus.length} user{sus.length === 1 ? "" : "s"}
+                              {areaRecCount > 0 && ` · ${areaRecCount} rec${areaRecCount === 1 ? "" : "s"}`}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectArea(area)}
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium border transition ${
+                              areaAllSelected
+                                ? "bg-primary/10 border-primary/30 text-primary"
+                                : areaSomeSelected
+                                  ? "bg-amber-50 border-amber-300/50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"
+                                  : "border-border/60 text-muted-foreground hover:text-foreground"
+                            }`}
+                            title={areaAllSelected ? "Deselect all in area" : "Select all in area"}
+                          >
+                            {areaAllSelected ? "Deselect all" : areaSomeSelected ? "Select rest" : "Select all"}
+                          </button>
+                        </div>
+
+                        {/* Area rows */}
+                        {!isCollapsed && (
+                          <div className="divide-y">
+                            {sus.map((su) => (
+                              <label
+                                key={su.key}
+                                className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 cursor-pointer transition-colors pl-7"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="rounded border-border h-4 w-4"
+                                  checked={selectedUsers.has(su.key)}
+                                  onChange={() => handleToggleUser(su.key)}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="text-sm font-medium truncate cursor-default">{su.name}</div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="max-w-[240px] space-y-1.5">
+                                      <p className="font-semibold text-xs">{su.name}</p>
+                                      {su.calls.map((call, i) => (
+                                        <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-x-2 text-[11px]">
+                                          <span className="text-muted-foreground truncate">{call.callTypeLabel}</span>
+                                          <span className="flex items-center gap-1">
+                                            <Clock className="h-3 w-3 text-primary/70" />
+                                            {call.averagePlannedStartMinutes != null ? formatMinutesToTime(call.averagePlannedStartMinutes) : "—"}
+                                          </span>
+                                          <span className="text-muted-foreground">
+                                            {call.averageActualStartMinutes != null ? formatMinutesToTime(call.averageActualStartMinutes) : "—"}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      <p className="text-[10px] text-muted-foreground pt-0.5 border-t border-border/50">Planned · Actual avg</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                    {su.calls.length} call{su.calls.length === 1 ? "" : "s"}
+                                    {(() => {
+                                      const recCount = su.calls.filter((c) => c.hasRecommendation).length;
+                                      return recCount > 0 ? (
+                                        <span className="inline-flex items-center gap-0.5 text-primary font-medium">
+                                          <Sparkles className="h-2.5 w-2.5" />
+                                          {recCount} rec{recCount === 1 ? "" : "s"}
+                                        </span>
+                                      ) : null;
+                                    })()}
+                                  </div>
+                                </div>
+                                {selectedUsers.has(su.key) && (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                                )}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    {selectedUsers.has(su.key) && (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    )}
-                  </label>
-                ))}
-                {filteredServiceUsers.length === 0 && (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    {searchTerm ? "No matching service users." : "No service users with recommendations."}
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>
@@ -961,6 +1060,11 @@ export default function RosteringRuns() {
                   <p className="text-lg font-bold text-foreground">
                     {Math.floor(totalScheduledDurationMinutes / 60)}h {totalScheduledDurationMinutes % 60}m
                   </p>
+                  {utilisationPct !== null && (
+                    <p className={`text-[10px] font-medium ${utilisationPct >= 70 ? "text-emerald-600 dark:text-emerald-400" : utilisationPct >= 50 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
+                      {utilisationPct}% utilisation
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-xl border border-border/60 bg-gradient-to-br from-background/90 to-background/60 px-3 py-2 text-center shadow-sm">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Area hops</p>
@@ -968,6 +1072,9 @@ export default function RosteringRuns() {
                     {routeStats.hops}
                     <span className="text-[10px] font-normal text-muted-foreground"> / {routeStats.distinctLocations}</span>
                   </p>
+                  {overlapResolvedCount > 0 && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{overlapResolvedCount} pushed</p>
+                  )}
                 </div>
               </div>
             )}

@@ -5003,6 +5003,15 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         handleUndoDecision();
         return;
       }
+      if (key === "n") {
+        event.preventDefault();
+        const nextPending = careCallRecommendations.find((r) => !recommendationDecisions[r.key]);
+        if (nextPending) {
+          setSelectedRecommendationKey(nextPending.key);
+          setSelectedRecommendationServiceUser(nextPending.serviceUserKey);
+        }
+        return;
+      }
       if (key === "j" || event.key === "ArrowDown" || key === "k" || event.key === "ArrowUp") {
         if (!flatFilteredRecommendations.length) return;
         const dir = (key === "j" || event.key === "ArrowDown") ? 1 : -1;
@@ -5022,7 +5031,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeTab, selectedRecommendation, selectedRecommendationKey, flatFilteredRecommendations, handleRecommendationDecision, handleUndoDecision, recommendationDecisions]);
+  }, [activeTab, selectedRecommendation, selectedRecommendationKey, flatFilteredRecommendations, handleRecommendationDecision, handleUndoDecision, recommendationDecisions, careCallRecommendations]);
 
   const handleDownloadRecommendations = useCallback(() => {
     if (!careCallRecommendations.length) {
@@ -7029,6 +7038,15 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                                             <span>{Math.round(rec.offsetConsistency * 100)}%</span>
                                           )}
                                         </div>
+                                        {/* Drift strength bar */}
+                                        {typeof rec.averageStartOffsetMinutes === "number" && rec.averageStartOffsetMinutes !== 0 && (
+                                          <div className="mt-1 h-0.5 w-full rounded-full bg-border/40 overflow-hidden">
+                                            <div
+                                              className={`h-full rounded-full ${rec.averageStartOffsetMinutes > 0 ? "bg-amber-500" : "bg-sky-500"}`}
+                                              style={{ width: `${Math.min(100, Math.round((Math.abs(rec.averageStartOffsetMinutes) / 60) * 100))}%` }}
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                     </button>
                                   );
@@ -7070,6 +7088,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                           <span>reject</span>
                           <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono ml-2">U</kbd>
                           <span>undo</span>
+                          <kbd className="px-1.5 py-0.5 rounded border bg-muted/60 font-mono ml-2">N</kbd>
+                          <span>next pending</span>
                         </div>
                       )}
                     </div>
@@ -7360,9 +7380,32 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                               <kbd className="rounded border border-border/60 bg-muted px-1 text-[9px] font-mono text-muted-foreground hidden sm:inline">U</kbd>
                             </Button>
                           )}
-                          <span className="text-xs text-muted-foreground ml-auto">
-                            {remainingRecommendationCount} of {careCallRecommendations.length} remaining
-                          </span>
+                          {remainingRecommendationCount > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1.5 text-primary hover:text-primary ml-auto"
+                              onClick={() => {
+                                const nextPending = careCallRecommendations.find((r) => !recommendationDecisions[r.key]);
+                                if (nextPending) {
+                                  setSelectedRecommendationKey(nextPending.key);
+                                  setSelectedRecommendationServiceUser(nextPending.serviceUserKey);
+                                }
+                              }}
+                              title="Jump to next pending recommendation"
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" />
+                              Next pending
+                              <kbd className="rounded border border-border/60 bg-muted px-1 text-[9px] font-mono text-muted-foreground hidden sm:inline">N</kbd>
+                            </Button>
+                          )}
+                          {remainingRecommendationCount === 0 && (
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium ml-auto flex items-center gap-1">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              All actioned
+                            </span>
+                          )}
                         </div>
                       </>
                     )}
