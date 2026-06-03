@@ -4385,8 +4385,12 @@ function RosteringOperationalPanel() {
       else if (abs < 45) bands.high++;
       else bands.critical++;
     });
+    // Compliance SLA: % of measured slots with drift ≤15m
+    const slaCompliant = withDrift.filter((s) => Math.abs(s.averageStartOffsetMinutes!) <= 15).length;
+    const slaPct = withDrift.length > 0 ? Math.round((slaCompliant / withDrift.length) * 100) : null;
     return { avgDrift, avgSignedDrift, avgDuration, avgConsistency, totalRecs, implemented, rejected, pending,
-      highDrift: bands.high + bands.critical, totalSlots: filteredSlots.length, bands, withDriftCount: withDrift.length };
+      highDrift: bands.high + bands.critical, totalSlots: filteredSlots.length, bands, withDriftCount: withDrift.length,
+      slaPct, slaCompliant };
   }, [filteredSlots, recommendations, decisions]);
 
   // Per-call-type aggregation
@@ -4405,6 +4409,30 @@ function RosteringOperationalPanel() {
       .map((e) => ({ ...e, avgDrift: e.driftN > 0 ? e.driftSum / e.driftN : null }))
       .sort((a, b) => (b.avgDrift ?? -1) - (a.avgDrift ?? -1));
   }, [filteredSlots]);
+
+  // Per-area aggregation (drift chart like call-type chart)
+  const areaStats = useMemo(() => {
+    const map = new Map<string, { area: string; driftSum: number; driftN: number; slotCount: number }>();
+    for (const slot of filteredSlots) {
+      const areaKey = slot.serviceUserArea ?? "(No area)";
+      let e = map.get(areaKey);
+      if (!e) { e = { area: areaKey, driftSum: 0, driftN: 0, slotCount: 0 }; map.set(areaKey, e); }
+      e.slotCount++;
+      if (typeof slot.averageStartOffsetMinutes === "number") {
+        e.driftSum += Math.abs(slot.averageStartOffsetMinutes);
+        e.driftN++;
+      }
+    }
+    return Array.from(map.values())
+      .map((e) => ({ ...e, avgDrift: e.driftN > 0 ? e.driftSum / e.driftN : null }))
+      .sort((a, b) => (b.avgDrift ?? -1) - (a.avgDrift ?? -1));
+  }, [filteredSlots]);
+
+  // Top-3 at-risk service users (risk ≥65, sorted by risk desc)
+  const criticalSUs = useMemo(
+    () => serviceUserStats.filter((s) => s.riskScore >= 65).sort((a, b) => b.riskScore - a.riskScore).slice(0, 3),
+    [serviceUserStats],
+  );
 
   // CSV export
   const handleExport = () => {
@@ -4461,11 +4489,11 @@ function RosteringOperationalPanel() {
             iconColour: "text-amber-500",
           },
           {
-            label: "High-Drift Slots (≥20m)",
-            value: globalStats.highDrift.toString(),
-            sub: `of ${globalStats.withDriftCount} measured slots`,
+            label: "Compliance SLA (≤15m)",
+            value: globalStats.slaPct != null ? `${globalStats.slaPct}%` : "—",
+            sub: globalStats.slaPct != null ? `${globalStats.slaCompliant} of ${globalStats.withDriftCount} slots on-target` : `across ${globalStats.totalSlots} slots`,
             icon: <AlertTriangle className="h-4 w-4" />,
-            colour: globalStats.highDrift > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400",
+            colour: globalStats.slaPct != null && globalStats.slaPct < 70 ? "text-rose-600 dark:text-rose-400" : globalStats.slaPct != null && globalStats.slaPct < 85 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
             bg: "bg-rose-500/8",
             iconColour: "text-rose-500",
           },
@@ -4500,6 +4528,38 @@ function RosteringOperationalPanel() {
           </Card>
         ))}
       </div>
+
+      {/* Attention Needed callout — top critical service users */}
+      {criticalSUs.length > 0 && (
+        <div className="rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <span className="text-sm font-semibold text-rose-700 dark:text-rose-300">Attention Needed</span>
+            <span className="text-xs text-rose-500 dark:text-rose-400 ml-1">{criticalSUs.length} service user{criticalSUs.length > 1 ? "s" : ""} with risk ≥65</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {criticalSUs.map((su) => {
+              const pending = su.hasRec - su.implemented - su.rejected;
+              return (
+                <div key={su.key} className="rounded-lg border border-rose-200/70 dark:border-rose-800/50 bg-white/70 dark:bg-rose-950/30 px-3 py-2.5 flex flex-col gap-1">
+                  <div className="flex items-start justify-between gap-1">
+                    <div>
+                      <p className="text-xs font-semibold text-foreground truncate">{su.name}</p>
+                      {su.area && <p className="text-[10px] text-muted-foreground">{su.area}</p>}
+                    </div>
+                    <span className="text-sm font-bold text-rose-600 dark:text-rose-400 tabular-nums shrink-0">{su.riskScore}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground mt-0.5">
+                    {su.avgDriftMinutes != null && <span>Drift <span className="font-medium text-foreground">{Math.round(su.avgDriftMinutes)}m</span></span>}
+                    {su.avgDurationPct != null && <span>Duration <span className="font-medium text-foreground">{Math.round(su.avgDurationPct)}%</span></span>}
+                    {pending > 0 && <span className="text-amber-600 dark:text-amber-400 font-medium">{pending} rec{pending > 1 ? "s" : ""} pending</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Drift distribution + Recommendation adoption row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -4595,6 +4655,42 @@ function RosteringOperationalPanel() {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Area performance chart */}
+      {areaStats.length > 1 && (
+        <Card className="border-border/60 bg-card shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Avg Drift by Area
+            </CardTitle>
+            <CardDescription className="text-xs">Which geographic areas show most schedule deviation</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(() => {
+              const maxAreaDrift = Math.max(...areaStats.map((a) => a.avgDrift ?? 0), 1);
+              return areaStats.slice(0, 8).map((area) => {
+                const pct = area.avgDrift != null ? (area.avgDrift / maxAreaDrift) * 100 : 0;
+                const barColour = (area.avgDrift ?? 0) >= 45 ? "bg-rose-500" : (area.avgDrift ?? 0) >= 20 ? "bg-amber-500" : (area.avgDrift ?? 0) >= 10 ? "bg-yellow-400" : "bg-emerald-500";
+                return (
+                  <div key={area.area} className="flex items-center gap-2">
+                    <span className="w-32 text-[10px] text-muted-foreground truncate shrink-0">{area.area}</span>
+                    <div className="flex-1 h-2.5 rounded-full bg-muted/50 overflow-hidden">
+                      <div className={`h-full rounded-full ${barColour} transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-[10px] tabular-nums text-muted-foreground">
+                      {area.avgDrift != null ? `${Math.round(area.avgDrift)}m` : "—"}
+                    </span>
+                    <span className="w-14 text-right text-[10px] tabular-nums text-muted-foreground/60">
+                      {area.slotCount} slot{area.slotCount !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                );
+              });
+            })()}
           </CardContent>
         </Card>
       )}
@@ -4755,6 +4851,7 @@ function RosteringOperationalPanel() {
                     <th className="px-3 py-2 font-semibold text-right">Planned</th>
                     <th className="px-3 py-2 font-semibold text-right">Avg Actual</th>
                     <th className="px-3 py-2 font-semibold text-right">Drift</th>
+                    <th className="px-3 py-2 font-semibold text-right" title="Avg actual minus planned duration">Dur Gap</th>
                     <th className="px-3 py-2 font-semibold text-right">Consistency</th>
                     <th className="px-3 py-2 font-semibold text-right">Rec</th>
                   </tr>
@@ -4771,6 +4868,9 @@ function RosteringOperationalPanel() {
                       const h = Math.floor(m / 60); const mm = Math.round(m % 60);
                       return `${h.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
                     };
+                    const durGap = slot.averageActualDurationMinutes != null && slot.averagePlannedDurationMinutes != null
+                      ? Math.round(slot.averageActualDurationMinutes - slot.averagePlannedDurationMinutes) : null;
+                    const durGapColour = durGap == null ? "text-muted-foreground" : durGap < -5 ? "text-rose-600 dark:text-rose-400 font-semibold" : durGap > 5 ? "text-sky-600 dark:text-sky-400" : "text-muted-foreground";
                     return (
                       <tr key={slot.key} className="hover:bg-muted/20 transition-colors">
                         <td className="px-4 py-2 font-medium text-foreground truncate max-w-[140px]">{slot.serviceUserName}</td>
@@ -4780,6 +4880,9 @@ function RosteringOperationalPanel() {
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(slot.averageActualStartMinutes)}</td>
                         <td className={`px-3 py-2 text-right tabular-nums ${driftColour}`}>
                           {drift > 0 ? `+${drift}m` : `${drift}m`}
+                        </td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${durGapColour}`}>
+                          {durGap != null ? (durGap > 0 ? `+${durGap}m` : `${durGap}m`) : "—"}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                           {typeof slot.offsetConsistency === "number" ? `${Math.round(slot.offsetConsistency * 100)}%` : "—"}
