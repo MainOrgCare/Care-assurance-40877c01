@@ -4288,7 +4288,8 @@ function RosteringOperationalPanel() {
   const decisions = useSyncExternalStore(subscribeSharedRecommendationDecisions, getSharedRecommendationDecisions, getSharedRecommendationDecisions);
 
   const [areaFilter, setAreaFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"drift" | "calls" | "name">("drift");
+  const [sortBy, setSortBy] = useState<"risk" | "drift" | "calls" | "name">("risk");
+  const [suSearch, setSuSearch] = useState("");
 
   const areas = useMemo(() => {
     const set = new Set<string>();
@@ -4305,23 +4306,23 @@ function RosteringOperationalPanel() {
   const serviceUserStats = useMemo(() => {
     const map = new Map<string, {
       key: string; name: string; area: string | null;
-      totalCalls: number; slotsWithDrift: number; totalDriftMinutes: number;
-      durationAdherence: number[]; hasRec: number; implemented: number; rejected: number;
+      totalCalls: number; slotsWithDrift: number; totalDriftMinutes: number; signedDriftSum: number;
+      durationAdherence: number[]; consistencyScores: number[]; hasRec: number; implemented: number; rejected: number;
     }>();
     for (const slot of filteredSlots) {
       let entry = map.get(slot.serviceUserKey);
       if (!entry) {
-        entry = { key: slot.serviceUserKey, name: slot.serviceUserName, area: slot.serviceUserArea, totalCalls: 0, slotsWithDrift: 0, totalDriftMinutes: 0, durationAdherence: [], hasRec: 0, implemented: 0, rejected: 0 };
+        entry = { key: slot.serviceUserKey, name: slot.serviceUserName, area: slot.serviceUserArea, totalCalls: 0, slotsWithDrift: 0, totalDriftMinutes: 0, signedDriftSum: 0, durationAdherence: [], consistencyScores: [], hasRec: 0, implemented: 0, rejected: 0 };
         map.set(slot.serviceUserKey, entry);
       }
       entry.totalCalls += slot.totalCalls;
       if (typeof slot.averageStartOffsetMinutes === "number") {
         entry.slotsWithDrift += 1;
         entry.totalDriftMinutes += Math.abs(slot.averageStartOffsetMinutes);
+        entry.signedDriftSum += slot.averageStartOffsetMinutes;
       }
-      if (typeof slot.averageDurationPercent === "number") {
-        entry.durationAdherence.push(slot.averageDurationPercent);
-      }
+      if (typeof slot.averageDurationPercent === "number") entry.durationAdherence.push(slot.averageDurationPercent);
+      if (typeof slot.offsetConsistency === "number") entry.consistencyScores.push(slot.offsetConsistency);
       if (slot.hasRecommendation) {
         entry.hasRec += 1;
         const d = decisions[slot.key];
@@ -4329,40 +4330,101 @@ function RosteringOperationalPanel() {
         else if (d === "rejected") entry.rejected += 1;
       }
     }
-    return Array.from(map.values()).map((e) => ({
-      ...e,
-      avgDriftMinutes: e.slotsWithDrift > 0 ? e.totalDriftMinutes / e.slotsWithDrift : null,
-      avgDurationPct: e.durationAdherence.length > 0
-        ? e.durationAdherence.reduce((a, b) => a + b, 0) / e.durationAdherence.length
-        : null,
-    }));
+    return Array.from(map.values()).map((e) => {
+      const avgDriftMinutes = e.slotsWithDrift > 0 ? e.totalDriftMinutes / e.slotsWithDrift : null;
+      const avgSignedDrift = e.slotsWithDrift > 0 ? e.signedDriftSum / e.slotsWithDrift : null;
+      const avgDurationPct = e.durationAdherence.length > 0
+        ? e.durationAdherence.reduce((a, b) => a + b, 0) / e.durationAdherence.length : null;
+      const avgConsistency = e.consistencyScores.length > 0
+        ? e.consistencyScores.reduce((a, b) => a + b, 0) / e.consistencyScores.length : null;
+      // Risk score 0–100: weighted combination of drift severity, duration shortfall, consistency
+      const driftRisk = avgDriftMinutes != null ? Math.min(100, (avgDriftMinutes / 60) * 100) : 50;
+      const durRisk = avgDurationPct != null ? Math.max(0, 100 - avgDurationPct) : 50;
+      const consRisk = avgConsistency != null ? (1 - avgConsistency) * 100 : 50;
+      const riskScore = Math.round(driftRisk * 0.5 + durRisk * 0.3 + consRisk * 0.2);
+      return { ...e, avgDriftMinutes, avgSignedDrift, avgDurationPct, avgConsistency, riskScore };
+    });
   }, [filteredSlots, decisions]);
 
   const sorted = useMemo(() => {
-    const arr = [...serviceUserStats];
-    if (sortBy === "drift") arr.sort((a, b) => (b.avgDriftMinutes ?? -1) - (a.avgDriftMinutes ?? -1));
+    let arr = [...serviceUserStats];
+    if (suSearch.trim()) {
+      const q = suSearch.toLowerCase();
+      arr = arr.filter((s) => s.name.toLowerCase().includes(q) || (s.area?.toLowerCase() ?? "").includes(q));
+    }
+    if (sortBy === "risk") arr.sort((a, b) => b.riskScore - a.riskScore);
+    else if (sortBy === "drift") arr.sort((a, b) => (b.avgDriftMinutes ?? -1) - (a.avgDriftMinutes ?? -1));
     else if (sortBy === "calls") arr.sort((a, b) => b.totalCalls - a.totalCalls);
     else arr.sort((a, b) => a.name.localeCompare(b.name));
     return arr;
-  }, [serviceUserStats, sortBy]);
+  }, [serviceUserStats, sortBy, suSearch]);
 
   // Global summary stats
   const globalStats = useMemo(() => {
     const withDrift = filteredSlots.filter((s) => typeof s.averageStartOffsetMinutes === "number");
     const avgDrift = withDrift.length
-      ? withDrift.reduce((acc, s) => acc + Math.abs(s.averageStartOffsetMinutes!), 0) / withDrift.length
-      : null;
+      ? withDrift.reduce((acc, s) => acc + Math.abs(s.averageStartOffsetMinutes!), 0) / withDrift.length : null;
+    const avgSignedDrift = withDrift.length
+      ? withDrift.reduce((acc, s) => acc + s.averageStartOffsetMinutes!, 0) / withDrift.length : null;
     const withDuration = filteredSlots.filter((s) => typeof s.averageDurationPercent === "number");
     const avgDuration = withDuration.length
-      ? withDuration.reduce((acc, s) => acc + s.averageDurationPercent!, 0) / withDuration.length
-      : null;
+      ? withDuration.reduce((acc, s) => acc + s.averageDurationPercent!, 0) / withDuration.length : null;
+    const withCons = filteredSlots.filter((s) => typeof s.offsetConsistency === "number");
+    const avgConsistency = withCons.length
+      ? withCons.reduce((acc, s) => acc + (s.offsetConsistency!), 0) / withCons.length : null;
     const totalRecs = recommendations.length;
     const implemented = Object.values(decisions).filter((d) => d === "implemented").length;
     const rejected = Object.values(decisions).filter((d) => d === "rejected").length;
     const pending = totalRecs - implemented - rejected;
-    const highDrift = filteredSlots.filter((s) => typeof s.averageStartOffsetMinutes === "number" && Math.abs(s.averageStartOffsetMinutes) >= 30).length;
-    return { avgDrift, avgDuration, totalRecs, implemented, rejected, pending, highDrift, totalSlots: filteredSlots.length };
+    // Drift distribution bands
+    const bands = { low: 0, moderate: 0, high: 0, critical: 0 };
+    withDrift.forEach((s) => {
+      const abs = Math.abs(s.averageStartOffsetMinutes!);
+      if (abs < 10) bands.low++;
+      else if (abs < 20) bands.moderate++;
+      else if (abs < 45) bands.high++;
+      else bands.critical++;
+    });
+    return { avgDrift, avgSignedDrift, avgDuration, avgConsistency, totalRecs, implemented, rejected, pending,
+      highDrift: bands.high + bands.critical, totalSlots: filteredSlots.length, bands, withDriftCount: withDrift.length };
   }, [filteredSlots, recommendations, decisions]);
+
+  // Per-call-type aggregation
+  const callTypeStats = useMemo(() => {
+    const map = new Map<string, { type: string; count: number; driftSum: number; driftN: number }>();
+    for (const slot of filteredSlots) {
+      let e = map.get(slot.callTypeLabel);
+      if (!e) { e = { type: slot.callTypeLabel, count: 0, driftSum: 0, driftN: 0 }; map.set(slot.callTypeLabel, e); }
+      e.count += slot.totalCalls;
+      if (typeof slot.averageStartOffsetMinutes === "number") {
+        e.driftSum += Math.abs(slot.averageStartOffsetMinutes);
+        e.driftN++;
+      }
+    }
+    return Array.from(map.values())
+      .map((e) => ({ ...e, avgDrift: e.driftN > 0 ? e.driftSum / e.driftN : null }))
+      .sort((a, b) => (b.avgDrift ?? -1) - (a.avgDrift ?? -1));
+  }, [filteredSlots]);
+
+  // CSV export
+  const handleExport = () => {
+    const rows = [
+      ["Service User", "Area", "Total Calls", "Avg Drift (m)", "Signed Drift (m)", "Duration %", "Consistency %", "Risk Score", "Recs", "Implemented", "Pending", "Rejected"],
+      ...sorted.map((s) => [
+        s.name, s.area ?? "", s.totalCalls,
+        s.avgDriftMinutes != null ? Math.round(s.avgDriftMinutes) : "",
+        s.avgSignedDrift != null ? Math.round(s.avgSignedDrift) : "",
+        s.avgDurationPct != null ? Math.round(s.avgDurationPct) : "",
+        s.avgConsistency != null ? Math.round(s.avgConsistency * 100) : "",
+        s.riskScore, s.hasRec, s.implemented, s.hasRec - s.implemented - s.rejected, s.rejected,
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url;
+    a.download = `rostering-drift-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
 
   if (allSlots.length === 0) {
     return (
@@ -4380,6 +4442,8 @@ function RosteringOperationalPanel() {
     );
   }
 
+  const maxCallTypeDrift = Math.max(...callTypeStats.map((c) => c.avgDrift ?? 0), 1);
+
   return (
     <div className="space-y-6">
       {/* Summary stat cards */}
@@ -4388,36 +4452,46 @@ function RosteringOperationalPanel() {
           {
             label: "Avg Schedule Drift",
             value: globalStats.avgDrift != null ? `${Math.round(globalStats.avgDrift)}m` : "—",
-            sub: `across ${globalStats.totalSlots} call slots`,
+            sub: globalStats.avgSignedDrift != null
+              ? `${globalStats.avgSignedDrift > 0 ? "+" : ""}${Math.round(globalStats.avgSignedDrift)}m signed avg`
+              : `across ${globalStats.totalSlots} slots`,
             icon: <Clock className="h-4 w-4" />,
-            colour: globalStats.avgDrift != null && globalStats.avgDrift >= 20 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+            colour: globalStats.avgDrift != null && globalStats.avgDrift >= 20 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
+            bg: "bg-amber-500/8",
+            iconColour: "text-amber-500",
           },
           {
-            label: "High Drift Slots (≥30m)",
+            label: "High-Drift Slots (≥20m)",
             value: globalStats.highDrift.toString(),
-            sub: `of ${globalStats.totalSlots} slots`,
+            sub: `of ${globalStats.withDriftCount} measured slots`,
             icon: <AlertTriangle className="h-4 w-4" />,
             colour: globalStats.highDrift > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400",
+            bg: "bg-rose-500/8",
+            iconColour: "text-rose-500",
           },
           {
             label: "Avg Duration Adherence",
             value: globalStats.avgDuration != null ? `${Math.round(globalStats.avgDuration)}%` : "—",
-            sub: "planned vs actual",
+            sub: "planned vs actual call length",
             icon: <Timer className="h-4 w-4" />,
             colour: globalStats.avgDuration != null && globalStats.avgDuration < 85 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+            bg: "bg-primary/8",
+            iconColour: "text-primary",
           },
           {
-            label: "Recommendations",
-            value: globalStats.totalRecs.toString(),
-            sub: `${globalStats.implemented} done · ${globalStats.pending} pending`,
-            icon: <CheckCircle2 className="h-4 w-4" />,
-            colour: "text-foreground",
+            label: "Avg Consistency",
+            value: globalStats.avgConsistency != null ? `${Math.round(globalStats.avgConsistency * 100)}%` : "—",
+            sub: "directional drift agreement",
+            icon: <TrendingUp className="h-4 w-4" />,
+            colour: globalStats.avgConsistency != null && globalStats.avgConsistency < 0.6 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+            bg: "bg-emerald-500/8",
+            iconColour: "text-emerald-500",
           },
         ].map((stat) => (
           <Card key={stat.label} className="border-border/60 bg-card shadow-sm">
             <CardContent className="pt-4 pb-3">
               <div className="flex items-start justify-between gap-2">
-                <div className="h-8 w-8 rounded-lg bg-primary/8 flex items-center justify-center text-primary shrink-0">{stat.icon}</div>
+                <div className={`h-8 w-8 rounded-lg ${stat.bg} flex items-center justify-center ${stat.iconColour} shrink-0`}>{stat.icon}</div>
                 <span className={`text-xl font-bold tabular-nums ${stat.colour}`}>{stat.value}</span>
               </div>
               <p className="mt-2 text-xs font-medium text-foreground">{stat.label}</p>
@@ -4427,28 +4501,100 @@ function RosteringOperationalPanel() {
         ))}
       </div>
 
-      {/* Recommendation progress bar */}
-      {globalStats.totalRecs > 0 && (
+      {/* Drift distribution + Recommendation adoption row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Drift distribution histogram */}
         <Card className="border-border/60 bg-card shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary" />
+              Drift Distribution
+            </CardTitle>
+            <CardDescription className="text-xs">{globalStats.withDriftCount} slots with timing data</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {([
+              { label: "Low &lt;10m", count: globalStats.bands.low, colour: "bg-emerald-500" },
+              { label: "Moderate 10–20m", count: globalStats.bands.moderate, colour: "bg-yellow-400" },
+              { label: "High 20–45m", count: globalStats.bands.high, colour: "bg-amber-500" },
+              { label: "Critical ≥45m", count: globalStats.bands.critical, colour: "bg-rose-500" },
+            ] as const).map((band) => {
+              const pct = globalStats.withDriftCount > 0 ? (band.count / globalStats.withDriftCount) * 100 : 0;
+              return (
+                <div key={band.label} className="flex items-center gap-2">
+                  <span className="w-28 text-[10px] text-muted-foreground shrink-0" dangerouslySetInnerHTML={{ __html: band.label }} />
+                  <div className="flex-1 h-2.5 rounded-full bg-muted/50 overflow-hidden">
+                    <div className={`h-full rounded-full ${band.colour} transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-8 text-right text-[10px] tabular-nums text-muted-foreground">{band.count}</span>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Recommendation adoption */}
+        <Card className="border-border/60 bg-card shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               Recommendation Adoption
             </CardTitle>
             <CardDescription className="text-xs">
-              {globalStats.implemented} implemented · {globalStats.rejected} rejected · {globalStats.pending} pending
+              {globalStats.totalRecs} total · {globalStats.implemented} done · {globalStats.rejected} skipped · {globalStats.pending} pending
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-3 rounded-full bg-muted/60 overflow-hidden flex">
-              <div className="bg-emerald-500 transition-all" style={{ width: `${(globalStats.implemented / globalStats.totalRecs) * 100}%` }} />
-              <div className="bg-rose-500/70 transition-all" style={{ width: `${(globalStats.rejected / globalStats.totalRecs) * 100}%` }} />
-            </div>
-            <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />Implemented</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500/70 inline-block" />Rejected</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted-foreground/40 inline-block" />Pending</span>
-            </div>
+          <CardContent className="space-y-3">
+            {globalStats.totalRecs > 0 ? (
+              <>
+                <div className="h-4 rounded-full bg-muted/60 overflow-hidden flex">
+                  <div className="bg-emerald-500 transition-all flex items-center justify-center" style={{ width: `${(globalStats.implemented / globalStats.totalRecs) * 100}%` }}>
+                    {globalStats.implemented > 0 && <span className="text-[9px] text-white font-bold px-1">{Math.round((globalStats.implemented / globalStats.totalRecs) * 100)}%</span>}
+                  </div>
+                  <div className="bg-rose-500/70 transition-all" style={{ width: `${(globalStats.rejected / globalStats.totalRecs) * 100}%` }} />
+                </div>
+                <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />Implemented</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500/70 inline-block" />Rejected</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-muted-foreground/30 inline-block" />Pending</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-2">No recommendations generated yet</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Call type breakdown */}
+      {callTypeStats.length > 0 && (
+        <Card className="border-border/60 bg-card shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-primary" />
+              Avg Drift by Call Type
+            </CardTitle>
+            <CardDescription className="text-xs">Which call types have the most schedule drift</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {callTypeStats.slice(0, 8).map((ct) => {
+              const pct = ct.avgDrift != null ? (ct.avgDrift / maxCallTypeDrift) * 100 : 0;
+              const barColour = (ct.avgDrift ?? 0) >= 45 ? "bg-rose-500" : (ct.avgDrift ?? 0) >= 20 ? "bg-amber-500" : (ct.avgDrift ?? 0) >= 10 ? "bg-yellow-400" : "bg-emerald-500";
+              return (
+                <div key={ct.type} className="flex items-center gap-2">
+                  <span className="w-32 text-[10px] text-muted-foreground truncate shrink-0">{ct.type}</span>
+                  <div className="flex-1 h-2.5 rounded-full bg-muted/50 overflow-hidden">
+                    <div className={`h-full rounded-full ${barColour} transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-12 text-right text-[10px] tabular-nums text-muted-foreground">
+                    {ct.avgDrift != null ? `${Math.round(ct.avgDrift)}m` : "—"}
+                  </span>
+                  <span className="w-16 text-right text-[10px] tabular-nums text-muted-foreground/60">
+                    {ct.count.toLocaleString()} calls
+                  </span>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -4465,57 +4611,76 @@ function RosteringOperationalPanel() {
             {areas.map((a) => <option key={a} value={a}>{a === "all" ? "All areas" : a}</option>)}
           </select>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-muted-foreground">Sort by:</span>
-          {(["drift", "calls", "name"] as const).map((s) => (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            value={suSearch}
+            onChange={(e) => setSuSearch(e.target.value)}
+            placeholder="Search service users…"
+            className="h-8 pl-8 pr-3 rounded-md border border-border/70 bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-44"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-xs text-muted-foreground">Sort:</span>
+          {(["risk", "drift", "calls", "name"] as const).map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => setSortBy(s)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${sortBy === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/60 text-muted-foreground hover:border-primary/40"}`}
             >
-              {s === "drift" ? "Drift" : s === "calls" ? "Calls" : "Name"}
+              {s === "risk" ? "Risk" : s === "drift" ? "Drift" : s === "calls" ? "Calls" : "Name"}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={handleExport}
+            title="Export to CSV"
+            className="ml-1 h-8 px-2.5 rounded-md border border-border/60 bg-background text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </button>
         </div>
       </div>
 
       {/* Per-service-user table */}
       <Card className="border-border/60 bg-card shadow-medium overflow-hidden">
-        <CardHeader className="border-b border-border/30 bg-muted/25 py-3 px-4">
+        <CardHeader className="border-b border-border/30 bg-muted/25 py-3 px-4 flex flex-row items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
-            Service User Drift Breakdown
+            Service User Risk Breakdown
             <Badge variant="secondary" className="text-[10px] tabular-nums">{sorted.length}</Badge>
           </CardTitle>
+          <CardDescription className="text-xs">Risk = weighted score combining drift · duration adherence · consistency</CardDescription>
         </CardHeader>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
           <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-muted/30 text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-muted/60 text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/40">
                 <th className="px-4 py-2.5 font-semibold">Service User</th>
-                <th className="px-3 py-2.5 font-semibold text-right">Calls</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Risk</th>
                 <th className="px-3 py-2.5 font-semibold text-right">Avg Drift</th>
+                <th className="px-3 py-2.5 font-semibold w-28">Drift bar</th>
                 <th className="px-3 py-2.5 font-semibold text-right">Duration</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Consistency</th>
+                <th className="px-3 py-2.5 font-semibold text-right">Calls</th>
                 <th className="px-3 py-2.5 font-semibold text-right">Recs</th>
-                <th className="px-3 py-2.5 font-semibold text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
               {sorted.map((su) => {
-                const driftBand = su.avgDriftMinutes == null ? "—"
-                  : su.avgDriftMinutes >= 45 ? "critical"
-                  : su.avgDriftMinutes >= 20 ? "high"
-                  : su.avgDriftMinutes >= 10 ? "moderate"
-                  : "low";
+                const driftAbs = su.avgDriftMinutes;
+                const driftBand = driftAbs == null ? "none"
+                  : driftAbs >= 45 ? "critical" : driftAbs >= 20 ? "high" : driftAbs >= 10 ? "moderate" : "low";
                 const driftColour = driftBand === "critical" ? "text-rose-600 dark:text-rose-400 font-bold"
                   : driftBand === "high" ? "text-amber-600 dark:text-amber-400 font-semibold"
                   : driftBand === "moderate" ? "text-yellow-600 dark:text-yellow-400"
-                  : "text-emerald-600 dark:text-emerald-400";
-                const durColour = su.avgDurationPct == null ? ""
-                  : su.avgDurationPct < 80 ? "text-rose-600 dark:text-rose-400"
-                  : su.avgDurationPct < 95 ? "text-amber-600 dark:text-amber-400"
-                  : "text-emerald-600 dark:text-emerald-400";
+                  : driftAbs != null ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground";
+                const barColour = driftBand === "critical" ? "bg-rose-500" : driftBand === "high" ? "bg-amber-500" : driftBand === "moderate" ? "bg-yellow-400" : "bg-emerald-500";
+                const barPct = driftAbs != null ? Math.min(100, (driftAbs / 60) * 100) : 0;
+                const durColour = su.avgDurationPct == null ? "" : su.avgDurationPct < 80 ? "text-rose-600 dark:text-rose-400" : su.avgDurationPct < 95 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
+                const riskColour = su.riskScore >= 65 ? "text-rose-600 dark:text-rose-400" : su.riskScore >= 40 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
                 const pending = su.hasRec - su.implemented - su.rejected;
                 return (
                   <tr key={su.key} className="hover:bg-muted/20 transition-colors">
@@ -4523,20 +4688,34 @@ function RosteringOperationalPanel() {
                       <div className="font-medium text-foreground truncate max-w-[160px]">{su.name}</div>
                       {su.area && <div className="text-[10px] text-muted-foreground">{su.area}</div>}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.totalCalls.toLocaleString()}</td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums ${su.avgDriftMinutes != null ? driftColour : "text-muted-foreground"}`}>
-                      {su.avgDriftMinutes != null ? `${Math.round(su.avgDriftMinutes)}m` : "—"}
+                    <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${riskColour}`}>
+                      {su.riskScore}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums ${driftColour}`}>
+                      {driftAbs != null ? (
+                        <span title={su.avgSignedDrift != null ? `Signed: ${su.avgSignedDrift > 0 ? "+" : ""}${Math.round(su.avgSignedDrift)}m` : ""}>
+                          {Math.round(driftAbs)}m
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="h-2 rounded-full bg-muted/50 overflow-hidden w-24">
+                        <div className={`h-full rounded-full ${barColour}`} style={{ width: `${barPct}%` }} />
+                      </div>
                     </td>
                     <td className={`px-3 py-2.5 text-right tabular-nums ${durColour || "text-muted-foreground"}`}>
                       {su.avgDurationPct != null ? `${Math.round(su.avgDurationPct)}%` : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.hasRec || "—"}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                      {su.avgConsistency != null ? `${Math.round(su.avgConsistency * 100)}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{su.totalCalls.toLocaleString()}</td>
                     <td className="px-3 py-2.5 text-right">
                       {su.hasRec > 0 ? (
                         <div className="flex items-center justify-end gap-1">
-                          {su.implemented > 0 && <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />{su.implemented}</span>}
-                          {pending > 0 && <span className="text-amber-600 dark:text-amber-400">{pending}p</span>}
-                          {su.rejected > 0 && <span className="text-rose-500">{su.rejected}r</span>}
+                          {su.implemented > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{su.implemented}✓</span>}
+                          {pending > 0 && <span className="text-amber-600 dark:text-amber-400 tabular-nums">{pending}p</span>}
+                          {su.rejected > 0 && <span className="text-rose-500 tabular-nums">{su.rejected}✗</span>}
                         </div>
                       ) : <span className="text-muted-foreground">—</span>}
                     </td>
@@ -4548,7 +4727,7 @@ function RosteringOperationalPanel() {
         </div>
       </Card>
 
-      {/* Most drifted call slots */}
+      {/* Top 10 highest-drift call slots */}
       {(() => {
         const top = [...filteredSlots]
           .filter((s) => typeof s.averageStartOffsetMinutes === "number")
@@ -4576,6 +4755,7 @@ function RosteringOperationalPanel() {
                     <th className="px-3 py-2 font-semibold text-right">Planned</th>
                     <th className="px-3 py-2 font-semibold text-right">Avg Actual</th>
                     <th className="px-3 py-2 font-semibold text-right">Drift</th>
+                    <th className="px-3 py-2 font-semibold text-right">Consistency</th>
                     <th className="px-3 py-2 font-semibold text-right">Rec</th>
                   </tr>
                 </thead>
@@ -4601,9 +4781,12 @@ function RosteringOperationalPanel() {
                         <td className={`px-3 py-2 text-right tabular-nums ${driftColour}`}>
                           {drift > 0 ? `+${drift}m` : `${drift}m`}
                         </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                          {typeof slot.offsetConsistency === "number" ? `${Math.round(slot.offsetConsistency * 100)}%` : "—"}
+                        </td>
                         <td className="px-3 py-2 text-right">
                           {slot.hasRecommendation ? (
-                            <Badge variant="secondary" className="text-[9px] px-1.5">
+                            <Badge variant="secondary" className={`text-[9px] px-1.5 ${decisions[slot.key] === "implemented" ? "text-emerald-600 dark:text-emerald-400" : decisions[slot.key] === "rejected" ? "text-rose-500" : ""}`}>
                               {decisions[slot.key] === "implemented" ? "✓ Done" : decisions[slot.key] === "rejected" ? "✗ Skip" : "Pending"}
                             </Badge>
                           ) : <span className="text-muted-foreground">—</span>}
