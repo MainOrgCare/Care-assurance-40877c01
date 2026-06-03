@@ -859,6 +859,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
   const [hasPendingSourceRows, setHasPendingSourceRows] = useState(() => _wsCached('hasPendingSourceRows', false));
   const analysisStartTimeRef = useRef<number>(0);
   const [analysisElapsedSeconds, setAnalysisElapsedSeconds] = useState(0);
+  const [analysisCompletedAt, setAnalysisCompletedAt] = useState<Date | null>(null);
   const showGlobalProgress = processingState === "parsing" || processingState === "analyzing";
   const queryClient = useQueryClient();
 
@@ -1838,6 +1839,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       if (analysisJobRef.current === jobId) {
         setProcessingState("complete");
         setProgress(100);
+        setAnalysisCompletedAt(new Date());
       }
     } catch (error) {
       console.error(error);
@@ -2127,6 +2129,9 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
     const missingPlannedDuration = primaryRows.filter((row) => typeof row.plannedDurationMinutes !== "number").length;
     const missingActualDuration = primaryRows.filter((row) => typeof row.actualDurationMinutes !== "number").length;
     const driftOverTwoHours = primaryRows.filter((row) => row.scheduleFlag).length;
+    const driftOver30Min = primaryRows.filter(
+      (row) => typeof row.scheduleDeltaMinutes === "number" && Math.abs(row.scheduleDeltaMinutes) > 30,
+    ).length;
     const durationShortfall = primaryRows.filter((row) => row.durationFlag).length;
     const durationOverrun = primaryRows.filter((row) => row.durationOverrunFlag).length;
     const syntheticZeroSecondRows = primaryRows.filter(
@@ -2144,6 +2149,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       missingPlannedDuration,
       missingActualDuration,
       driftOverTwoHours,
+      driftOver30Min,
       durationShortfall,
       durationOverrun,
       syntheticZeroSecondRows,
@@ -3241,6 +3247,37 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       }))
       .sort((a, b) => b.rows.length - a.rows.length || (a.serviceUserName || "").localeCompare(b.serviceUserName || ""));
   }, [primaryRows]);
+
+  const suCoverageStats = useMemo(() => {
+    if (!serviceUserStacks.length) return [];
+    return serviceUserStacks.map((stack) => {
+      const rows = stack.rows;
+      const total = rows.length;
+      if (!total) return null;
+      const hasPlan = rows.filter((r) => typeof r.plannedTimeMinutes === "number").length;
+      const hasActual = rows.filter((r) => typeof r.actualTimeMinutes === "number").length;
+      const hasDur = rows.filter((r) => typeof r.plannedDurationMinutes === "number").length;
+      const completeness = Math.round(((hasPlan + hasActual + hasDur) / (total * 3)) * 100);
+      const driftVals = rows
+        .filter((r) => typeof r.scheduleDeltaMinutes === "number")
+        .map((r) => Math.abs(r.scheduleDeltaMinutes as number));
+      const avgDrift = driftVals.length ? Math.round(driftVals.reduce((a, b) => a + b, 0) / driftVals.length) : null;
+      const flagged = rows.filter((r) => r.status !== "clean").length;
+      return {
+        key: stack.key,
+        name: stack.serviceUserName ?? stack.key,
+        area: stack.serviceUserArea ?? "—",
+        total,
+        completeness,
+        avgDrift,
+        flagged,
+        flaggedPct: Math.round((flagged / total) * 100),
+      };
+    }).filter(Boolean).sort((a, b) => (a!.completeness - b!.completeness)) as {
+      key: string; name: string; area: string; total: number;
+      completeness: number; avgDrift: number | null; flagged: number; flaggedPct: number;
+    }[];
+  }, [serviceUserStacks]);
 
   const { visibleServiceUserStacks, hasSearchMatch } = useMemo<{
     visibleServiceUserStacks: ServiceUserStack[];
@@ -7711,6 +7748,23 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Empty fields</p>
                   <p className="text-sm font-semibold">{summary.totalEmpty.toLocaleString()}</p>
                 </div>
+                {healthSummary && (
+                  <div className="rounded-xl border border-border/50 bg-background/80 px-3 py-2 col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Data completeness</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            healthSummary.completeness.score >= 80 ? "bg-emerald-500" :
+                            healthSummary.completeness.score >= 60 ? "bg-amber-500" : "bg-red-500"
+                          }`}
+                          style={{ width: `${healthSummary.completeness.score}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums">{healthSummary.completeness.score.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                )}
               </div>
               {(summary.duplicateCount > 0 || excludedCounts.total > 0) && (
                 <div className="space-y-1 text-xs text-muted-foreground">
@@ -7725,6 +7779,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                     </p>
                   )}
                 </div>
+              )}
+              {processingState === "complete" && analysisCompletedAt && (
+                <p className="text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+                  Completed{" "}
+                  {analysisCompletedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{" "}
+                  on {analysisCompletedAt.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -7895,6 +7956,43 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
               )}
             </div>
 
+            {/* Field coverage breakdown */}
+            <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Field coverage breakdown</p>
+                <p className="text-[10px] text-muted-foreground">% of rows with value present</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    { key: "plannedTime", label: "Planned time" },
+                    { key: "actualTime", label: "Actual time" },
+                    { key: "plannedDuration", label: "Planned duration" },
+                    { key: "actualDuration", label: "Actual duration" },
+                    { key: "plannedWorker", label: "Planned worker" },
+                    { key: "actualWorker", label: "Actual worker" },
+                    { key: "serviceUser", label: "Service user" },
+                    { key: "callType", label: "Call type" },
+                  ] as { key: keyof typeof healthSummary.completeness.breakdown; label: string }[]
+                ).map((field) => {
+                  const val = healthSummary.completeness.breakdown[field.key];
+                  const pct = Math.round(val * 100);
+                  const colour = pct >= 90 ? "bg-emerald-500" : pct >= 70 ? "bg-amber-500" : "bg-red-500";
+                  return (
+                    <div key={field.key} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{field.label}</span>
+                        <span className={`tabular-nums font-semibold ${pct >= 90 ? "text-emerald-600 dark:text-emerald-400" : pct >= 70 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>{pct}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ${colour}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Duration fidelity detail */}
             {healthSummary.accuracy.durationP50 !== null && (
               <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft">
@@ -7916,6 +8014,67 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                       </p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Per-service-user coverage table */}
+            {suCoverageStats.length > 0 && (
+              <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-soft space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Service user data coverage</p>
+                  <p className="text-[10px] text-muted-foreground">Sorted worst → best completeness</p>
+                </div>
+                <div className="max-h-64 overflow-auto rounded-md border border-border/50">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/40 text-left uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2">Service User</th>
+                        <th className="px-3 py-2 text-right w-20">Calls</th>
+                        <th className="px-3 py-2 w-36">Completeness</th>
+                        <th className="px-3 py-2 text-right w-24">Avg drift</th>
+                        <th className="px-3 py-2 text-right w-20">Flagged</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {suCoverageStats.map((su) => (
+                        <tr key={su.key} className="border-t border-border/40 hover:bg-muted/20">
+                          <td className="px-3 py-2">
+                            <p className="font-medium truncate max-w-[160px]">{su.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{su.area}</p>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{su.total}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 rounded-full bg-border/40 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${su.completeness >= 80 ? "bg-emerald-500" : su.completeness >= 60 ? "bg-amber-500" : "bg-red-500"}`}
+                                  style={{ width: `${su.completeness}%` }}
+                                />
+                              </div>
+                              <span className={`tabular-nums font-semibold w-8 text-right ${su.completeness >= 80 ? "text-emerald-600 dark:text-emerald-400" : su.completeness >= 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+                                {su.completeness}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {su.avgDrift !== null ? (
+                              <span className={su.avgDrift > 45 ? "text-red-600 dark:text-red-400" : su.avgDrift > 20 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}>
+                                {su.avgDrift}m
+                              </span>
+                            ) : "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {su.flagged > 0 ? (
+                              <span className={`font-medium ${su.flaggedPct > 30 ? "text-red-600 dark:text-red-400" : su.flaggedPct > 10 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                                {su.flagged} <span className="text-muted-foreground font-normal">({su.flaggedPct}%)</span>
+                              </span>
+                            ) : <span className="text-emerald-600 dark:text-emerald-400">✓</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -9177,6 +9336,21 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                         <span className="font-bold tabular-nums">{summary.duplicateCount}</span>
                       </button>
                     )}
+                    {issueBreakdown.driftOver30Min > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setFilterStatus("attention"); setSearchTerm("Δ"); }}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
+                          filterStatus === "attention" && searchTerm === "Δ"
+                            ? "bg-sky-500/20 border-sky-500/40 text-sky-700 dark:text-sky-300"
+                            : "bg-muted/40 border-border/50 text-foreground/70 hover:border-sky-500/40 hover:text-sky-700 dark:hover:text-sky-300"
+                        }`}
+                      >
+                        <TrendingUp className="h-3 w-3" />
+                        Drift &gt; 30m
+                        <span className="font-bold tabular-nums">{issueBreakdown.driftOver30Min}</span>
+                      </button>
+                    )}
                     {issueBreakdown.missingPlannedTime > 0 && (
                       <button
                         type="button"
@@ -9210,7 +9384,8 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                       <table className="w-full text-sm">
                         <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
                           <tr>
-                            <th className="px-4 py-3 w-16">Row</th>
+                            <th className="px-4 py-3 w-14">Row</th>
+                            <th className="px-4 py-3 max-w-[140px]">Service User</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3">Highlights</th>
                             <th className="px-4 py-3">Issues</th>
@@ -9230,7 +9405,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                             return (
                               <>
                                 <tr style={{ height: `${startIndex * rowHeight}px` }}>
-                                  <td colSpan={4} />
+                                  <td colSpan={5} />
                                 </tr>
                                 {visible.map((row) => (
                                   <tr
@@ -9239,6 +9414,18 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                                     onClick={() => setSelectedRow(row)}
                                   >
                                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{row.rowNumber}</td>
+                                    <td className="px-4 py-3 max-w-[140px]">
+                                      {row.serviceUserName ? (
+                                        <div>
+                                          <p className="text-xs font-medium truncate leading-tight">{row.serviceUserName}</p>
+                                          {row.serviceUserArea && (
+                                            <p className="text-[10px] text-muted-foreground truncate leading-tight">{row.serviceUserArea}</p>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                                      )}
+                                    </td>
                                     <td className="px-4 py-3">
                                       <Badge variant={row.status === "clean" ? "outline" : "destructive"}>
                                         {row.status === "clean" ? "Clean" : "Needs attention"}
@@ -9259,7 +9446,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                                       </div>
                                       <div className="flex flex-wrap gap-2 mt-2">
                                         {typeof row.scheduleDeltaMinutes === "number" && (
-                                          <InsightPill tone={row.scheduleFlag ? "destructive" : "default"}>
+                                          <InsightPill tone={row.scheduleFlag ? "destructive" : Math.abs(row.scheduleDeltaMinutes) > 30 ? "warning" : "default"}>
                                             Δ {formatSignedMinutes(row.scheduleDeltaMinutes)}
                                           </InsightPill>
                                         )}
@@ -9288,13 +9475,13 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
                                         )}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-muted-foreground">
+                                    <td className="px-4 py-3 text-muted-foreground text-xs">
                                       {row.issues.length ? row.issues.join(", ") : "No issues detected"}
                                     </td>
                                   </tr>
                                 ))}
                                 <tr style={{ height: `${Math.max(0, totalRows - endIndex) * rowHeight}px` }}>
-                                  <td colSpan={4} />
+                                  <td colSpan={5} />
                                 </tr>
                               </>
                             );
