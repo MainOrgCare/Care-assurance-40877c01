@@ -1,5 +1,62 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 0.9.1 — Activity power tools & settings backup
+
+Builds on the v0.9.0 productivity suite. New logic ships as self-contained,
+unit-tested modules (`popup/activityTools.js`, `popup/backup.js`).
+
+### Added
+
+- **Activity log search, filtering & CSV export.** The Logs tab's Recent Activity
+  card gains a live search box, a tone filter (Success / Warnings / Errors /
+  Info), and an Export button that downloads the currently-filtered activity as a
+  CSV. Filtering is purely client-side via a new activity controller that layers
+  over the existing renderer.
+- **Settings backup & restore.** A new Logs-tab card exports your extension
+  preferences (theme, autofill interaction mode, dry-run / auto-submit, server
+  URL, display-name override, command-palette history) to a JSON file and
+  re-imports them — validated against a strict whitelist. No service-user data,
+  payloads, signatures or credentials are ever included.
+- **Alt + 1…6 tab shortcuts** to jump straight to Home / Intake / Run / Review /
+  Ops / Logs.
+
+## Version 0.9.0 — Operator Productivity Suite
+
+A major UX + capability upgrade. All new logic ships as self-contained,
+try/catch-guarded popup modules (`popup/commandPalette.js`, `popup/metrics.js`)
+so existing autofill flows are untouched.
+
+### Added
+
+- **Command Palette (Ctrl / ⌘ + K).** A searchable launcher for every operator
+  action — switch tabs, start/stop autofill, load care plan & risk, analyse and
+  sync documents, copy the payload, manage signatures, refresh the connection,
+  toggle dry-run / auto-submit / theme, and open the Command Center. Fuzzy
+  ranking, keyboard navigation (↑/↓/Enter/Esc), per-action enable/disable based
+  on live UI state, and a most-recently-used memory persisted to
+  `caAcpPaletteRecent`. Also reachable from the new **⌘K** header button.
+- **Productivity dashboard.** A new card at the top of the Ops tab plus a footer
+  chip surface lifetime impact: estimated time saved, autofills completed, forms
+  filled, signatures applied, documents synced, and sessions. Counters persist to
+  `caAcpProductivityMetrics` and are recorded automatically on batch completion,
+  signature capture, document sync, and session start. Includes a Reset control.
+- **Light / dark theme quick-toggle** in the header (persists to `caAcpAppTheme`).
+
+### Changed
+
+- Header gains a tools cluster (command palette + theme toggle) alongside the
+  existing pin/help buttons.
+
+## Version 0.8.3 — Draw or upload signatures
+
+### Added
+
+- **Draw-a-signature pad.** The Logs tab's signature manager now has an Upload/Draw toggle. "Draw" reveals a pointer/touch canvas where operators can sign by hand, then **Save Signature** composites the strokes onto a white background and stores them exactly like an uploaded image (same `caAcpSignatureData` storage shape, batch binding, preview, and ACP file-input upload path). "Clear Pad" resets the canvas.
+
+### Changed
+
+- Signature upload and draw now share a single `persistSignature()` helper, so both paths store identical metadata and refresh the preview/status consistently.
+
 ## Version 0.8.2 — Auto-collect Save → Analyse → Copy pipeline
 
 ### Fixed

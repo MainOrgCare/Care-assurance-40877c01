@@ -3477,6 +3477,52 @@ body {
   min-width: 0;
 }
 
+.signature-mode-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-muted);
+}
+
+.signature-mode-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-muted-foreground, var(--color-foreground));
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+}
+
+.signature-mode-btn.is-active {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.signature-pad {
+  width: 100%;
+  max-width: 320px;
+  height: 120px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  touch-action: none;
+  cursor: crosshair;
+  display: block;
+}
+
+.signature-pad-actions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+
 /* ===== LIVE PROGRESS ===== */
 .live-progress-bar {
   display: flex;
@@ -7705,4 +7751,329 @@ body.ca-theme-overhaul .action-row {
   .auto-collect-pipeline-step[data-step-state="active"] .auto-collect-pipeline-icon {
     animation: none;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.9.0 — Header tools, Command Palette, Productivity dashboard
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ----- Header icon buttons (palette + theme) ----- */
+.btn-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-primary-foreground);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.btn-header-icon:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+.btn-header-icon:active {
+  transform: translateY(1px);
+}
+.btn-header-icon[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* ----- Footer productivity chip ----- */
+.footer-productivity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+}
+.footer-productivity-chip svg {
+  color: var(--color-success);
+}
+.footer-productivity-chip span#productivity-chip-value {
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+/* ----- Command Palette ----- */
+.command-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 54px;
+}
+.command-palette[hidden] {
+  display: none;
+}
+.command-palette-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+}
+.command-palette-panel {
+  position: relative;
+  width: min(420px, calc(100% - 28px));
+  max-height: calc(100% - 84px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.32);
+  overflow: hidden;
+  animation: command-palette-in 0.12s ease-out;
+}
+@keyframes command-palette-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.command-palette-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.command-palette-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--color-foreground);
+}
+.command-palette-input::placeholder {
+  color: var(--color-muted-foreground);
+}
+.command-palette-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-muted);
+}
+.command-palette-count:empty {
+  display: none;
+}
+.command-palette-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.command-palette-group {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted-foreground);
+  padding: 8px 8px 4px;
+}
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-foreground);
+}
+.command-palette-item.is-active {
+  background: var(--color-accent-light);
+}
+.command-palette-item.is-disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.command-palette-item-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.command-palette-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.command-palette-item-sub {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.command-palette-item-hint,
+.command-palette-hint kbd,
+.command-palette-footer kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--color-muted);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted-foreground);
+  flex-shrink: 0;
+}
+.command-palette-empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+.command-palette-footer {
+  display: flex;
+  gap: 14px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-muted);
+}
+.command-palette-hint {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ----- Productivity dashboard card ----- */
+.productivity-card {
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.productivity-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.productivity-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.productivity-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+.productivity-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-success);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-success-light);
+}
+.productivity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.productivity-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-muted);
+}
+.productivity-tile[data-tone="accent"] {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+}
+.productivity-value {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--color-foreground);
+}
+.productivity-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground);
+}
+.productivity-foot {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--color-muted-foreground);
+}
+
+/* Dark theme adjustments */
+.is-app-theme-dark .command-palette-panel {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.is-app-theme-dark .btn-header-icon {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.9.1 — Activity power tools + Settings backup
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.activity-card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.activity-search-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--color-foreground);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+}
+.activity-search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+.activity-tone-select {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--color-foreground);
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.is-app-theme-dark .activity-search-input,
+.is-app-theme-dark .activity-tone-select {
+  background: var(--color-muted);
 }

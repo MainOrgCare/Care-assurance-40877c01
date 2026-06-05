@@ -524,6 +524,33 @@
 - Use GitHub/PR MCP tools for review workflows and issue-linked work
 - Use search + semantic tools first before broad file edits in large server modules
 
+## EMAR accuracy hardening (deterministic compliance validation)
+- New pure module `server/services/emarComplianceValidator.ts` —
+  `validateAndNormalizeCompliance(raw, { gridBaseline })` enforces every documented EMAR invariant
+  in code rather than trusting the AI: clamps `code` to R/SA/F/NH/MU/null, forces
+  `requiresVerification=true` for NH and blank(null) codes, recomputes `summary.byCode` /
+  `summary.totalRecords` / `allCareWorkers` from records (drops hallucinated workers), flags
+  non-anonymized care-worker names, cross-checks AI populated-record count vs the deterministic
+  grid `cellCount` (shortfall = dropped data = mismatch), and emits an `integrity` report
+  (corrections, warnings, confidence 0..1, `requiresHumanReview`).
+- `runComplianceAgent` now pipes AI JSON through the validator and accepts an optional
+  `gridBaseline`; `/api/ai/emar-compliance-check` parses the grid and passes that baseline.
+- Tests: `server/__tests__/emarComplianceValidator.test.ts` (14, node test runner). Existing
+  parity + artifacts + grid + agent suites still green; `npm run check` clean.
+
 ---
 
 *This file serves as persistent project memory for enhanced AI assistant session continuity with repository-verified context.*
+
+## Homepage design polish (public front door)
+- Confirmed via headless Chromium screenshots (desktop 1440 + mobile 390) that the design
+  system is already mature/premium across 6 themes; no design debt. Focused on tasteful,
+  in-language micro-interactions for the public Homepage rather than risky global restyles.
+- `client/src/pages/homepage-theme.css`: content cards (`.home-card`, `.home-feature-card`,
+  `.home-workflow-card`) now lift subtly on hover with richer layered shadows; feature cards
+  gain an animated primary hairline accent on the top edge and an emphasized icon chip on
+  hover; `.home-icon-chip` got a transition + slightly stronger tint. Added a
+  `prefers-reduced-motion` guard disabling the new transforms/transitions.
+- Verified: production build OK, `npm run check` clean, no layout regressions (desktop+mobile
+  screenshots). Below-the-fold blanks in static captures are just the existing framer-motion
+  `whileInView` reveals (fine for real users).

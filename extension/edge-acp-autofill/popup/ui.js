@@ -92,9 +92,14 @@ export function cacheDomElements() {
     // Signature & logs
     "signature-file", "signature-filename", "signature-status", "signature-preview",
     "upload-signature-btn",
+    "signature-mode-upload", "signature-mode-draw",
+    "signature-upload-panel", "signature-draw-panel",
+    "signature-pad", "signature-pad-clear", "signature-pad-save",
     "log-status", "log-list", "runtime-diagnostics", "clear-logs", "copy-diagnostics",
     // Footer
     "footer-extension-version", "footer-status", "footer-status-dot",
+    // Header tools (command palette + theme toggle)
+    "command-palette-btn", "theme-toggle-btn",
     // Error
     "error-banner", "error-message", "error-dismiss",
     // EMAR skipped rows banner (consumes caAcpEmarSkippedRows storage bucket)
@@ -103,6 +108,9 @@ export function cacheDomElements() {
     "emar-skipped-copy", "emar-skipped-clear",
     // Recent activity log
     "activity-list", "activity-count", "clear-activity",
+    "activity-search", "activity-tone-filter", "activity-export",
+    // Settings backup & restore
+    "export-settings", "import-settings", "import-settings-file", "backup-status",
     // Live progress
     "autofill-live-progress", "live-progress-fill", "live-progress-label",
     "live-progress-field", "live-progress-queue",

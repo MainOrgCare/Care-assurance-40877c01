@@ -33,6 +33,8 @@ export const STORAGE_KEYS = _g.STORAGE_KEYS || {
   runtimeConfig: "caAcpRuntimeConfig",
   emarSkippedRows: "caAcpEmarSkippedRows",
   activityLog: "caAcpActivityLog",
+  productivityMetrics: "caAcpProductivityMetrics",
+  paletteRecent: "caAcpPaletteRecent",
 };
 
 export const MESSAGE_TYPES = _g.MESSAGE_TYPES || {

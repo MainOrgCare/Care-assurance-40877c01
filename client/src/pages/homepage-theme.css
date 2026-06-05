@@ -135,6 +135,13 @@
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: color-mix(in oklab, var(--color-foreground) 84%, var(--color-primary));
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.homepage-theme .home-trust-pill:hover {
+  border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border));
+  background: color-mix(in oklab, var(--color-primary) 5%, white);
+  color: color-mix(in oklab, var(--color-foreground) 70%, var(--color-primary));
 }
 
 .homepage-theme .home-trust-pill svg {
@@ -185,7 +192,7 @@
 .homepage-theme .home-brand-mark {
   background: var(--color-primary);
   color: var(--color-primary-foreground);
-  box-shadow: none;
+  box-shadow: 0 6px 16px -8px color-mix(in oklab, var(--color-primary) 60%, transparent);
 }
 
 .homepage-theme .home-brand-copy {
@@ -226,7 +233,7 @@
 
 .homepage-theme .home-nav-link:hover {
   color: var(--color-foreground);
-  background: transparent;
+  background: color-mix(in oklab, var(--color-primary) 5%, transparent);
   border-color: transparent;
 }
 
@@ -327,9 +334,9 @@
 }
 
 .homepage-theme .home-card:hover {
-  border-color: color-mix(in oklab, var(--color-border) 76%, white);
-  box-shadow: var(--shadow-sm);
-  transform: none;
+  border-color: color-mix(in oklab, var(--color-primary) 14%, var(--color-border));
+  box-shadow: 0 26px 54px -34px rgba(15, 23, 42, 0.26), 0 12px 26px -18px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
 }
 
 .homepage-theme .home-hero-panel {
@@ -354,7 +361,8 @@
 
 .homepage-theme .home-card-soft:hover {
   border-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-border));
-  box-shadow: none;
+  box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.18), 0 4px 10px -8px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
 }
 
 .homepage-theme .home-stat-card::before {
@@ -365,8 +373,32 @@
   background: color-mix(in oklab, var(--color-card) 98%, white);
 }
 
+/* Animated hairline accent that draws in along the top edge on hover */
+.homepage-theme .home-feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  height: 2px;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 30%, transparent));
+  transition: transform 0.32s var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.homepage-theme .home-feature-card:hover::before {
+  transform: scaleX(1);
+}
+
 .homepage-theme .home-feature-card:hover {
-  transform: none;
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
+}
+
+.homepage-theme .home-feature-card:hover .home-icon-chip {
+  background-color: color-mix(in oklab, var(--color-primary) 16%, white);
+  border-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  box-shadow: 0 6px 16px -8px color-mix(in oklab, var(--color-primary) 50%, transparent);
 }
 
 .homepage-theme .home-pill {
@@ -397,9 +429,10 @@
 }
 
 .homepage-theme .home-icon-chip {
-  background-color: color-mix(in oklab, var(--color-primary) 10%, white);
+  background-color: color-mix(in oklab, var(--color-primary) 12%, white);
   border: 1px solid var(--color-primary-border);
   color: var(--color-primary);
+  transition: background-color 0.24s var(--ease-standard, ease), border-color 0.24s var(--ease-standard, ease), box-shadow 0.24s var(--ease-standard, ease);
 }
 
 .homepage-theme .home-eyebrow {
@@ -416,9 +449,9 @@
 .homepage-theme .home-eyebrow::before {
   content: "";
   width: 2.4rem;
-  height: 1px;
+  height: 2px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--color-primary) 40%, transparent);
+  background: linear-gradient(90deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 20%, transparent));
 }
 
 .homepage-theme .home-cta {
@@ -428,12 +461,13 @@
   border: 1px solid var(--color-primary-border);
   font-weight: 800;
   letter-spacing: 0.01em;
-  box-shadow: none;
+  box-shadow: 0 8px 20px -10px color-mix(in oklab, var(--color-primary) 55%, transparent), 0 1px 2px 0 rgba(15, 23, 42, 0.06);
   transition: all 0.2s ease;
 }
 
 .homepage-theme .home-cta:hover {
   background-color: color-mix(in oklab, var(--color-primary) 92%, black);
+  box-shadow: 0 12px 26px -10px color-mix(in oklab, var(--color-primary) 62%, transparent), 0 2px 4px 0 rgba(15, 23, 42, 0.08);
   transform: none;
 }
 
@@ -586,6 +620,13 @@
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--color-foreground);
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.homepage-theme .home-coverage-chip:hover {
+  border-color: color-mix(in oklab, var(--color-primary) 24%, var(--color-border));
+  background: color-mix(in oklab, var(--color-primary) 6%, white);
+  color: color-mix(in oklab, var(--color-foreground) 72%, var(--color-primary));
 }
 
 .homepage-theme .home-hero-trend-header {
@@ -683,9 +724,9 @@
 }
 
 .homepage-theme .home-workflow-card:hover {
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 24px 50px -34px rgba(15, 23, 42, 0.24), 0 12px 24px -18px rgba(15, 23, 42, 0.1);
   border-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-border));
-  transform: none;
+  transform: translateY(-2px);
 }
 
 @keyframes home-spectrum-sweep {
@@ -739,6 +780,15 @@
   .homepage-theme .home-hero-trend-bar,
   .homepage-theme .home-hero-glow {
     animation: none !important;
+  }
+  .homepage-theme .home-card:hover,
+  .homepage-theme .home-card-soft:hover,
+  .homepage-theme .home-feature-card:hover,
+  .homepage-theme .home-workflow-card:hover {
+    transform: none;
+  }
+  .homepage-theme .home-feature-card::before {
+    transition: none;
   }
 }
 

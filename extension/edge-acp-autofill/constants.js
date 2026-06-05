@@ -25,6 +25,8 @@
     runtimeConfig: "caAcpRuntimeConfig",
     emarSkippedRows: "caAcpEmarSkippedRows",
     activityLog: "caAcpActivityLog",
+    productivityMetrics: "caAcpProductivityMetrics",
+    paletteRecent: "caAcpPaletteRecent",
   };
 
   const FORM_CONFIGS = {

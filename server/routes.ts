@@ -8102,7 +8102,21 @@ export async function registerRoutes(
         username: req.user?.username || "admin"
       };
 
-      const result = await runComplianceAgent(text, aiUserContext);
+      // Deterministic grid baseline used to cross-check the AI compliance output.
+      let gridBaseline: { dateCount: number; timeSlotCount: number; medicationCount: number; cellCount: number } | null = null;
+      try {
+        const grid = await parseEMARGrid(req.file.buffer);
+        gridBaseline = {
+          dateCount: (grid.dates || []).length,
+          timeSlotCount: (grid.timeSlots || []).length,
+          medicationCount: (grid.medications || []).length,
+          cellCount: (grid.cells || []).length,
+        };
+      } catch (gridErr: any) {
+        console.warn("[EMAR Compliance] Grid baseline parse failed; continuing without cross-check:", gridErr?.message);
+      }
+
+      const result = await runComplianceAgent(text, aiUserContext, { gridBaseline });
       res.json(result);
     } catch (err: any) {
       console.error("Strict Compliance Agent error:", err);

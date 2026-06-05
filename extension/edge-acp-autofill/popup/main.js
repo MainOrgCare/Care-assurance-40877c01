@@ -97,6 +97,21 @@ import {
   renderKeyboardShortcutHints,
 } from "./ui.js";
 
+import {
+  initMetrics,
+  recordMetric,
+  refreshMetricsCard,
+} from "./metrics.js";
+
+import { createCommandPalette } from "./commandPalette.js";
+
+import { createActivityController, buildActivityCsv } from "./activityTools.js";
+
+import {
+  exportSettingsToFile,
+  importSettingsFromFile,
+} from "./backup.js";
+
 const POPUP_REFRESH_DEBOUNCE_MS = 180;
 const POPUP_PERIODIC_REFRESH_MS = 12000;
 const POPUP_WORKSPACE_REFRESH_COOLDOWN_MS = 9000;
@@ -129,10 +144,14 @@ const POPUP_INITIAL_STORAGE_KEYS = [
 // RECENT ACTIVITY LOG
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Re-render the recent-activity list from storage. */
+// Stateful filter layer over renderActivityLog so the Logs tab can search and
+// narrow activity without re-reading storage.
+const activityController = createActivityController({ render: renderActivityLog });
+
+/** Re-render the recent-activity list from storage (through the filter). */
 async function refreshActivityLog() {
   try {
-    renderActivityLog(await loadActivityLog());
+    activityController.setEntries(await loadActivityLog());
   } catch (error) {
     debugLog("[CA Extension] refreshActivityLog failed:", error);
   }
@@ -209,7 +228,109 @@ const applyPopupAppTheme = (themeValue) => {
   if (document.body) {
     document.body.style.colorScheme = isDark ? "dark" : "light";
   }
+
+  const toggleBtn = document.getElementById("theme-toggle-btn");
+  if (toggleBtn) toggleBtn.setAttribute("aria-pressed", String(isDark));
 };
+
+/** Flip between the operator's light and dark popup themes and persist it. */
+async function cyclePopupTheme() {
+  try {
+    const data = await loadStorage([STORAGE_KEYS.appTheme]);
+    const current = normalizePopupAppTheme(data?.[STORAGE_KEYS.appTheme]);
+    const next = POPUP_DARK_APP_THEMES.has(current) ? "light" : "dark";
+    applyPopupAppTheme(next);
+    await setStorage({ [STORAGE_KEYS.appTheme]: next });
+    showInfo(next === "dark" ? "Dark theme enabled" : "Light theme enabled");
+  } catch (error) {
+    console.warn("[CA Extension] theme toggle failed:", error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMAND PALETTE (⌘K / Ctrl+K)
+// ═══════════════════════════════════════════════════════════════════════════
+
+let commandPalette = null;
+
+/** Dispatch a click on a DOM element only when present and enabled. */
+const clickIfActionable = (el) => {
+  if (el && !el.disabled) el.click();
+};
+
+/** Toggle a checkbox-style control and fire its change listeners. */
+const toggleCheckbox = (el) => {
+  if (!el) return;
+  el.checked = !el.checked;
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+};
+
+/**
+ * Build the flat command registry consumed by the palette. Recomputed on every
+ * keystroke so `enabled` flags reflect live UI state.
+ */
+function buildCommandRegistry() {
+  const hasPayload = Boolean(state.currentPayload || dom.payloadJson?.textContent?.trim());
+  const isConnected = Boolean(state.isConnected);
+
+  return [
+    // Navigation
+    { id: "go-home", group: "Navigate", title: "Go to Home", subtitle: "Connection & workspace", keywords: ["connect", "home", "dashboard"], run: () => switchTab("connect") },
+    { id: "go-intake", group: "Navigate", title: "Go to Intake", subtitle: "Stage & analyse documents", keywords: ["upload", "documents", "intake"], run: () => switchTab("upload") },
+    { id: "go-run", group: "Navigate", title: "Go to Run", subtitle: "Autofill controls", keywords: ["autofill", "run", "start"], run: () => switchTab("autofill") },
+    { id: "go-review", group: "Navigate", title: "Go to Review", subtitle: "Inspect the payload", keywords: ["review", "payload", "preview"], run: () => switchTab("review") },
+    { id: "go-ops", group: "Navigate", title: "Go to Ops", subtitle: "Command center & metrics", keywords: ["ops", "operations", "command center", "metrics"], run: () => switchTab("ops") },
+    { id: "go-logs", group: "Navigate", title: "Go to Logs", subtitle: "Activity, signature & diagnostics", keywords: ["logs", "activity", "diagnostics"], run: () => switchTab("logs") },
+
+    // Autofill
+    { id: "start-autofill", group: "Autofill", title: "Start autofill", hint: "Alt+A", subtitle: "Run the staged batch", keywords: ["run", "fill", "go"], enabled: Boolean(dom.startAutofill && !dom.startAutofill.disabled), run: () => clickIfActionable(dom.startAutofill) },
+    { id: "stop-autofill", group: "Autofill", title: "Stop autofill", hint: "Alt+X", subtitle: "Halt the current batch", keywords: ["cancel", "halt"], enabled: Boolean(dom.stopAutofill && !dom.stopAutofill.disabled), run: () => clickIfActionable(dom.stopAutofill) },
+    { id: "toggle-dry-run", group: "Autofill", title: "Toggle dry-run mode", subtitle: dom.dryRun?.checked ? "Currently ON" : "Currently OFF", keywords: ["dry", "test", "safe"], enabled: Boolean(dom.dryRun), run: () => toggleCheckbox(dom.dryRun) },
+    { id: "toggle-auto-submit", group: "Autofill", title: "Toggle auto-submit", subtitle: dom.autoSubmit?.checked ? "Currently ON" : "Currently OFF", keywords: ["submit", "auto"], enabled: Boolean(dom.autoSubmit), run: () => toggleCheckbox(dom.autoSubmit) },
+
+    // Data
+    { id: "load-care-plan", group: "Data", title: "Load care plan", subtitle: "Pull care plan into the payload", keywords: ["care", "plan", "load"], enabled: Boolean(dom.loadCarePlanBtn && !dom.loadCarePlanBtn.disabled), run: () => clickIfActionable(dom.loadCarePlanBtn) },
+    { id: "load-risk", group: "Data", title: "Load risk assessment", subtitle: "Pull risk rows into the payload", keywords: ["risk", "assessment", "load"], enabled: Boolean(dom.loadRiskBtn && !dom.loadRiskBtn.disabled), run: () => clickIfActionable(dom.loadRiskBtn) },
+    { id: "analyze-documents", group: "Data", title: "Analyse staged documents", subtitle: "Parse & run AI analysis", keywords: ["analyze", "analyse", "ai"], enabled: Boolean(dom.analyzeDocuments && !dom.analyzeDocuments.disabled), run: () => { switchTab("upload"); clickIfActionable(dom.analyzeDocuments); } },
+    { id: "sync-uploads", group: "Data", title: "Sync documents to Care Assurance", subtitle: "Copy staged uploads to the workspace", keywords: ["sync", "copy", "upload"], enabled: Boolean(dom.syncUploadBtn && !dom.syncUploadBtn.disabled), run: () => clickIfActionable(dom.syncUploadBtn) },
+    { id: "copy-payload", group: "Data", title: "Copy payload JSON", hint: "Alt+C", subtitle: "Copy the staged payload to the clipboard", keywords: ["copy", "json", "clipboard"], enabled: hasPayload, run: () => { switchTab("review"); clickIfActionable(dom.copyPayload); } },
+    { id: "clear-data", group: "Data", title: "Clear staged data", subtitle: "Reset payload, queue & uploads", keywords: ["clear", "reset", "delete"], enabled: Boolean(dom.clearData), run: () => clickIfActionable(dom.clearData) },
+
+    // Signature
+    { id: "upload-signature", group: "Signature", title: "Upload signature image", subtitle: "Open the signature uploader", keywords: ["signature", "upload", "sign"], run: () => { switchTab("logs"); try { setSignatureMode("upload"); } catch { /* noop */ } clickIfActionable(dom.signatureFile); } },
+    { id: "draw-signature", group: "Signature", title: "Draw a signature", subtitle: "Open the signature pad", keywords: ["signature", "draw", "pad", "sign"], run: () => { switchTab("logs"); try { setSignatureMode("draw"); } catch { /* noop */ } } },
+
+    // System
+    { id: "refresh-connection", group: "System", title: "Refresh connection", hint: "Alt+R", subtitle: isConnected ? "Re-check Care Assurance" : "Connect to Care Assurance", keywords: ["refresh", "connect", "reconnect"], run: () => { if (dom.connectBtn && !dom.connectBtn.disabled) dom.connectBtn.click(); else schedulePopupRefresh({ payload: true, workspace: true, immediate: true }); } },
+    { id: "toggle-theme", group: "System", title: "Toggle light / dark theme", subtitle: "Switch the popup colour theme", keywords: ["theme", "dark", "light", "appearance"], run: () => { void cyclePopupTheme(); } },
+    { id: "open-command-center", group: "System", title: "Open Command Center", subtitle: "Live health & incident controls", keywords: ["command", "center", "health"], run: () => { switchTab("ops"); if (dom.commandCenterSection) dom.commandCenterSection.open = true; } },
+    { id: "open-help", group: "System", title: "Open operator guide", subtitle: "Help & keyboard shortcuts", keywords: ["help", "guide", "shortcuts"], enabled: Boolean(dom.helpBtn), run: () => clickIfActionable(dom.helpBtn) },
+  ];
+}
+
+/** Lazily create the shared command-palette controller. */
+function getCommandPalette() {
+  if (commandPalette) return commandPalette;
+  commandPalette = createCommandPalette({
+    getCommands: buildCommandRegistry,
+    loadRecent: async () => {
+      try {
+        const data = await loadStorage([STORAGE_KEYS.paletteRecent]);
+        const recent = data?.[STORAGE_KEYS.paletteRecent];
+        return Array.isArray(recent) ? recent : [];
+      } catch {
+        return [];
+      }
+    },
+    saveRecent: async (ids) => {
+      try {
+        await setStorage({ [STORAGE_KEYS.paletteRecent]: Array.isArray(ids) ? ids.slice(0, 8) : [] });
+      } catch { /* noop */ }
+    },
+  });
+  return commandPalette;
+}
+
 
 const runPopupIdleTask = (
   task,
@@ -6399,6 +6520,7 @@ const syncUploadsToCareAssurance = async ({ force = false } = {}) => {
       `Synced ${payload.uploads.length} file${payload.uploads.length === 1 ? "" : "s"} at ${syncedAt}.`,
       "success"
     );
+    void recordMetric("documentsStaged", { documents: payload.uploads.length });
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload sync failed.";
@@ -7313,6 +7435,139 @@ async function refreshSignatureStatus() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SIGNATURE INPUT (upload + draw)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function persistSignature({ dataUrl, fileName, mimeType, source }) {
+  const stored = await loadStorage([STORAGE_KEYS.queueState]);
+  const batchId = stored?.caAcpQueueState?.batchId || null;
+  await setStorage({
+    [STORAGE_KEYS.signatureData]: { dataUrl, fileName, mimeType, uploadedAt: new Date().toISOString() },
+    [STORAGE_KEYS.signatureBatchId]: batchId,
+  });
+  await refreshSignatureStatus();
+  logActivity({
+    type: "signature",
+    tone: "success",
+    label: source === "draw" ? "Signature drawn" : "Signature uploaded",
+    detail: fileName,
+  });
+  void recordMetric("signatureApplied");
+}
+
+let signaturePadHasInk = false;
+
+function setupSignaturePad() {
+  const canvas = dom.signaturePad;
+  if (!canvas || canvas.dataset.bound === "1") return;
+  canvas.dataset.bound = "1";
+
+  const ctx = canvas.getContext("2d");
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#111827";
+
+  let drawing = false;
+  let lastX = 0;
+  let lastY = 0;
+
+  const pointFromEvent = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startStroke = (event) => {
+    drawing = true;
+    const point = pointFromEvent(event);
+    lastX = point.x;
+    lastY = point.y;
+    try { canvas.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+    event.preventDefault();
+  };
+
+  const moveStroke = (event) => {
+    if (!drawing) return;
+    const point = pointFromEvent(event);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    lastX = point.x;
+    lastY = point.y;
+    signaturePadHasInk = true;
+    event.preventDefault();
+  };
+
+  const endStroke = () => {
+    drawing = false;
+  };
+
+  canvas.addEventListener("pointerdown", startStroke);
+  canvas.addEventListener("pointermove", moveStroke);
+  canvas.addEventListener("pointerup", endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+  canvas.addEventListener("pointerleave", endStroke);
+}
+
+function clearSignaturePad() {
+  const canvas = dom.signaturePad;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  signaturePadHasInk = false;
+}
+
+async function saveDrawnSignature() {
+  const canvas = dom.signaturePad;
+  if (!canvas) return;
+  if (!signaturePadHasInk) {
+    showError("Draw your signature on the pad first.");
+    return;
+  }
+
+  // Composite onto a white background so the saved image reads like a scanned signature.
+  const out = document.createElement("canvas");
+  out.width = canvas.width;
+  out.height = canvas.height;
+  const octx = out.getContext("2d");
+  octx.fillStyle = "#ffffff";
+  octx.fillRect(0, 0, out.width, out.height);
+  octx.drawImage(canvas, 0, 0);
+
+  try {
+    const dataUrl = out.toDataURL("image/png");
+    await persistSignature({
+      dataUrl,
+      fileName: `signature-${Date.now()}.png`,
+      mimeType: "image/png",
+      source: "draw",
+    });
+    clearSignaturePad();
+    showSuccess("Signature saved!");
+  } catch (error) {
+    console.error("Signature draw save error:", error);
+    showError("Failed to save signature. Please try again.");
+  }
+}
+
+function setSignatureMode(mode) {
+  const isDraw = mode === "draw";
+  if (dom.signatureUploadPanel) dom.signatureUploadPanel.hidden = isDraw;
+  if (dom.signatureDrawPanel) dom.signatureDrawPanel.hidden = !isDraw;
+  dom.signatureModeUpload?.classList.toggle("is-active", !isDraw);
+  dom.signatureModeDraw?.classList.toggle("is-active", isDraw);
+  dom.signatureModeUpload?.setAttribute("aria-selected", String(!isDraw));
+  dom.signatureModeDraw?.setAttribute("aria-selected", String(isDraw));
+  if (isDraw) setupSignaturePad();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CONNECTION FLOW
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -7530,6 +7785,90 @@ function bindEvents() {
     await clearActivityLog();
     await refreshActivityLog();
     showInfo("Recent activity cleared");
+  });
+
+  // Activity search + tone filter (client-side, via the activity controller).
+  dom.activitySearch?.addEventListener("input", () => {
+    activityController.setFilter({ query: dom.activitySearch.value || "" });
+  });
+  dom.activityToneFilter?.addEventListener("change", () => {
+    activityController.setFilter({ tone: dom.activityToneFilter.value || "all" });
+  });
+
+  // Export the currently-filtered activity as CSV.
+  dom.activityExport?.addEventListener("click", async () => {
+    try {
+      const rows = activityController.getFiltered();
+      if (!rows.length) {
+        showInfo("No activity to export");
+        return;
+      }
+      const csv = buildActivityCsv(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `care-assurance-activity-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showSuccess(`Exported ${rows.length} activity row${rows.length === 1 ? "" : "s"} to CSV`);
+    } catch (error) {
+      console.warn("[CA Extension] activity export failed:", error);
+      showError("Could not export activity.");
+    }
+  });
+
+  // ── Settings backup & restore ─────────────────────────────────────────────
+  const setBackupStatus = (text, tone) => {
+    if (!dom.backupStatus) return;
+    dom.backupStatus.textContent = text || "";
+    dom.backupStatus.className = tone ? `status-text ${tone}` : "status-text";
+  };
+
+  dom.exportSettings?.addEventListener("click", async () => {
+    try {
+      let version = "";
+      try { version = chrome.runtime?.getManifest?.()?.version || ""; } catch { version = ""; }
+      const envelope = await exportSettingsToFile({ version });
+      const count = Object.keys(envelope.settings || {}).length;
+      setBackupStatus(`Exported ${count} setting${count === 1 ? "" : "s"}.`, "success");
+      showSuccess("Settings exported");
+    } catch (error) {
+      console.warn("[CA Extension] settings export failed:", error);
+      setBackupStatus("Could not export settings.", "error");
+      showError("Could not export settings.");
+    }
+  });
+
+  dom.importSettings?.addEventListener("click", () => dom.importSettingsFile?.click());
+
+  dom.importSettingsFile?.addEventListener("change", async () => {
+    const file = dom.importSettingsFile.files?.[0];
+    dom.importSettingsFile.value = "";
+    if (!file) return;
+    const result = await importSettingsFromFile(file);
+    if (!result.ok) {
+      setBackupStatus(result.error || "Import failed.", "error");
+      showError(result.error || "Could not import settings.");
+      return;
+    }
+    // Apply theme immediately; storage-driven controls refresh on the next pass.
+    if (result.settings?.appTheme) {
+      try { applyPopupAppTheme(result.settings.appTheme); } catch { /* noop */ }
+    }
+    if (result.settings?.serverUrl) {
+      try { setCareAssuranceUrl(result.settings.serverUrl); } catch { /* noop */ }
+    }
+    if (result.settings?.displayNameOverride && dom.displayNameOverride) {
+      dom.displayNameOverride.value = result.settings.displayNameOverride;
+    }
+    schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
+    setBackupStatus(`Imported ${result.count} setting${result.count === 1 ? "" : "s"}.`, "success");
+    showSuccess("Settings imported");
+    logActivity({ type: "settings", tone: "success", label: "Settings imported", detail: `${result.count} preference${result.count === 1 ? "" : "s"}` });
   });
 
   // Scroll-spy: highlight the section closest to the top of the scroll area.
@@ -8321,17 +8660,8 @@ function bindEvents() {
         reader.readAsDataURL(file);
       });
 
-      const stored = await loadStorage([STORAGE_KEYS.queueState]);
-      const batchId = stored?.caAcpQueueState?.batchId || null;
-
-      await setStorage({
-        [STORAGE_KEYS.signatureData]: { dataUrl, fileName: file.name, mimeType: file.type, uploadedAt: new Date().toISOString() },
-        [STORAGE_KEYS.signatureBatchId]: batchId,
-      });
-
-      await refreshSignatureStatus();
+      await persistSignature({ dataUrl, fileName: file.name, mimeType: file.type, source: "upload" });
       showSuccess("Signature uploaded successfully!");
-      logActivity({ type: "signature", tone: "success", label: "Signature uploaded", detail: file.name });
       dom.signatureFile.value = "";
       if (dom.signatureFilename) dom.signatureFilename.textContent = "";
     } catch (error) {
@@ -8343,6 +8673,12 @@ function bindEvents() {
   });
 
   dom.uploadSignatureBtn?.addEventListener("click", () => dom.signatureFile?.click());
+
+  // Signature mode toggle + drawing pad
+  dom.signatureModeUpload?.addEventListener("click", () => setSignatureMode("upload"));
+  dom.signatureModeDraw?.addEventListener("click", () => setSignatureMode("draw"));
+  dom.signaturePadClear?.addEventListener("click", () => clearSignaturePad());
+  dom.signaturePadSave?.addEventListener("click", () => { void saveDrawnSignature(); });
 
   // Autofill user picker
   dom.autofillUserDropdown?.addEventListener("click", (e) => {
@@ -8466,6 +8802,10 @@ function bindEvents() {
       isAdmin: state.isAdmin,
     });
   });
+
+  // Command palette + theme toggle (header tools)
+  dom.commandPaletteBtn?.addEventListener("click", () => getCommandPalette().toggle());
+  dom.themeToggleBtn?.addEventListener("click", () => { void cyclePopupTheme(); });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -8496,6 +8836,8 @@ function bindStorageListener() {
             if (dom.progressStatus) dom.progressStatus.textContent = "\u2713 Autofill complete!";
             showSuccess("Autofill batch complete! All forms have been filled.");
             logActivity({ type: "autofill", tone: "success", label: "Autofill batch complete", detail: "All staged forms filled" });
+            const completedForms = Number(changes[STORAGE_KEYS.queueState].oldValue?.total) || 0;
+            void recordMetric("autofillBatchComplete", { forms: completedForms });
             schedulePopupRefresh({ payload: true, workspace: true, immediate: true });
             if (dom.connectionBadge) {
               dom.connectionBadge.classList.add("connected");
@@ -8563,8 +8905,12 @@ function bindStorageListener() {
 
       if (changes[STORAGE_KEYS.activityLog]) {
         try {
-          renderActivityLog(Array.isArray(changes[STORAGE_KEYS.activityLog].newValue) ? changes[STORAGE_KEYS.activityLog].newValue : []);
+          activityController.setEntries(Array.isArray(changes[STORAGE_KEYS.activityLog].newValue) ? changes[STORAGE_KEYS.activityLog].newValue : []);
         } catch (e) { console.warn("[CA Extension] activity log handler error:", e); }
+      }
+
+      if (changes[STORAGE_KEYS.productivityMetrics]) {
+        try { void refreshMetricsCard(); } catch (e) { console.warn("[CA Extension] metrics handler error:", e); }
       }
     } catch (outerErr) {
       console.error("[CA Extension] storage.onChanged crash:", outerErr);
@@ -8679,6 +9025,7 @@ function bindStorageListener() {
   void refreshSignatureStatus();
   void refreshWorkspaceContext();
   void refreshActivityLog();
+  void initMetrics();
 
   // Auto-detect case IDs from active tab URL
   runPopupIdleTask(async () => {
@@ -8779,10 +9126,22 @@ function bindStorageListener() {
   setInterval(autoCleanupStaleData, POPUP_GDPR_CLEANUP_MS);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────
-  // Alt+A = Start autofill, Alt+X = Stop, Alt+R = Refresh connection,
-  // Alt+C = Copy current payload JSON
+  // Ctrl/⌘+K = Command palette, Alt+1..6 = Switch tab,
+  // Alt+A = Start autofill, Alt+X = Stop, Alt+R = Refresh, Alt+C = Copy payload
+  const ALT_TAB_KEYS = { 1: "connect", 2: "upload", 3: "autofill", 4: "review", 5: "ops", 6: "logs" };
   document.addEventListener("keydown", (e) => {
+    // Command palette: Ctrl/⌘ + K (works regardless of Alt state).
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      try { getCommandPalette().toggle(); } catch (err) { console.warn("[CA Extension] palette toggle failed:", err); }
+      return;
+    }
     if (!e.altKey) return;
+    if (ALT_TAB_KEYS[e.key]) {
+      e.preventDefault();
+      try { switchTab(ALT_TAB_KEYS[e.key]); } catch (err) { console.warn("[CA Extension] tab shortcut failed:", err); }
+      return;
+    }
     switch (e.key.toLowerCase()) {
       case "a": {
         e.preventDefault();
