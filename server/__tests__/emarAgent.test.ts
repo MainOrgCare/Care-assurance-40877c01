@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emarAgent, inferRequiredGapHoursFromText } from "../services/emarAgent.ts";
+import { emarAgent, inferRequiredGapHoursFromText, normalizeInitials } from "../services/emarAgent.ts";
 import type { ParsedEMAR } from "../emarGridParser";
 
 test("emarAgent.extract (gridBaseline) dedupes, infers PRN, normalizes PRN refusals, and skips BLANK/N/A", async () => {
@@ -459,4 +459,21 @@ test("emarAgent.extract (gridBaseline) does not generate false MISSED when cell 
   assert.equal(missedEntry, undefined, "No false MISSED entry should be generated when cell date casing differs from grid date");
   const adEntry = aspirinEntries.find((e) => e.code === "AD");
   assert.ok(adEntry, "AD entry must still be present");
+});
+
+test("normalizeInitials keeps real carer initials but never mines a leaked PII token", () => {
+  // Real signature-cell values are preserved (uppercased, letters only, max 4).
+  assert.equal(normalizeInitials("LB"), "LB");
+  assert.equal(normalizeInitials("l.b"), "LB");
+  assert.equal(normalizeInitials("MJ"), "MJ");
+
+  // A scrubbed PII token must NOT be reduced to its leading letters ("PIIM"); it yields no initials.
+  assert.equal(normalizeInitials("{{PII_mnx987ki_njiw_NAME_1}}"), "");
+  assert.equal(normalizeInitials("{{PII_abc123_STAFF_2}}"), "");
+  // Brace-less fragment (model dropped the braces) is still caught.
+  assert.equal(normalizeInitials("PII_mnx987ki_NAME_1"), "");
+
+  // Empty / nullish stays empty.
+  assert.equal(normalizeInitials(""), "");
+  assert.equal(normalizeInitials(null), "");
 });

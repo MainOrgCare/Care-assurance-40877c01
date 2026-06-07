@@ -8239,6 +8239,29 @@ export async function registerRoutes(
       return normalized.length <= 4 ? normalized : "";
     };
 
+    // EMAR carer cells hold the worker's anonymized signature (short initials like "LB"/"L.B"
+    // or the Initial.Surname format such as "L.Barron"). These are NOT free-text PII, so they
+    // must not be vault-scrubbed: scrubbing turns them into a "{{PII_...}}" token, which the
+    // downstream initials extractor then mines into garbage like "PIIM". Only values that do
+    // NOT look like an anonymized signature (e.g. a leaked full name "Laura Barron") are scrubbed.
+    const careWorkerCellLooksAnonymized = (value: string): boolean => {
+      const trimmed = value.trim();
+      if (!trimmed) return true;
+      return trimmed
+        .split(/[;,/|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .every((part) => {
+          if (part.length > 32) return false;
+          if (UNKNOWN_CARE_WORKER_TOKENS.has(part.toLowerCase())) return true;
+          // Short initials: 1-4 letters, optionally dot-separated (LB, L.B, MJ, L.J.).
+          if (/^[A-Za-z](\.?[A-Za-z]){0,3}\.?$/.test(part)) return true;
+          // Initial.Surname / Initial.Initial.Surname (L.Barron, L.J.Barron).
+          if (/^([A-Za-z]\.){1,3}[A-Za-z][A-Za-z'’\-]{1,30}$/.test(part)) return true;
+          return false;
+        });
+    };
+
     // Helper: Resolve care worker initials to display name based on privacy settings
     async function resolveCareWorkerName(
       initials: string | undefined,
@@ -8468,7 +8491,11 @@ export async function registerRoutes(
             gridBaseline.cells = gridBaseline.cells.map(cell => ({
               ...cell,
               content: typeof cell.content === 'string' ? emarPIIVault.scrubString(cell.content) : cell.content,
-              careWorker: typeof cell.careWorker === 'string' ? emarPIIVault.scrubString(cell.careWorker) : cell.careWorker,
+              careWorker: typeof cell.careWorker === 'string'
+                ? (careWorkerCellLooksAnonymized(cell.careWorker)
+                    ? cell.careWorker
+                    : emarPIIVault.scrubString(cell.careWorker))
+                : cell.careWorker,
             }));
           }
           // Scrub medication instructions (names are clinical terms and whitelisted)

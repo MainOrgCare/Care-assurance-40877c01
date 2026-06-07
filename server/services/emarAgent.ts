@@ -374,11 +374,18 @@ const normalizeTimeSlot = (value: unknown): string => {
 
 const normalizeDate = (value: unknown): string => String(value || "").trim();
 
-const normalizeInitials = (value: unknown): string =>
-  String(value || "")
+// A leaked PII vault token must never be mined for "initials": stripping it to letters and
+// slicing yields garbage like "PIIM" (from "{{PII_...}}"). Detect tokens (whole or fragment)
+// and treat them as no-initials instead.
+const PII_TOKEN_RE = /\{\{\s*PII_[A-Za-z0-9_]+\s*\}\}|PII_[A-Za-z0-9]+_[A-Z_]+_\d+/i;
+export const normalizeInitials = (value: unknown): string => {
+  const raw = String(value || "");
+  if (PII_TOKEN_RE.test(raw)) return "";
+  return raw
     .toUpperCase()
     .replace(/[^A-Z]/g, "")
     .slice(0, 4);
+};
 
 const normalizeSlotKey = (entry: any): string =>
   [
