@@ -76,6 +76,20 @@ describe("allocate (Durham)", () => {
     expect(r.matchedBy).toBe("area");
   });
 
+  it("allocates Ferryhill (DL17) and Shildon (DL4) to their own sections", () => {
+    expect(allocate({ postcode: "DL17 8AA" }, DURHAM_REGION).sectionId).toBe(
+      "durham-z3-ferryhill",
+    );
+    expect(allocate({ postcode: "DL4 1AA" }, DURHAM_REGION).sectionId).toBe("durham-z4-shildon");
+  });
+
+  it("allocates by Service Location Area name matching the section suffix", () => {
+    expect(allocate({ area: "Ferryhill" }, DURHAM_REGION).sectionId).toBe("durham-z3-ferryhill");
+    expect(allocate({ area: "Shildon" }, DURHAM_REGION).sectionId).toBe("durham-z4-shildon");
+    expect(allocate({ area: "Durham" }, DURHAM_REGION).sectionId).toBe("durham-z6-durham");
+    expect(allocate({ area: "Aycliffe" }, DURHAM_REGION).sectionId).toBe("durham-z3-aycliffe");
+  });
+
   it("does not match a keyword as a substring of another word", () => {
     // "crook" must not match inside "brook"
     const r = allocate({ area: "Babbling Brook Lane" }, DURHAM_REGION);

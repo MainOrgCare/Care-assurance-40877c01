@@ -17,10 +17,16 @@ export const DURHAM_REGION: ZoneRegionDef = {
       keywords: ["aycliffe", "newton aycliffe", "school aycliffe"],
     },
     {
+      id: "durham-z3-ferryhill",
+      name: "Durham Zone 3 - Ferryhill",
+      outwardCodes: ["DL17"],
+      keywords: ["ferryhill", "ferryhill station", "chilton", "dean bank", "kirk merrington"],
+    },
+    {
       id: "durham-z3-spennymoor",
       name: "Durham Zone 3 - Spennymoor",
       outwardCodes: ["DL16"],
-      keywords: ["spennymoor", "tudhoe", "kirk merrington", "middlestone moor", "byers green"],
+      keywords: ["spennymoor", "tudhoe", "middlestone moor", "byers green"],
     },
     {
       id: "durham-z4-bishop-auckland",
@@ -33,8 +39,13 @@ export const DURHAM_REGION: ZoneRegionDef = {
         "coundon",
         "escomb",
         "tindale",
-        "shildon",
       ],
+    },
+    {
+      id: "durham-z4-shildon",
+      name: "Durham Zone 4 - Shildon",
+      outwardCodes: ["DL4"],
+      keywords: ["shildon"],
     },
     {
       id: "durham-z5-barnard-castle",
@@ -60,6 +71,7 @@ export const DURHAM_REGION: ZoneRegionDef = {
       name: "Durham Zone 6 - Durham",
       outwardCodes: ["DH1", "DH6", "DH7"],
       keywords: [
+        "durham",
         "durham city",
         "framwellgate",
         "gilesgate",
@@ -78,6 +90,8 @@ export const DURHAM_REGION: ZoneRegionDef = {
       name: "Durham Zone 6 - The Dales",
       outwardCodes: ["DL13"],
       keywords: [
+        "the dales",
+        "dales",
         "weardale",
         "stanhope",
         "wolsingham",
@@ -85,8 +99,6 @@ export const DURHAM_REGION: ZoneRegionDef = {
         "frosterley",
         "st johns chapel",
         "wearhead",
-        "the dales",
-        "dales",
       ],
     },
     {

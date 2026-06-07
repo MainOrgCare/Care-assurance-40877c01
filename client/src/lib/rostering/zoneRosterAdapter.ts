@@ -7,6 +7,8 @@ import {
 /** Minimal shape of an analysed rostering row needed to build a zone record. */
 export interface RosterRowLike {
   serviceUserName?: string | null;
+  /** Preferred locality for zone matching (the zone area name). */
+  serviceLocationArea?: string | null;
   serviceUserArea?: string | null;
   serviceUserAddress?: string | null;
   serviceLocationBranch?: string | null;
@@ -14,9 +16,10 @@ export interface RosterRowLike {
 
 /**
  * Build deduplicated zone EcmRecords from analysed rostering rows. The Customer Branch maps to the
- * region, Customer Area to the area (locality keyword), and a full postcode is extracted from the
- * address when present. Rows without a service-user name are skipped; rows for the same service user
- * are merged so a person lands in exactly one section.
+ * region; the Service Location Area (falling back to Customer/Service User Area) drives locality
+ * keyword matching; and a full postcode is extracted from the address when present. Rows without a
+ * service-user name are skipped; rows for the same service user are merged so a person lands in
+ * exactly one section.
  */
 export function buildRecordsFromRoster(rows: RosterRowLike[]): EcmRecord[] {
   const records: EcmRecord[] = [];
@@ -24,10 +27,12 @@ export function buildRecordsFromRoster(rows: RosterRowLike[]): EcmRecord[] {
     const serviceUser = (row.serviceUserName ?? "").trim();
     if (!serviceUser) return;
     const address = (row.serviceUserAddress ?? "").trim() || null;
+    const area =
+      (row.serviceLocationArea ?? "").trim() || (row.serviceUserArea ?? "").trim() || null;
     records.push({
       serviceUser,
       region: (row.serviceLocationBranch ?? "").trim() || null,
-      area: (row.serviceUserArea ?? "").trim() || null,
+      area,
       postcode: extractFullPostcode(address),
       address,
       rowIndex: index,

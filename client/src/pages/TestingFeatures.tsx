@@ -413,6 +413,7 @@ interface RowAnalysis {
   plannedDateKey?: string | null;
   serviceUserName?: string | null;
   serviceUserArea?: string | null;
+  serviceLocationArea?: string | null;
   serviceUserAddress?: string | null;
   serviceLocationBranch?: string | null;
   serviceLocationType?: string | null;
@@ -1366,6 +1367,14 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
           serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
         );
 
+      // Dedicated "Service Location Area" field — used to drive zone allocation (the values are the
+      // zone area names, e.g. Aycliffe / Ferryhill / Shildon).
+      const serviceLocationAreaField = detectFieldExcludingWorkerColumns(
+        row,
+        ["service location area"],
+        serviceUserNameField ? new Set([serviceUserNameField.key]) : undefined
+      );
+
       const serviceUserAddressField =
         detectFieldExcludingWorkerColumns(
           row,
@@ -1430,6 +1439,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
 
       const serviceUserName = sanitizeHumanReadable(serviceLocationNameField?.value ?? serviceUserNameField?.value);
       const serviceUserArea = sanitizeHumanReadable(serviceUserAreaField?.value);
+      const serviceLocationArea = sanitizeHumanReadable(serviceLocationAreaField?.value);
       const serviceUserAddress = sanitizeHumanReadable(
         serviceLocationAddressField?.value ?? serviceUserAddressField?.value
       );
@@ -1509,6 +1519,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
         plannedDateKey: plannedDateParts.key,
         serviceUserName,
         serviceUserArea,
+        serviceLocationArea,
         serviceUserAddress,
         serviceLocationBranch,
         serviceLocationType,
@@ -2998,6 +3009,7 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       primaryRows.map((row) => ({
         serviceUserName: row.serviceUserName,
         serviceUserArea: row.serviceUserArea,
+        serviceLocationArea: row.serviceLocationArea,
         serviceUserAddress: row.serviceUserAddress,
         serviceLocationBranch: row.serviceLocationBranch,
       })),

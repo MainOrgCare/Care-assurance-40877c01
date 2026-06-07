@@ -18,8 +18,10 @@ export interface LatLon {
 export const OUTWARD_CENTROIDS: Record<string, LatLon> = {
   // County Durham
   DL5: { lat: 54.62, lon: -1.57 }, // Newton Aycliffe
+  DL17: { lat: 54.69, lon: -1.55 }, // Ferryhill
   DL16: { lat: 54.7, lon: -1.6 }, // Spennymoor
   DL14: { lat: 54.66, lon: -1.68 }, // Bishop Auckland
+  DL4: { lat: 54.63, lon: -1.65 }, // Shildon
   DL12: { lat: 54.54, lon: -1.92 }, // Barnard Castle
   DL15: { lat: 54.72, lon: -1.74 }, // Crook / Willington
   DL13: { lat: 54.74, lon: -2.01 }, // Weardale / Stanhope

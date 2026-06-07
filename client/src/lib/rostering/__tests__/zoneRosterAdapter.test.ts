@@ -46,6 +46,30 @@ describe("buildRecordsFromRoster", () => {
     ]);
     expect(records[0].postcode).toBeNull();
   });
+
+  it("prefers serviceLocationArea over serviceUserArea for the locality keyword", () => {
+    const records = buildRecordsFromRoster([
+      {
+        serviceUserName: "E.Five",
+        serviceLocationArea: "Ferryhill",
+        serviceUserArea: "Bishop Auckland",
+        serviceUserAddress: "1 Market St, DL17 8AA",
+      },
+    ]);
+    expect(records[0].area).toBe("Ferryhill");
+  });
+
+  it("falls back to serviceUserArea when serviceLocationArea is blank", () => {
+    const records = buildRecordsFromRoster([
+      {
+        serviceUserName: "F.Six",
+        serviceLocationArea: "   ",
+        serviceUserArea: "Shildon",
+        serviceUserAddress: "2 Church St, DL4 1AA",
+      },
+    ]);
+    expect(records[0].area).toBe("Shildon");
+  });
 });
 
 describe("regionsInRecords", () => {
