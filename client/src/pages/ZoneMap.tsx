@@ -133,13 +133,21 @@ export default function ZoneMap() {
     const postcodes = uniquePostcodes(result).slice(0, 400);
     (async () => {
       const updates: Record<string, LatLon> = {};
-      for (const pc of postcodes) {
-        const key = pc.toUpperCase().replace(/\s+/g, "");
-        if (geocoded[key]) continue;
-        const res = await geocodeAddressClient(pc);
-        if (cancelled) return;
-        if (res) updates[key] = { lat: res.lat, lon: res.lon };
-      }
+      const missing = postcodes.filter((pc) => !geocoded[pc.toUpperCase().replace(/\s+/g, "")]);
+      let cursor = 0;
+      const workerCount = Math.min(8, missing.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (true) {
+          const index = cursor++;
+          if (index >= missing.length) return;
+          const pc = missing[index];
+          const key = pc.toUpperCase().replace(/\s+/g, "");
+          const res = await geocodeAddressClient(pc);
+          if (cancelled) return;
+          if (res) updates[key] = { lat: res.lat, lon: res.lon };
+        }
+      });
+      await Promise.all(workers);
       if (!cancelled && Object.keys(updates).length > 0) {
         setGeocoded((prev) => ({ ...prev, ...updates }));
       }

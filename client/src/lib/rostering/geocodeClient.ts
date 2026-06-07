@@ -18,14 +18,12 @@ export const geocodeAddressClient = async (address: string): Promise<GeocodeResu
       credentials: "include",
     });
     if (!res.ok) {
-      cache.set(normalized, null);
       return null;
     }
     const payload = (await res.json()) as { result: GeocodeResult | null };
-    cache.set(normalized, payload.result ?? null);
+    if (payload.result) cache.set(normalized, payload.result);
     return payload.result ?? null;
   } catch {
-    cache.set(normalized, null);
     return null;
   }
 };
