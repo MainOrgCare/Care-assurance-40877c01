@@ -37,7 +37,9 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
-  app.use("*", async (req, res, next) => {
+  // Catch-all SPA handler. Note: `app.use` with no path matches every request;
+  // an explicit "*" path is invalid under path-to-regexp v8 (Express 5).
+  app.use(async (req, res, next) => {
     const url = req.originalUrl;
 
     // Never serve the SPA shell for API routes — let them fall through to

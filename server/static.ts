@@ -2,8 +2,8 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 
-export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+export function serveStatic(app: Express, distPathOverride?: string) {
+  const distPath = distPathOverride ?? path.resolve(__dirname, "public");
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,
@@ -24,7 +24,9 @@ export function serveStatic(app: Express) {
 
   // SPA fallback — only for GET/HEAD requests so that a mistyped POST/DELETE
   // to a non-API path returns 404 instead of silently serving index.html.
-  app.get("*", (_req, res, _next) => {
+  // Note: a bare "*" path is invalid under path-to-regexp v8 (Express 5) and
+  // throws "Missing parameter name" at registration — use a named wildcard.
+  app.get("/*splat", (_req, res, _next) => {
     if (_req.originalUrl.startsWith("/api")) {
       return _next();
     }

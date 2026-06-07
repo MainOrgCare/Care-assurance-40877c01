@@ -91,7 +91,7 @@ import { SafeXLSX, RawXLSX } from "./utils/safe-xlsx";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
 import { geocodeAddress } from "./services/geocoding";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { runComplianceAgent } from "./services/emarComplianceAgent";
 
 // Use legacy build for Node.js (no DOM APIs required)
@@ -5541,7 +5541,9 @@ export async function registerRoutes(
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Too many recommendation delete requests — use the batch endpoint." },
-    keyGenerator: (req: any) => req.user?.id || req.ip || "unknown",
+    // Normalize IPv6 keys via express-rate-limit helper to prevent bypasses.
+    keyGenerator: (req: any) =>
+      req.user?.id || ipKeyGenerator(req.ip || req.socket?.remoteAddress || "unknown"),
   });
 
   // Moderate rate limit for AI endpoints: 15 requests per minute per IP
