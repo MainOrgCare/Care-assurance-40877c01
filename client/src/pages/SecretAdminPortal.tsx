@@ -3,7 +3,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { validatePassword, MIN_PASSWORD_LENGTH } from "@/lib/validation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronRight, ChevronsUpDown, Send, Route, Timer, CheckCircle2, BarChart3, AlertCircle, Users, MapPin } from "lucide-react";
+import { Shield, Lock, UserX, Activity, AlertTriangle, Terminal, Check, X, UserPlus, ShieldCheck, ArrowRightLeft, EyeOff, Clock, FileKey, Pencil, Search, Filter, Trash2, Save, FileWarning, Loader2, Unplug, FileText, Upload, FileCheck, FileX, DollarSign, Cpu, TrendingUp, Mail, MailOpen, Archive, ExternalLink, Database, Server, Zap, RefreshCcw, RotateCcw, Megaphone, Power, CalendarClock, Download, ChevronDown, ChevronUp, ChevronRight, ChevronsUpDown, Send, Route, Timer, CheckCircle2, BarChart3, AlertCircle, Users, MapPin } from "lucide-react";
 import { CURRENT_TERMS_VERSION } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
@@ -6811,6 +6811,17 @@ export default function SecretAdminPortal() {
                       >
                         <ExternalLink size={14} className="mr-2" />
                         Open ACP Dashboard
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setSelectedAcpServiceUser(null)}
+                        disabled={!selectedAcpServiceUser}
+                        title="Clear selection"
+                        data-testid="button-reset-selected-acp-service-user"
+                      >
+                        <RotateCcw size={14} className="mr-2" />
+                        Reset
                       </Button>
                     </div>
                   </div>

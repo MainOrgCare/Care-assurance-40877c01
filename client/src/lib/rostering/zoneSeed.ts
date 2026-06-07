@@ -50,7 +50,7 @@ export const DURHAM_REGION: ZoneRegionDef = {
     {
       id: "durham-z5-barnard-castle",
       name: "Durham Zone 5 - Barnard Castle",
-      outwardCodes: ["DL12"],
+      outwardCodes: ["DL12, DL2"],
       keywords: [
         "barnard castle",
         "startforth",
@@ -110,7 +110,7 @@ export const DURHAM_REGION: ZoneRegionDef = {
     {
       id: "durham-z8-stanley",
       name: "Durham Zone 8 - Stanley",
-      outwardCodes: ["DH9"],
+      outwardCodes: ["DH9, DH8"],
       keywords: [
         "stanley",
         "annfield plain",

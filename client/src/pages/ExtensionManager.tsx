@@ -25,6 +25,7 @@ import {
   FileText,
   Loader2,
   RefreshCcw,
+  RotateCcw,
   Search,
   Send,
   Shield,
@@ -1188,6 +1189,16 @@ export default function ExtensionManager() {
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Open ACP Dashboard
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSelectedAcpServiceUser(null)}
+                  disabled={!selectedAcpServiceUser}
+                  title="Clear selection"
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reset
                 </Button>
               </div>
             </div>
