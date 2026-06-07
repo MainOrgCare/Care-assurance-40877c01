@@ -15,6 +15,7 @@ Render Workflows rapidly distribute computational work across multiple independe
 Use them for AI agents, ETL pipelines, background jobs, and data processing.
 
 **How it works:**
+
 1. **Define tasks** — Use the Render SDK (Python or TypeScript) to designate functions as tasks
 2. **Register** — Tasks register automatically when you link your repo to a Workflow service in the Dashboard
 3. **Trigger runs** — Execute tasks from anywhere using the SDK client or API; each execution is a "run"
@@ -62,6 +63,7 @@ render --version
 ```
 
 Requires version 2.11.0+. If not installed:
+
 - macOS: `brew install render`
 - Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/render-oss/cli/main/bin/install.sh | sh`
 - Windows: download the executable from the [CLI releases page](https://github.com/render-oss/cli/releases/)
@@ -79,6 +81,7 @@ render workflows init
 **Non-interactive mode**: sets up an example project without prompting.
 
 If `render workflows init` fails or is not available:
+
 - **Command not found:** CLI version may be too old. Run `render --version` and upgrade to 2.11.0+.
 - **Command not supported:** fall back to [references/manual-scaffolding.md](references/manual-scaffolding.md) for step-by-step manual setup.
 
@@ -89,6 +92,7 @@ If `render workflows init` fails or is not available:
 Guide the user through defining their actual tasks. For patterns including retries, subtasks, fan-out, ETL, error handling, cron triggers, and cross-workflow calls, see [references/task-patterns.md](references/task-patterns.md).
 
 **After adding a task**, verify it registers by starting the local dev server and listing tasks:
+
 ```bash
 render workflows dev -- <start-command>
 # In another terminal:
@@ -129,6 +133,7 @@ If the deploy fails, check the service logs in the Dashboard. For common deploym
 After deployment, trigger tasks from your other Render services using the SDK client.
 
 Python (synchronous):
+
 ```python
 from render_sdk import Render
 
@@ -138,6 +143,7 @@ print(result.results)
 ```
 
 Python (asynchronous):
+
 ```python
 from render_sdk import RenderAsync
 
@@ -148,6 +154,7 @@ print(finished.results)
 ```
 
 TypeScript:
+
 ```typescript
 import { Render } from "@renderinc/sdk";
 

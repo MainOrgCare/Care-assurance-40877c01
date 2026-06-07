@@ -51,6 +51,7 @@ render workflows tasks list --local
 **The `--local` flag is required.** Without it, the CLI lists deployed (remote) tasks.
 
 The interactive menu lets you:
+
 1. Select a task
 2. Choose `run`
 3. Provide input as a JSON array (e.g., `[5]` or `[]`)
@@ -63,11 +64,13 @@ Configure your app to target the local task server.
 **Python:**
 
 Set environment variables:
+
 ```bash
 RENDER_USE_LOCAL_DEV=true
 ```
 
 Or for a custom port:
+
 ```bash
 RENDER_USE_LOCAL_DEV=true
 RENDER_LOCAL_DEV_URL=http://localhost:8121
@@ -78,11 +81,13 @@ The SDK clients (`Render()` and `RenderAsync()`) automatically detect these and 
 **TypeScript:**
 
 Same environment variables:
+
 ```bash
 RENDER_USE_LOCAL_DEV=true
 ```
 
 Or pass configuration directly:
+
 ```typescript
 import { Render } from "@renderinc/sdk";
 
@@ -95,6 +100,7 @@ const render = new Render({
 **Render API (any language):**
 
 Swap the base URL for task endpoints:
+
 ```
 http://localhost:8120
 ```
@@ -104,6 +110,7 @@ The local task server only simulates task-related endpoints. Other Render API en
 ## Viewing Results
 
 After running a task via the CLI:
+
 1. Press **Esc** to go back to the command menu
 2. Select `runs` to see task runs
 3. Select a run and choose `results` to see output
