@@ -113,4 +113,58 @@ export const DURHAM_REGION: ZoneRegionDef = {
   ],
 };
 
-export const SEED_REGIONS: ZoneRegionDef[] = [DURHAM_REGION];
+/**
+ * Newcastle / North Tyneside. These inner-city localities share outward codes heavily (NE6 covers
+ * Heaton, Byker, Walker, Walkergate and Ouseburn; NE2 covers Jesmond and Shieldfield), so the
+ * Customer Area / address locality keyword is the primary disambiguator. Postcode acts as a coarse
+ * filter and the keyword pins the exact section.
+ */
+export const NEWCASTLE_REGION: ZoneRegionDef = {
+  region: "Newcastle/North Tyneside",
+  sections: [
+    {
+      id: "ncl-jesmond",
+      name: "Newcastle - Jesmond",
+      outwardCodes: ["NE2"],
+      keywords: ["jesmond", "west jesmond", "south jesmond", "jesmond vale"],
+    },
+    {
+      id: "ncl-heaton",
+      name: "Newcastle - Heaton",
+      outwardCodes: ["NE6", "NE7"],
+      keywords: ["heaton", "high heaton", "low heaton"],
+    },
+    {
+      id: "ncl-byker",
+      name: "Newcastle - Byker",
+      outwardCodes: ["NE6"],
+      keywords: ["byker", "st peters", "st lawrence"],
+    },
+    {
+      id: "ncl-walker",
+      name: "Newcastle - Walker",
+      outwardCodes: ["NE6"],
+      keywords: ["walker", "walker riverside", "pottery bank", "church walk"],
+    },
+    {
+      id: "ncl-walkergate",
+      name: "Newcastle - Walkergate",
+      outwardCodes: ["NE6"],
+      keywords: ["walkergate"],
+    },
+    {
+      id: "ncl-shieldfield",
+      name: "Newcastle - Shieldfield",
+      outwardCodes: ["NE2"],
+      keywords: ["shieldfield", "sandyford"],
+    },
+    {
+      id: "ncl-ouseburn",
+      name: "Newcastle - Ouseburn",
+      outwardCodes: ["NE6", "NE1"],
+      keywords: ["ouseburn", "lower ouseburn", "lime street", "stepney bank"],
+    },
+  ],
+};
+
+export const SEED_REGIONS: ZoneRegionDef[] = [DURHAM_REGION, NEWCASTLE_REGION];

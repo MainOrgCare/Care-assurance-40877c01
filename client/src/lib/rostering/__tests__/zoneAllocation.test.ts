@@ -9,7 +9,7 @@ import {
   filterByRegion,
   type EcmRecord,
 } from "../zoneAllocation";
-import { DURHAM_REGION } from "../zoneSeed";
+import { DURHAM_REGION, NEWCASTLE_REGION } from "../zoneSeed";
 
 describe("extractPostcodeOutward", () => {
   it("extracts the outward code from a full postcode", () => {
@@ -181,5 +181,47 @@ describe("filterByRegion", () => {
     ];
     const filtered = filterByRegion(records, "durham");
     expect(filtered.map((r) => r.serviceUser)).toEqual(["A", "C"]);
+  });
+  it("loosely matches branch-name variants for the same region", () => {
+    const records: EcmRecord[] = [
+      { serviceUser: "A", region: "Newcastle", area: null, postcode: null, address: null, rowIndex: 1 },
+      { serviceUser: "B", region: "North Tyneside", area: null, postcode: null, address: null, rowIndex: 2 },
+      { serviceUser: "C", region: "Durham", area: null, postcode: null, address: null, rowIndex: 3 },
+    ];
+    const filtered = filterByRegion(records, "Newcastle/North Tyneside");
+    expect(filtered.map((r) => r.serviceUser)).toEqual(["A", "B"]);
+  });
+  it("does not match unrelated regions sharing only a directional token", () => {
+    const records: EcmRecord[] = [
+      { serviceUser: "A", region: "North Durham", area: null, postcode: null, address: null, rowIndex: 1 },
+    ];
+    expect(filterByRegion(records, "Newcastle/North Tyneside")).toHaveLength(0);
+  });
+});
+
+describe("allocate (Newcastle/North Tyneside)", () => {
+  it("uses the Customer Area keyword to split shared NE6 localities", () => {
+    expect(allocate({ postcode: "NE6 1AA", area: "Byker" }, NEWCASTLE_REGION).sectionId).toBe(
+      "ncl-byker",
+    );
+    expect(allocate({ postcode: "NE6 4AA", area: "Walker" }, NEWCASTLE_REGION).sectionId).toBe(
+      "ncl-walker",
+    );
+    expect(allocate({ postcode: "NE6 4AA", area: "Walkergate" }, NEWCASTLE_REGION).sectionId).toBe(
+      "ncl-walkergate",
+    );
+  });
+  it("allocates Jesmond and Shieldfield within shared NE2 via keyword", () => {
+    expect(allocate({ postcode: "NE2 3AA", area: "Jesmond" }, NEWCASTLE_REGION).sectionId).toBe(
+      "ncl-jesmond",
+    );
+    expect(allocate({ postcode: "NE2 1AA", area: "Shieldfield" }, NEWCASTLE_REGION).sectionId).toBe(
+      "ncl-shieldfield",
+    );
+  });
+  it("flags an NE6 postcode with no disambiguating area as ambiguous", () => {
+    const r = allocate({ postcode: "NE6 1AA" }, NEWCASTLE_REGION);
+    expect(r.ambiguous).toBe(true);
+    expect((r.candidates ?? []).length).toBeGreaterThan(1);
   });
 });

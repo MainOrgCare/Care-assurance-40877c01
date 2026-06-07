@@ -396,9 +396,39 @@ export function parseEcmText(text: string): EcmParseResult {
   return { records, headers, columnMap, regions: [...regions].sort((a, b) => a.localeCompare(b)) };
 }
 
-/** Filter records to a single region (case-insensitive). Pass null to keep all. */
+const REGION_STOP_TOKENS = new Set([
+  "north",
+  "south",
+  "east",
+  "west",
+  "county",
+  "and",
+  "the",
+  "upon",
+  "of",
+]);
+
+const regionTokens = (value: string): string[] =>
+  norm(value)
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 1 && !REGION_STOP_TOKENS.has(t));
+
+/**
+ * Loose region match so a seed region ("Newcastle/North Tyneside") still captures ECM branches
+ * that label it differently ("Newcastle", "North Tyneside", "Newcastle upon Tyne"). Matches when
+ * the strings are equal, one contains the other, or they share a meaningful token.
+ */
+export function regionMatches(a: string, b: string): boolean {
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+  const ta = new Set(regionTokens(a));
+  return regionTokens(b).some((t) => ta.has(t));
+}
+
+/** Filter records to a single region (loose, case-insensitive). Pass null to keep all. */
 export function filterByRegion(records: EcmRecord[], region: string | null): EcmRecord[] {
   if (!region) return records;
-  const target = norm(region);
-  return records.filter((r) => !r.region || norm(r.region) === target);
+  return records.filter((r) => !r.region || regionMatches(r.region, region));
 }
