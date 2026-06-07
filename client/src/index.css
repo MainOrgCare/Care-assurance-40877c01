@@ -241,23 +241,23 @@
   h1 {
     @apply text-2xl md:text-[2.125rem];
     font-weight: 700;
-    letter-spacing: 0;
-    line-height: 1.12;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
   }
   h2 {
     @apply text-xl md:text-[1.5rem];
     font-weight: 650;
-    letter-spacing: 0;
+    letter-spacing: -0.018em;
   }
   h3 {
     @apply text-lg md:text-[1.1875rem];
     font-weight: 625;
-    letter-spacing: 0;
+    letter-spacing: -0.012em;
   }
   h4 {
     @apply text-base;
     font-weight: 600;
-    letter-spacing: 0;
+    letter-spacing: -0.006em;
   }
   p {
     text-wrap: pretty;
@@ -450,7 +450,7 @@
     font-size: 1.0625rem;
     font-weight: 650;
     color: var(--color-foreground);
-    letter-spacing: 0;
+    letter-spacing: -0.012em;
   }
   .section-title-description {
     font-size: 0.8125rem;
@@ -477,7 +477,7 @@
     font-size: 1.625rem;
     font-weight: 700;
     color: var(--color-foreground);
-    letter-spacing: 0;
+    letter-spacing: -0.02em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
   }
@@ -970,8 +970,8 @@ html.theme-sunrise body {
     font-size: clamp(1.625rem, 1vw + 1.18rem, 2.25rem);
     font-weight: 700;
     color: var(--color-foreground);
-    letter-spacing: 0;
-    line-height: 1.1;
+    letter-spacing: -0.025em;
+    line-height: 1.08;
     text-wrap: balance;
   }
 
@@ -1295,7 +1295,7 @@ html.theme-sunrise body {
   .metric-value {
     font-family: var(--font-heading);
     font-weight: 700;
-    letter-spacing: 0;
+    letter-spacing: -0.02em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
   }
@@ -1350,7 +1350,7 @@ html.theme-sunrise body {
     font-weight: 700;
     font-size: 1.125rem;
     line-height: 1;
-    letter-spacing: 0;
+    letter-spacing: -0.015em;
     font-variant-numeric: tabular-nums;
     color: var(--color-foreground);
   }

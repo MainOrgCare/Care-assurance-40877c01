@@ -657,10 +657,10 @@ export default function Dashboard() {
           ) : (
             <>
           <p className="text-[10px] font-bold text-primary/55 tracking-[0.12em] uppercase">
-            Welcome back, {user?.firstName || user?.username || 'there'}
+            Overview &middot; Last 24 hours
           </p>
-          <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Operations Dashboard</h1>
-          <p className="page-subtitle max-w-lg">Unified operations overview &mdash; last 24 hours.</p>
+          <h1 className="page-title leading-tight" data-testid="text-dashboard-title">Welcome back, {user?.firstName || user?.username || 'there'}</h1>
+          <p className="page-subtitle max-w-lg">Here&rsquo;s your operations overview for the last 24 hours.</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {topStatusChips.map((chip) => (
                   <span
