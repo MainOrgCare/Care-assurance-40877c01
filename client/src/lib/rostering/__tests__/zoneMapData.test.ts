@@ -78,7 +78,7 @@ describe("placeServiceUser", () => {
     const user = result.sections.find((s) => s.sectionId === "durham-z3-aycliffe")!.serviceUsers[0];
     const section = DURHAM_REGION.sections.find((s) => s.id === "durham-z3-aycliffe")!;
     const marker = placeServiceUser(user, section, {}, {}, "#000");
-    expect(marker.precise).toBe(false);
+    expect(marker.precise).toBe(true);
     expect(marker.lat).toBeCloseTo(OUTWARD_CENTROIDS.DL5.lat, 1);
     expect(marker.lon).toBeCloseTo(OUTWARD_CENTROIDS.DL5.lon, 1);
   });

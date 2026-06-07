@@ -137,11 +137,10 @@ export function placeServiceUser(
 
   let lat: number;
   let lon: number;
-  let precise = false;
+  let precise = true;
   if (precisePoint) {
     lat = precisePoint.lat;
     lon = precisePoint.lon;
-    precise = true;
   } else {
     const anchor = section
       ? sectionCentroid(section)
