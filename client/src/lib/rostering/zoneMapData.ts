@@ -1,8 +1,9 @@
-import type {
-  AllocatedServiceUser,
-  BulkAllocationResult,
-  ZoneRegionDef,
-  ZoneSectionDef,
+import {
+  extractFullPostcode,
+  type AllocatedServiceUser,
+  type BulkAllocationResult,
+  type ZoneRegionDef,
+  type ZoneSectionDef,
 } from "./zoneAllocation";
 
 export interface LatLon {
@@ -200,7 +201,7 @@ export function buildMarkers(
 export function uniquePostcodes(result: BulkAllocationResult): string[] {
   const seen = new Set<string>();
   const add = (u: AllocatedServiceUser) => {
-    const pc = (u.postcode ?? "").trim();
+    const pc = (u.postcode ?? "").trim() || extractFullPostcode(u.address);
     if (pc) seen.add(pc);
   };
   result.sections.forEach((s) => s.serviceUsers.forEach(add));

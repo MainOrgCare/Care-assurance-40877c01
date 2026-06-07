@@ -148,6 +148,21 @@ describe("uniquePostcodes", () => {
     expect(pcs).toEqual(["DL5 6AB", "ZZ1 1ZZ"]);
   });
 
+  it("extracts a postcode from address text when postcode field is missing", () => {
+    const records: EcmRecord[] = [
+      {
+        serviceUser: "Addr.One",
+        region: "Durham",
+        area: "Aycliffe",
+        postcode: null,
+        address: "1 Example Street, Newton Aycliffe, DL5 6AB",
+        rowIndex: 1,
+      },
+    ];
+    const result = allocateRecords(records, DURHAM_REGION);
+    expect(uniquePostcodes(result)).toEqual(["DL5 6AB"]);
+  });
+
   describe("uniqueAddresses", () => {
     it("collects distinct non-empty addresses across sections and unallocated", () => {
       const records: EcmRecord[] = [
