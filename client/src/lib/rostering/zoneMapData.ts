@@ -111,6 +111,12 @@ export interface ServiceUserMarker {
   color: string;
 }
 
+const normalizePostcodeKey = (value: string | null | undefined): string =>
+  (value ?? "").toUpperCase().replace(/\s+/g, "");
+
+const normalizeAddressKey = (value: string | null | undefined): string =>
+  (value ?? "").trim().toLowerCase();
+
 /**
  * Resolve a coordinate for a service user. Precise geocoded coordinates (keyed by normalized
  * postcode) win; otherwise we anchor to the section centroid (or the user's own outward centroid
@@ -119,11 +125,15 @@ export interface ServiceUserMarker {
 export function placeServiceUser(
   user: AllocatedServiceUser,
   section: ZoneSectionDef | null,
-  geocoded: Record<string, LatLon>,
+  geocodedPostcodes: Record<string, LatLon>,
+  geocodedAddresses: Record<string, LatLon>,
   color: string,
 ): ServiceUserMarker {
-  const key = (user.postcode ?? "").toUpperCase().replace(/\s+/g, "");
-  const precisePoint = key ? geocoded[key] : undefined;
+  const postcodeKey = normalizePostcodeKey(user.postcode);
+  const precisePostcodePoint = postcodeKey ? geocodedPostcodes[postcodeKey] : undefined;
+  const addressKey = normalizeAddressKey(user.address);
+  const preciseAddressPoint = !precisePostcodePoint && addressKey ? geocodedAddresses[addressKey] : undefined;
+  const precisePoint = precisePostcodePoint ?? preciseAddressPoint;
 
   let lat: number;
   let lon: number;
@@ -167,7 +177,8 @@ function outwardAnchor(outwardCode: string | null | undefined): LatLon | null {
 export function buildMarkers(
   result: BulkAllocationResult,
   region: ZoneRegionDef,
-  geocoded: Record<string, LatLon>,
+  geocodedPostcodes: Record<string, LatLon>,
+  geocodedAddresses: Record<string, LatLon> = {},
 ): ServiceUserMarker[] {
   const colors = buildSectionColors(result.sections);
   const sectionDefById = new Map(region.sections.map((s) => [s.id, s]));
@@ -177,11 +188,11 @@ export function buildMarkers(
     const def = sectionDefById.get(bucket.sectionId) ?? null;
     const color = colors[bucket.sectionId] ?? UNALLOCATED_COLOR;
     for (const user of bucket.serviceUsers) {
-      markers.push(placeServiceUser(user, def, geocoded, color));
+      markers.push(placeServiceUser(user, def, geocodedPostcodes, geocodedAddresses, color));
     }
   }
   for (const user of result.unallocated) {
-    markers.push(placeServiceUser(user, null, geocoded, UNALLOCATED_COLOR));
+    markers.push(placeServiceUser(user, null, geocodedPostcodes, geocodedAddresses, UNALLOCATED_COLOR));
   }
   return markers;
 }
@@ -192,6 +203,18 @@ export function uniquePostcodes(result: BulkAllocationResult): string[] {
   const add = (u: AllocatedServiceUser) => {
     const pc = (u.postcode ?? "").trim();
     if (pc) seen.add(pc);
+  };
+  result.sections.forEach((s) => s.serviceUsers.forEach(add));
+  result.unallocated.forEach(add);
+  return [...seen];
+}
+
+/** Unique, normalized non-empty addresses across an allocation result (for fallback geocoding). */
+export function uniqueAddresses(result: BulkAllocationResult): string[] {
+  const seen = new Set<string>();
+  const add = (u: AllocatedServiceUser) => {
+    const address = (u.address ?? "").trim();
+    if (address) seen.add(address);
   };
   result.sections.forEach((s) => s.serviceUsers.forEach(add));
   result.unallocated.forEach(add);

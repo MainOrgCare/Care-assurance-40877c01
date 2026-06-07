@@ -85,6 +85,7 @@ export const geocodeAddress = async (address: string): Promise<GeocodeResult | n
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("format", "json");
   url.searchParams.set("limit", "1");
+  url.searchParams.set("countrycodes", "gb");
   url.searchParams.set("q", postcode ?? address);
 
   try {

@@ -32,6 +32,7 @@ import {
   buildMarkers,
   buildSectionColors,
   buildSectionHulls,
+  uniqueAddresses,
   uniquePostcodes,
   UNALLOCATED_COLOR,
   type LatLon,
@@ -65,6 +66,16 @@ const BASEMAPS = {
 } as const;
 
 type BasemapKey = keyof typeof BASEMAPS;
+const normalizePostcodeKey = (value: string | null | undefined): string =>
+  (value ?? "").toUpperCase().replace(/\s+/g, "");
+const normalizeAddressKey = (value: string | null | undefined): string =>
+  (value ?? "").trim().toLowerCase();
+const FULL_UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+const normalizeUkPostcode = (value: string | null | undefined): string | null => {
+  const cleaned = (value ?? "").toUpperCase().replace(/\s+/g, "").trim();
+  if (!FULL_UK_POSTCODE_RE.test(cleaned)) return null;
+  return `${cleaned.slice(0, -3)} ${cleaned.slice(-3)}`;
+};
 
 /** Imperatively fit the map to the supplied points whenever they change. */
 function FitBounds({ points }: { points: LatLon[] }) {
@@ -126,14 +137,15 @@ export default function ZoneMap() {
    * Best-effort precise geocoding of postcodes (admin geocoder).
    * Falls back silently to section centroids when unavailable.
    * ------------------------------------------------------------------ */
-  const [geocoded, setGeocoded] = useState<Record<string, LatLon>>({});
+  const [geocodedPostcodes, setGeocodedPostcodes] = useState<Record<string, LatLon>>({});
+  const [geocodedAddresses, setGeocodedAddresses] = useState<Record<string, LatLon>>({});
   useEffect(() => {
     if (!result) return;
     let cancelled = false;
     const postcodes = uniquePostcodes(result).slice(0, 400);
     (async () => {
       const updates: Record<string, LatLon> = {};
-      const missing = postcodes.filter((pc) => !geocoded[pc.toUpperCase().replace(/\s+/g, "")]);
+      const missing = postcodes.filter((pc) => !geocodedPostcodes[normalizePostcodeKey(pc)]);
       let cursor = 0;
       const workerCount = Math.min(8, missing.length);
       const workers = Array.from({ length: workerCount }, async () => {
@@ -141,7 +153,7 @@ export default function ZoneMap() {
           const index = cursor++;
           if (index >= missing.length) return;
           const pc = missing[index];
-          const key = pc.toUpperCase().replace(/\s+/g, "");
+          const key = normalizePostcodeKey(pc);
           const res = await geocodeAddressClient(pc);
           if (cancelled) return;
           if (res) updates[key] = { lat: res.lat, lon: res.lon };
@@ -149,7 +161,45 @@ export default function ZoneMap() {
       });
       await Promise.all(workers);
       if (!cancelled && Object.keys(updates).length > 0) {
-        setGeocoded((prev) => ({ ...prev, ...updates }));
+        setGeocodedPostcodes((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  useEffect(() => {
+    if (!result) return;
+    let cancelled = false;
+    const addresses = uniqueAddresses(result).slice(0, 400);
+    (async () => {
+      const updates: Record<string, LatLon> = {};
+      const missing = addresses.filter((address) => {
+        const key = normalizeAddressKey(address);
+        if (!key || geocodedAddresses[key]) return false;
+        const postcode = normalizeUkPostcode(address);
+        // If this string itself is a postcode and we already resolved that postcode, skip it.
+        if (postcode && geocodedPostcodes[normalizePostcodeKey(postcode)]) return false;
+        return true;
+      });
+      let cursor = 0;
+      const workerCount = Math.min(6, missing.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (true) {
+          const index = cursor++;
+          if (index >= missing.length) return;
+          const address = missing[index];
+          const key = normalizeAddressKey(address);
+          const res = await geocodeAddressClient(address);
+          if (cancelled) return;
+          if (res) updates[key] = { lat: res.lat, lon: res.lon };
+        }
+      });
+      await Promise.all(workers);
+      if (!cancelled && Object.keys(updates).length > 0) {
+        setGeocodedAddresses((prev) => ({ ...prev, ...updates }));
       }
     })();
     return () => {
@@ -160,8 +210,8 @@ export default function ZoneMap() {
 
   const markers = useMemo<ServiceUserMarker[]>(() => {
     if (!result || !activeRegion) return [];
-    return buildMarkers(result, activeRegion, geocoded);
-  }, [result, activeRegion, geocoded]);
+    return buildMarkers(result, activeRegion, geocodedPostcodes, geocodedAddresses);
+  }, [result, activeRegion, geocodedPostcodes, geocodedAddresses]);
 
   const sectionColors = useMemo(
     () => (result ? buildSectionColors(result.sections) : {}),
