@@ -197,3 +197,84 @@ export function uniquePostcodes(result: BulkAllocationResult): string[] {
   result.unallocated.forEach(add);
   return [...seen];
 }
+
+/**
+ * Convex hull of a set of points (Andrew's monotone chain), returned counter-clockwise. Used to draw
+ * a soft boundary around the service users that belong to a section. Returns the input (deduped) when
+ * there are fewer than three distinct points, since a polygon needs at least a triangle.
+ */
+export function convexHull(points: LatLon[]): LatLon[] {
+  const pts = dedupePoints(points).sort((a, b) => a.lon - b.lon || a.lat - b.lat);
+  if (pts.length < 3) return pts;
+
+  const cross = (o: LatLon, a: LatLon, b: LatLon): number =>
+    (a.lon - o.lon) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lon - o.lon);
+
+  const lower: LatLon[] = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+  const upper: LatLon[] = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+function dedupePoints(points: LatLon[]): LatLon[] {
+  const seen = new Set<string>();
+  const out: LatLon[] = [];
+  for (const p of points) {
+    const key = `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
+export interface SectionHull {
+  sectionId: string;
+  sectionName: string;
+  color: string;
+  /** Hull vertices as Leaflet-friendly [lat, lon] tuples. Empty when fewer than 3 distinct points. */
+  polygon: [number, number][];
+  count: number;
+}
+
+/**
+ * Build a soft boundary polygon per section from its markers, so the map visually groups everyone in
+ * a section together. Sections with fewer than three distinct points yield an empty polygon (the
+ * caller should fall back to rendering just the markers). Unallocated markers are skipped.
+ */
+export function buildSectionHulls(markers: ServiceUserMarker[]): SectionHull[] {
+  const groups = new Map<string, ServiceUserMarker[]>();
+  for (const m of markers) {
+    if (!m.sectionId) continue;
+    const list = groups.get(m.sectionId);
+    if (list) list.push(m);
+    else groups.set(m.sectionId, [m]);
+  }
+
+  const hulls: SectionHull[] = [];
+  for (const [sectionId, list] of groups) {
+    const hull = convexHull(list.map((m) => ({ lat: m.lat, lon: m.lon })));
+    hulls.push({
+      sectionId,
+      sectionName: list[0].sectionName,
+      color: list[0].color,
+      polygon: hull.length >= 3 ? hull.map((p) => [p.lat, p.lon] as [number, number]) : [],
+      count: list.length,
+    });
+  }
+  return hulls;
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Polygon, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, Layers, MapPin, Search, Users, X } from "lucide-react";
+import { ArrowLeft, Layers, MapPin, Search, Shapes, Users, X } from "lucide-react";
 import {
   allocateRecords,
   filterByRegion,
@@ -31,6 +31,7 @@ import {
 import {
   buildMarkers,
   buildSectionColors,
+  buildSectionHulls,
   uniquePostcodes,
   UNALLOCATED_COLOR,
   type LatLon,
@@ -41,6 +42,29 @@ import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
 import { geocodeAddressClient } from "@/lib/rostering/geocodeClient";
 
 const DEFAULT_CENTER: [number, number] = [54.8, -1.6];
+
+/** Available basemap tile layers. */
+const BASEMAPS = {
+  light: {
+    label: "Light",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  dark: {
+    label: "Dark",
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  },
+  satellite: {
+    label: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics",
+  },
+} as const;
+
+type BasemapKey = keyof typeof BASEMAPS;
 
 /** Imperatively fit the map to the supplied points whenever they change. */
 function FitBounds({ points }: { points: LatLon[] }) {
@@ -137,6 +161,14 @@ export default function ZoneMap() {
   );
 
   /* ------------------------------------------------------------------ *
+   * Map display options + section boundary polygons
+   * ------------------------------------------------------------------ */
+  const [basemap, setBasemap] = useState<BasemapKey>("light");
+  const [showBoundaries, setShowBoundaries] = useState(true);
+
+  const sectionHulls = useMemo(() => buildSectionHulls(markers), [markers]);
+
+  /* ------------------------------------------------------------------ *
    * Section selection + service-user search
    * ------------------------------------------------------------------ */
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
@@ -144,6 +176,20 @@ export default function ZoneMap() {
   const [focusUser, setFocusUser] = useState<string | null>(null);
 
   const searchLower = search.trim().toLowerCase();
+
+  const visibleHulls = useMemo(() => {
+    if (!showBoundaries) return [];
+    return sectionHulls.filter((h) => {
+      if (h.polygon.length < 3) return false;
+      if (
+        selectedSectionId &&
+        selectedSectionId !== "__unallocated__" &&
+        h.sectionId !== selectedSectionId
+      )
+        return false;
+      return true;
+    });
+  }, [sectionHulls, showBoundaries, selectedSectionId]);
 
   const visibleMarkers = useMemo(() => {
     return markers.filter((m) => {
@@ -258,6 +304,31 @@ export default function ZoneMap() {
           {preciseCount}/{markers.length} precisely located
         </Badge>
         {source && <Badge variant="secondary">Source: {source}</Badge>}
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={showBoundaries ? "default" : "outline"}
+            onClick={() => setShowBoundaries((v) => !v)}
+            className="gap-1"
+            title="Toggle section boundary shapes"
+          >
+            <Shapes className="h-3.5 w-3.5" /> Boundaries
+          </Button>
+          <Select value={basemap} onValueChange={(v) => setBasemap(v as BasemapKey)}>
+            <SelectTrigger className="h-8 w-[130px]">
+              <SelectValue placeholder="Basemap" />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(BASEMAPS) as BasemapKey[]).map((key) => (
+                <SelectItem key={key} value={key}>
+                  {BASEMAPS[key].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[320px_1fr]">
@@ -369,14 +440,36 @@ export default function ZoneMap() {
         </Card>
 
         {/* Map */}
-        <Card className="min-h-0 overflow-hidden">
+        <Card className="relative min-h-0 overflow-hidden">
           <MapContainer center={DEFAULT_CENTER} zoom={11} style={{ height: "100%", width: "100%" }}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key={basemap}
+              attribution={BASEMAPS[basemap].attribution}
+              url={BASEMAPS[basemap].url}
             />
             <FitBounds points={fitPoints} />
             <FlyTo point={focusPoint} />
+            {visibleHulls.map((h) => (
+              <Polygon
+                key={h.sectionId}
+                positions={h.polygon}
+                pathOptions={{
+                  color: h.color,
+                  weight: 1.5,
+                  fillColor: h.color,
+                  fillOpacity: selectedSectionId === h.sectionId ? 0.2 : 0.1,
+                  dashArray: "4 4",
+                }}
+                eventHandlers={{ click: () => handleSelectSection(h.sectionId) }}
+              >
+                <Popup>
+                  <div className="text-xs">
+                    <div className="text-sm font-semibold">{h.sectionName}</div>
+                    <div className="text-muted-foreground">{h.count} service users</div>
+                  </div>
+                </Popup>
+              </Polygon>
+            ))}
             {visibleMarkers.map((m, i) => {
               const isFocus = focusUser === m.serviceUser;
               return (
@@ -409,6 +502,47 @@ export default function ZoneMap() {
               );
             })}
           </MapContainer>
+          {result.sections.length > 0 && (
+            <div className="pointer-events-auto absolute bottom-3 right-3 z-[1000] max-h-[45%] w-52 overflow-y-auto rounded-md border bg-card/95 p-2 text-xs shadow-md backdrop-blur">
+              <div className="mb-1 flex items-center gap-1.5 font-medium text-muted-foreground">
+                <Layers className="h-3.5 w-3.5" /> Sections
+              </div>
+              <div className="space-y-0.5">
+                {result.sections.map((s) => {
+                  const count = sectionCounts[s.sectionId] ?? 0;
+                  if (count === 0) return null;
+                  const selected = selectedSectionId === s.sectionId;
+                  return (
+                    <button
+                      key={s.sectionId}
+                      type="button"
+                      onClick={() => handleSelectSection(s.sectionId)}
+                      className={`flex w-full items-center justify-between gap-2 rounded px-1.5 py-0.5 text-left hover:bg-muted/60 ${selected ? "bg-muted/60" : ""}`}
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: sectionColors[s.sectionId] }} />
+                        <span className="truncate">{s.sectionName}</span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{count}</span>
+                    </button>
+                  );
+                })}
+                {(sectionCounts["__unallocated__"] ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSection("__unallocated__")}
+                    className={`flex w-full items-center justify-between gap-2 rounded px-1.5 py-0.5 text-left hover:bg-muted/60 ${selectedSectionId === "__unallocated__" ? "bg-muted/60" : ""}`}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: UNALLOCATED_COLOR }} />
+                      <span className="truncate">Unallocated</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{sectionCounts["__unallocated__"]}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </div>

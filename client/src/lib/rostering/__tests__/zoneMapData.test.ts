@@ -7,6 +7,8 @@ import {
   buildMarkers,
   uniquePostcodes,
   placeServiceUser,
+  convexHull,
+  buildSectionHulls,
 } from "../zoneMapData";
 import { allocateRecords, type EcmRecord } from "../zoneAllocation";
 import { DURHAM_REGION, NEWCASTLE_REGION } from "../zoneSeed";
@@ -117,5 +119,69 @@ describe("uniquePostcodes", () => {
     const result = allocateRecords(records, DURHAM_REGION);
     const pcs = uniquePostcodes(result).sort();
     expect(pcs).toEqual(["DL5 6AB", "ZZ1 1ZZ"]);
+  });
+});
+
+describe("convexHull", () => {
+  it("returns the input (deduped) when given fewer than three distinct points", () => {
+    expect(convexHull([])).toEqual([]);
+    const one = [{ lat: 1, lon: 1 }];
+    expect(convexHull(one)).toHaveLength(1);
+    const dupes = [
+      { lat: 1, lon: 1 },
+      { lat: 1, lon: 1 },
+      { lat: 1, lon: 1 },
+    ];
+    expect(convexHull(dupes)).toHaveLength(1);
+  });
+
+  it("wraps a point cloud, dropping interior points", () => {
+    const square = [
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 2 },
+      { lat: 2, lon: 0 },
+      { lat: 2, lon: 2 },
+      { lat: 1, lon: 1 }, // interior — must be excluded
+    ];
+    const hull = convexHull(square);
+    expect(hull).toHaveLength(4);
+    expect(hull.some((p) => p.lat === 1 && p.lon === 1)).toBe(false);
+  });
+});
+
+describe("buildSectionHulls", () => {
+  it("builds one hull per allocated section, skipping unallocated markers", () => {
+    const records = [
+      rec("A", "DL5 6AA"),
+      rec("B", "DL5 6AB"),
+      rec("C", "DL5 6AC"),
+      rec("D", "DL5 6AD"),
+      rec("Zed", "ZZ1 1ZZ"), // unallocated
+    ];
+    const result = allocateRecords(records, DURHAM_REGION);
+    const geocoded = {
+      DL56AA: { lat: 54.6, lon: -1.6 },
+      DL56AB: { lat: 54.6, lon: -1.5 },
+      DL56AC: { lat: 54.7, lon: -1.6 },
+      DL56AD: { lat: 54.7, lon: -1.5 },
+    };
+    const markers = buildMarkers(result, DURHAM_REGION, geocoded);
+    const hulls = buildSectionHulls(markers);
+    expect(hulls).toHaveLength(1);
+    expect(hulls[0].sectionId).toBe("durham-z3-aycliffe");
+    expect(hulls[0].count).toBe(4);
+    expect(hulls[0].polygon.length).toBeGreaterThanOrEqual(3);
+    expect(hulls[0].color).toBeDefined();
+  });
+
+  it("yields an empty polygon for a section with fewer than three distinct points", () => {
+    const records = [rec("A", "DL14 7AA"), rec("B", "DL14 7AA")];
+    const result = allocateRecords(records, DURHAM_REGION);
+    const markers = buildMarkers(result, DURHAM_REGION, {
+      DL147AA: { lat: 54.66, lon: -1.68 },
+    });
+    const hulls = buildSectionHulls(markers);
+    expect(hulls).toHaveLength(1);
+    expect(hulls[0].polygon).toEqual([]);
   });
 });
