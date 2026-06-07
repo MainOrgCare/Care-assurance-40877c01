@@ -32,15 +32,18 @@ import {
   buildMarkers,
   buildSectionColors,
   buildSectionHulls,
+  buildCareWorkerMarkers,
   uniqueAddresses,
   uniquePostcodes,
   UNALLOCATED_COLOR,
   type LatLon,
   type ServiceUserMarker,
+  type CareWorkerMarker,
 } from "@/lib/rostering/zoneMapData";
 import { useZoneRecords, useZoneRegions, useZoneSource } from "@/lib/rostering/zoneStore";
 import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
 import { geocodeAddressClient, geocodePostcodesClient } from "@/lib/rostering/geocodeClient";
+import { useQuery } from "@tanstack/react-query";
 
 const DEFAULT_CENTER: [number, number] = [54.8, -1.6];
 
@@ -112,31 +115,42 @@ export default function ZoneMap() {
     () => recordRegions[0] ?? regions[0]?.region ?? "",
   );
 
+  // Fetch care workers for map display
+  const { data: careWorkersData = [] } = useQuery({
+   queryKey: ["care-workers", "map"],
+   queryFn: async () => {
+     const res = await fetch("/api/care-workers/map/locations");
+     if (!res.ok) throw new Error("Failed to fetch care workers");
+     return res.json();
+   },
+   staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // Default the active region to a branch present in the analysed data once it arrives.
   useEffect(() => {
-    if (recordRegions.length === 0) return;
-    const matched = regions.find((r) =>
-      recordRegions.some((rr) => rr.toLowerCase() === r.region.toLowerCase()),
-    );
-    if (matched && matched.region !== activeRegionName) setActiveRegionName(matched.region);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+   if (recordRegions.length === 0) return;
+   const matched = regions.find((r) =>
+     recordRegions.some((rr) => rr.toLowerCase() === r.region.toLowerCase()),
+   );
+   if (matched && matched.region !== activeRegionName) setActiveRegionName(matched.region);
+   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordRegions]);
 
   const activeRegion = useMemo(
-    () => regions.find((r) => r.region === activeRegionName) ?? regions[0],
-    [regions, activeRegionName],
+   () => regions.find((r) => r.region === activeRegionName) ?? regions[0],
+   [regions, activeRegionName],
   );
 
   const result = useMemo<BulkAllocationResult | null>(() => {
-    if (!activeRegion || records.length === 0) return null;
-    const scoped = filterByRegion(records, activeRegion.region);
-    return allocateRecords(scoped, activeRegion);
+   if (!activeRegion || records.length === 0) return null;
+   const scoped = filterByRegion(records, activeRegion.region);
+   return allocateRecords(scoped, activeRegion);
   }, [activeRegion, records]);
 
   /* ------------------------------------------------------------------ *
-   * Best-effort precise geocoding of postcodes (admin geocoder).
-   * Falls back silently to section centroids when unavailable.
-   * ------------------------------------------------------------------ */
+  * Best-effort precise geocoding of postcodes (admin geocoder).
+  * Falls back silently to section centroids when unavailable.
+  * ------------------------------------------------------------------ */
   const [geocodedPostcodes, setGeocodedPostcodes] = useState<Record<string, LatLon>>({});
   const [geocodedAddresses, setGeocodedAddresses] = useState<Record<string, LatLon>>({});
   useEffect(() => {
@@ -204,6 +218,77 @@ export default function ZoneMap() {
     if (!result || !activeRegion) return [];
     return buildMarkers(result, activeRegion, geocodedPostcodes, geocodedAddresses);
   }, [result, activeRegion, geocodedPostcodes, geocodedAddresses]);
+
+  // Geocode care worker postcodes and addresses
+  useEffect(() => {
+    if (!careWorkersData || careWorkersData.length === 0) return;
+    let cancelled = false;
+    const postcodes = careWorkersData
+      .map((w: any) => w.postcode)
+      .filter((p: any) => p && !geocodedPostcodes[normalizePostcodeKey(p)]);
+    if (postcodes.length === 0) return;
+
+    (async () => {
+      const geocoded = await geocodePostcodesClient([...new Set(postcodes)] as string[]);
+      if (cancelled) return;
+      const updates: Record<string, LatLon> = {};
+      for (const [key, point] of Object.entries(geocoded)) {
+        updates[key] = { lat: point.lat, lon: point.lon };
+      }
+      if (!cancelled && Object.keys(updates).length > 0) {
+        setGeocodedPostcodes((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [careWorkersData, geocodedPostcodes]);
+
+  // Geocode care worker addresses
+  useEffect(() => {
+    if (!careWorkersData || careWorkersData.length === 0) return;
+    let cancelled = false;
+    const addresses = careWorkersData
+      .map((w: any) => w.address)
+      .filter((a: any) => {
+        if (!a) return false;
+        const key = normalizeAddressKey(a);
+        if (!key || geocodedAddresses[key]) return false;
+        const postcode = normalizeUkPostcode(a);
+        if (postcode && geocodedPostcodes[normalizePostcodeKey(postcode)]) return false;
+        return true;
+      });
+    if (addresses.length === 0) return;
+
+    (async () => {
+      const updates: Record<string, LatLon> = {};
+      let cursor = 0;
+      const workerCount = Math.min(6, addresses.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (true) {
+          const index = cursor++;
+          if (index >= addresses.length) return;
+          const address = addresses[index];
+          const key = normalizeAddressKey(address);
+          const res = await geocodeAddressClient(address);
+          if (cancelled) return;
+          if (res) updates[key] = { lat: res.lat, lon: res.lon };
+        }
+      });
+      await Promise.all(workers);
+      if (!cancelled && Object.keys(updates).length > 0) {
+        setGeocodedAddresses((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [careWorkersData, geocodedAddresses, geocodedPostcodes]);
+
+  const careWorkerMarkers = useMemo<CareWorkerMarker[]>(() => {
+    if (!careWorkersData || careWorkersData.length === 0) return [];
+    return buildCareWorkerMarkers(careWorkersData, geocodedPostcodes, geocodedAddresses);
+  }, [careWorkersData, geocodedPostcodes, geocodedAddresses]);
 
   const sectionColors = useMemo(
     () => (result ? buildSectionColors(result.sections) : {}),
@@ -348,6 +433,9 @@ export default function ZoneMap() {
         </Select>
         <Badge variant="secondary" className="gap-1">
           <Users className="h-3 w-3" /> {markers.length} service users
+        </Badge>
+        <Badge variant="secondary" className="gap-1">
+          <MapPin className="h-3 w-3" /> {careWorkerMarkers.length} care workers
         </Badge>
         <Badge variant="outline">{result.sections.length} sections</Badge>
         <Badge
@@ -554,6 +642,34 @@ export default function ZoneMap() {
                 </CircleMarker>
               );
             })}
+            {/* Care Worker Markers */}
+            {careWorkerMarkers.map((w) => (
+              <CircleMarker
+                key={`cw-${w.id}`}
+                center={[w.lat, w.lon]}
+                radius={6}
+                pathOptions={{
+                  color: "#8b5cf6",
+                  fillColor: "#8b5cf6",
+                  fillOpacity: 0.75,
+                  weight: 1.5,
+                }}
+              >
+                <Popup>
+                  <div className="min-w-[160px] text-xs">
+                    <div className="text-sm font-semibold text-purple-600">{w.name}</div>
+                    <div className="mt-0.5 text-muted-foreground">{w.role}</div>
+                    {w.address && <div className="text-muted-foreground">{w.address}</div>}
+                    {w.postcode && <div className="text-muted-foreground">{w.postcode}</div>}
+                    {!w.precise && (
+                      <div className="mt-1 text-[10px] italic text-muted-foreground">
+                        Approx. location (geocoded)
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </CircleMarker>
+            ))}
           </MapContainer>
           {result.sections.length > 0 && (
             <div className="pointer-events-auto absolute bottom-3 right-3 z-[1000] max-h-[45%] w-52 overflow-y-auto rounded-md border bg-card/95 p-2 text-xs shadow-md backdrop-blur">

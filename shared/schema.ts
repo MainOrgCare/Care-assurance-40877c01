@@ -45,6 +45,10 @@ export const careWorkers = pgTable("care_workers", {
   name: text("name").notNull(), // Anonymized format: L.Barron
   role: text("role").notNull(), // 'Care Coordinator', 'Carer', etc.
   status: text("status").notNull().default("active"),
+  address: text("address"), // Optional address for map display
+  postcode: text("postcode"), // Optional UK postcode for geocoding
+  latitude: integer("latitude"), // Stored as integer degrees × 1,000,000 (for precision)
+  longitude: integer("longitude"), // Stored as integer degrees × 1,000,000
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

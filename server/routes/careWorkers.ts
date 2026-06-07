@@ -65,6 +65,19 @@ export function registerCareWorkerRoutes(
     }
   });
 
+  // Get all care workers for map display (includes address & coordinates)
+  app.get("/api/care-workers/map/locations", requireAuth, async (req, res) => {
+    try {
+      const workers = await storage.getAllCareWorkers();
+      // Filter to only those with addresses or coordinates
+      const mapWorkers = workers.filter(w => w.address || (w.latitude && w.longitude));
+      return apiSuccess(res, mapWorkers);
+    } catch (error: unknown) {
+      log.error("Failed to load care worker map locations", { error: safeErrorMessage(error) });
+      return apiInternalError(res, safeErrorMessage(error, "Failed to load care worker map locations"));
+    }
+  });
+
   // Get care worker with discrepancies
   app.get("/api/care-workers/:id", requireAuth, async (req, res) => {
     try {
