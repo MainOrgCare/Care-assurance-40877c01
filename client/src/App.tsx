@@ -43,6 +43,7 @@ const TestingFeatures = React.lazy(() => import("@/pages/TestingFeatures"));
 const RosteringStudioUnified = React.lazy(() => import("@/pages/RosteringStudioUnified"));
 const RosteringRuns = React.lazy(() => import("@/pages/RosteringRuns"));
 const ZoneAllocator = React.lazy(() => import("@/pages/ZoneAllocator"));
+const ZoneMap = React.lazy(() => import("@/pages/ZoneMap"));
 const BillingTool = React.lazy(() => import("@/pages/BillingTool"));
 const SystemLogs = React.lazy(() => import("@/pages/SystemLogs"));
 const CQCSelfAssessment = React.lazy(() => import("@/pages/CQCSelfAssessment"));
@@ -153,6 +154,7 @@ function Router() {
           <AdminRoute path="/roi-calculator" component={ROICalculator} />
           <ProtectedRoute path="/rostering/runs" component={RosteringRuns} />
           <ProtectedRoute path="/rostering/zones" component={ZoneAllocator} />
+          <ProtectedRoute path="/rostering/map" component={ZoneMap} />
           <ProtectedRoute path="/rostering/:tab" component={TestingFeatures} />
           <AdminRoute path="/system-logs" component={SystemLogs} />
           <AdminRoute path="/rostering-unified" component={RosteringStudioUnified} />

@@ -1,0 +1,121 @@
+import { describe, it, expect } from "vitest";
+import {
+  OUTWARD_CENTROIDS,
+  sectionCentroid,
+  jitter,
+  buildSectionColors,
+  buildMarkers,
+  uniquePostcodes,
+  placeServiceUser,
+} from "../zoneMapData";
+import { allocateRecords, type EcmRecord } from "../zoneAllocation";
+import { DURHAM_REGION, NEWCASTLE_REGION } from "../zoneSeed";
+
+const rec = (
+  serviceUser: string,
+  postcode: string | null,
+  area: string | null = null,
+): EcmRecord => ({ serviceUser, region: null, area, postcode, address: null, rowIndex: 0 });
+
+describe("sectionCentroid", () => {
+  it("averages the centroids of a section's known outward codes", () => {
+    const durham = DURHAM_REGION.sections.find((s) => s.id === "durham-z6-durham")!;
+    const c = sectionCentroid(durham); // DH1, DH6, DH7
+    const expectedLat = (OUTWARD_CENTROIDS.DH1.lat + OUTWARD_CENTROIDS.DH6.lat + OUTWARD_CENTROIDS.DH7.lat) / 3;
+    expect(c.lat).toBeCloseTo(expectedLat, 5);
+  });
+  it("falls back to a UK anchor when no outward code is known", () => {
+    const c = sectionCentroid({ id: "x", name: "X", outwardCodes: ["ZZ9"], keywords: [] });
+    expect(c.lat).toBeGreaterThan(49);
+    expect(c.lat).toBeLessThan(61);
+  });
+});
+
+describe("jitter", () => {
+  it("is deterministic for the same seed", () => {
+    expect(jitter("Smith|DL5 6AB")).toEqual(jitter("Smith|DL5 6AB"));
+  });
+  it("differs for different seeds", () => {
+    expect(jitter("a")).not.toEqual(jitter("b"));
+  });
+  it("stays within a small radius", () => {
+    const j = jitter("anything");
+    expect(Math.abs(j.lat)).toBeLessThan(0.01);
+    expect(Math.abs(j.lon)).toBeLessThan(0.02);
+  });
+});
+
+describe("buildSectionColors", () => {
+  it("assigns a stable color per section in order", () => {
+    const colors = buildSectionColors([{ sectionId: "a" }, { sectionId: "b" }, { sectionId: "a" }]);
+    expect(colors.a).toBeDefined();
+    expect(colors.b).toBeDefined();
+    expect(colors.a).not.toEqual(colors.b);
+  });
+});
+
+describe("placeServiceUser", () => {
+  it("prefers precise geocoded coordinates keyed by normalized postcode", () => {
+    const result = allocateRecords([rec("Jane", "DL5 6AB")], DURHAM_REGION);
+    const user = result.sections.find((s) => s.sectionId === "durham-z3-aycliffe")!.serviceUsers[0];
+    const section = DURHAM_REGION.sections.find((s) => s.id === "durham-z3-aycliffe")!;
+    const marker = placeServiceUser(user, section, { DL56AB: { lat: 54.1, lon: -1.1 } }, "#000");
+    expect(marker.precise).toBe(true);
+    expect(marker.lat).toBe(54.1);
+    expect(marker.lon).toBe(-1.1);
+  });
+  it("anchors to the section centroid (with jitter) when no precise point exists", () => {
+    const result = allocateRecords([rec("Jane", "DL5 6AB")], DURHAM_REGION);
+    const user = result.sections.find((s) => s.sectionId === "durham-z3-aycliffe")!.serviceUsers[0];
+    const section = DURHAM_REGION.sections.find((s) => s.id === "durham-z3-aycliffe")!;
+    const marker = placeServiceUser(user, section, {}, "#000");
+    expect(marker.precise).toBe(false);
+    expect(marker.lat).toBeCloseTo(OUTWARD_CENTROIDS.DL5.lat, 1);
+    expect(marker.lon).toBeCloseTo(OUTWARD_CENTROIDS.DL5.lon, 1);
+  });
+});
+
+describe("buildMarkers", () => {
+  it("produces one marker per service user, colored by section, with unallocated included", () => {
+    const records = [
+      rec("Jane", "DL5 6AB"), // Aycliffe
+      rec("Bob", "DL14 7AA"), // Bishop Auckland
+      rec("Zed", "ZZ1 1ZZ"), // no match -> unallocated
+    ];
+    const result = allocateRecords(records, DURHAM_REGION);
+    const markers = buildMarkers(result, DURHAM_REGION, {});
+    expect(markers).toHaveLength(3);
+    const zed = markers.find((m) => m.serviceUser === "Zed")!;
+    expect(zed.sectionId).toBeNull();
+    expect(zed.sectionName).toBe("Unallocated");
+    const jane = markers.find((m) => m.serviceUser === "Jane")!;
+    const bob = markers.find((m) => m.serviceUser === "Bob")!;
+    expect(jane.color).not.toEqual(bob.color);
+  });
+
+  it("works for the Newcastle region with keyword-disambiguated sections", () => {
+    const records = [
+      rec("A", "NE6 1AA", "Byker"),
+      rec("B", "NE6 4AA", "Walker"),
+      rec("C", "NE2 3AA", "Jesmond"),
+    ];
+    const result = allocateRecords(records, NEWCASTLE_REGION);
+    const markers = buildMarkers(result, NEWCASTLE_REGION, {});
+    expect(markers).toHaveLength(3);
+    expect(markers.every((m) => m.lat > 54 && m.lat < 56)).toBe(true);
+  });
+});
+
+describe("uniquePostcodes", () => {
+  it("collects distinct non-empty postcodes across sections and unallocated", () => {
+    const records = [
+      rec("Jane", "DL5 6AB"),
+      rec("Bob", "DL5 6AB"),
+      rec("Zed", "ZZ1 1ZZ"),
+      rec("Nul", null),
+    ];
+    const result = allocateRecords(records, DURHAM_REGION);
+    const pcs = uniquePostcodes(result).sort();
+    expect(pcs).toEqual(["DL5 6AB", "ZZ1 1ZZ"]);
+  });
+});

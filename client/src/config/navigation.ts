@@ -31,6 +31,7 @@ import {
   Download,
   FileSpreadsheet,
   MapPin,
+  Map,
 } from "lucide-react";
 
 /* ── Page metadata ────────────────────────────────────────────────── */
@@ -108,6 +109,15 @@ export const PAGE_META_RULES: PageMetaRule[] = [
       title: "Rostering Analysis",
       subtitle:
         "Review row-level issues, duplicates, and quality signals across the current rostering dataset.",
+    },
+  },
+  {
+    match: (p) => p === "/rostering/map",
+    meta: {
+      section: "Rostering",
+      title: "Zone Map",
+      subtitle:
+        "Plot service users across areas and sections; search a person or click a section to list everyone in it.",
     },
   },
   {
@@ -247,6 +257,7 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     else if (location === "/rostering/analyse") crumbs.push({ label: "Analyse" });
     else if (location === "/rostering/view") crumbs.push({ label: "View" });
     else if (location === "/rostering/zones") crumbs.push({ label: "Zones" });
+    else if (location === "/rostering/map") crumbs.push({ label: "Map" });
     else crumbs.push({ label: "Workspace" });
   } else if (location === "/call-reconciliation") {
     crumbs.push({ label: "Call Reconciliation" });
@@ -338,6 +349,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/rostering/analyse", label: "Analyse", icon: ClipboardList },
       { href: "/rostering/view", label: "View", icon: FileSpreadsheet },
       { href: "/rostering/zones", label: "Zones", icon: MapPin },
+      { href: "/rostering/map", label: "Map", icon: Map },
     ],
   },
   {

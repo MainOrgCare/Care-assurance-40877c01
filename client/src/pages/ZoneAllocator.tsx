@@ -48,6 +48,7 @@ import {
   type ZoneSectionDef,
 } from "@/lib/rostering/zoneAllocation";
 import { SEED_REGIONS } from "@/lib/rostering/zoneSeed";
+import { saveAllocationInput } from "@/lib/rostering/zoneStorage";
 
 const STORAGE_KEY = "ca-zone-regions-v1";
 
@@ -159,6 +160,7 @@ export default function ZoneAllocator() {
     if (!activeRegion || !parsedRecords) return;
     const scoped = filterByRegion(parsedRecords, activeRegion.region);
     setBulkResult(allocateRecords(scoped, activeRegion));
+    saveAllocationInput(activeRegion.region, scoped);
   }, [activeRegion, parsedRecords]);
 
   const handleFile = useCallback(
@@ -440,6 +442,14 @@ export default function ZoneAllocator() {
                   <Button variant="outline" onClick={exportBulk} data-testid="button-export">
                     <Download className="mr-1.5 h-4 w-4" />
                     Export CSV
+                  </Button>
+                )}
+                {bulkResult && (
+                  <Button asChild variant="outline" data-testid="link-zone-map">
+                    <Link href="/rostering/map">
+                      <MapPin className="mr-1.5 h-4 w-4" />
+                      View on map
+                    </Link>
                   </Button>
                 )}
               </div>
