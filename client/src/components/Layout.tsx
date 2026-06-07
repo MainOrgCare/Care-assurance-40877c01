@@ -32,6 +32,8 @@ import {
   AlertTriangle,
   Megaphone,
   Search,
+  MapPin,
+  Map,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, Suspense, memo, useCallback, useRef, useMemo, lazy, Fragment } from "react";
@@ -437,6 +439,12 @@ const SidebarContent = memo(function SidebarContent({
               </Link>
               <Link href="/rostering/runs" className={subNavLinkClass(location === "/rostering/runs")}>
                 <ListOrdered size={14} /> Runs
+              </Link>
+              <Link href="/rostering/zones" className={subNavLinkClass(location === "/rostering/zones")}>
+                <MapPin size={14} /> Zones
+              </Link>
+              <Link href="/rostering/map" className={subNavLinkClass(location === "/rostering/map")}>
+                <Map size={14} /> Map
               </Link>
             </CollapsibleContent>
           </Collapsible>
