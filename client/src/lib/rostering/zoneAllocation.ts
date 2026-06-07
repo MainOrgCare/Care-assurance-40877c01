@@ -67,6 +67,13 @@ export function postcodeAreaPrefix(outward: string | null): string | null {
   return m ? m[0] : null;
 }
 
+/** Extract a full UK postcode (e.g. "DL5 6AB") from free text, normalized with a single space. */
+export function extractFullPostcode(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const m = text.toUpperCase().match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?)\s*(\d[A-Z]{2})\b/);
+  return m ? `${m[1]} ${m[2]}` : null;
+}
+
 const norm = (value: string | null | undefined): string =>
   String(value ?? "").trim().toLowerCase();
 

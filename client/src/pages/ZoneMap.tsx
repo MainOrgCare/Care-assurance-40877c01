@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -27,7 +27,6 @@ import {
   allocateRecords,
   filterByRegion,
   type BulkAllocationResult,
-  type ZoneRegionDef,
 } from "@/lib/rostering/zoneAllocation";
 import {
   buildMarkers,
@@ -37,7 +36,8 @@ import {
   type LatLon,
   type ServiceUserMarker,
 } from "@/lib/rostering/zoneMapData";
-import { loadAllocationInput, loadRegions } from "@/lib/rostering/zoneStorage";
+import { useZoneRecords, useZoneRegions, useZoneSource } from "@/lib/rostering/zoneStore";
+import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
 import { geocodeAddressClient } from "@/lib/rostering/geocodeClient";
 
 const DEFAULT_CENTER: [number, number] = [54.8, -1.6];
@@ -69,11 +69,23 @@ function FlyTo({ point }: { point: LatLon | null }) {
 export default function ZoneMap() {
   usePageTitle("Zone Map");
 
-  const [regions] = useState<ZoneRegionDef[]>(() => loadRegions());
-  const input = useMemo(() => loadAllocationInput(), []);
+  const regions = useZoneRegions();
+  const records = useZoneRecords();
+  const source = useZoneSource();
+  const recordRegions = useMemo(() => regionsInRecords(records), [records]);
   const [activeRegionName, setActiveRegionName] = useState<string>(
-    () => input?.regionName ?? loadRegions()[0]?.region ?? "",
+    () => recordRegions[0] ?? regions[0]?.region ?? "",
   );
+
+  // Default the active region to a branch present in the analysed data once it arrives.
+  useEffect(() => {
+    if (recordRegions.length === 0) return;
+    const matched = regions.find((r) =>
+      recordRegions.some((rr) => rr.toLowerCase() === r.region.toLowerCase()),
+    );
+    if (matched && matched.region !== activeRegionName) setActiveRegionName(matched.region);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordRegions]);
 
   const activeRegion = useMemo(
     () => regions.find((r) => r.region === activeRegionName) ?? regions[0],
@@ -81,10 +93,10 @@ export default function ZoneMap() {
   );
 
   const result = useMemo<BulkAllocationResult | null>(() => {
-    if (!activeRegion || !input) return null;
-    const scoped = filterByRegion(input.records, activeRegion.region);
+    if (!activeRegion || records.length === 0) return null;
+    const scoped = filterByRegion(records, activeRegion.region);
     return allocateRecords(scoped, activeRegion);
-  }, [activeRegion, input]);
+  }, [activeRegion, records]);
 
   /* ------------------------------------------------------------------ *
    * Best-effort precise geocoding of postcodes (admin geocoder).
@@ -196,20 +208,23 @@ export default function ZoneMap() {
   /* ------------------------------------------------------------------ *
    * Empty state
    * ------------------------------------------------------------------ */
-  if (!input || !result) {
+  if (records.length === 0 || !result) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
         <PageHeader />
         <Alert>
           <MapPin className="h-4 w-4" />
-          <AlertTitle>No allocation to map yet</AlertTitle>
+          <AlertTitle>No analysed data to map yet</AlertTitle>
           <AlertDescription>
-            Run an allocation in the Zone Allocator first — paste an ECM export and click
-            <span className="font-medium"> Allocate</span>. Then return here to see every service
-            user plotted on the map.
-            <div className="mt-3">
+            Upload and analyse an ECM export in the Rostering <span className="font-medium">Analyse</span>{" "}
+            tab. Every service user is then plotted here automatically. This data is volatile —
+            refreshing the page clears it.
+            <div className="mt-3 flex gap-2">
               <Button asChild size="sm">
-                <Link href="/rostering/zones">Open Zone Allocator</Link>
+                <Link href="/rostering/analyse">Open Analyse</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/rostering/zones">Zone Allocator</Link>
               </Button>
             </div>
           </AlertDescription>
@@ -242,6 +257,7 @@ export default function ZoneMap() {
         <Badge variant="outline" title="Markers placed by exact geocoding vs coarse area centroid">
           {preciseCount}/{markers.length} precisely located
         </Badge>
+        {source && <Badge variant="secondary">Source: {source}</Badge>}
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[320px_1fr]">

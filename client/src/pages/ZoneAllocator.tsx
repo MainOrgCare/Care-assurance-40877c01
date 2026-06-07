@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -33,38 +32,26 @@ import {
   RotateCcw,
   Search,
   Trash2,
-  Upload,
   Users,
 } from "lucide-react";
 import {
   allocate,
   allocateRecords,
-  parseEcmText,
   filterByRegion,
   type AllocationResult,
   type BulkAllocationResult,
-  type EcmRecord,
   type ZoneRegionDef,
   type ZoneSectionDef,
 } from "@/lib/rostering/zoneAllocation";
-import { SEED_REGIONS } from "@/lib/rostering/zoneSeed";
-import { saveAllocationInput } from "@/lib/rostering/zoneStorage";
-
-const STORAGE_KEY = "ca-zone-regions-v1";
-
-function loadRegions(): ZoneRegionDef[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return structuredClone(SEED_REGIONS);
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((r) => r?.region && Array.isArray(r.sections))) {
-      return parsed as ZoneRegionDef[];
-    }
-  } catch {
-    /* fall through to seed */
-  }
-  return structuredClone(SEED_REGIONS);
-}
+import {
+  useZoneRecords,
+  useZoneRegions,
+  useZoneSource,
+  setZoneRegions,
+  resetZoneRegions,
+  getZoneRegions,
+} from "@/lib/rostering/zoneStore";
+import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
 
 function csvCell(value: string | null | undefined): string {
   const v = String(value ?? "");
@@ -93,16 +80,31 @@ export default function ZoneAllocator() {
   usePageTitle("Zone Allocator");
   const { toast } = useToast();
 
-  const [regions, setRegions] = useState<ZoneRegionDef[]>(() => loadRegions());
-  const [activeRegionName, setActiveRegionName] = useState<string>(() => loadRegions()[0]?.region ?? "Durham");
+  const regions = useZoneRegions();
+  const records = useZoneRecords();
+  const source = useZoneSource();
+  const setRegions = useCallback(
+    (updater: ZoneRegionDef[] | ((prev: ZoneRegionDef[]) => ZoneRegionDef[])) => {
+      const next = typeof updater === "function" ? updater(getZoneRegions()) : updater;
+      setZoneRegions(next);
+    },
+    [],
+  );
 
+  const recordRegions = useMemo(() => regionsInRecords(records), [records]);
+  const [activeRegionName, setActiveRegionName] = useState<string>(
+    () => recordRegions[0] ?? regions[0]?.region ?? "Durham",
+  );
+
+  // When records arrive from Analyse, default the active region to a branch present in the data.
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(regions));
-    } catch {
-      /* storage may be unavailable; non-fatal */
-    }
-  }, [regions]);
+    if (recordRegions.length === 0) return;
+    const matched = regions.find((r) =>
+      recordRegions.some((rr) => rr.toLowerCase() === r.region.toLowerCase()),
+    );
+    if (matched && matched.region !== activeRegionName) setActiveRegionName(matched.region);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordRegions]);
 
   const activeRegion = useMemo(
     () => regions.find((r) => r.region === activeRegionName) ?? regions[0],
@@ -121,60 +123,13 @@ export default function ZoneAllocator() {
   }, [activeRegion, lookupPostcode, lookupArea]);
 
   /* ------------------------------------------------------------------ *
-   * Bulk ECM allocation
+   * Bulk allocation — driven by the records fed from the Analyse tab.
    * ------------------------------------------------------------------ */
-  const [ecmText, setEcmText] = useState("");
-  const [parsedRecords, setParsedRecords] = useState<EcmRecord[] | null>(null);
-  const [detectedRegions, setDetectedRegions] = useState<string[]>([]);
-  const [bulkResult, setBulkResult] = useState<BulkAllocationResult | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const runParse = useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) {
-        toast({ title: "Nothing to parse", description: "Paste ECM data or upload a CSV first.", variant: "destructive" });
-        return;
-      }
-      const parsed = parseEcmText(trimmed);
-      if (parsed.columnMap.serviceUser < 0) {
-        toast({
-          title: "Could not find a Service User column",
-          description: "Ensure the first row is a header with a 'Service User' (or Name/Client) column.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setParsedRecords(parsed.records);
-      setDetectedRegions(parsed.regions);
-      if (parsed.regions.length === 1 && regions.some((r) => r.region.toLowerCase() === parsed.regions[0].toLowerCase())) {
-        const match = regions.find((r) => r.region.toLowerCase() === parsed.regions[0].toLowerCase())!;
-        setActiveRegionName(match.region);
-      }
-      toast({ title: "Parsed", description: `${parsed.records.length} row(s) read across ${parsed.regions.length || 1} branch(es).` });
-    },
-    [regions, toast],
-  );
-
-  const runAllocate = useCallback(() => {
-    if (!activeRegion || !parsedRecords) return;
-    const scoped = filterByRegion(parsedRecords, activeRegion.region);
-    setBulkResult(allocateRecords(scoped, activeRegion));
-    saveAllocationInput(activeRegion.region, scoped);
-  }, [activeRegion, parsedRecords]);
-
-  const handleFile = useCallback(
-    (file: File) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = String(reader.result ?? "");
-        setEcmText(text);
-        runParse(text);
-      };
-      reader.readAsText(file);
-    },
-    [runParse],
-  );
+  const bulkResult = useMemo<BulkAllocationResult | null>(() => {
+    if (!activeRegion || records.length === 0) return null;
+    const scoped = filterByRegion(records, activeRegion.region);
+    return allocateRecords(scoped, activeRegion);
+  }, [activeRegion, records]);
 
   const exportBulk = useCallback(() => {
     if (!bulkResult) return;
@@ -251,8 +206,7 @@ export default function ZoneAllocator() {
   );
 
   const resetToSeed = useCallback(() => {
-    setRegions(structuredClone(SEED_REGIONS));
-    setActiveRegionName(SEED_REGIONS[0].region);
+    resetZoneRegions();
     toast({ title: "Sections reset", description: "Zone definitions restored to defaults." });
   }, [toast]);
 
@@ -394,73 +348,54 @@ export default function ZoneAllocator() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Bulk allocate from ECM
+                <Users className="h-4 w-4" />
+                Service users from Analyse
               </CardTitle>
               <CardDescription>
-                Paste an ECM export (or upload a CSV). Columns for Service User, Customer Branch, Customer
-                Area and Postcode are detected automatically.
+                Allocation uses the service users from the most recent Rostering <span className="font-medium">Analyse</span> run.
+                Upload and analyse an ECM there, then everyone is split into sections automatically.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea
-                data-testid="textarea-ecm"
-                rows={6}
-                placeholder={"Service User,Customer Branch,Customer Area,Postcode\nA.One,Durham,Aycliffe,DL5 6AA"}
-                value={ecmText}
-                onChange={(e) => setEcmText(e.target.value)}
-                className="font-mono text-xs"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={() => runParse(ecmText)} data-testid="button-parse">
-                  Parse data
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.tsv,.txt,text/csv"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFile(file);
-                    e.target.value = "";
-                  }}
-                />
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="mr-1.5 h-4 w-4" />
-                  Upload CSV
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={runAllocate}
-                  disabled={!parsedRecords}
-                  data-testid="button-allocate"
-                >
-                  Allocate to sections
-                </Button>
-                {bulkResult && (
-                  <Button variant="outline" onClick={exportBulk} data-testid="button-export">
-                    <Download className="mr-1.5 h-4 w-4" />
-                    Export CSV
-                  </Button>
-                )}
-                {bulkResult && (
-                  <Button asChild variant="outline" data-testid="link-zone-map">
-                    <Link href="/rostering/map">
-                      <MapPin className="mr-1.5 h-4 w-4" />
-                      View on map
-                    </Link>
-                  </Button>
-                )}
-              </div>
-
-              {parsedRecords && (
-                <p className="text-xs text-muted-foreground">
-                  {parsedRecords.length} row(s) parsed
-                  {detectedRegions.length > 0 && <> · branches: {detectedRegions.join(", ")}</>}
-                  {" · allocating for "}
-                  <span className="font-medium text-foreground">{activeRegion?.region}</span>
-                </p>
+              {records.length === 0 ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No analysed data yet</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Go to the Analyse tab, upload an ECM export and run the analysis. Service users
+                    will then appear here and on the map. This data is volatile — refreshing the page
+                    clears it.
+                    <div className="mt-3">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href="/rostering/analyse">Open Analyse</Link>
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {records.length} service user(s) from{" "}
+                    <span className="font-medium text-foreground">{source ?? "Analyse"}</span>
+                    {recordRegions.length > 0 && <> · branches: {recordRegions.join(", ")}</>}
+                    {" · allocating for "}
+                    <span className="font-medium text-foreground">{activeRegion?.region}</span>
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {bulkResult && (
+                      <Button variant="outline" onClick={exportBulk} data-testid="button-export">
+                        <Download className="mr-1.5 h-4 w-4" />
+                        Export CSV
+                      </Button>
+                    )}
+                    <Button asChild variant="outline" data-testid="link-zone-map">
+                      <Link href="/rostering/map">
+                        <MapPin className="mr-1.5 h-4 w-4" />
+                        View on map
+                      </Link>
+                    </Button>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

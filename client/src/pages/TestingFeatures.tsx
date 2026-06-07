@@ -8,6 +8,8 @@ import {
   setSharedRecommendations,
   type RecommendationDecision,
 } from "@/pages/rosteringRunsStore";
+import { setZoneRecords, clearZoneRecords } from "@/lib/rostering/zoneStore";
+import { buildRecordsFromRoster } from "@/lib/rostering/zoneRosterAdapter";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Link, Redirect } from "wouter";
@@ -2988,6 +2990,24 @@ export default function TestingFeatures({ tab }: { tab?: string }) {
       }));
     setSharedAllSlots(slots);
   }, [allSlotTrends, careCallRecommendations]);
+
+  // Feed the volatile zone workspace (Zones + Map tabs) from the analysed rows so zone allocation
+  // happens as part of Analyse, not as a separate manual step. Cleared on unmount/refresh.
+  useEffect(() => {
+    const zoneRecords = buildRecordsFromRoster(
+      primaryRows.map((row) => ({
+        serviceUserName: row.serviceUserName,
+        serviceUserArea: row.serviceUserArea,
+        serviceUserAddress: row.serviceUserAddress,
+        serviceLocationBranch: row.serviceLocationBranch,
+      })),
+    );
+    if (zoneRecords.length > 0) {
+      setZoneRecords(zoneRecords, "Rostering Analyse");
+    } else {
+      clearZoneRecords();
+    }
+  }, [primaryRows]);
 
   const recommendationServiceUsers = useMemo(() => {
     const grouped = new Map<
