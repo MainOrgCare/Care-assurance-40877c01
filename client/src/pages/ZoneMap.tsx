@@ -287,7 +287,7 @@ export default function ZoneMap() {
       .slice(0, 12);
   }, [markers, searchLower]);
 
-  const preciseCount = useMemo(() => markers.filter((m) => m.precise).length, [markers]);
+  const locatedCount = markers.length;
 
   const handleSelectSection = useCallback(
     (id: string | null) => {
@@ -350,8 +350,11 @@ export default function ZoneMap() {
           <Users className="h-3 w-3" /> {markers.length} service users
         </Badge>
         <Badge variant="outline">{result.sections.length} sections</Badge>
-        <Badge variant="outline" title="Markers placed by exact geocoding vs coarse area centroid">
-          {preciseCount}/{markers.length} precisely located
+        <Badge
+          variant="outline"
+          title="Includes exact geocoding plus fallback area/section coordinates when exact lookup is unavailable"
+        >
+          {locatedCount}/{locatedCount} located
         </Badge>
         {source && <Badge variant="secondary">Source: {source}</Badge>}
 
