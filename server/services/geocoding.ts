@@ -13,6 +13,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const normalizeAddress = (value: string) => value.trim().toLowerCase();
 
+// Cache both positive and negative results under a fixed size cap so that a
+// flood of failing lookups cannot grow the cache without bound.
+const setCacheEntry = (key: string, value: GeocodeResult | null) => {
+  if (!cache.has(key) && cache.size >= MAX_GEOCODE_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) cache.delete(oldestKey);
+  }
+  cache.set(key, value);
+};
+
 export const geocodeAddress = async (address: string): Promise<GeocodeResult | null> => {
   const normalized = normalizeAddress(address);
   if (!normalized) return null;
@@ -41,13 +51,13 @@ export const geocodeAddress = async (address: string): Promise<GeocodeResult | n
       signal: AbortSignal.timeout(10_000), // 10s timeout
     });
     if (!response.ok) {
-      cache.set(normalized, null);
+      setCacheEntry(normalized, null);
       return null;
     }
     const data = (await response.json()) as Array<{ lat: string; lon: string; display_name?: string }>; 
     const first = data?.[0];
     if (!first) {
-      cache.set(normalized, null);
+      setCacheEntry(normalized, null);
       return null;
     }
     const result: GeocodeResult = {
@@ -55,15 +65,10 @@ export const geocodeAddress = async (address: string): Promise<GeocodeResult | n
       lon: Number(first.lon),
       displayName: first.display_name ?? address,
     };
-    // Evict oldest entries if cache exceeds limit
-    if (cache.size >= MAX_GEOCODE_CACHE_SIZE) {
-      const firstKey = cache.keys().next().value;
-      if (firstKey !== undefined) cache.delete(firstKey);
-    }
-    cache.set(normalized, result);
+    setCacheEntry(normalized, result);
     return result;
   } catch (error) {
-    cache.set(normalized, null);
+    setCacheEntry(normalized, null);
     return null;
   }
 };
