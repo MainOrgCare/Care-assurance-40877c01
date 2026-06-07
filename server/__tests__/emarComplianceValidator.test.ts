@@ -82,6 +82,72 @@ test("clamps invalid codes to null and records a correction", () => {
   assert.ok(result.integrity.corrections.some((c) => c.includes("invalid code")));
 });
 
+test("recovers separator variants of exception codes (S/A, N-H, M.U)", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "S/A", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "12:00", medicine: "Insulin", code: "N-H", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "18:00", medicine: "Insulin", code: "M.U", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: [],
+    trendWarnings: [],
+    summary: { totalRecords: 3, byCode: { R: 0, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+
+  const result = validateAndNormalizeCompliance(raw, { now: NOW });
+
+  assert.equal(result.records[0].code, "SA");
+  assert.equal(result.records[1].code, "NH");
+  assert.equal(result.records[2].code, "MU");
+  assert.equal(result.summary.byCode.SA, 1);
+  assert.equal(result.summary.byCode.NH, 1);
+  assert.equal(result.summary.byCode.MU, 1);
+  // NH still forces verification via the existing invariant.
+  assert.equal(result.records[1].requiresVerification, true);
+  // Recoveries are recorded as corrections, not discarded.
+  assert.ok(result.integrity.corrections.some((c) => c.includes("normalized to")));
+  assert.ok(!result.integrity.corrections.some((c) => c.includes("invalid code")));
+});
+
+test("recovers documented word aliases (Refused, Not Home, Self Administered)", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "Refused", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "12:00", medicine: "Insulin", code: "Not Home", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "18:00", medicine: "Insulin", code: "Self Administered", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "20:00", medicine: "Insulin", code: "Family Administered", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: [],
+    trendWarnings: [],
+    summary: { totalRecords: 4, byCode: { R: 0, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+
+  const result = validateAndNormalizeCompliance(raw, { now: NOW });
+
+  assert.equal(result.records[0].code, "R");
+  assert.equal(result.records[1].code, "NH");
+  assert.equal(result.records[2].code, "SA");
+  assert.equal(result.records[3].code, "F");
+  assert.deepEqual(result.summary.byCode, { R: 1, SA: 1, F: 1, NH: 1, MU: 0 });
+});
+
+test("does not invent a code for unrecognized free text", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "given by district nurse", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: [],
+    trendWarnings: [],
+    summary: { totalRecords: 1, byCode: { R: 0, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+
+  const result = validateAndNormalizeCompliance(raw, { now: NOW });
+
+  assert.equal(result.records[0].code, null);
+  assert.equal(result.records[0].requiresVerification, true);
+  assert.ok(result.integrity.corrections.some((c) => c.includes("invalid code")));
+});
+
 test("normalizes lowercase codes to canonical uppercase", () => {
   const raw = {
     records: [

@@ -124,19 +124,60 @@ const cleanInteger = (value: unknown): number | null => {
 };
 
 /**
- * Normalize a raw `code` value to the allowed EMAR enum. Returns the canonical code plus a
- * flag indicating whether the raw value was outside the allowed set (so the caller can
- * record a correction and force verification).
+ * Conservative aliases for the non-administration codes. Not every configured AI provider
+ * honours the strict JSON schema (the platform supports GitHub Models and local/Ollama
+ * compatible LLMs that may ignore `json_schema`), so the model can emit a recognizable code
+ * in a non-canonical form — e.g. `"Refused"`, `"S/A"`, `"Not Home"`. Discarding those to
+ * `null` would silently lose the exception classification that feeds `codeCounts` and trend
+ * warnings, so the deterministic layer recovers only unambiguous spellings of the documented
+ * legend (R=Refused, SA=Self-Administered, F=Family Administered, NH=Not Home,
+ * MU=Medication Unavailable). Keys are compacted (alphanumeric-only, uppercase).
  */
-const normalizeCode = (raw: unknown): { code: EmarCode; invalid: boolean } => {
-  if (raw === null || raw === undefined) return { code: null, invalid: false };
-  if (typeof raw !== "string") return { code: null, invalid: true };
+const CODE_ALIASES: Record<string, EmarNonNullCode> = {
+  REFUSED: "R",
+  REFUSAL: "R",
+  REFUSE: "R",
+  REF: "R",
+  SELFADMINISTERED: "SA",
+  SELFADMINISTER: "SA",
+  SELFADMIN: "SA",
+  FAMILYADMINISTERED: "F",
+  FAMILYADMINISTER: "F",
+  FAMILYADMIN: "F",
+  NOTHOME: "NH",
+  NOTATHOME: "NH",
+  MEDICATIONUNAVAILABLE: "MU",
+  MEDICATIONUNAVAIL: "MU",
+  MEDUNAVAILABLE: "MU",
+  MEDSUNAVAILABLE: "MU",
+  UNAVAILABLE: "MU",
+};
+
+/**
+ * Normalize a raw `code` value to the allowed EMAR enum. Returns the canonical code, a flag
+ * indicating the raw value was outside the allowed set (so the caller can record a correction
+ * and force verification), and a flag indicating the value was recovered from a recognizable
+ * alias (recorded as a correction but trusted — its meaning is unambiguous).
+ */
+const normalizeCode = (raw: unknown): { code: EmarCode; invalid: boolean; recovered: boolean } => {
+  if (raw === null || raw === undefined) return { code: null, invalid: false, recovered: false };
+  if (typeof raw !== "string") return { code: null, invalid: true, recovered: false };
   const upper = raw.trim().toUpperCase();
-  if (upper === "") return { code: null, invalid: false };
+  if (upper === "") return { code: null, invalid: false, recovered: false };
   if ((EMAR_CODES as readonly string[]).includes(upper)) {
-    return { code: upper as EmarNonNullCode, invalid: false };
+    return { code: upper as EmarNonNullCode, invalid: false, recovered: false };
   }
-  return { code: null, invalid: true };
+  // Compact to alphanumeric only so separator variants ("S/A", "N-H", "M.U", "Not Home")
+  // collapse onto a canonical code or a documented alias.
+  const compact = upper.replace(/[^A-Z0-9]/g, "");
+  if ((EMAR_CODES as readonly string[]).includes(compact)) {
+    return { code: compact as EmarNonNullCode, invalid: false, recovered: true };
+  }
+  const aliased = CODE_ALIASES[compact];
+  if (aliased) {
+    return { code: aliased, invalid: false, recovered: true };
+  }
+  return { code: null, invalid: true, recovered: false };
 };
 
 const normalizeRecord = (
@@ -152,9 +193,11 @@ const normalizeRecord = (
   const careWorker = cleanString(source.careWorker);
   const notes = cleanString(source.notes);
 
-  const { code, invalid } = normalizeCode(source.code);
+  const { code, invalid, recovered } = normalizeCode(source.code);
   if (invalid) {
     corrections.push(`record[${index}]: invalid code ${JSON.stringify(source.code)} reset to null`);
+  } else if (recovered) {
+    corrections.push(`record[${index}]: code ${JSON.stringify(source.code)} normalized to "${code}"`);
   }
 
   // Deterministic invariants — enforced in code, never delegated to the model.
