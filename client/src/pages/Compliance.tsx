@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useDataExport } from "@/hooks/useDataExport";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildComplianceOverview, getMonthlyAuditData, summarizeAuditAlerts } from "./complianceUtils";
+import { ChartEmpty } from "@/components/ui/chart-empty";
 
 interface AuditResults {
   discrepancies?: { length: number }[];
@@ -242,7 +243,12 @@ export default function Compliance() {
                 </BarChart>
               </ResponsiveContainer>
               </div>
-            ) : <div className="flex items-center justify-center h-[250px] text-muted-foreground">No audit data available</div>}
+            ) : (
+              <ChartEmpty
+                title="No audit activity yet"
+                description="Monthly trends appear here once audits are recorded for this workspace."
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -281,7 +287,12 @@ export default function Compliance() {
                 </PieChart>
               </ResponsiveContainer>
               </div>
-            ) : <div className="flex items-center justify-center h-[250px] text-muted-foreground">No audit data available</div>}
+            ) : (
+              <ChartEmpty
+                title="No audits to break down"
+                description="EMAR and visit audit distribution appears here as audits are completed."
+              />
+            )}
           </CardContent>
         </Card>
       </div>
