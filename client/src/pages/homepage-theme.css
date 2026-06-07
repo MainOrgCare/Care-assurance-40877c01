@@ -3,7 +3,14 @@
   isolation: isolate;
   color: var(--color-foreground);
   font-family: var(--font-sans);
-  background: linear-gradient(180deg, hsl(210 25% 99%), color-mix(in oklab, var(--color-background) 97%, white) 36%, color-mix(in oklab, var(--color-background) 93%, var(--color-muted)) 100%);
+  --hp-bright: white;
+  background: linear-gradient(180deg, var(--hp-bright), color-mix(in oklab, var(--color-background) 97%, white) 36%, color-mix(in oklab, var(--color-background) 93%, var(--color-muted)) 100%);
+}
+
+/* Dark themes: the bright elevated surfaces become slightly-raised dark surfaces
+   so the landing page is fully legible instead of washed-out light-on-dark. */
+:is(html.theme-dark, html.theme-midnight, html.theme-ocean, html.theme-aurora) .homepage-theme {
+  --hp-bright: color-mix(in oklab, var(--color-card) 86%, white);
 }
 
 .homepage-theme::before {
@@ -153,7 +160,7 @@
   top: 0;
   z-index: 40;
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 58%, transparent);
-  background: color-mix(in oklab, white 92%, var(--color-background));
+  background: color-mix(in oklab, var(--hp-bright) 92%, var(--color-background));
   backdrop-filter: blur(14px);
   transition: background-color 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, backdrop-filter 0.24s ease;
 }
@@ -176,7 +183,7 @@
 }
 
 .homepage-theme .home-header.is-scrolled {
-  background: color-mix(in oklab, white 96%, var(--color-background));
+  background: color-mix(in oklab, var(--hp-bright) 96%, var(--color-background));
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
   box-shadow: 0 14px 34px -30px rgba(15, 23, 42, 0.18);
 }
@@ -253,12 +260,12 @@
 .homepage-theme .home-mobile-menu {
   border: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
   border-radius: 16px;
-  background: white;
+  background: var(--hp-bright);
   box-shadow: var(--shadow-sm);
 }
 
 .homepage-theme .home-footer {
-  background: color-mix(in oklab, white 94%, var(--color-card));
+  background: color-mix(in oklab, var(--hp-bright) 94%, var(--color-card));
 }
 
 .homepage-theme .home-footer-shell {
@@ -341,7 +348,7 @@
 
 .homepage-theme .home-hero-panel {
   border-color: color-mix(in oklab, var(--color-border) 84%, white);
-  background: linear-gradient(180deg, color-mix(in oklab, white 97%, var(--color-card)), color-mix(in oklab, var(--color-card) 90%, var(--color-background)));
+  background: linear-gradient(180deg, color-mix(in oklab, var(--hp-bright) 97%, var(--color-card)), color-mix(in oklab, var(--color-card) 90%, var(--color-background)));
   box-shadow: 0 24px 48px -40px rgba(15, 23, 42, 0.22), 0 10px 24px -18px rgba(15, 23, 42, 0.08);
 }
 
@@ -475,7 +482,7 @@
   border-radius: 12px;
   border: 1px solid color-mix(in oklab, var(--color-border) 75%, transparent);
   color: var(--color-foreground);
-  background-color: color-mix(in oklab, white 90%, transparent);
+  background-color: color-mix(in oklab, var(--hp-bright) 90%, transparent);
   font-weight: 800;
   letter-spacing: 0.01em;
   transition: all 0.18s ease;
@@ -580,7 +587,7 @@
   margin-top: 1.05rem;
   border: 1px solid color-mix(in oklab, var(--color-border) 76%, transparent);
   border-radius: 14px;
-  background: color-mix(in oklab, white 92%, var(--color-card));
+  background: color-mix(in oklab, var(--hp-bright) 92%, var(--color-card));
   padding: 0.85rem 0.9rem 0.95rem;
 }
 
