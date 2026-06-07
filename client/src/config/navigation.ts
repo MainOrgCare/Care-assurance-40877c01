@@ -30,6 +30,7 @@ import {
   Terminal,
   Download,
   FileSpreadsheet,
+  MapPin,
 } from "lucide-react";
 
 /* ── Page metadata ────────────────────────────────────────────────── */
@@ -107,6 +108,15 @@ export const PAGE_META_RULES: PageMetaRule[] = [
       title: "Rostering Analysis",
       subtitle:
         "Review row-level issues, duplicates, and quality signals across the current rostering dataset.",
+    },
+  },
+  {
+    match: (p) => p === "/rostering/zones",
+    meta: {
+      section: "Rostering",
+      title: "Zone Allocator",
+      subtitle:
+        "Split a region into sections and allocate service users to them by postcode, including bulk ECM import.",
     },
   },
   {
@@ -236,6 +246,7 @@ export function buildBreadcrumbs(location: string): BreadcrumbEntry[] {
     if (location === "/rostering/data") crumbs.push({ label: "Data" });
     else if (location === "/rostering/analyse") crumbs.push({ label: "Analyse" });
     else if (location === "/rostering/view") crumbs.push({ label: "View" });
+    else if (location === "/rostering/zones") crumbs.push({ label: "Zones" });
     else crumbs.push({ label: "Workspace" });
   } else if (location === "/call-reconciliation") {
     crumbs.push({ label: "Call Reconciliation" });
@@ -326,6 +337,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/rostering/data", label: "Data", icon: Upload },
       { href: "/rostering/analyse", label: "Analyse", icon: ClipboardList },
       { href: "/rostering/view", label: "View", icon: FileSpreadsheet },
+      { href: "/rostering/zones", label: "Zones", icon: MapPin },
     ],
   },
   {
