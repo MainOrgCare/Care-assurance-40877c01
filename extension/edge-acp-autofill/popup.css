@@ -76,7 +76,8 @@ body[data-app-theme="light"] {
 }
 
 :root[data-app-theme="sunrise"],
-body[data-app-theme="sunrise"] {
+body[data-app-theme="sunrise"],
+body.ca-theme-overhaul[data-app-theme="sunrise"] {
   color-scheme: light;
   --color-primary: hsl(18, 82%, 44%);
   --color-primary-hover: hsl(18, 78%, 50%);
@@ -98,7 +99,8 @@ body[data-app-theme="sunrise"] {
 }
 
 :root[data-app-theme="dark"],
-body[data-app-theme="dark"] {
+body[data-app-theme="dark"],
+body.ca-theme-overhaul[data-app-theme="dark"] {
   color-scheme: dark;
   --color-primary: hsl(217, 72%, 54%);
   --color-primary-hover: hsl(217, 70%, 61%);
@@ -120,7 +122,8 @@ body[data-app-theme="dark"] {
 }
 
 :root[data-app-theme="midnight"],
-body[data-app-theme="midnight"] {
+body[data-app-theme="midnight"],
+body.ca-theme-overhaul[data-app-theme="midnight"] {
   color-scheme: dark;
   --color-primary: hsl(199, 89%, 54%);
   --color-primary-hover: hsl(199, 85%, 60%);
@@ -142,7 +145,8 @@ body[data-app-theme="midnight"] {
 }
 
 :root[data-app-theme="ocean"],
-body[data-app-theme="ocean"] {
+body[data-app-theme="ocean"],
+body.ca-theme-overhaul[data-app-theme="ocean"] {
   color-scheme: dark;
   --color-primary: hsl(168, 76%, 42%);
   --color-primary-hover: hsl(168, 72%, 49%);
@@ -164,7 +168,8 @@ body[data-app-theme="ocean"] {
 }
 
 :root[data-app-theme="aurora"],
-body[data-app-theme="aurora"] {
+body[data-app-theme="aurora"],
+body.ca-theme-overhaul[data-app-theme="aurora"] {
   color-scheme: dark;
   --color-primary: hsl(148, 62%, 44%);
   --color-primary-hover: hsl(148, 58%, 50%);
@@ -8379,4 +8384,154 @@ body.ca-theme-overhaul .popup-footer {
   body.ca-theme-overhaul .card:hover,
   body.ca-theme-overhaul .btn-primary:hover:not(:disabled),
   body.ca-theme-overhaul .tab-btn:hover { transform: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v1.0.0 — THEME-AWARE SURFACES
+   The earlier "professional" layer hardcoded several white/light surfaces, so
+   the dark themes (dark / midnight / ocean / aurora) and the sunrise palette
+   could never actually take effect. These overrides re-point every remaining
+   hardcoded surface at the design tokens so all six themes render correctly.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Form controls — were hardcoded white */
+body.ca-theme-overhaul input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+body.ca-theme-overhaul select,
+body.ca-theme-overhaul textarea,
+body.ca-theme-overhaul .form-input,
+body.ca-theme-overhaul .form-select,
+body.ca-theme-overhaul .form-textarea,
+body.ca-theme-overhaul .search-input,
+body.ca-theme-overhaul .activity-search-input,
+body.ca-theme-overhaul .activity-tone-select {
+  background: color-mix(in oklab, var(--color-card) 86%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 90%, transparent);
+  color: var(--color-foreground);
+}
+body.ca-theme-overhaul input::placeholder,
+body.ca-theme-overhaul textarea::placeholder {
+  color: color-mix(in oklab, var(--color-muted-foreground) 80%, transparent);
+}
+
+/* Upload buckets / drop zones */
+body.ca-theme-overhaul .upload-bucket-card,
+body.ca-theme-overhaul .upload-zone,
+body.ca-theme-overhaul .dropzone {
+  background: var(--ca-grad-card);
+  border-color: color-mix(in oklab, var(--color-border) 84%, transparent);
+}
+
+/* Route / segmented pills */
+body.ca-theme-overhaul .route-pill {
+  background: color-mix(in oklab, var(--color-card) 82%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+  color: var(--color-muted-foreground);
+}
+body.ca-theme-overhaul .route-pill:hover {
+  color: var(--color-foreground);
+  border-color: color-mix(in oklab, var(--color-primary) 36%, var(--color-border));
+}
+body.ca-theme-overhaul .route-pill.is-active {
+  background: color-mix(in oklab, var(--color-primary) 16%, var(--color-card));
+  border-color: color-mix(in oklab, var(--color-primary) 42%, var(--color-border));
+  color: var(--color-primary);
+}
+
+/* Pipeline step chips */
+body.ca-theme-overhaul .auto-collect-pipeline-icon {
+  background: color-mix(in oklab, var(--color-card) 84%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 88%, transparent);
+  color: var(--color-muted-foreground);
+}
+
+/* Card/section dividers and base card body inherit tokens (no hardcoded white) */
+body.ca-theme-overhaul .card,
+body.ca-theme-overhaul .card-content,
+body.ca-theme-overhaul .popup-content {
+  color: var(--color-foreground);
+}
+
+/* Header text/icons stay light on the gradient regardless of theme darkness */
+body.ca-theme-overhaul[data-app-theme="dark"] .popup-header,
+body.ca-theme-overhaul[data-app-theme="midnight"] .popup-header,
+body.ca-theme-overhaul[data-app-theme="ocean"] .popup-header,
+body.ca-theme-overhaul[data-app-theme="aurora"] .popup-header {
+  box-shadow:
+    0 14px 30px -12px color-mix(in oklab, black 70%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 18%, transparent);
+}
+
+/* Context tiles / highlights / ops chips — were hardcoded white (incl. .is-empty
+   at higher specificity, which is why empty tiles stayed light in dark themes) */
+body.ca-theme-overhaul .case-context-item.is-empty {
+  background: color-mix(in oklab, var(--color-card) 55%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 70%, transparent);
+}
+body.ca-theme-overhaul .case-context-highlight {
+  background: color-mix(in oklab, var(--color-card) 78%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 84%, transparent);
+}
+body.ca-theme-overhaul .ops-quick-metric {
+  background: color-mix(in oklab, var(--color-card) 80%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 84%, transparent);
+}
+body.ca-theme-overhaul .ops-quick-note {
+  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-card));
+  border-left-color: color-mix(in oklab, var(--color-primary) 45%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v1.0.0 — COMMAND PALETTE polish (token-driven, adapts to all themes)
+   ═══════════════════════════════════════════════════════════════════════════ */
+body.ca-theme-overhaul .command-palette-backdrop {
+  background: color-mix(in oklab, var(--color-background) 62%, rgba(8, 12, 20, 0.6));
+  backdrop-filter: blur(4px);
+}
+body.ca-theme-overhaul .command-palette-panel {
+  background: var(--ca-grad-card);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, white);
+  border-radius: 16px;
+  box-shadow:
+    0 30px 70px -24px color-mix(in oklab, var(--color-primary) 55%, rgba(8, 12, 20, 0.55)),
+    inset 0 1px 0 color-mix(in oklab, white 50%, transparent);
+}
+body.ca-theme-overhaul .command-palette-header {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 6%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 60%, transparent);
+}
+body.ca-theme-overhaul .command-palette-count {
+  background: color-mix(in oklab, var(--color-primary) 16%, var(--color-card));
+  color: var(--color-primary);
+}
+body.ca-theme-overhaul .command-palette-item {
+  position: relative;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+body.ca-theme-overhaul .command-palette-item.is-active {
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--color-primary) 16%, transparent),
+    color-mix(in oklab, var(--color-primary) 9%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-primary) 24%, transparent);
+}
+body.ca-theme-overhaul .command-palette-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 3px; top: 18%; bottom: 18%;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
+}
+body.ca-theme-overhaul .command-palette-item.is-active .command-palette-item-title {
+  color: var(--color-primary);
+}
+body.ca-theme-overhaul .command-palette-item-hint,
+body.ca-theme-overhaul .command-palette-hint kbd,
+body.ca-theme-overhaul .command-palette-footer kbd {
+  background: color-mix(in oklab, var(--color-card) 70%, transparent);
+  border-color: color-mix(in oklab, var(--color-border) 86%, transparent);
+}
+body.ca-theme-overhaul .command-palette-footer {
+  background: color-mix(in oklab, var(--color-card) 60%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 60%, transparent);
+  backdrop-filter: blur(6px);
 }

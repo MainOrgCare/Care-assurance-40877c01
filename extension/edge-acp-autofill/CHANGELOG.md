@@ -27,7 +27,23 @@ themes adapt automatically.
   accent focus ring shared by secondary buttons and inputs/selects for
   consistent keyboard focus affordance.
 - **Quiet glassy footer** and a deeper layered app background.
+- **Command palette** (`⌘/Ctrl+K`) restyled to match: glass panel with a deeper
+  branded shadow, blurred scrim, gradient active row with an accent rail and
+  primary-tinted title, and a glassy footer — all token-driven so it adapts to
+  every theme.
 - Respects `prefers-reduced-motion` by disabling the new transitions/lifts.
+
+### Fixed
+
+- **All six themes now actually apply.** Previously the always-on
+  `body.ca-theme-overhaul` palette (equal specificity, later in the source)
+  silently overrode every `[data-app-theme]` block, so `sunrise`, `dark`,
+  `midnight`, `ocean` and `aurora` all rendered identically to the default light
+  skin. Each theme block now carries a `body.ca-theme-overhaul[data-app-theme]`
+  selector so its tokens win, and the remaining hardcoded-white surfaces (form
+  controls, upload buckets, route pills, context tiles incl. the empty state,
+  ops chips, pipeline icons) were re-pointed at the design tokens so the dark
+  themes are fully legible.
 
 ## Version 0.9.2 — Unified keyboard-shortcut registry
 
