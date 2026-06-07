@@ -2,6 +2,18 @@
 
 Operational intelligence platform for domiciliary care providers.
 
+## Recent Changes
+
+See the full project history in [CHANGELOG.md](CHANGELOG.md). Recent highlights:
+
+- **Rostering Zone Allocator + Map**: added `/rostering/zones` and `/rostering/map`, sidebar wiring, section-based allocation, and map visualisation.
+- **Analyse-tab driven volatile data**: zone data now comes from the Rostering Analyse flow and resets on refresh (no persisted browser storage).
+- **Expanded region/section coverage**: added Newcastle/North Tyneside zones and updated Durham sections (including Ferryhill and Shildon).
+- **Service Location Area matching**: zone assignment now prefers the `Service Location Area` column for more reliable section placement.
+- **Map UX upgrades**: section boundary polygons, on-map legend, and light/dark/satellite basemap toggle.
+- **Higher postcode precision**: postcode-first geocoding (`postcodes.io`), normalized cache keys, concurrent client geocoding, and retry-friendly client caching.
+- **EMAR fix**: resolved the carer initials display issue where names could show as a `PIIM` token fragment.
+
 ## Quick Start
 
 ```bash
@@ -50,7 +62,7 @@ Care Assurance helps care organisations stay CQC-ready by automating EMAR audits
 | **Risk** | Risk Assessments | Automated risk scoring with rule-based and AI-powered analysis |
 | **Auditing** | Visit Audits | Match planned vs actual call data to detect drift and missed visits |
 | **Finance** | Call Reconciliation | Process ECM call exports into billing variance summaries |
-| **Rostering** | Rostering Studio | Import workbooks, optimise schedules, and analyse rota coverage |
+| **Rostering** | Rostering Studio, Zone Allocator & Zone Map | Import workbooks, optimise schedules, analyse rota coverage, and allocate/visualise service users by region sections |
 | **Compliance** | CQC Self-Assessment | Track inspection readiness with live risk indicators |
 | **Staff** | Training Tracker | Monitor mandatory training, certifications, and expiry dates |
 | **Governance** | GDPR Controls | Consent management, data subject requests, PII scrubbing, and audit trails |
@@ -232,6 +244,7 @@ For vulnerability reporting, see [`SECURITY.md`](SECURITY.md).
 Additional documentation is available in the [`docs/`](docs/) directory and as standalone files:
 
 - [Deployment Guide](DEPLOYMENT.md)
+- [Project Changelog](CHANGELOG.md)
 - [Security Policy](SECURITY.md)
 - [GDPR Privacy Notice](GDPR_PRIVACY_NOTICE.md)
 - [GDPR Data Protection Impact Assessment](GDPR_DPIA.md)
