@@ -67,6 +67,13 @@ export interface EmarIntegrityReport {
   warnings: string[];
   recordCount: number;
   nullCodeCount: number;
+  /**
+   * Number of populated records (date + timeSlot + medicine all present) that duplicate an
+   * earlier record on the same administration cell. In an EMAR grid every (medicine, date,
+   * time slot) cell is a single administration, so duplicates indicate a hallucinated/double
+   * extraction and can mask dropped data by inflating the record count.
+   */
+  duplicateRecordCount: number;
   verificationRequiredCount: number;
   codeCounts: EmarCodeCounts;
   /** 0..1 confidence that the result can be trusted without human review. */
@@ -380,6 +387,39 @@ const buildBaselineCrossCheck = (
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
 /**
+ * Flag populated records that duplicate an earlier record on the same administration cell
+ * (date + timeSlot + medicine, compared case-insensitively). Each EMAR grid cell is a single
+ * administration, so a duplicate is a data-integrity problem: it can pad the record count and
+ * hide a genuine shortfall from the baseline cross-check. Duplicates are forced to
+ * requiresVerification=true (in place) and counted for the integrity report. Records with any
+ * null component cannot be keyed to a cell and are never treated as duplicates.
+ */
+const markDuplicatePopulatedRecords = (
+  records: EmarComplianceRecord[],
+  corrections: string[],
+): number => {
+  const seen = new Set<string>();
+  let duplicates = 0;
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (record.date === null || record.timeSlot === null || record.medicine === null) continue;
+    const key = `${record.date}\u0000${record.timeSlot.toLowerCase()}\u0000${record.medicine.toLowerCase()}`;
+    if (seen.has(key)) {
+      duplicates += 1;
+      if (!record.requiresVerification) {
+        record.requiresVerification = true;
+        corrections.push(
+          `record[${index}]: duplicate administration for ${record.medicine} on ${record.date} @ ${record.timeSlot}; flagged for verification`,
+        );
+      }
+    } else {
+      seen.add(key);
+    }
+  }
+  return duplicates;
+};
+
+/**
  * Validate and deterministically normalize a raw EMAR compliance result from the AI agent.
  * The returned object is guaranteed to satisfy every documented invariant and carries an
  * `integrity` report describing any corrections and whether human review is required.
@@ -443,6 +483,12 @@ export function validateAndNormalizeCompliance(
   }
 
   const nullCodeCount = records.filter((record) => record.code === null).length;
+  const duplicateRecordCount = markDuplicatePopulatedRecords(records, corrections);
+  if (duplicateRecordCount > 0) {
+    warnings.push(
+      `${duplicateRecordCount} duplicate administration record(s) detected (same medicine, date and time slot) — possible double extraction; review before relying on counts.`,
+    );
+  }
   const verificationRequiredCount = records.filter((record) => record.requiresVerification).length;
 
   const baselineCrossCheck = buildBaselineCrossCheck(records, options.gridBaseline);
@@ -461,6 +507,9 @@ export function validateAndNormalizeCompliance(
   } else {
     confidence -= Math.min(0.4, corrections.length * 0.05);
     confidence -= Math.min(0.3, (nullCodeCount / records.length) * 0.3);
+    if (duplicateRecordCount > 0) {
+      confidence -= Math.min(0.3, (duplicateRecordCount / records.length) * 0.5 + 0.1);
+    }
     if (baselineCrossCheck?.mismatched) confidence -= 0.35;
   }
   confidence = clamp01(Number(confidence.toFixed(3)));
@@ -477,6 +526,7 @@ export function validateAndNormalizeCompliance(
     warnings,
     recordCount: records.length,
     nullCodeCount,
+    duplicateRecordCount,
     verificationRequiredCount,
     codeCounts,
     confidence,

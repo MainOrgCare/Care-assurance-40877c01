@@ -360,3 +360,69 @@ test("matching distinct dates and time slots do not trip the cross-check", () =>
   assert.equal(result.integrity.baselineCrossCheck?.mismatched, false);
   assert.equal(result.integrity.requiresHumanReview, false);
 });
+
+test("flags duplicate administration records on the same grid cell", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      // Exact duplicate cell (case-insensitive on medicine/timeSlot) — impossible in a real grid.
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: ["L.Barron"],
+    trendWarnings: [],
+    summary: { totalRecords: 2, byCode: { R: 2, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+
+  const result = validateAndNormalizeCompliance(raw, { now: NOW });
+
+  assert.equal(result.integrity.duplicateRecordCount, 1);
+  // The second (duplicate) record is forced to require verification; the first is untouched.
+  assert.equal(result.records[0].requiresVerification, false);
+  assert.equal(result.records[1].requiresVerification, true);
+  assert.equal(result.integrity.requiresHumanReview, true);
+  assert.ok(result.integrity.warnings.some((w) => w.includes("duplicate administration")));
+  assert.ok(result.integrity.corrections.some((c) => c.includes("duplicate administration")));
+  assert.ok(result.integrity.confidence < 1);
+});
+
+test("a duplicate masking a shortfall is still caught by the baseline cross-check", () => {
+  // The grid has 2 distinct scheduled cells, but the AI dropped one and duplicated the other,
+  // so populatedRecords (2) would have matched cellCount (2) without duplicate detection.
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: ["L.Barron"],
+    trendWarnings: [],
+    summary: { totalRecords: 2, byCode: { R: 2, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+
+  const result = validateAndNormalizeCompliance(raw, {
+    now: NOW,
+    gridBaseline: { dateCount: 1, timeSlotCount: 2, medicationCount: 1, cellCount: 2 },
+  });
+
+  assert.equal(result.integrity.duplicateRecordCount, 1);
+  // A whole time slot is missing even though the raw populated count equalled cellCount.
+  assert.equal(result.integrity.baselineCrossCheck?.mismatched, true);
+  assert.equal(result.integrity.requiresHumanReview, true);
+});
+
+test("distinct cells are not treated as duplicates", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "12:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      // Null component cannot be keyed to a cell, so never a duplicate.
+      { date: null, timeSlot: "12:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: ["L.Barron"],
+    trendWarnings: [],
+    summary: { totalRecords: 3, byCode: { R: 3, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+
+  const result = validateAndNormalizeCompliance(raw, { now: NOW });
+
+  assert.equal(result.integrity.duplicateRecordCount, 0);
+});
