@@ -38,3 +38,9 @@ coverage/
 .tsupgrader/
 testResults_*.json
 test_output*.txt
+
+# Editor/agent backup files
+*.bak
+*.bak[0-9]
+*.orig
+*~
