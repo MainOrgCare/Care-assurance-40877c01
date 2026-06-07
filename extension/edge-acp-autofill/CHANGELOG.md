@@ -1,5 +1,75 @@
 # Changelog - Care Assurance ACP Autofill Extension
 
+## Version 1.0.0 — Premium UI refresh
+
+A large, purely visual overhaul of the popup. No HTML or JavaScript behaviour
+changed — the refresh is a single CSS layer appended last so it wins the
+cascade, and every colour is derived from the existing design tokens so all six
+themes adapt automatically.
+
+### Changed
+
+- **Branded gradient header.** The flat white header is now a primary→accent→
+  secondary gradient bar with a soft top-light sheen, a glass app-icon chip, and
+  glass action buttons (command palette, theme toggle, pin, help) that were
+  previously near-invisible on white.
+- **Glassy connection badge** with a glowing status dot that colours by state
+  (connected / connecting / error / disconnected).
+- **Elevated tab bar.** Tabs sit on a card surface; the active tab gets a tinted
+  gradient pill, an inset ring, a slimmed accent indicator bar, and a subtle
+  icon lift. Hover states lift and brighten.
+- **Depth for cards and surfaces.** Cards, status boxes, summary tiles and
+  metrics gain a gentle gradient fill, inner highlight, and a smooth hover lift
+  with a primary-tinted border.
+- **Premium current-context strip** with a gradient accent rail, branded
+  eyebrow, and interactive context tiles that highlight when populated.
+- **Gradient primary buttons** with depth, hover/active feedback, and a visible
+  accent focus ring shared by secondary buttons and inputs/selects for
+  consistent keyboard focus affordance.
+- **Quiet glassy footer** and a deeper layered app background.
+- Respects `prefers-reduced-motion` by disabling the new transitions/lifts.
+
+## Version 0.9.2 — Unified keyboard-shortcut registry
+
+A design + correctness fix. The popup advertised its keyboard shortcuts in three
+hand-duplicated places that had drifted out of sync with the real keydown
+handlers: the operator-guide dialog and its copy-to-clipboard text listed only
+`Ctrl+Enter` / `Esc` / `←→`, while the footer hint strip listed only
+`Alt+A/X/R/C` — and neither mentioned the command palette (`Ctrl/⌘+K`) or the
+`Alt+1…6` tab jumps that the popup actually supports.
+
+### Changed
+
+- **Single source of truth for shortcuts.** New self-contained, unit-tested
+  module `popup/shortcuts.js` defines every advertised shortcut once. The
+  operator guide, its copy text, and the footer strip now all render from it, so
+  the surfaces can no longer diverge from each other. Operators now see the
+  command palette and tab-jump shortcuts in the guide, and the palette shortcut
+  in the footer. Pure helpers (`getKeyboardShortcuts`, `shortcutCombosToText`,
+  `buildShortcutTextLines`, `buildShortcutHintsHtml`, `buildShortcutGuideHtml`)
+  are exported for Node unit tests.
+- **Command-palette hints derive from the registry too.** The palette previously
+  hard-coded `Alt+A/X/C/R` hints inline and showed none for the `Alt+1…6` tab
+  jumps. Hints now come from `getCommandHint()` in `popup/shortcuts.js`, so every
+  Navigate command shows its `Alt+N` shortcut and the action hints can no longer
+  drift from the real handlers.
+
+### Fixed
+
+- **Alt shortcuts no longer hijack typing or AltGr.** The `Alt+1…6` / `Alt+A/X/R/C`
+  handler now ignores key events whose target is a text field (input, textarea,
+  select, contentEditable) and ignores AltGr (`Ctrl+Alt`), which on many EU
+  keyboard layouts types symbols from the number row. Previously, typing in a
+  field — or pressing AltGr+number to enter a symbol — could switch tabs or fire
+  an action. Guard logic lives in the unit-tested `isTypingTarget()` helper.
+- **Command palette: correct highlight with grouped results + screen-reader
+  support.** Arrow-key highlighting previously indexed into the list's child
+  nodes, which include the group headers, so with grouped results the highlight
+  (and Enter) could land on the wrong row. Rows are now tracked by command index.
+  The palette also exposes proper combobox semantics — `role="combobox"`,
+  `aria-expanded`, and `aria-activedescendant` pointing at the active option — so
+  screen readers announce the highlighted command during navigation.
+
 ## Version 0.9.1 — Activity power tools & settings backup
 
 Builds on the v0.9.0 productivity suite. New logic ships as self-contained,

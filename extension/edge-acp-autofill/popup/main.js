@@ -104,6 +104,7 @@ import {
 } from "./metrics.js";
 
 import { createCommandPalette } from "./commandPalette.js";
+import { getCommandHint, isTypingTarget } from "./shortcuts.js";
 
 import { createActivityController, buildActivityCsv } from "./activityTools.js";
 
@@ -273,7 +274,7 @@ function buildCommandRegistry() {
   const hasPayload = Boolean(state.currentPayload || dom.payloadJson?.textContent?.trim());
   const isConnected = Boolean(state.isConnected);
 
-  return [
+  const commands = [
     // Navigation
     { id: "go-home", group: "Navigate", title: "Go to Home", subtitle: "Connection & workspace", keywords: ["connect", "home", "dashboard"], run: () => switchTab("connect") },
     { id: "go-intake", group: "Navigate", title: "Go to Intake", subtitle: "Stage & analyse documents", keywords: ["upload", "documents", "intake"], run: () => switchTab("upload") },
@@ -283,8 +284,8 @@ function buildCommandRegistry() {
     { id: "go-logs", group: "Navigate", title: "Go to Logs", subtitle: "Activity, signature & diagnostics", keywords: ["logs", "activity", "diagnostics"], run: () => switchTab("logs") },
 
     // Autofill
-    { id: "start-autofill", group: "Autofill", title: "Start autofill", hint: "Alt+A", subtitle: "Run the staged batch", keywords: ["run", "fill", "go"], enabled: Boolean(dom.startAutofill && !dom.startAutofill.disabled), run: () => clickIfActionable(dom.startAutofill) },
-    { id: "stop-autofill", group: "Autofill", title: "Stop autofill", hint: "Alt+X", subtitle: "Halt the current batch", keywords: ["cancel", "halt"], enabled: Boolean(dom.stopAutofill && !dom.stopAutofill.disabled), run: () => clickIfActionable(dom.stopAutofill) },
+    { id: "start-autofill", group: "Autofill", title: "Start autofill", subtitle: "Run the staged batch", keywords: ["run", "fill", "go"], enabled: Boolean(dom.startAutofill && !dom.startAutofill.disabled), run: () => clickIfActionable(dom.startAutofill) },
+    { id: "stop-autofill", group: "Autofill", title: "Stop autofill", subtitle: "Halt the current batch", keywords: ["cancel", "halt"], enabled: Boolean(dom.stopAutofill && !dom.stopAutofill.disabled), run: () => clickIfActionable(dom.stopAutofill) },
     { id: "toggle-dry-run", group: "Autofill", title: "Toggle dry-run mode", subtitle: dom.dryRun?.checked ? "Currently ON" : "Currently OFF", keywords: ["dry", "test", "safe"], enabled: Boolean(dom.dryRun), run: () => toggleCheckbox(dom.dryRun) },
     { id: "toggle-auto-submit", group: "Autofill", title: "Toggle auto-submit", subtitle: dom.autoSubmit?.checked ? "Currently ON" : "Currently OFF", keywords: ["submit", "auto"], enabled: Boolean(dom.autoSubmit), run: () => toggleCheckbox(dom.autoSubmit) },
 
@@ -293,7 +294,7 @@ function buildCommandRegistry() {
     { id: "load-risk", group: "Data", title: "Load risk assessment", subtitle: "Pull risk rows into the payload", keywords: ["risk", "assessment", "load"], enabled: Boolean(dom.loadRiskBtn && !dom.loadRiskBtn.disabled), run: () => clickIfActionable(dom.loadRiskBtn) },
     { id: "analyze-documents", group: "Data", title: "Analyse staged documents", subtitle: "Parse & run AI analysis", keywords: ["analyze", "analyse", "ai"], enabled: Boolean(dom.analyzeDocuments && !dom.analyzeDocuments.disabled), run: () => { switchTab("upload"); clickIfActionable(dom.analyzeDocuments); } },
     { id: "sync-uploads", group: "Data", title: "Sync documents to Care Assurance", subtitle: "Copy staged uploads to the workspace", keywords: ["sync", "copy", "upload"], enabled: Boolean(dom.syncUploadBtn && !dom.syncUploadBtn.disabled), run: () => clickIfActionable(dom.syncUploadBtn) },
-    { id: "copy-payload", group: "Data", title: "Copy payload JSON", hint: "Alt+C", subtitle: "Copy the staged payload to the clipboard", keywords: ["copy", "json", "clipboard"], enabled: hasPayload, run: () => { switchTab("review"); clickIfActionable(dom.copyPayload); } },
+    { id: "copy-payload", group: "Data", title: "Copy payload JSON", subtitle: "Copy the staged payload to the clipboard", keywords: ["copy", "json", "clipboard"], enabled: hasPayload, run: () => { switchTab("review"); clickIfActionable(dom.copyPayload); } },
     { id: "clear-data", group: "Data", title: "Clear staged data", subtitle: "Reset payload, queue & uploads", keywords: ["clear", "reset", "delete"], enabled: Boolean(dom.clearData), run: () => clickIfActionable(dom.clearData) },
 
     // Signature
@@ -301,11 +302,18 @@ function buildCommandRegistry() {
     { id: "draw-signature", group: "Signature", title: "Draw a signature", subtitle: "Open the signature pad", keywords: ["signature", "draw", "pad", "sign"], run: () => { switchTab("logs"); try { setSignatureMode("draw"); } catch { /* noop */ } } },
 
     // System
-    { id: "refresh-connection", group: "System", title: "Refresh connection", hint: "Alt+R", subtitle: isConnected ? "Re-check Care Assurance" : "Connect to Care Assurance", keywords: ["refresh", "connect", "reconnect"], run: () => { if (dom.connectBtn && !dom.connectBtn.disabled) dom.connectBtn.click(); else schedulePopupRefresh({ payload: true, workspace: true, immediate: true }); } },
+    { id: "refresh-connection", group: "System", title: "Refresh connection", subtitle: isConnected ? "Re-check Care Assurance" : "Connect to Care Assurance", keywords: ["refresh", "connect", "reconnect"], run: () => { if (dom.connectBtn && !dom.connectBtn.disabled) dom.connectBtn.click(); else schedulePopupRefresh({ payload: true, workspace: true, immediate: true }); } },
     { id: "toggle-theme", group: "System", title: "Toggle light / dark theme", subtitle: "Switch the popup colour theme", keywords: ["theme", "dark", "light", "appearance"], run: () => { void cyclePopupTheme(); } },
     { id: "open-command-center", group: "System", title: "Open Command Center", subtitle: "Live health & incident controls", keywords: ["command", "center", "health"], run: () => { switchTab("ops"); if (dom.commandCenterSection) dom.commandCenterSection.open = true; } },
     { id: "open-help", group: "System", title: "Open operator guide", subtitle: "Help & keyboard shortcuts", keywords: ["help", "guide", "shortcuts"], enabled: Boolean(dom.helpBtn), run: () => clickIfActionable(dom.helpBtn) },
   ];
+
+  // Attach keyboard hints from the shortcut registry (single source of truth)
+  // so the palette always matches the real keydown handlers and operator guide.
+  return commands.map((cmd) => {
+    const hint = getCommandHint(cmd.id);
+    return hint ? { ...cmd, hint } : cmd;
+  });
 }
 
 /** Lazily create the shared command-palette controller. */
@@ -9137,6 +9145,10 @@ function bindStorageListener() {
       return;
     }
     if (!e.altKey) return;
+    // Ignore AltGr (Ctrl+Alt) — on many EU keyboard layouts it types symbols via
+    // the number row — and never hijack keystrokes while typing in a field.
+    if (e.ctrlKey || e.metaKey) return;
+    if (isTypingTarget(e.target)) return;
     if (ALT_TAB_KEYS[e.key]) {
       e.preventDefault();
       try { switchTab(ALT_TAB_KEYS[e.key]); } catch (err) { console.warn("[CA Extension] tab shortcut failed:", err); }

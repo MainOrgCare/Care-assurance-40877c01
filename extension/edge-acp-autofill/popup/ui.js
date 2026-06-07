@@ -29,6 +29,11 @@ import {
   buildPayloadHealthScore,
   getLatencyStats,
 } from "./state.js";
+import {
+  buildShortcutTextLines,
+  buildShortcutHintsHtml,
+  buildShortcutGuideHtml,
+} from "./shortcuts.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DOM ELEMENT CACHE
@@ -651,9 +656,7 @@ function buildHelpGuideText({ version = "", isConnected = false, isAdmin = false
     "- Keep the target case aligned before sending staged files or starting Autofill.",
     "",
     "Keyboard shortcuts",
-    "- Ctrl/Cmd+Enter: Start Autofill",
-    "- Esc: Close dialogs or dropdowns",
-    "- Left/Right while focused on tabs: Switch sections",
+    ...buildShortcutTextLines(),
     "",
     isConnected
       ? "Current state: CareAssurance session connected. Start from Workspace or Intake depending on whether you are checking the page or staging documents."
@@ -730,18 +733,7 @@ export function showHelpGuideDialog({ version = "", isConnected = false, isAdmin
         <section class="help-guide-section">
           <span class="help-guide-section-label">Keyboard shortcuts</span>
           <div class="help-guide-shortcuts">
-            <div class="help-guide-shortcut">
-              <strong><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></strong>
-              <span>Start Autofill</span>
-            </div>
-            <div class="help-guide-shortcut">
-              <strong><span class="kbd">Esc</span></strong>
-              <span>Close dialogs or dropdowns</span>
-            </div>
-            <div class="help-guide-shortcut">
-              <strong><span class="kbd">←</span> <span class="kbd">→</span></strong>
-              <span>Switch tabs while focused on the tab row</span>
-            </div>
+            ${buildShortcutGuideHtml()}
           </div>
         </section>
 
@@ -2808,11 +2800,7 @@ export function renderKeyboardShortcutHints() {
   hints.id = "keyboard-hints";
   hints.className = "keyboard-hints";
   hints.setAttribute("aria-label", "Keyboard shortcuts");
-  hints.innerHTML =
-    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>A</kbd> Start</span>` +
-    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>X</kbd> Stop</span>` +
-    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>R</kbd> Refresh</span>` +
-    `<span class="kbd-hint"><kbd>Alt</kbd>+<kbd>C</kbd> Copy payload</span>`;
+  hints.innerHTML = buildShortcutHintsHtml();
 
   footer.appendChild(hints);
 }

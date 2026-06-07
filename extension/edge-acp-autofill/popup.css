@@ -8077,3 +8077,306 @@ body.ca-theme-overhaul .action-row {
 .is-app-theme-dark .activity-tone-select {
   background: var(--color-muted);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v1.0.0 — PREMIUM UI REFRESH
+   A cohesive visual overhaul appended last so it wins the cascade. Pure CSS:
+   no HTML or JS changes. Everything is driven by the existing design tokens so
+   all six themes (light / sunrise / dark / midnight / ocean / aurora) adapt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body.ca-theme-overhaul {
+  --ca-grad-header: linear-gradient(
+    125deg,
+    var(--color-primary) 0%,
+    color-mix(in oklab, var(--color-primary) 60%, var(--color-accent)) 46%,
+    var(--color-secondary) 112%
+  );
+  --ca-grad-card: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--color-card) 96%, white) 0%,
+    color-mix(in oklab, var(--color-card) 90%, var(--color-accent) 6%) 100%
+  );
+  --ca-grad-primary: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--color-primary) 86%, white) 0%,
+    var(--color-primary) 60%,
+    color-mix(in oklab, var(--color-primary) 88%, black) 100%
+  );
+  --ca-ring: 0 0 0 3px color-mix(in oklab, var(--color-accent) 40%, transparent);
+  --ca-glass: color-mix(in oklab, white 18%, transparent);
+  --ca-glass-strong: color-mix(in oklab, white 26%, transparent);
+}
+
+/* ── App background: a touch more depth ─────────────────────────────────── */
+body.ca-theme-overhaul {
+  background:
+    radial-gradient(125% 65% at 50% -18%, color-mix(in oklab, var(--color-accent) 22%, transparent), transparent 64%),
+    radial-gradient(135% 75% at 100% 0%, color-mix(in oklab, var(--color-secondary) 20%, transparent), transparent 60%),
+    radial-gradient(120% 80% at 0% 100%, color-mix(in oklab, var(--color-primary) 14%, transparent), transparent 60%),
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--color-background) 80%, white),
+      var(--color-background));
+}
+
+/* ── HEADER: branded gradient bar ───────────────────────────────────────── */
+body.ca-theme-overhaul .popup-header {
+  height: 64px;
+  border: 1px solid color-mix(in oklab, white 24%, transparent);
+  background: var(--ca-grad-header);
+  color: #fff;
+  box-shadow:
+    0 14px 30px -10px color-mix(in oklab, var(--color-primary) 60%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 30%, transparent);
+  overflow: hidden;
+}
+body.ca-theme-overhaul .popup-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 140% at 8% -20%, color-mix(in oklab, white 26%, transparent), transparent 50%);
+  pointer-events: none;
+}
+body.ca-theme-overhaul .header-content { position: relative; z-index: 1; }
+
+body.ca-theme-overhaul .header-title { color: #fff; font-weight: 750; letter-spacing: -0.02em; }
+body.ca-theme-overhaul .header-subtitle { color: color-mix(in oklab, white 78%, transparent); }
+
+body.ca-theme-overhaul .header-icon {
+  background: var(--ca-glass-strong);
+  border: 1px solid color-mix(in oklab, white 34%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 40%, transparent);
+  color: #fff;
+  border-radius: 10px;
+}
+
+/* Glass header action buttons */
+body.ca-theme-overhaul .btn-overlay-pin,
+body.ca-theme-overhaul .btn-help,
+body.ca-theme-overhaul #command-palette-btn,
+body.ca-theme-overhaul #theme-toggle-btn {
+  border: 1px solid color-mix(in oklab, white 36%, transparent);
+  background: var(--ca-glass);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  transition: background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+body.ca-theme-overhaul .btn-overlay-pin:hover,
+body.ca-theme-overhaul .btn-help:hover,
+body.ca-theme-overhaul #command-palette-btn:hover,
+body.ca-theme-overhaul #theme-toggle-btn:hover {
+  background: var(--ca-glass-strong);
+  transform: translateY(-1px);
+}
+
+/* Connection badge sits on the gradient → glass with a glowing status dot */
+body.ca-theme-overhaul .connection-badge,
+body.ca-theme-overhaul .connection-badge.connected,
+body.ca-theme-overhaul .connection-badge.connecting,
+body.ca-theme-overhaul .connection-badge.error,
+body.ca-theme-overhaul .connection-badge.disconnected {
+  background: var(--ca-glass);
+  border: 1px solid color-mix(in oklab, white 34%, transparent);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+body.ca-theme-overhaul .connection-badge .connection-dot {
+  box-shadow: 0 0 0 3px color-mix(in oklab, white 14%, transparent);
+}
+body.ca-theme-overhaul .connection-badge.connected .connection-dot { background: hsl(150, 80%, 60%); }
+body.ca-theme-overhaul .connection-badge.connecting .connection-dot { background: hsl(45, 100%, 62%); }
+body.ca-theme-overhaul .connection-badge.error .connection-dot { background: hsl(6, 90%, 64%); }
+body.ca-theme-overhaul .connection-badge.disconnected .connection-dot { background: color-mix(in oklab, white 60%, transparent); }
+
+/* ── TAB BAR: elevated card with gradient active pill + accent underline ── */
+body.ca-theme-overhaul .tab-navigation {
+  background: var(--ca-grad-card);
+  border: 1px solid color-mix(in oklab, var(--color-border) 86%, white);
+  box-shadow: var(--shadow-sm);
+}
+body.ca-theme-overhaul .tab-btn {
+  position: relative;
+  color: var(--color-muted-foreground);
+  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+body.ca-theme-overhaul .tab-btn:hover {
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  color: var(--color-foreground);
+  transform: translateY(-1px);
+}
+body.ca-theme-overhaul .tab-btn.active {
+  color: var(--color-primary);
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--color-primary) 14%, transparent),
+    color-mix(in oklab, var(--color-primary) 8%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-primary) 22%, transparent);
+}
+body.ca-theme-overhaul .tab-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  top: 4px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+}
+body.ca-theme-overhaul .tab-btn svg { transition: transform var(--duration-fast) var(--ease-out); }
+body.ca-theme-overhaul .tab-btn.active svg { transform: translateY(-1px) scale(1.06); }
+
+/* ── CARDS: subtle gradient surface, layered depth, smooth hover lift ───── */
+body.ca-theme-overhaul .card {
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, white);
+  background: var(--ca-grad-card);
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 0 color-mix(in oklab, white 60%, transparent);
+  transition: transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out);
+}
+body.ca-theme-overhaul .card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-primary) 30%, var(--color-border));
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 color-mix(in oklab, white 70%, transparent);
+}
+body.ca-theme-overhaul .card-header {
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--color-primary) 5%, transparent),
+    transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 60%, transparent);
+}
+body.ca-theme-overhaul .card-title { color: var(--color-foreground); font-weight: 700; }
+body.ca-theme-overhaul .card-title svg { color: var(--color-primary); opacity: 1 !important; }
+
+/* ── SECTION DIVIDER: branded icon chip ─────────────────────────────────── */
+body.ca-theme-overhaul .section-divider-icon {
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 22%, transparent);
+}
+body.ca-theme-overhaul .section-divider-title { color: var(--color-foreground); font-weight: 700; }
+
+/* ── CONTEXT STRIP: premium framed panel ────────────────────────────────── */
+body.ca-theme-overhaul .case-context-strip {
+  position: relative;
+  border: 1px solid color-mix(in oklab, var(--color-border) 84%, white);
+  background: var(--ca-grad-card);
+  box-shadow: var(--shadow-sm);
+}
+body.ca-theme-overhaul .case-context-strip::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-top-left-radius: inherit;
+  border-bottom-left-radius: inherit;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
+}
+body.ca-theme-overhaul .case-context-eyebrow {
+  color: var(--color-primary);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+body.ca-theme-overhaul .case-context-item {
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, white);
+  background: color-mix(in oklab, var(--color-card) 70%, transparent);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+body.ca-theme-overhaul .case-context-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border));
+}
+body.ca-theme-overhaul .case-context-item:not(.is-empty) {
+  border-color: color-mix(in oklab, var(--color-primary) 32%, var(--color-border));
+  background: color-mix(in oklab, var(--color-primary) 6%, var(--color-card));
+}
+body.ca-theme-overhaul .case-context-value { color: var(--color-foreground); }
+
+/* ── BUTTONS: depth, hover lift, active press, focus ring ────────────────── */
+body.ca-theme-overhaul .btn {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    filter var(--duration-fast) var(--ease-out);
+}
+body.ca-theme-overhaul .btn-primary {
+  border: 1px solid color-mix(in oklab, var(--color-primary) 70%, black);
+  background: var(--ca-grad-primary);
+  color: var(--color-primary-foreground);
+  box-shadow:
+    0 10px 22px -8px color-mix(in oklab, var(--color-primary) 70%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 28%, transparent);
+}
+body.ca-theme-overhaul .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    0 16px 30px -10px color-mix(in oklab, var(--color-primary) 78%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 32%, transparent);
+}
+body.ca-theme-overhaul .btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.97);
+}
+body.ca-theme-overhaul .btn-secondary {
+  border: 1px solid color-mix(in oklab, var(--color-border) 70%, var(--color-primary) 10%);
+  background: var(--ca-grad-card);
+  color: var(--color-foreground);
+}
+body.ca-theme-overhaul .btn-secondary:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--color-primary) 40%, var(--color-border));
+  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-card));
+  transform: translateY(-1px);
+}
+body.ca-theme-overhaul .btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ca-ring);
+}
+
+/* ── SURFACES: status box, summary tiles, metrics ───────────────────────── */
+body.ca-theme-overhaul .status-box,
+body.ca-theme-overhaul .summary-item,
+body.ca-theme-overhaul .workspace-metric,
+body.ca-theme-overhaul .page-companion-metric,
+body.ca-theme-overhaul .ops-metric,
+body.ca-theme-overhaul .runtime-card {
+  border: 1px solid color-mix(in oklab, var(--color-border) 82%, white);
+  background: color-mix(in oklab, var(--color-card) 78%, transparent);
+}
+body.ca-theme-overhaul .summary-label,
+body.ca-theme-overhaul .case-context-label { color: var(--color-muted-foreground); letter-spacing: 0.06em; }
+
+/* ── INPUTS / SELECTS: refined focus ring ───────────────────────────────── */
+body.ca-theme-overhaul input:focus-visible,
+body.ca-theme-overhaul select:focus-visible,
+body.ca-theme-overhaul textarea:focus-visible,
+body.ca-theme-overhaul .activity-search-input:focus,
+body.ca-theme-overhaul .activity-tone-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--ca-ring);
+}
+
+/* ── FOOTER: quiet, glassy ──────────────────────────────────────────────── */
+body.ca-theme-overhaul .popup-footer {
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+  background: color-mix(in oklab, var(--color-card) 70%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+/* ── Respect reduced-motion preferences ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  body.ca-theme-overhaul .card,
+  body.ca-theme-overhaul .btn,
+  body.ca-theme-overhaul .tab-btn,
+  body.ca-theme-overhaul .case-context-item {
+    transition: none !important;
+  }
+  body.ca-theme-overhaul .card:hover,
+  body.ca-theme-overhaul .btn-primary:hover:not(:disabled),
+  body.ca-theme-overhaul .tab-btn:hover { transform: none !important; }
+}

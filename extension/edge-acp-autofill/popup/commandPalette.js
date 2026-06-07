@@ -6,8 +6,8 @@
  * settings…) from the keyboard. Commands are supplied by main.js as a flat
  * registry; this module owns ranking, rendering, keyboard nav and recents.
  *
- * Pure helpers (fuzzyScore, rankCommands) are exported for unit testing with
- * no DOM dependency.
+ * Pure helpers (fuzzyScore, rankCommands, optionDomId) are exported for unit
+ * testing with no DOM dependency.
  */
 
 /**
@@ -82,6 +82,13 @@ export function rankCommands(commands, query, recentIds = []) {
   return scored.map((s) => s.cmd);
 }
 
+const LIST_DOM_ID = "command-palette-list";
+
+/** Stable DOM id for the option row at `index`, for aria-activedescendant. */
+export function optionDomId(index) {
+  return `command-palette-option-${index}`;
+}
+
 /**
  * Build a command-palette controller bound to the DOM.
  * @returns {{ open, close, toggle, isOpen, destroy }}
@@ -102,6 +109,7 @@ export function createCommandPalette(options = {}) {
   let emptyEl = null;
   let countEl = null;
   let items = [];
+  let rowEls = [];
   let activeIndex = 0;
   let isOpen = false;
   let recentIds = [];
@@ -131,6 +139,13 @@ export function createCommandPalette(options = {}) {
     input.className = "command-palette-input";
     input.placeholder = "Type a command or search…  (Esc to close)";
     input.setAttribute("aria-label", "Search commands");
+    // Combobox semantics so screen readers announce the active option during
+    // arrow-key navigation (paired with aria-activedescendant in highlight()).
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-controls", LIST_DOM_ID);
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-haspopup", "listbox");
     input.autocomplete = "off";
     input.spellcheck = false;
     header.appendChild(input);
@@ -143,6 +158,7 @@ export function createCommandPalette(options = {}) {
 
     listEl = doc.createElement("div");
     listEl.className = "command-palette-list";
+    listEl.id = LIST_DOM_ID;
     listEl.setAttribute("role", "listbox");
     panel.appendChild(listEl);
 
@@ -211,15 +227,23 @@ export function createCommandPalette(options = {}) {
   }
 
   function highlight() {
-    const rows = listEl ? Array.from(listEl.children) : [];
-    rows.forEach((row, i) => {
+    let activeId = "";
+    rowEls.forEach((row, i) => {
+      if (!row) return;
       const on = i === activeIndex;
       row.classList.toggle("is-active", on);
       row.setAttribute("aria-selected", String(on));
-      if (on && typeof row.scrollIntoView === "function") {
-        row.scrollIntoView({ block: "nearest" });
+      if (on) {
+        activeId = row.id || "";
+        if (typeof row.scrollIntoView === "function") {
+          row.scrollIntoView({ block: "nearest" });
+        }
       }
     });
+    if (input) {
+      if (activeId) input.setAttribute("aria-activedescendant", activeId);
+      else input.removeAttribute("aria-activedescendant");
+    }
   }
 
   function refresh(query) {
@@ -232,9 +256,11 @@ export function createCommandPalette(options = {}) {
   function renderList() {
     if (!listEl) return;
     listEl.replaceChildren();
+    rowEls = [];
 
     if (countEl) countEl.textContent = items.length ? `${items.length}` : "";
     if (emptyEl) emptyEl.hidden = items.length > 0;
+    if (input) input.setAttribute("aria-expanded", items.length ? "true" : "false");
 
     let lastGroup = null;
     items.forEach((cmd, index) => {
@@ -243,15 +269,18 @@ export function createCommandPalette(options = {}) {
         const groupEl = doc.createElement("div");
         groupEl.className = "command-palette-group";
         groupEl.textContent = cmd.group;
+        groupEl.setAttribute("role", "presentation");
         listEl.appendChild(groupEl);
       }
 
       const row = doc.createElement("button");
       row.type = "button";
       row.className = "command-palette-item";
+      row.id = optionDomId(index);
       if (cmd.enabled === false) row.classList.add("is-disabled");
       row.setAttribute("role", "option");
       row.dataset.index = String(index);
+      rowEls[index] = row;
 
       const main = doc.createElement("span");
       main.className = "command-palette-item-main";
@@ -317,6 +346,10 @@ export function createCommandPalette(options = {}) {
 
   function hide() {
     if (root) root.hidden = true;
+    if (input) {
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    }
     isOpen = false;
   }
 
@@ -328,6 +361,7 @@ export function createCommandPalette(options = {}) {
   function destroy() {
     if (root && root.parentNode) root.parentNode.removeChild(root);
     root = input = listEl = emptyEl = countEl = null;
+    rowEls = [];
     isOpen = false;
   }
 
