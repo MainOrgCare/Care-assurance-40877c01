@@ -6,6 +6,7 @@ export interface GeocodeResult {
 
 const cache = new Map<string, GeocodeResult | null>();
 const postcodeCache = new Map<string, GeocodeResult>();
+const POSTCODE_BATCH_SIZE = 500;
 
 const normalizeAddress = (value: string) => value.trim().toLowerCase();
 const normalizePostcodeKey = (value: string) => value.toUpperCase().replace(/\s+/g, "").trim();
@@ -45,25 +46,28 @@ export const geocodePostcodesClient = async (
   }
   if (missing.length === 0) return results;
 
-  try {
-    const res = await fetch("/api/admin/geocode/postcodes", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postcodes: missing }),
-    });
-    if (!res.ok) return results;
+  for (let i = 0; i < missing.length; i += POSTCODE_BATCH_SIZE) {
+    const batch = missing.slice(i, i + POSTCODE_BATCH_SIZE);
+    try {
+      const res = await fetch("/api/admin/geocode/postcodes", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postcodes: batch }),
+      });
+      if (!res.ok) continue;
 
-    const payload = (await res.json()) as {
-      results?: Record<string, GeocodeResult | null | undefined>;
-    };
-    for (const [key, value] of Object.entries(payload.results ?? {})) {
-      if (!value) continue;
-      postcodeCache.set(key, value);
-      results[key] = value;
+      const payload = (await res.json()) as {
+        results?: Record<string, GeocodeResult | null | undefined>;
+      };
+      for (const [key, value] of Object.entries(payload.results ?? {})) {
+        if (!value) continue;
+        postcodeCache.set(key, value);
+        results[key] = value;
+      }
+    } catch {
+      // Ignore and continue with the next batch.
     }
-  } catch {
-    // Ignore and return what we have.
   }
   return results;
 };

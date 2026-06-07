@@ -142,7 +142,7 @@ export default function ZoneMap() {
   useEffect(() => {
     if (!result) return;
     let cancelled = false;
-    const postcodes = uniquePostcodes(result).slice(0, 400);
+    const postcodes = uniquePostcodes(result);
     (async () => {
       const missing = postcodes.filter((pc) => !geocodedPostcodes[normalizePostcodeKey(pc)]);
       if (missing.length === 0) return;
@@ -165,7 +165,7 @@ export default function ZoneMap() {
   useEffect(() => {
     if (!result) return;
     let cancelled = false;
-    const addresses = uniqueAddresses(result).slice(0, 400);
+    const addresses = uniqueAddresses(result);
     (async () => {
       const updates: Record<string, LatLon> = {};
       const missing = addresses.filter((address) => {

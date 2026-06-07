@@ -4,7 +4,7 @@ type GeocodeResult = {
   displayName: string;
 };
 
-const MAX_BULK_POSTCODES = 500;
+const MAX_BULK_POSTCODES = 5_000;
 const BULK_POSTCODE_CHUNK_SIZE = 100;
 
 const cache = new Map<string, GeocodeResult | null>();

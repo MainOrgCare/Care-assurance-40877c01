@@ -7710,8 +7710,8 @@ export async function registerRoutes(
       if (postcodes.length === 0) {
         return res.status(400).json({ message: "At least one postcode is required" });
       }
-      if (postcodes.length > 500) {
-        return res.status(400).json({ message: "Too many postcodes (max 500)" });
+      if (postcodes.length > 5_000) {
+        return res.status(400).json({ message: "Too many postcodes (max 5000)" });
       }
       const results = await geocodePostcodesBulk(postcodes);
       return res.json({ count: postcodes.length, resolved: Object.keys(results).length, results });
