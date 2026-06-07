@@ -475,3 +475,35 @@ export const computeAllWorkerFatigue = (
 ): WorkerFatigueResult[] => {
   return lanes.map(computeWorkerFatigue);
 };
+
+/**
+ * Find the nearest care worker to a service user location.
+ * Returns the care worker, distance (km), and travel time (minutes).
+ */
+export const findNearestCareWorker = (
+  callLat: number,
+  callLon: number,
+  careWorkers: Array<{ id: string; name: string; lat: number; lon: number }>
+): { careWorkerId: string; careWorkerName: string; distanceKm: number; travelMinutes: number; careWorkerLat: number; careWorkerLon: number } | null => {
+  if (careWorkers.length === 0) return null;
+
+  let nearest = careWorkers[0];
+  let minDistance = haversineDistance(callLat, callLon, nearest.lat, nearest.lon);
+
+  for (let i = 1; i < careWorkers.length; i++) {
+    const distance = haversineDistance(callLat, callLon, careWorkers[i].lat, careWorkers[i].lon);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = careWorkers[i];
+    }
+  }
+
+  return {
+    careWorkerId: nearest.id,
+    careWorkerName: nearest.name,
+    distanceKm: Math.round(minDistance * 10) / 10,
+    travelMinutes: Math.round(estimateTravelMinutes(minDistance)),
+    careWorkerLat: nearest.lat,
+    careWorkerLon: nearest.lon,
+  };
+};

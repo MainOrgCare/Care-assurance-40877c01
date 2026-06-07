@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { MapContainer, TileLayer, CircleMarker, Polygon, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Polygon, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -43,6 +43,7 @@ import {
 import { useZoneRecords, useZoneRegions, useZoneSource } from "@/lib/rostering/zoneStore";
 import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
 import { geocodeAddressClient, geocodePostcodesClient } from "@/lib/rostering/geocodeClient";
+import { findNearestCareWorker } from "@/lib/rostering/travelUtils";
 import { useQuery } from "@tanstack/react-query";
 
 const DEFAULT_CENTER: [number, number] = [54.8, -1.6];
@@ -121,7 +122,8 @@ export default function ZoneMap() {
    queryFn: async () => {
      const res = await fetch("/api/care-workers/map/locations");
      if (!res.ok) throw new Error("Failed to fetch care workers");
-     return res.json();
+     const json = await res.json();
+     return json.data ?? [];
    },
    staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -304,11 +306,30 @@ export default function ZoneMap() {
   const sectionHulls = useMemo(() => buildSectionHulls(markers), [markers]);
 
   /* ------------------------------------------------------------------ *
-   * Section selection + service-user search
+   * Section selection + service-user search + nearest care worker
    * ------------------------------------------------------------------ */
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [focusUser, setFocusUser] = useState<string | null>(null);
+
+  // Calculate nearest care worker for the focused service user
+  const nearestCareWorker = useMemo(() => {
+    if (!focusUser || careWorkerMarkers.length === 0) return null;
+    const focusedMarker = markers.find((m) => m.serviceUser === focusUser);
+    if (!focusedMarker) return null;
+
+    const nearest = findNearestCareWorker(
+      focusedMarker.lat,
+      focusedMarker.lon,
+      careWorkerMarkers.map((cw) => ({
+        id: cw.id,
+        name: cw.name,
+        lat: cw.lat,
+        lon: cw.lon,
+      }))
+    );
+    return nearest ? { ...nearest, serviceUserLat: focusedMarker.lat, serviceUserLon: focusedMarker.lon } : null;
+  }, [focusUser, markers, careWorkerMarkers]);
 
   const searchLower = search.trim().toLowerCase();
 
@@ -637,39 +658,71 @@ export default function ZoneMap() {
                           Approx. location (area centroid)
                         </div>
                       )}
+                      {nearestCareWorker && focusUser === m.serviceUser && (
+                        <div className="mt-2 rounded bg-amber-50/50 p-1 text-[10px] font-semibold text-amber-700">
+                          Nearest worker: {nearestCareWorker.careWorkerName}
+                          <div className="mt-0.5 font-normal">
+                            {nearestCareWorker.distanceKm}km · {nearestCareWorker.travelMinutes}min away
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </Popup>
                 </CircleMarker>
               );
             })}
             {/* Care Worker Markers */}
-            {careWorkerMarkers.map((w) => (
-              <CircleMarker
-                key={`cw-${w.id}`}
-                center={[w.lat, w.lon]}
-                radius={6}
-                pathOptions={{
-                  color: "#8b5cf6",
-                  fillColor: "#8b5cf6",
-                  fillOpacity: 0.75,
-                  weight: 1.5,
-                }}
-              >
-                <Popup>
-                  <div className="min-w-[160px] text-xs">
-                    <div className="text-sm font-semibold text-purple-600">{w.name}</div>
-                    <div className="mt-0.5 text-muted-foreground">{w.role}</div>
-                    {w.address && <div className="text-muted-foreground">{w.address}</div>}
-                    {w.postcode && <div className="text-muted-foreground">{w.postcode}</div>}
-                    {!w.precise && (
-                      <div className="mt-1 text-[10px] italic text-muted-foreground">
-                        Approx. location (geocoded)
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
+            {careWorkerMarkers.map((w) => {
+              const isNearest = nearestCareWorker?.careWorkerId === w.id;
+              return (
+                <CircleMarker
+                  key={`cw-${w.id}`}
+                  center={[w.lat, w.lon]}
+                  radius={isNearest ? 10 : 6}
+                  pathOptions={{
+                    color: isNearest ? "#fbbf24" : "#8b5cf6",
+                    fillColor: isNearest ? "#fbbf24" : "#8b5cf6",
+                    fillOpacity: isNearest ? 0.95 : 0.75,
+                    weight: isNearest ? 3 : 1.5,
+                  }}
+                >
+                  <Popup>
+                    <div className="min-w-[160px] text-xs">
+                      <div className="text-sm font-semibold text-purple-600">{w.name}</div>
+                      <div className="mt-0.5 text-muted-foreground">{w.role}</div>
+                      {w.address && <div className="text-muted-foreground">{w.address}</div>}
+                      {w.postcode && <div className="text-muted-foreground">{w.postcode}</div>}
+                      {!w.precise && (
+                        <div className="mt-1 text-[10px] italic text-muted-foreground">
+                          Approx. location (geocoded)
+                        </div>
+                      )}
+                      {isNearest && nearestCareWorker && (
+                        <div className="mt-2 rounded bg-amber-50/50 p-1 text-[10px] font-semibold text-amber-700">
+                          Nearest to {focusUser}
+                          <div className="mt-0.5 font-normal">
+                            {nearestCareWorker.distanceKm}km · {nearestCareWorker.travelMinutes}min
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
+            {/* Line from service user to nearest care worker */}
+            {nearestCareWorker && (
+              <Polyline
+                positions={[
+                  [nearestCareWorker.serviceUserLat, nearestCareWorker.serviceUserLon],
+                  [nearestCareWorker.careWorkerLat, nearestCareWorker.careWorkerLon],
+                ]}
+                color="#fbbf24"
+                weight={2}
+                opacity={0.7}
+                dashArray="5 5"
+              />
+            )}
           </MapContainer>
           {result.sections.length > 0 && (
             <div className="pointer-events-auto absolute bottom-3 right-3 z-[1000] max-h-[45%] w-52 overflow-y-auto rounded-md border bg-card/95 p-2 text-xs shadow-md backdrop-blur">
