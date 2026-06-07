@@ -6,6 +6,9 @@ tmp/
 dist/
 *.tsbuildinfo
 
+test-db.cjs
+
+
 # Extension packaging artefacts (generated, must not be committed)
 extension/*.crx
 extension/*.pem
