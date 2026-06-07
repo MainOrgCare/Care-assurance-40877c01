@@ -5,7 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/context/AuthContext";
 import { TemporaryDataProvider } from "@/context/TemporaryDataContext";
 import { SessionProvider } from "@/context/SessionContext";
-import { SettingsProvider } from "@/context/SettingsContext";
+import { SettingsProvider, useSettings } from "@/context/SettingsContext";
+import { MotionConfig } from "framer-motion";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import { TermsGuard } from "@/components/TermsGuard";
@@ -184,20 +185,33 @@ function Router() {
   );
 }
 
+function MotionPreferenceProvider({ children }: { children: React.ReactNode }) {
+  const { reduceMotion } = useSettings();
+  // Bridges the in-app "Reduce motion" setting to framer-motion. "always" makes every
+  // motion component skip transform/layout animations (opacity-only); "user" defers to the
+  // OS prefers-reduced-motion preference. Without this, the toggle only affected CSS
+  // animations, leaving JS-driven framer-motion movement (sidebar, dialogs, etc.) running.
+  return (
+    <MotionConfig reducedMotion={reduceMotion ? "always" : "user"}>{children}</MotionConfig>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
-        <AuthProvider>
-          <SessionProvider>
-            <TemporaryDataProvider>
-              <TermsGuard>
-                <Router />
-              </TermsGuard>
-              <Toaster />
-            </TemporaryDataProvider>
-          </SessionProvider>
-        </AuthProvider>
+        <MotionPreferenceProvider>
+          <AuthProvider>
+            <SessionProvider>
+              <TemporaryDataProvider>
+                <TermsGuard>
+                  <Router />
+                </TermsGuard>
+                <Toaster />
+              </TemporaryDataProvider>
+            </SessionProvider>
+          </AuthProvider>
+        </MotionPreferenceProvider>
       </SettingsProvider>
     </QueryClientProvider>
   );
