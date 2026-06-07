@@ -226,3 +226,71 @@ test("an excess of AI records over grid cells is informational, not a hard misma
   assert.equal(result.integrity.baselineCrossCheck?.mismatched, false);
   assert.equal(result.integrity.requiresHumanReview, false);
 });
+
+test("flags a baseline mismatch when the AI references fewer distinct dates than the grid", () => {
+  // Cells/medicines/timeSlots all match the baseline, so only the date shortfall can trip it.
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-01", timeSlot: "12:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: ["L.Barron"],
+    trendWarnings: [],
+    summary: { totalRecords: 2, byCode: { R: 2, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+  const result = validateAndNormalizeCompliance(raw, {
+    now: NOW,
+    // Grid saw 2 distinct dates; the AI only references 1.
+    gridBaseline: { dateCount: 2, timeSlotCount: 2, medicationCount: 1, cellCount: 2 },
+  });
+  assert.equal(result.integrity.baselineCrossCheck?.expectedDates, 2);
+  assert.equal(result.integrity.baselineCrossCheck?.referencedDates, 1);
+  assert.equal(result.integrity.baselineCrossCheck?.mismatched, true);
+  assert.equal(result.integrity.requiresHumanReview, true);
+  assert.ok(
+    result.integrity.warnings.some((w) => w.includes("distinct date")),
+  );
+});
+
+test("flags a baseline mismatch when the AI references fewer distinct time slots than the grid", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-02", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: ["L.Barron"],
+    trendWarnings: [],
+    summary: { totalRecords: 2, byCode: { R: 2, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+  const result = validateAndNormalizeCompliance(raw, {
+    now: NOW,
+    // Grid saw 3 distinct time slots; the AI only references 1.
+    gridBaseline: { dateCount: 2, timeSlotCount: 3, medicationCount: 1, cellCount: 2 },
+  });
+  assert.equal(result.integrity.baselineCrossCheck?.expectedTimeSlots, 3);
+  assert.equal(result.integrity.baselineCrossCheck?.referencedTimeSlots, 1);
+  assert.equal(result.integrity.baselineCrossCheck?.mismatched, true);
+  assert.ok(
+    result.integrity.warnings.some((w) => w.includes("distinct time slot")),
+  );
+});
+
+test("matching distinct dates and time slots do not trip the cross-check", () => {
+  const raw = {
+    records: [
+      { date: "2026-01-01", timeSlot: "08:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+      { date: "2026-01-02", timeSlot: "12:00", medicine: "Insulin", code: "R", careWorker: "L.Barron", requiresVerification: false, inferredFromSameSlot: false, notes: null },
+    ],
+    allCareWorkers: ["L.Barron"],
+    trendWarnings: [],
+    summary: { totalRecords: 2, byCode: { R: 2, SA: 0, F: 0, NH: 0, MU: 0 } },
+  };
+  const result = validateAndNormalizeCompliance(raw, {
+    now: NOW,
+    gridBaseline: { dateCount: 2, timeSlotCount: 2, medicationCount: 1, cellCount: 2 },
+  });
+  assert.equal(result.integrity.baselineCrossCheck?.referencedDates, 2);
+  assert.equal(result.integrity.baselineCrossCheck?.referencedTimeSlots, 2);
+  assert.equal(result.integrity.baselineCrossCheck?.mismatched, false);
+  assert.equal(result.integrity.requiresHumanReview, false);
+});

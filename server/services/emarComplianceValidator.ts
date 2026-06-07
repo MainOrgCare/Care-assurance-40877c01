@@ -48,6 +48,14 @@ export interface EmarBaselineCrossCheck {
   populatedRecords: number;
   /** Difference between deterministic cell count and populated AI records. */
   cellDelta: number | null;
+  /** Distinct dates the deterministic grid parser detected (from the baseline). */
+  expectedDates: number | null;
+  /** Distinct dates referenced across the AI records. */
+  referencedDates: number;
+  /** Distinct time slots the deterministic grid parser detected (from the baseline). */
+  expectedTimeSlots: number | null;
+  /** Distinct time slots referenced across the AI records. */
+  referencedTimeSlots: number;
   mismatched: boolean;
   notes: string[];
 }
@@ -288,10 +296,39 @@ const buildBaselineCrossCheck = (
     }
   }
 
+  // Distinct dates / time slots cross-check. A shortfall (the AI referenced fewer distinct
+  // dates or time slots than the deterministic grid found) is the dangerous direction: it
+  // usually means a whole day or administration round was dropped from the extraction.
+  const expectedDates = cleanInteger(baseline.dateCount);
+  const referencedDates = new Set(
+    records.map((record) => record.date).filter((d): d is string => d !== null),
+  ).size;
+  if (expectedDates !== null && expectedDates > 0 && referencedDates < expectedDates) {
+    mismatched = true;
+    notes.push(
+      `Grid parser detected ${expectedDates} distinct date(s) but the AI only referenced ${referencedDates} — a full day may be missing.`,
+    );
+  }
+
+  const expectedTimeSlots = cleanInteger(baseline.timeSlotCount);
+  const referencedTimeSlots = new Set(
+    records.map((record) => record.timeSlot).filter((t): t is string => t !== null),
+  ).size;
+  if (expectedTimeSlots !== null && expectedTimeSlots > 0 && referencedTimeSlots < expectedTimeSlots) {
+    mismatched = true;
+    notes.push(
+      `Grid parser detected ${expectedTimeSlots} distinct time slot(s) but the AI only referenced ${referencedTimeSlots} — an administration round may be missing.`,
+    );
+  }
+
   return {
     expectedCells,
     populatedRecords,
     cellDelta,
+    expectedDates,
+    referencedDates,
+    expectedTimeSlots,
+    referencedTimeSlots,
     mismatched,
     notes,
   };
