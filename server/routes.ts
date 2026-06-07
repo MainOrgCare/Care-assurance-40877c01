@@ -54,6 +54,7 @@ import { getRiskAnalysisCache, setRiskAnalysisCache } from "./services/riskAnaly
 import {
   RULE_BASED_SIGNAL_GROUPS,
   buildFallbackRiskProfileSummary,
+  clampResidualRiskRating,
   countPersonCentredViolations,
   deescalateRiskRating,
   extractSignalLabels,
@@ -16414,9 +16415,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
             const controlMeasures = typeof risk?.controlMeasures === "string"
               ? sanitizeRiskNarrativeFieldText(cleanNotAwarePhrases(toFirstPerson(sanitizeOutOfScopeText(risk.controlMeasures))))
               : "";
+            const initialRating = normalizeRiskRating(risk?.initialRating);
             return {
               ...risk,
-              initialRating: normalizeRiskRating(risk?.initialRating),
+              initialRating,
               riskDefinition: ensureDetailed(
                 improveField(riskDefinition, "I have a documented risk in this area of my care."),
                 "I need clear, person-centred support so this risk is managed safely and consistently."
@@ -16432,7 +16434,10 @@ Remember: Extract information ONLY from the service user documents above. Templa
               whoWillBeHarmed: typeof risk?.whoWillBeHarmed === "string" && risk.whoWillBeHarmed.trim().length > 0
                 ? cleanRiskArtifactText(risk.whoWillBeHarmed.trim()) || "Service User and Care Workers"
                 : "Service User and Care Workers",
-              ratingAfterControls: normalizeRiskRating(risk?.ratingAfterControls),
+              ratingAfterControls: clampResidualRiskRating(
+                initialRating,
+                normalizeRiskRating(risk?.ratingAfterControls),
+              ),
             };
           });
         }

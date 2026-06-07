@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   RULE_BASED_SIGNAL_GROUPS,
   buildFallbackRiskProfileSummary,
+  clampResidualRiskRating,
   countPersonCentredViolations,
   deescalateRiskRating,
   extractSignalLabels,
@@ -26,6 +27,22 @@ test("deescalateRiskRating lowers residual ratings conservatively", () => {
   assert.equal(deescalateRiskRating("High"), "Medium");
   assert.equal(deescalateRiskRating("Medium"), "Low");
   assert.equal(deescalateRiskRating("Low"), "Low");
+});
+
+test("clampResidualRiskRating prevents controls from increasing risk", () => {
+  // Residual more severe than initial is clamped down to the initial rating.
+  assert.equal(clampResidualRiskRating("Low", "High"), "Low");
+  assert.equal(clampResidualRiskRating("Low", "Medium"), "Low");
+  assert.equal(clampResidualRiskRating("Medium", "High"), "Medium");
+});
+
+test("clampResidualRiskRating preserves valid (equal or reduced) residual ratings", () => {
+  // Controls that maintain or reduce risk are left untouched.
+  assert.equal(clampResidualRiskRating("High", "High"), "High");
+  assert.equal(clampResidualRiskRating("High", "Medium"), "Medium");
+  assert.equal(clampResidualRiskRating("High", "Low"), "Low");
+  assert.equal(clampResidualRiskRating("Medium", "Low"), "Low");
+  assert.equal(clampResidualRiskRating("Low", "Low"), "Low");
 });
 
 test("extractSignalLabels finds rule-based signals across medical, care and environment groups", () => {

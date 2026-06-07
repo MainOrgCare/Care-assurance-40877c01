@@ -154,6 +154,29 @@ export function deescalateRiskRating(rating: "Low" | "Medium" | "High"): "Low" |
   return "Low";
 }
 
+const RISK_RATING_SEVERITY: Record<"Low" | "Medium" | "High", number> = {
+  Low: 0,
+  Medium: 1,
+  High: 2,
+};
+
+/**
+ * Enforces the core risk-assessment invariant that control measures can only reduce or
+ * maintain risk — never increase it. The residual (after-controls) rating must never be
+ * more severe than the initial (pre-control) rating. When an AI-generated assessment
+ * violates this (e.g. initial=Low but ratingAfterControls=High), the residual is clamped
+ * down to the initial rating. Both inputs are expected to be pre-normalized via
+ * normalizeRiskRating.
+ */
+export function clampResidualRiskRating(
+  initialRating: "Low" | "Medium" | "High",
+  residualRating: "Low" | "Medium" | "High",
+): "Low" | "Medium" | "High" {
+  return RISK_RATING_SEVERITY[residualRating] > RISK_RATING_SEVERITY[initialRating]
+    ? initialRating
+    : residualRating;
+}
+
 export function hasFirstPersonMarkers(text: string): boolean {
   if (typeof text !== "string" || !text) return false;
   const lower = text.toLowerCase();
