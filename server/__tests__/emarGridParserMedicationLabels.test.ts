@@ -23,3 +23,18 @@ test("splitMedicationLabel still treats dose fragments as instruction-only text"
   assert.equal(result.name, "");
   assert.equal(result.instructions, "10mg -");
 });
+test("splitMedicationLabel treats a dose line led by a typo'd instruction verb as instructions, not a medication", () => {
+  // Real-world source typo: "Taker ONE tablet on am visit" (should read "Take ONE…").
+  // Without handling, "Taker" leaks in as a phantom medication name.
+  const result = splitMedicationLabel("Taker ONE tablet on am visit");
+
+  assert.equal(result.name, "");
+  assert.equal(result.instructions, "Taker ONE tablet on am visit");
+});
+
+test("splitMedicationLabel treats other instruction-verb inflections as instructions", () => {
+  for (const verb of ["Takes", "Taking", "Applies", "Giving", "Using"]) {
+    const result = splitMedicationLabel(`${verb} one tablet daily`);
+    assert.equal(result.name, "", `${verb} should not be a medication name`);
+  }
+});

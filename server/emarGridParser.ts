@@ -116,6 +116,22 @@ const MEDICATION_NAME_INSTRUCTION_WORDS = new Set([
   "night",
   "bedtime",
   "taken",
+  // Verb inflections / common OCR-or-source typos of the instruction verbs above.
+  // None of these is ever a real medication name, but they leak into the medication
+  // column when a dose line is malformed (e.g. the source typo "Taker ONE tablet…").
+  "taker",
+  "takes",
+  "taking",
+  "applies",
+  "applied",
+  "applying",
+  "administers",
+  "administered",
+  "gives",
+  "given",
+  "giving",
+  "uses",
+  "using",
   "before",
   "after",
   "food",
