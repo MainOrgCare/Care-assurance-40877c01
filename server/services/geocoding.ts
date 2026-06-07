@@ -4,6 +4,9 @@ type GeocodeResult = {
   displayName: string;
 };
 
+const MAX_BULK_POSTCODES = 500;
+const BULK_POSTCODE_CHUNK_SIZE = 100;
+
 const cache = new Map<string, GeocodeResult | null>();
 const MAX_GEOCODE_CACHE_SIZE = 5_000;
 let lastRequestTime = 0;
@@ -42,15 +45,133 @@ const geocodeWithPostcodesIo = async (postcode: string): Promise<GeocodeResult |
     status?: number;
     result?: { latitude?: number | null; longitude?: number | null; postcode?: string | null };
   };
-  const latitude = payload.result?.latitude;
-  const longitude = payload.result?.longitude;
-  if (!isFiniteNumber(latitude) || !isFiniteNumber(longitude)) return null;
+   const latitude = payload.result?.latitude;
+   const longitude = payload.result?.longitude;
+   if (!isFiniteNumber(latitude) || !isFiniteNumber(longitude)) return null;
 
-  return {
-    lat: latitude,
-    lon: longitude,
-    displayName: payload.result?.postcode?.trim() || postcode,
-  };
+   return {
+     lat: latitude,
+     lon: longitude,
+     displayName: payload.result?.postcode?.trim() || postcode,
+   };
+};
+
+const geocodeWithTerminatedPostcodesIo = async (postcode: string): Promise<GeocodeResult | null> => {
+   const url = `https://api.postcodes.io/terminated_postcodes/${encodeURIComponent(postcode)}`;
+   const response = await fetch(url, { signal: AbortSignal.timeout(7_000) });
+   if (!response.ok) return null;
+
+   const payload = (await response.json()) as {
+     status?: number;
+     result?: { latitude?: number | null; longitude?: number | null; postcode?: string | null };
+   };
+   const latitude = payload.result?.latitude;
+   const longitude = payload.result?.longitude;
+   if (!isFiniteNumber(latitude) || !isFiniteNumber(longitude)) return null;
+
+   return {
+     lat: latitude,
+     lon: longitude,
+     displayName: payload.result?.postcode?.trim() || postcode,
+   };
+};
+
+const geocodePostcode = async (postcode: string): Promise<GeocodeResult | null> => {
+   const live = await geocodeWithPostcodesIo(postcode);
+   if (live) return live;
+   return geocodeWithTerminatedPostcodesIo(postcode);
+};
+
+const normalizePostcodeKey = (postcode: string): string =>
+   postcode.toUpperCase().replace(/\s+/g, "");
+
+const splitChunks = <T>(items: T[], size: number): T[][] => {
+   const chunks: T[][] = [];
+   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+   return chunks;
+};
+
+export const geocodePostcodesBulk = async (
+   rawPostcodes: string[],
+): Promise<Record<string, GeocodeResult>> => {
+   const normalized = [
+     ...new Set(
+       rawPostcodes
+         .map((pc) => normalizeUkPostcode(pc))
+         .filter((pc): pc is string => Boolean(pc)),
+     ),
+   ].slice(0, MAX_BULK_POSTCODES);
+   if (normalized.length === 0) return {};
+
+   const resolved: Record<string, GeocodeResult> = {};
+   const unresolved = new Set<string>();
+
+   for (const postcode of normalized) {
+     const cacheValue = cache.get(postcode);
+     if (cacheValue) {
+       resolved[normalizePostcodeKey(postcode)] = cacheValue;
+       continue;
+     }
+     unresolved.add(postcode);
+   }
+
+   const chunks = splitChunks([...unresolved], BULK_POSTCODE_CHUNK_SIZE);
+   for (const chunk of chunks) {
+     try {
+       const response = await fetch("https://api.postcodes.io/postcodes", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ postcodes: chunk }),
+         signal: AbortSignal.timeout(10_000),
+       });
+       if (!response.ok) continue;
+
+       const payload = (await response.json()) as {
+         result?: Array<{
+           query?: string | null;
+           result?: {
+             latitude?: number | null;
+             longitude?: number | null;
+             postcode?: string | null;
+           } | null;
+         }>;
+       };
+
+       for (const item of payload.result ?? []) {
+         const normalizedQuery = normalizeUkPostcode(item.query ?? "");
+         if (!normalizedQuery) continue;
+         const latitude = item.result?.latitude;
+         const longitude = item.result?.longitude;
+         if (!isFiniteNumber(latitude) || !isFiniteNumber(longitude)) continue;
+         const geocoded: GeocodeResult = {
+           lat: latitude,
+           lon: longitude,
+           displayName: item.result?.postcode?.trim() || normalizedQuery,
+         };
+         setCacheEntry(normalizedQuery, geocoded);
+         resolved[normalizePostcodeKey(normalizedQuery)] = geocoded;
+         unresolved.delete(normalizedQuery);
+       }
+     } catch {
+       // Try terminated lookups for anything not resolved in this chunk.
+     }
+   }
+
+   for (const postcode of unresolved) {
+     try {
+       const terminated = await geocodeWithTerminatedPostcodesIo(postcode);
+       if (!terminated) {
+         setCacheEntry(postcode, null);
+         continue;
+       }
+       setCacheEntry(postcode, terminated);
+       resolved[normalizePostcodeKey(postcode)] = terminated;
+     } catch {
+       setCacheEntry(postcode, null);
+     }
+   }
+
+   return resolved;
 };
 
 export const geocodeAddress = async (address: string): Promise<GeocodeResult | null> => {
@@ -65,7 +186,7 @@ export const geocodeAddress = async (address: string): Promise<GeocodeResult | n
   // Postcode-only lookups are far more precise and much faster through postcodes.io.
   if (postcode) {
     try {
-      const postcodeResult = await geocodeWithPostcodesIo(postcode);
+      const postcodeResult = await geocodePostcode(postcode);
       if (postcodeResult) {
         setCacheEntry(cacheKey, postcodeResult);
         return postcodeResult;

@@ -91,7 +91,7 @@ import { scanFile } from "./services/fileScan";
 import { SafeXLSX, RawXLSX } from "./utils/safe-xlsx";
 import { analyzeBillingRows } from "./services/billingAnalyzer";
 import { extractSupportPlanDataFromText, compareSupportPlanToServiceOrders, type ServiceOrderComparisonInput } from "./services/supportPlanCompare";
-import { geocodeAddress } from "./services/geocoding";
+import { geocodeAddress, geocodePostcodesBulk } from "./services/geocoding";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { runComplianceAgent } from "./services/emarComplianceAgent";
 
@@ -7694,6 +7694,31 @@ export async function registerRoutes(
       return res.json({ address, result });
     } catch (error: any) {
       return res.status(500).json({ message: safeErrorMessage(error, "Failed to geocode address") });
+    }
+  });
+
+  // Bulk-geocode postcodes (admin only, cached)
+  app.post("/api/admin/geocode/postcodes", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const postcodesRaw = Array.isArray(req.body?.postcodes) ? req.body.postcodes : null;
+      if (!postcodesRaw) {
+        return res.status(400).json({ message: "postcodes[] is required" });
+      }
+      const postcodes = postcodesRaw
+        .map((value: unknown) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value: string) => value.length > 0);
+      if (postcodes.length === 0) {
+        return res.status(400).json({ message: "At least one postcode is required" });
+      }
+      if (postcodes.length > 500) {
+        return res.status(400).json({ message: "Too many postcodes (max 500)" });
+      }
+      const results = await geocodePostcodesBulk(postcodes);
+      return res.json({ count: postcodes.length, resolved: Object.keys(results).length, results });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({ message: safeErrorMessage(error, "Failed to bulk geocode postcodes") });
     }
   });
 

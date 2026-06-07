@@ -40,7 +40,7 @@ import {
 } from "@/lib/rostering/zoneMapData";
 import { useZoneRecords, useZoneRegions, useZoneSource } from "@/lib/rostering/zoneStore";
 import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
-import { geocodeAddressClient } from "@/lib/rostering/geocodeClient";
+import { geocodeAddressClient, geocodePostcodesClient } from "@/lib/rostering/geocodeClient";
 
 const DEFAULT_CENTER: [number, number] = [54.8, -1.6];
 
@@ -144,22 +144,14 @@ export default function ZoneMap() {
     let cancelled = false;
     const postcodes = uniquePostcodes(result).slice(0, 400);
     (async () => {
-      const updates: Record<string, LatLon> = {};
       const missing = postcodes.filter((pc) => !geocodedPostcodes[normalizePostcodeKey(pc)]);
-      let cursor = 0;
-      const workerCount = Math.min(8, missing.length);
-      const workers = Array.from({ length: workerCount }, async () => {
-        while (true) {
-          const index = cursor++;
-          if (index >= missing.length) return;
-          const pc = missing[index];
-          const key = normalizePostcodeKey(pc);
-          const res = await geocodeAddressClient(pc);
-          if (cancelled) return;
-          if (res) updates[key] = { lat: res.lat, lon: res.lon };
-        }
-      });
-      await Promise.all(workers);
+      if (missing.length === 0) return;
+      const geocoded = await geocodePostcodesClient(missing);
+      if (cancelled) return;
+      const updates: Record<string, LatLon> = {};
+      for (const [key, point] of Object.entries(geocoded)) {
+        updates[key] = { lat: point.lat, lon: point.lon };
+      }
       if (!cancelled && Object.keys(updates).length > 0) {
         setGeocodedPostcodes((prev) => ({ ...prev, ...updates }));
       }
