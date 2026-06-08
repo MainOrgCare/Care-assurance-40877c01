@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, parseApiResponse } from "@/lib/queryClient";
+import { useTemporaryData } from "@/context/TemporaryDataContext";
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -486,6 +487,25 @@ export default function RosteringStudioUnified({
   const { toast } = useToast();
   usePageTitle("Rostering Studio");
   const queryClient = useQueryClient();
+  const { setCareWorkerNames } = useTemporaryData();
+
+  // Fetch care worker names mapping
+  const { data: careWorkerNamesMap } = useQuery({
+    queryKey: ["admin", "rostering", "care-workers-names-map"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/rostering/care-workers-names-map");
+      const json = await parseApiResponse<Record<string, string>>(res);
+      return json ?? {};
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Update context with care worker names when data is fetched
+  useEffect(() => {
+    if (careWorkerNamesMap) {
+      setCareWorkerNames(careWorkerNamesMap);
+    }
+  }, [careWorkerNamesMap, setCareWorkerNames]);
 
   // Warm optional heavy chunks in idle time so first panel-open feels instant.
   useEffect(() => {

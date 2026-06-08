@@ -38,6 +38,8 @@ type ServiceUserDataState = {
 
 interface TemporaryDataContextType {
   serviceUserData: ServiceUserDataState;
+  careWorkerNames: Record<string, string>; // Map of anonymized name to actual full name
+  setCareWorkerNames: (names: Record<string, string>) => void;
   uploadFile: (section: UploadSection, file: File) => Promise<void>;
   importExtensionUploads: (payload: {
     uploads: ExtensionUploadItem[];
@@ -67,6 +69,7 @@ const TemporaryDataTimerContext = createContext<TemporaryDataTimerContextType | 
 
 export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   const [serviceUserData, setServiceUserData] = useState<ServiceUserDataState>({});
+  const [careWorkerNames, setCareWorkerNames] = useState<Record<string, string>>({});
   
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const isTimerActive = timeLeft !== null;
@@ -116,6 +119,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
   const clearServiceUserData = useCallback(() => {
     resetUploadTracking();
     setServiceUserData({});
+    setCareWorkerNames({});
     setTimeLeft(null);
     demoDataLoadedRef.current = false;
   }, [resetUploadTracking]);
@@ -540,6 +544,8 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({
     serviceUserData,
+    careWorkerNames,
+    setCareWorkerNames,
     uploadFile,
     importExtensionUploads,
     removeAdditionalDocument,
@@ -550,7 +556,7 @@ export function TemporaryDataProvider({ children }: { children: ReactNode }) {
     isAnyParsing,
     loadDemoData,
     setAdditionalNotes,
-  }), [serviceUserData, uploadFile, importExtensionUploads, removeAdditionalDocument, clearServiceUserData, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
+  }), [serviceUserData, careWorkerNames, uploadFile, importExtensionUploads, removeAdditionalDocument, clearServiceUserData, startTimer, resetTimer, getAllDocumentContent, isAnyParsing, loadDemoData, setAdditionalNotes]);
 
   const timerContextValue = useMemo(() => ({
     timeLeft,

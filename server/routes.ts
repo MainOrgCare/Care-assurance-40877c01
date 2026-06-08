@@ -19931,6 +19931,23 @@ Return ONLY valid JSON matching the schema.`,
     }
   });
 
+  app.get("/api/admin/rostering/care-workers-names-map", requireAuth, async (req, res) => {
+    try {
+      const careWorkers = await storage.getAllAnalyzedCareWorkers();
+      // Build mapping from anonymized name to full actual name
+      const nameMap: Record<string, string> = {};
+      for (const worker of careWorkers) {
+        // workerKey is typically the anonymized name like "L.Barron"
+        // workerName is the full/actual name from analysis
+        nameMap[worker.workerKey] = worker.workerName;
+      }
+      return res.json({ data: nameMap });
+    } catch (error: any) {
+      console.error("[Rostering] Failed to fetch care worker names map:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to load care worker names") });
+    }
+  });
+
   app.get("/api/admin/rostering/care-workers-analyzed/:key", requireAuth, requireAdmin, async (req, res) => {
     try {
       const careWorker = await storage.getAnalyzedCareWorker(getRouteParamValue(req.params.key));

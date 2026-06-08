@@ -40,6 +40,7 @@ import {
   type ServiceUserMarker,
   type CareWorkerMarker,
 } from "@/lib/rostering/zoneMapData";
+import { useTemporaryData } from "@/context/TemporaryDataContext";
 import { useZoneRecords, useZoneRegions, useZoneSource } from "@/lib/rostering/zoneStore";
 import { regionsInRecords } from "@/lib/rostering/zoneRosterAdapter";
 import { geocodeAddressClient, geocodePostcodesClient } from "@/lib/rostering/geocodeClient";
@@ -108,6 +109,7 @@ function FlyTo({ point }: { point: LatLon | null }) {
 export default function ZoneMap() {
   usePageTitle("Zone Map");
 
+  const { careWorkerNames } = useTemporaryData();
   const regions = useZoneRegions();
   const records = useZoneRecords();
   const source = useZoneSource();
@@ -289,8 +291,8 @@ export default function ZoneMap() {
 
   const careWorkerMarkers = useMemo<CareWorkerMarker[]>(() => {
     if (!careWorkersData || careWorkersData.length === 0) return [];
-    return buildCareWorkerMarkers(careWorkersData, geocodedPostcodes, geocodedAddresses);
-  }, [careWorkersData, geocodedPostcodes, geocodedAddresses]);
+    return buildCareWorkerMarkers(careWorkersData, geocodedPostcodes, careWorkerNames);
+  }, [careWorkersData, geocodedPostcodes, careWorkerNames]);
 
   const sectionColors = useMemo(
     () => (result ? buildSectionColors(result.sections) : {}),
@@ -688,9 +690,8 @@ export default function ZoneMap() {
                 >
                   <Popup>
                     <div className="min-w-[160px] text-xs">
-                      <div className="text-sm font-semibold text-purple-600">{w.name}</div>
+                      <div className="text-sm font-semibold text-purple-600">{w.fullName || w.name}</div>
                       <div className="mt-0.5 text-muted-foreground">{w.role}</div>
-                      {w.address && <div className="text-muted-foreground">{w.address}</div>}
                       {w.postcode && <div className="text-muted-foreground">{w.postcode}</div>}
                       {!w.precise && (
                         <div className="mt-1 text-[10px] italic text-muted-foreground">

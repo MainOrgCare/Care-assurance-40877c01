@@ -13,9 +13,9 @@ export interface LatLon {
 
 export interface CareWorkerMarker extends LatLon {
   id: string;
-  name: string;
+  name: string; // Anonymized name (L.Barron)
+  fullName: string | null; // Actual employee name (PII-sensitive, from volatile context)
   role: string;
-  address: string | null;
   postcode: string | null;
   precise: boolean; // true if from coordinates, false if from geocoding fallback
 }
@@ -320,13 +320,12 @@ export function buildCareWorkerMarkers(
     id: string;
     name: string;
     role: string;
-    address: string | null;
     postcode: string | null;
     latitude: number | null;
     longitude: number | null;
   }>,
   geocodedPostcodes: Record<string, LatLon>,
-  geocodedAddresses: Record<string, LatLon>,
+  careWorkerNameMap: Record<string, string> = {},
 ): CareWorkerMarker[] {
   const markers: CareWorkerMarker[] = [];
 
@@ -336,8 +335,8 @@ export function buildCareWorkerMarkers(
       markers.push({
         id: worker.id,
         name: worker.name,
+        fullName: careWorkerNameMap[worker.name] ?? null,
         role: worker.role,
-        address: worker.address,
         postcode: worker.postcode,
         lat: worker.latitude / 1_000_000, // Convert from stored integer degrees
         lon: worker.longitude / 1_000_000,
@@ -353,28 +352,11 @@ export function buildCareWorkerMarkers(
       markers.push({
         id: worker.id,
         name: worker.name,
+        fullName: careWorkerNameMap[worker.name] ?? null,
         role: worker.role,
-        address: worker.address,
         postcode: worker.postcode,
         lat: precisePostcodePoint.lat,
         lon: precisePostcodePoint.lon,
-        precise: true,
-      });
-      continue;
-    }
-
-    // Try address geocoding
-    const addressKey = normalizeAddressKey(worker.address);
-    const preciseAddressPoint = addressKey ? geocodedAddresses[addressKey] : undefined;
-    if (preciseAddressPoint) {
-      markers.push({
-        id: worker.id,
-        name: worker.name,
-        role: worker.role,
-        address: worker.address,
-        postcode: worker.postcode,
-        lat: preciseAddressPoint.lat,
-        lon: preciseAddressPoint.lon,
         precise: true,
       });
     }

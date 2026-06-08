@@ -5285,6 +5285,7 @@ export default function SecretAdminPortal() {
   const [acpServiceUsersLoading, setAcpServiceUsersLoading] = useState(false);
   const [acpServiceUserPickerOpen, setAcpServiceUserPickerOpen] = useState(false);
   const [selectedAcpServiceUser, setSelectedAcpServiceUser] = useState<AdminAcpServiceUser | null>(null);
+  const [acpServiceUsersDeletingLoading, setAcpServiceUsersDeletingLoading] = useState(false);
   const [opsHealth, setOpsHealth] = useState<OpsHealthSnapshot | null>(null);
 
   const formatExtensionTestError = (error?: string) => {
@@ -5528,6 +5529,42 @@ export default function SecretAdminPortal() {
       });
     } finally {
       setAcpServiceUsersLoading(false);
+    }
+  };
+
+  const deleteAllAcpServiceUsers = async () => {
+    if (!window.confirm(`Delete all ${acpServiceUsers.length} imported ACP service users? This cannot be undone.`)) {
+      return;
+    }
+
+    setAcpServiceUsersDeletingLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/extension/acp-service-users", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete ACP service users.");
+      }
+
+      setAcpServiceUsers([]);
+      setSelectedAcpServiceUser(null);
+      toast({
+        title: "Service users deleted",
+        description: `Successfully deleted ${data.deletedCount} service users.`,
+      });
+    } catch (error) {
+      console.error("Failed to delete ACP service users:", error);
+      toast({
+        title: "Deletion failed",
+        description: error instanceof Error ? error.message : "Could not delete the ACP service users.",
+        variant: "destructive",
+      });
+    } finally {
+      setAcpServiceUsersDeletingLoading(false);
     }
   };
 
@@ -6822,6 +6859,16 @@ export default function SecretAdminPortal() {
                       >
                         <RotateCcw size={14} className="mr-2" />
                         Reset
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => void deleteAllAcpServiceUsers()}
+                        disabled={acpServiceUsersDeletingLoading || acpServiceUsers.length === 0}
+                        data-testid="button-delete-all-acp-service-users"
+                      >
+                        {acpServiceUsersDeletingLoading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Trash2 size={14} className="mr-2" />}
+                        Delete All Users
                       </Button>
                     </div>
                   </div>

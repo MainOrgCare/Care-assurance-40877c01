@@ -1028,6 +1028,17 @@ export function registerExtensionRoutes(
     }
   });
 
+  // Delete all ACP service users
+  app.delete("/api/admin/extension/acp-service-users", requireAuth, requireAdmin, async (_req: any, res) => {
+    try {
+      const deletedCount = await storage.deleteAllAccessCarePlanningServiceUsers();
+      return res.json({ message: `Deleted ${deletedCount} service users`, deletedCount });
+    } catch (error: unknown) {
+      console.error("Delete ACP service users error:", error);
+      return res.status(500).json({ message: safeErrorMessage(error, "Failed to delete ACP service users") });
+    }
+  });
+
   // ACP service users for extension autofill (non-admin)
   app.get("/api/extension/acp-service-users", requireAuth, async (_req: any, res) => {
     try {

@@ -454,6 +454,7 @@ export interface IStorage {
 
   // Access Care Planning Service Users
   getAllAccessCarePlanningServiceUsers(): Promise<AccessCarePlanningServiceUser[]>;
+  deleteAllAccessCarePlanningServiceUsers(): Promise<number>;
 
   // Analyzed Care Workers
   upsertAnalyzedCareWorker(careWorker: InsertAnalyzedCareWorker): Promise<AnalyzedCareWorker>;
@@ -2395,6 +2396,11 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(accessCarePlanningServiceUsers)
       .orderBy(accessCarePlanningServiceUsers.serviceUserName);
+  }
+
+  async deleteAllAccessCarePlanningServiceUsers(): Promise<number> {
+    const result = await this.db.delete(accessCarePlanningServiceUsers);
+    return result.rowCount;
   }
 
   // Analyzed Care Workers
